@@ -72,4 +72,27 @@ class CSVGenerator:
         safe_name = safe_name.replace(" ", "_")
         filename = f"{safe_name}_{timestamp}.csv"
         return filename
+    
+    @staticmethod
+    def convert_alerts_to_csv_format(alerts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Convert price alerts from database format to CSV format.
+        
+        Args:
+            alerts: List of price alert dictionaries from database
+            
+        Returns:
+            List of dictionaries formatted for CSV generation
+        """
+        return [
+            {
+                "upc": alert["upc"],
+                "seller_name": alert.get("seller_name"),
+                "current_price": alert.get("current_price"),
+                "historical_price": alert.get("historical_price"),
+                "price_change_percent": alert.get("price_change_percent"),
+                "detected_at": alert.get("detected_at"),
+            }
+            for alert in alerts
+        ]
 

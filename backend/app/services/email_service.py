@@ -19,6 +19,7 @@ class EmailService:
         self.smtp_host = settings.email_smtp_host
         self.smtp_port = settings.email_smtp_port
         self.email_from = settings.email_from
+        self.email_from_name = settings.email_from_name
         self.email_password = settings.email_password
         self.email_to = settings.email_to
         self.last_error = None
@@ -75,7 +76,8 @@ class EmailService:
         try:
             # Create message
             msg = MIMEMultipart()
-            msg["From"] = self.email_from
+            # Format: Display name only (email address used for SMTP auth but not shown)
+            msg["From"] = self.email_from_name
             # Join multiple recipients with comma for the "To" header
             msg["To"] = ", ".join(recipients)
             msg["Subject"] = f"Keepa Price Alert Report - {job_name}"
@@ -183,7 +185,8 @@ class EmailService:
             
             try:
                 msg = MIMEMultipart()
-                msg["From"] = self.email_from
+                # Format: Display name only (email address used for SMTP auth but not shown)
+                msg["From"] = self.email_from_name
                 msg["To"] = ", ".join(recipients)
                 msg["Subject"] = f"Keepa Job Completed - {job_name}"
                 

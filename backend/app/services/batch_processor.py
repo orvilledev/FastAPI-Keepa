@@ -3,6 +3,7 @@ import asyncio
 import logging
 from typing import List, Dict, Any
 from uuid import UUID
+from datetime import datetime
 from app.database import get_supabase
 from app.services.keepa_client import KeepaClient
 from app.services.price_analyzer import PriceAnalyzer
@@ -154,7 +155,6 @@ class BatchProcessor:
                     if batch_check.data and batch_check.data[0].get("status") == "cancelled":
                         logger.info(f"Batch {batch_id} was cancelled, stopping processing")
                         # Update processed count before stopping
-                        from datetime import datetime
                         self.db.table("upc_batches").update({
                             "processed_count": processed_count,
                         }).eq("id", str(batch_id)).execute()
@@ -180,7 +180,6 @@ class BatchProcessor:
                             analysis = self.price_analyzer.analyze_product(keepa_response)
                             
                             # Update item with Keepa data
-                            from datetime import datetime
                             self.db.table("upc_batch_items").update({
                                 "keepa_data": keepa_response,
                                 "status": "completed",
@@ -204,7 +203,6 @@ class BatchProcessor:
                             logger.info(f"Successfully processed UPC {upc}, processed_count now: {processed_count}")
                         else:
                             # No data found
-                            from datetime import datetime
                             logger.warning(f"No Keepa data returned for UPC {upc}")
                             self.db.table("upc_batch_items").update({
                                 "status": "completed",
@@ -216,7 +214,6 @@ class BatchProcessor:
                             
                     except Exception as e:
                         logger.error(f"Error processing UPC {upc}: {type(e).__name__}: {str(e)}", exc_info=True)
-                        from datetime import datetime
                         self.db.table("upc_batch_items").update({
                             "status": "failed",
                             "error_message": str(e),
@@ -226,7 +223,6 @@ class BatchProcessor:
                         logger.info(f"Marked UPC {upc} as failed, processed_count now: {processed_count}")
             
             # Update batch status
-            from datetime import datetime
             self.db.table("upc_batches").update({
                 "status": "completed",
                 "processed_count": processed_count,
@@ -295,18 +291,8 @@ class BatchProcessor:
             job_data = job_response.data[0]
             job_name = job_data["job_name"]
             
-            # Convert alerts to format for CSV
-            alerts_for_csv = [
-                {
-                    "upc": alert["upc"],
-                    "seller_name": alert.get("seller_name"),
-                    "current_price": alert.get("current_price"),
-                    "historical_price": alert.get("historical_price"),
-                    "price_change_percent": alert.get("price_change_percent"),
-                    "detected_at": alert.get("detected_at"),
-                }
-                for alert in alerts
-            ]
+            # Convert alerts to format for CSV using helper method
+            alerts_for_csv = self.csv_generator.convert_alerts_to_csv_format(alerts)
             
             csv_bytes = self.csv_generator.generate_price_alerts_csv(alerts_for_csv)
             filename = self.csv_generator.generate_csv_filename(job_name)
@@ -332,7 +318,6 @@ class BatchProcessor:
                 logger.error(f"Email config check: from={bool(self.email_service.email_from)}, password={'*' if self.email_service.email_password else 'MISSING'}, to={bool(self.email_service.email_to)}")
             
             # Update job status
-            from datetime import datetime
             self.db.table("batch_jobs").update({
                 "status": "completed",
                 "completed_at": datetime.utcnow().isoformat(),

@@ -4,11 +4,14 @@ from fastapi.responses import StreamingResponse
 from typing import List
 from uuid import UUID
 import io
-from app.dependencies import get_current_user
+from datetime import datetime
+from app.dependencies import get_current_user, verify_job_access
 from app.models.price_alert import PriceAlertResponse
 from app.database import get_supabase
 from app.services.csv_generator import CSVGenerator
 from app.services.email_service import EmailService
+from app.services.report_service import ReportService
+from app.utils.error_handler import handle_api_errors
 from supabase import Client
 
 router = APIRouter()
@@ -20,11 +23,6 @@ async def test_email(
 ):
     """Test email configuration by sending a test email."""
     try:
-        from app.services.email_service import EmailService
-        from app.services.csv_generator import CSVGenerator
-        from datetime import datetime
-        import smtplib
-        
         email_service = EmailService()
         
         # Create a simple test CSV
@@ -79,182 +77,75 @@ async def test_email(
                 }
             }
     except Exception as e:
+        logger.error(f"Error testing email: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error testing email: {str(e)}")
 
 
 @router.get("/reports/{job_id}", response_model=List[PriceAlertResponse])
+@handle_api_errors("get price alerts")
 async def get_price_alerts(
-    job_id: UUID,
-    current_user: dict = Depends(get_current_user),
+    job: dict = Depends(verify_job_access),
     db: Client = Depends(get_supabase)
 ):
     """Get price alerts for a job."""
-    try:
-        # Verify job exists and user has access
-        job_response = db.table("batch_jobs").select("created_by").eq("id", str(job_id)).execute()
-        
-        if not job_response.data:
-            raise HTTPException(status_code=404, detail="Job not found")
-        
-        job = job_response.data[0]
-        
-        # Check permissions
-        profile_response = db.table("profiles").select("role").eq("id", current_user["id"]).execute()
-        is_admin = profile_response.data and profile_response.data[0].get("role") == "admin"
-        
-        if not is_admin and job["created_by"] != current_user["id"]:
-            raise HTTPException(status_code=403, detail="Not authorized to view this job")
-        
-        # Get price alerts
-        alerts_response = db.table("price_alerts").select("*").eq(
-            "batch_job_id", str(job_id)
-        ).order("detected_at", desc=True).execute()
-        
-        return [PriceAlertResponse(**alert) for alert in alerts_response.data]
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get price alerts: {str(e)}")
+    job_id = UUID(job["id"])
+    report_service = ReportService(db)
+    alerts = report_service.get_price_alerts_for_job(job_id)
+    return [PriceAlertResponse(**alert) for alert in alerts]
 
 
 @router.get("/reports/{job_id}/csv")
+@handle_api_errors("generate CSV")
 async def download_csv(
-    job_id: UUID,
-    current_user: dict = Depends(get_current_user),
+    job: dict = Depends(verify_job_access),
     db: Client = Depends(get_supabase)
 ):
     """Download CSV report for a job."""
-    try:
-        # Verify job exists and user has access
-        job_response = db.table("batch_jobs").select("*").eq("id", str(job_id)).execute()
-        
-        if not job_response.data:
-            raise HTTPException(status_code=404, detail="Job not found")
-        
-        job = job_response.data[0]
-        
-        # Check permissions
-        profile_response = db.table("profiles").select("role").eq("id", current_user["id"]).execute()
-        is_admin = profile_response.data and profile_response.data[0].get("role") == "admin"
-        
-        if not is_admin and job["created_by"] != current_user["id"]:
-            raise HTTPException(status_code=403, detail="Not authorized to view this job")
-        
-        # Get price alerts
-        alerts_response = db.table("price_alerts").select("*").eq(
-            "batch_job_id", str(job_id)
-        ).order("detected_at", desc=True).execute()
-        
-        alerts = alerts_response.data
-        
-        # Convert to CSV format
-        alerts_for_csv = [
-            {
-                "upc": alert["upc"],
-                "seller_name": alert.get("seller_name"),
-                "current_price": alert.get("current_price"),
-                "historical_price": alert.get("historical_price"),
-                "price_change_percent": alert.get("price_change_percent"),
-                "detected_at": alert.get("detected_at"),
-            }
-            for alert in alerts
-        ]
-        
-        # Generate CSV
-        csv_generator = CSVGenerator()
-        csv_bytes = csv_generator.generate_price_alerts_csv(alerts_for_csv)
-        filename = csv_generator.generate_csv_filename(job["job_name"])
-        
-        # Return as streaming response
-        return StreamingResponse(
-            io.BytesIO(csv_bytes),
-            media_type="text/csv",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate CSV: {str(e)}")
+    job_id = UUID(job["id"])
+    report_service = ReportService(db)
+    csv_bytes, filename = report_service.generate_csv_for_job(job_id, job["job_name"])
+    
+    return StreamingResponse(
+        io.BytesIO(csv_bytes),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
 
 
 @router.post("/reports/{job_id}/email")
+@handle_api_errors("resend email")
 async def resend_email(
-    job_id: UUID,
-    current_user: dict = Depends(get_current_user),
+    job: dict = Depends(verify_job_access),
     db: Client = Depends(get_supabase)
 ):
     """Resend email report for a job."""
-    try:
-        # Verify job exists and user has access
-        job_response = db.table("batch_jobs").select("*").eq("id", str(job_id)).execute()
-        
-        if not job_response.data:
-            raise HTTPException(status_code=404, detail="Job not found")
-        
-        job = job_response.data[0]
-        
-        # Check permissions
-        profile_response = db.table("profiles").select("role").eq("id", current_user["id"]).execute()
-        is_admin = profile_response.data and profile_response.data[0].get("role") == "admin"
-        
-        if not is_admin and job["created_by"] != current_user["id"]:
-            raise HTTPException(status_code=403, detail="Not authorized to resend email for this job")
-        
-        # Get price alerts
-        alerts_response = db.table("price_alerts").select("*").eq(
-            "batch_job_id", str(job_id)
-        ).execute()
-        
-        alerts = alerts_response.data
-        
-        # Convert to CSV format
-        alerts_for_csv = [
-            {
-                "upc": alert["upc"],
-                "seller_name": alert.get("seller_name"),
-                "current_price": alert.get("current_price"),
-                "historical_price": alert.get("historical_price"),
-                "price_change_percent": alert.get("price_change_percent"),
-                "detected_at": alert.get("detected_at"),
-            }
-            for alert in alerts
-        ]
-        
-        # Generate CSV
-        csv_generator = CSVGenerator()
-        csv_bytes = csv_generator.generate_price_alerts_csv(alerts_for_csv)
-        filename = csv_generator.generate_csv_filename(job["job_name"])
-        
-        # Get total UPCs count
-        batches_response = db.table("upc_batches").select("upc_count").eq(
-            "batch_job_id", str(job_id)
-        ).execute()
-        total_upcs = sum(batch["upc_count"] for batch in batches_response.data)
-        
-        # Send email
-        email_service = EmailService()
-        success = email_service.send_csv_report(
-            csv_bytes=csv_bytes,
-            filename=filename,
-            job_name=job["job_name"],
-            total_upcs=total_upcs,
-            alerts_count=len(alerts)
-        )
-        
-        if success:
-            return {"message": "Email sent successfully", "job_id": str(job_id)}
-        else:
-            # Provide more helpful error message
-            error_detail = "Failed to send email. Please check your email configuration in backend/.env file. "
-            error_detail += "Common issues: incorrect SMTP_HOST (should be 'smtp.gmail.com' for Gmail), "
-            error_detail += "invalid password/app password, or network connectivity issues. "
-            error_detail += "Check backend terminal logs for detailed error messages."
-            raise HTTPException(status_code=500, detail=error_detail)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to resend email: {str(e)}")
+    job_id = UUID(job["id"])
+    report_service = ReportService(db)
+    
+    # Generate CSV
+    csv_bytes, filename = report_service.generate_csv_for_job(job_id, job["job_name"])
+    
+    # Get alerts and total UPCs
+    alerts = report_service.get_price_alerts_for_job(job_id)
+    total_upcs = report_service.get_total_upcs_for_job(job_id)
+    
+    # Send email
+    email_service = EmailService()
+    success = email_service.send_csv_report(
+        csv_bytes=csv_bytes,
+        filename=filename,
+        job_name=job["job_name"],
+        total_upcs=total_upcs,
+        alerts_count=len(alerts)
+    )
+    
+    if success:
+        return {"message": "Email sent successfully", "job_id": str(job_id)}
+    else:
+        # Provide more helpful error message
+        error_detail = "Failed to send email. Please check your email configuration in backend/.env file. "
+        error_detail += "Common issues: incorrect SMTP_HOST (should be 'smtp.gmail.com' for Gmail), "
+        error_detail += "invalid password/app password, or network connectivity issues. "
+        error_detail += "Check backend terminal logs for detailed error messages."
+        raise HTTPException(status_code=500, detail=error_detail)
 
