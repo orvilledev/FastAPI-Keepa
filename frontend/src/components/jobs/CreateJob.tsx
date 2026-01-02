@@ -50,20 +50,20 @@ export default function CreateJob() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Create New Job</h1>
-        <p className="mt-2 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-gray-500">
           Enter UPCs to process (one per line, up to 2500 UPCs)
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6">
+      <form onSubmit={handleSubmit} className="card p-6 lg:p-8 space-y-6">
         {error && (
-          <div className="rounded-md bg-red-50 p-4">
-            <div className="text-sm text-red-800">{error}</div>
+          <div className="rounded-lg bg-red-50 border border-red-200 p-4">
+            <div className="text-sm text-red-800 font-medium">{error}</div>
           </div>
         )}
 
         <div>
-          <label htmlFor="jobName" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="jobName" className="block text-sm font-medium text-gray-700 mb-2">
             Job Name (optional)
           </label>
           <input
@@ -71,14 +71,14 @@ export default function CreateJob() {
             id="jobName"
             value={jobName}
             onChange={(e) => setJobName(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
             placeholder="Enter job name"
           />
         </div>
 
         <div>
-          <label htmlFor="upcs" className="block text-sm font-medium text-gray-700">
-            UPCs <span className="text-gray-500">(one per line)</span>
+          <label htmlFor="upcs" className="block text-sm font-medium text-gray-700 mb-2">
+            UPCs <span className="text-gray-500 font-normal">(one per line)</span>
           </label>
           <textarea
             id="upcs"
@@ -86,26 +86,26 @@ export default function CreateJob() {
             value={upcs}
             onChange={(e) => setUpcs(e.target.value)}
             required
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-mono px-3 py-2 border"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all font-mono text-sm"
             placeholder="Enter UPCs, one per line..."
           />
           <p className="mt-2 text-sm text-gray-500">
-            {upcs.split('\n').filter((line) => line.trim().length > 0).length} UPCs entered
+            <span className="font-semibold text-gray-700">{upcs.split('\n').filter((line) => line.trim().length > 0).length}</span> UPCs entered
           </p>
         </div>
 
-        <div className="flex justify-end space-x-3">
+        <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
           <button
             type="button"
             onClick={() => navigate('/jobs')}
-            className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            className="btn-secondary"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Creating...' : 'Create Job'}
           </button>

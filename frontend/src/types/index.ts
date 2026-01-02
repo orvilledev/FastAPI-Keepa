@@ -1,7 +1,52 @@
 export interface User {
   id: string
   email?: string
+  role?: string
+  display_name?: string
+  has_keepa_access?: boolean
   user_metadata?: Record<string, any>
+}
+
+export interface Profile {
+  id: string
+  email?: string
+  role?: string
+  full_name?: string
+  company_name?: string
+  phone?: string
+  address?: string
+  city?: string
+  state?: string
+  zip_code?: string
+  country?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface PublicTool {
+  id: string
+  name: string
+  description?: string
+  url: string
+  category?: string
+  icon?: string
+  developer?: string
+  created_by?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface UserTool {
+  id: string
+  user_id: string
+  name: string
+  description?: string
+  url: string
+  category?: string
+  icon?: string
+  developer?: string
+  created_at: string
+  updated_at: string
 }
 
 export interface BatchJob {
@@ -47,5 +92,65 @@ export interface JobStatus {
   completed_batches: number
   progress_percent: number
   batches: UPCBatch[]
+}
+
+export interface UPC {
+  id: string
+  upc: string
+  created_at: string
+}
+
+export interface SchedulerStatus {
+  next_run_time: string | null
+  next_run_time_taipei: string | null
+  scheduled_time: string
+  timezone: string
+  seconds_until: number | null
+  is_running: boolean
+  message?: string
+}
+
+export interface QuickAccessLink {
+  id: string
+  user_id: string
+  title: string
+  url: string
+  icon?: string
+  display_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface Task {
+  id: string
+  user_id: string
+  title: string
+  description?: string
+  status: 'pending' | 'in_progress' | 'completed'
+  priority: 'low' | 'medium' | 'high'
+  due_date?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Subtask {
+  id: string
+  task_id: string
+  title: string
+  description?: string
+  status: 'pending' | 'completed'
+  display_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface DashboardWidget {
+  id: string
+  user_id: string
+  widget_id: string
+  display_order: number
+  is_visible: boolean
+  created_at: string
+  updated_at: string
 }
 

@@ -9,6 +9,11 @@ import JobList from './components/jobs/JobList'
 import JobDetail from './components/jobs/JobDetail'
 import CreateJob from './components/jobs/CreateJob'
 import ReportView from './components/reports/ReportView'
+import UPCManagement from './components/upcs/UPCManagement'
+import PublicTools from './components/tools/PublicTools'
+import MyToolbox from './components/tools/MyToolbox'
+import TaskList from './components/tasks/TaskList'
+import ProtectedRoute from './components/common/ProtectedRoute'
 
 function App() {
   const [user, setUser] = useState<any>(null)
@@ -51,10 +56,49 @@ function App() {
         >
           <Route index element={<Navigate to="/dashboard" />} />
           <Route path="dashboard" element={<Dashboard />} />
-          <Route path="jobs" element={<JobList />} />
-          <Route path="jobs/new" element={<CreateJob />} />
-          <Route path="jobs/:jobId" element={<JobDetail />} />
-          <Route path="reports/:jobId" element={<ReportView />} />
+          <Route 
+            path="jobs" 
+            element={
+              <ProtectedRoute requireKeepaAccess={true}>
+                <JobList />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="jobs/new" 
+            element={
+              <ProtectedRoute requireKeepaAccess={true}>
+                <CreateJob />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="jobs/:jobId" 
+            element={
+              <ProtectedRoute requireKeepaAccess={true}>
+                <JobDetail />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="reports/:jobId" 
+            element={
+              <ProtectedRoute requireKeepaAccess={true}>
+                <ReportView />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="upcs" 
+            element={
+              <ProtectedRoute requireKeepaAccess={true}>
+                <UPCManagement />
+              </ProtectedRoute>
+            } 
+          />
+          <Route path="tasks" element={<TaskList />} />
+          <Route path="tools/public" element={<PublicTools />} />
+          <Route path="tools/my-toolbox" element={<MyToolbox />} />
         </Route>
       </Routes>
     </Router>
