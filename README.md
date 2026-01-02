@@ -12,6 +12,7 @@ Full-stack dashboard system for processing UPCs through Keepa API, detecting off
 
 ## Features
 
+### Core Features
 - Process 2500 UPCs in 21 batches (~119 UPCs per batch)
 - Detect sellers with lowered prices (off-price sellers)
 - Generate CSV reports with price alerts
@@ -23,6 +24,42 @@ Full-stack dashboard system for processing UPCs through Keepa API, detecting off
 - User authentication and authorization
 - Admin and user roles
 - Enhanced error handling with detailed error messages
+
+### Dashboard Features
+- **Personalized Dashboard** - Welcome message with user's display name
+- **Quick Access Widget** - Add and manage quick access links
+- **Scheduler Countdown** - Real-time countdown to next daily email run
+- **Drag-and-Drop Widgets** - Customize dashboard layout with persistent widget order
+- **Widget Persistence** - Dashboard arrangement saved per user
+
+### Task Management
+- **My Tasks** - Personal task management system
+- **Subtasks** - Create and manage subtasks for each task
+- **Task Filtering** - Filter by status (pending, in_progress, completed)
+- **Priority Levels** - Set task priority (low, medium, high)
+- **Due Dates** - Track task deadlines with overdue warnings
+- **Status Tracking** - Quick status updates and completion tracking
+
+### Tools Management
+- **Public Tools** - Admin-managed public tool directory
+- **My Toolbox** - Personal tool collection
+- **Tool Starring** - Star public tools to add to your toolbox
+- **Create Personal Tools** - Users can create their own tools
+- **Category Filtering** - Filter tools by category
+- **Tool Editing** - Admins can edit public tools
+- **Developer Attribution** - Track tool developers
+
+### Access Control
+- **Keepa Alert Service Access** - Restricted access to chosen accounts only
+- **User Data Isolation** - Users can only see their own data (Dashboard, Tasks, Tools)
+- **Row Level Security (RLS)** - Database-level security policies
+- **Protected Routes** - Frontend route protection for sensitive features
+- **Role-Based Access** - Admin and user role management
+
+### User Profile
+- **Display Name** - Customizable user display name
+- **Profile Management** - Update profile information
+- **Business Details** - Store company and contact information
 
 ## Setup
 
@@ -110,6 +147,8 @@ Full-stack dashboard system for processing UPCs through Keepa API, detecting off
 
 ## Database Schema
 
+### Initial Setup
+
 Run the SQL file `backend/database/schema.sql` in your Supabase SQL Editor to create all necessary tables and RLS policies.
 
 After running the schema, also create the `handle_new_user` trigger:
@@ -131,28 +170,130 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 ```
 
+### Additional Database Migrations
+
+Run these additional migration files in your Supabase SQL Editor (in order):
+
+1. **Profile Fields** - `backend/database/profile_fields_migration.sql`
+   - Adds profile fields (full_name, company_name, phone, address, etc.)
+
+2. **Display Name** - `backend/database/add_display_name.sql`
+   - Adds `display_name` field to profiles
+
+3. **Profile Insert Policy** - `backend/database/profile_insert_policy.sql`
+   - Ensures users can insert their own profile
+
+4. **Public Tools** - `backend/database/public_tools_schema.sql`
+   - Creates `public_tools` table for admin-managed tools
+
+5. **User Toolbox** - `backend/database/user_toolbox_schema.sql`
+   - Creates `user_toolbox` table for starred tools
+
+6. **User Tools** - `backend/database/user_tools_schema.sql`
+   - Creates `user_tools` table for personal tools
+   - Then run `backend/database/user_tools_add_developer.sql` to add developer field
+
+7. **Quick Access Links** - `backend/database/quick_access_schema.sql`
+   - Creates `quick_access_links` table for dashboard quick access
+
+8. **Tasks** - `backend/database/tasks_schema.sql`
+   - Creates `tasks` table for task management
+
+9. **Subtasks** - `backend/database/subtasks_schema.sql`
+   - Creates `subtasks` table for task subtasks
+
+10. **Dashboard Widgets** - `backend/database/dashboard_widgets_schema.sql`
+    - Creates `dashboard_widgets` table for widget order persistence
+
+11. **Keepa Access Control** - `backend/database/add_keepa_access_field.sql`
+    - Adds `has_keepa_access` field to profiles for access control
+
+12. **User Isolation Verification** - `backend/database/ENSURE_USER_ISOLATION.sql`
+    - Ensures all RLS policies are properly configured for user data isolation
+
+### Granting Keepa Alert Service Access
+
+To grant access to specific users:
+
+```sql
+-- Grant access to a specific user by email
+UPDATE profiles 
+SET has_keepa_access = true 
+WHERE email = 'user@example.com';
+
+-- Or grant access to all admins
+UPDATE profiles 
+SET has_keepa_access = true 
+WHERE role = 'admin';
+```
+
 ## API Endpoints
 
 ### Authentication
-- `GET /api/v1/auth/me` - Get current user
+- `GET /api/v1/auth/me` - Get current user (includes role, display_name, has_keepa_access)
+- `GET /api/v1/auth/profile` - Get user profile
+- `PUT /api/v1/auth/profile` - Update user profile
+- `PATCH /api/v1/auth/me/display-name` - Update display name
 
-### Jobs
+### Jobs (Requires Keepa Access)
 - `POST /api/v1/jobs` - Create new job (admin only)
-- `GET /api/v1/jobs` - List all jobs
+- `GET /api/v1/jobs` - List all jobs (users see their own, admins see all)
 - `GET /api/v1/jobs/{job_id}` - Get job details
 - `GET /api/v1/jobs/{job_id}/status` - Get job status
 - `POST /api/v1/jobs/{job_id}/trigger` - Trigger job (admin)
 
-### Batches
+### Batches (Requires Keepa Access)
 - `GET /api/v1/batches/{batch_id}` - Get batch details
 - `GET /api/v1/batches/{batch_id}/items` - Get batch items
 - `POST /api/v1/batches/{batch_id}/stop` - Stop/cancel a batch (pending or processing status, admin only)
 
-### Reports
+### Reports (Requires Keepa Access)
 - `GET /api/v1/reports/{job_id}` - Get price alerts
 - `GET /api/v1/reports/{job_id}/csv` - Download CSV
 - `POST /api/v1/reports/{job_id}/email` - Resend email
 - `POST /api/v1/reports/test-email` - Test email configuration (sends test email)
+
+### UPCs (Requires Keepa Access)
+- `GET /api/v1/upcs` - Get all UPCs
+- `POST /api/v1/upcs` - Add new UPC
+- `DELETE /api/v1/upcs/{upc_id}` - Delete UPC
+
+### Scheduler
+- `GET /api/v1/scheduler/status` - Get scheduler status and next run time
+
+### Dashboard
+- `GET /api/v1/dashboard/widgets` - Get user's dashboard widget preferences
+- `POST /api/v1/dashboard/widgets/order` - Update widget order
+
+### Quick Access Links
+- `GET /api/v1/quick-access` - Get user's quick access links
+- `POST /api/v1/quick-access` - Create quick access link
+- `PUT /api/v1/quick-access/{link_id}` - Update quick access link
+- `DELETE /api/v1/quick-access/{link_id}` - Delete quick access link
+
+### Tasks
+- `GET /api/v1/tasks` - Get user's tasks (filterable by status/priority)
+- `POST /api/v1/tasks` - Create new task
+- `PUT /api/v1/tasks/{task_id}` - Update task
+- `DELETE /api/v1/tasks/{task_id}` - Delete task
+- `GET /api/v1/tasks/{task_id}/subtasks` - Get task subtasks
+- `POST /api/v1/tasks/{task_id}/subtasks` - Create subtask
+- `PUT /api/v1/tasks/{task_id}/subtasks/{subtask_id}` - Update subtask
+- `DELETE /api/v1/tasks/{task_id}/subtasks/{subtask_id}` - Delete subtask
+
+### Tools
+- `GET /api/v1/tools/public` - Get all public tools
+- `POST /api/v1/tools/public` - Create public tool (admin only)
+- `PUT /api/v1/tools/public/{tool_id}` - Update public tool (admin only)
+- `DELETE /api/v1/tools/public/{tool_id}` - Delete public tool (admin only)
+- `POST /api/v1/tools/public/{tool_id}/star` - Star a public tool
+- `DELETE /api/v1/tools/public/{tool_id}/star` - Unstar a public tool
+- `GET /api/v1/tools/public/starred` - Get starred tool IDs
+- `GET /api/v1/tools/my-toolbox` - Get user's starred tools
+- `GET /api/v1/tools/user` - Get user's personal tools
+- `POST /api/v1/tools/user` - Create personal tool
+- `PUT /api/v1/tools/user/{tool_id}` - Update personal tool
+- `DELETE /api/v1/tools/user/{tool_id}` - Delete personal tool
 
 ## Deployment
 
@@ -232,12 +373,38 @@ CREATE TRIGGER on_auth_user_created
 
 ## Usage
 
+### Getting Started
 1. **Sign up or log in** to the dashboard
+2. **Set your display name** (optional) - appears in welcome message
+3. **Customize your dashboard** - drag and drop widgets, add quick access links
+
+### Keepa Alert Service (Requires Access)
+1. **Request access** - Contact admin to grant `has_keepa_access` permission
 2. **Create a new job** with UPCs (one per line, up to 2500)
 3. **Monitor job progress** in real-time
 4. **View reports** when job completes
 5. **Download CSV** or **resend email** with report
 6. **Stop batches** if needed (admin only)
+7. **Manage UPCs** - Add/remove UPCs from the system
+
+### Task Management
+1. **Go to My Tasks** - Access from sidebar
+2. **Create tasks** - Add title, description, priority, and due date
+3. **Add subtasks** - Break down tasks into smaller items
+4. **Track progress** - Update status and mark items complete
+5. **Filter tasks** - View by status (All, Pending, In Progress, Completed)
+
+### Tools Management
+1. **Browse Public Tools** - View admin-managed tools
+2. **Star tools** - Add useful tools to your toolbox
+3. **Create personal tools** - Add your own tools in My Toolbox
+4. **Filter by category** - Use category filters to find tools
+5. **Edit tools** - Admins can edit public tools, users can edit their own
+
+### Dashboard Customization
+1. **Add Quick Access Links** - Click "+ Add Link" in Quick Access widget
+2. **Reorder widgets** - Drag and drop widgets to customize layout
+3. **View scheduler countdown** - See time until next daily email run
 
 ## Daily Scheduler
 
@@ -302,6 +469,39 @@ EMAIL_TO=email1@domain.com,email2@domain.com,email3@domain.com
 2. **Check Backend Logs:**
    - Look for scheduler startup messages
    - Verify scheduler is running
+
+### Database Table Not Found Errors
+
+If you see errors like "Could not find the table 'public.xxx' in the schema cache":
+
+1. **Check Migration Status:**
+   - Ensure all migration files have been run in Supabase SQL Editor
+   - Run migrations in the order listed in the Database Schema section
+
+2. **Verify RLS Policies:**
+   - Run `backend/database/ENSURE_USER_ISOLATION.sql` to verify all policies
+   - Check that RLS is enabled on all user-specific tables
+
+### Access Control Issues
+
+1. **Keepa Alert Service Not Visible:**
+   - Check if user has `has_keepa_access = true` in profiles table
+   - Grant access using SQL: `UPDATE profiles SET has_keepa_access = true WHERE email = 'user@example.com'`
+
+2. **Cannot Access Routes:**
+   - Verify user is authenticated
+   - Check if route requires Keepa access
+   - Ensure `has_keepa_access` is set correctly
+
+### Widget Order Not Persisting
+
+1. **Check Database:**
+   - Ensure `dashboard_widgets` table exists
+   - Run `backend/database/dashboard_widgets_schema.sql` if missing
+
+2. **Check API:**
+   - Verify backend API is accessible
+   - Check browser console for API errors
 
 ## License
 
