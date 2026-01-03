@@ -4,10 +4,12 @@ import type { UPC } from '../../types'
 
 export default function UPCManagement() {
   const [upcs, setUpcs] = useState<UPC[]>([])
+  const [allUpcs, setAllUpcs] = useState<UPC[]>([]) // Store all UPCs for filtering
   const [totalCount, setTotalCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
   const [upcInput, setUpcInput] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [currentPage, setCurrentPage] = useState(0)
@@ -31,13 +33,34 @@ export default function UPCManagement() {
     try {
       setLoading(true)
       const data = await upcsApi.listUPCs(limit, currentPage * limit)
-      setUpcs(data)
+      setAllUpcs(data)
+      // Apply search filter if there's a search term
+      if (searchTerm.trim()) {
+        const filtered = data.filter((upc) =>
+          upc.upc.toLowerCase().includes(searchTerm.toLowerCase().trim())
+        )
+        setUpcs(filtered)
+      } else {
+        setUpcs(data)
+      }
     } catch (error: any) {
       setError(error.response?.data?.detail || 'Failed to load UPCs')
     } finally {
       setLoading(false)
     }
   }
+
+  // Filter UPCs when search term changes
+  useEffect(() => {
+    if (searchTerm.trim()) {
+      const filtered = allUpcs.filter((upc) =>
+        upc.upc.toLowerCase().includes(searchTerm.toLowerCase().trim())
+      )
+      setUpcs(filtered)
+    } else {
+      setUpcs(allUpcs)
+    }
+  }, [searchTerm, allUpcs])
 
   const handleAddUPCs = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -177,17 +200,70 @@ export default function UPCManagement() {
 
       {/* UPCs List */}
       <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-          <h2 className="text-lg font-semibold text-gray-900">UPCs List</h2>
-          <div className="text-sm text-gray-500">
-            Showing {currentPage * limit + 1} - {Math.min((currentPage + 1) * limit, totalCount)} of {totalCount}
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">UPCs List</h2>
+            <div className="text-sm text-gray-500">
+              Showing {currentPage * limit + 1} - {Math.min((currentPage + 1) * limit, totalCount)} of {totalCount}
+            </div>
           </div>
+          
+          {/* Search Box */}
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg
+                className="h-5 w-5 text-gray-400"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search UPCs..."
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm font-mono"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center"
+              >
+                <svg
+                  className="h-5 w-5 text-gray-400 hover:text-gray-600"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+            )}
+          </div>
+          {searchTerm && (
+            <div className="mt-2 text-sm text-gray-600">
+              Found {upcs.length} UPC{upcs.length !== 1 ? 's' : ''} matching "{searchTerm}"
+            </div>
+          )}
         </div>
 
         {loading ? (
           <div className="text-center py-8">Loading...</div>
         ) : upcs.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">No UPCs found</div>
+          <div className="text-center py-8 text-gray-500">
+            {searchTerm ? `No UPCs found matching "${searchTerm}"` : 'No UPCs found'}
+          </div>
         ) : (
           <>
             <div className="overflow-x-auto">
