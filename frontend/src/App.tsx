@@ -2,8 +2,10 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import Layout from './components/layout/Layout'
+import Landing from './components/Landing'
 import Login from './components/auth/Login'
 import Signup from './components/auth/Signup'
+import ResetPassword from './components/auth/ResetPassword'
 import Dashboard from './components/dashboard/Dashboard'
 import JobList from './components/jobs/JobList'
 import JobDetail from './components/jobs/JobDetail'
@@ -47,58 +49,81 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
-        <Route path="/signup" element={!user ? <Signup /> : <Navigate to="/dashboard" />} />
+        {/* Public routes */}
+        <Route path="/" element={!user ? <Landing /> : <Navigate to="/dashboard" replace />} />
+        <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" replace />} />
+        <Route path="/signup" element={!user ? <Signup /> : <Navigate to="/dashboard" replace />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         
+        {/* Protected routes - wrapped in Layout */}
         <Route
           path="/"
-          element={user ? <Layout /> : <Navigate to="/login" />}
+          element={user ? <Layout /> : <Navigate to="/" replace />}
         >
-          <Route index element={<Navigate to="/dashboard" />} />
-          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="dashboard" element={user ? <Dashboard /> : <Navigate to="/" replace />} />
           <Route 
             path="jobs" 
             element={
-              <ProtectedRoute requireKeepaAccess={true}>
-                <JobList />
-              </ProtectedRoute>
+              user ? (
+                <ProtectedRoute requireKeepaAccess={true}>
+                  <JobList />
+                </ProtectedRoute>
+              ) : (
+                <Navigate to="/" replace />
+              )
             } 
           />
           <Route 
             path="jobs/new" 
             element={
-              <ProtectedRoute requireKeepaAccess={true}>
-                <CreateJob />
-              </ProtectedRoute>
+              user ? (
+                <ProtectedRoute requireKeepaAccess={true}>
+                  <CreateJob />
+                </ProtectedRoute>
+              ) : (
+                <Navigate to="/" replace />
+              )
             } 
           />
           <Route 
             path="jobs/:jobId" 
             element={
-              <ProtectedRoute requireKeepaAccess={true}>
-                <JobDetail />
-              </ProtectedRoute>
+              user ? (
+                <ProtectedRoute requireKeepaAccess={true}>
+                  <JobDetail />
+                </ProtectedRoute>
+              ) : (
+                <Navigate to="/" replace />
+              )
             } 
           />
           <Route 
             path="reports/:jobId" 
             element={
-              <ProtectedRoute requireKeepaAccess={true}>
-                <ReportView />
-              </ProtectedRoute>
+              user ? (
+                <ProtectedRoute requireKeepaAccess={true}>
+                  <ReportView />
+                </ProtectedRoute>
+              ) : (
+                <Navigate to="/" replace />
+              )
             } 
           />
           <Route 
             path="upcs" 
             element={
-              <ProtectedRoute requireKeepaAccess={true}>
-                <UPCManagement />
-              </ProtectedRoute>
+              user ? (
+                <ProtectedRoute requireKeepaAccess={true}>
+                  <UPCManagement />
+                </ProtectedRoute>
+              ) : (
+                <Navigate to="/" replace />
+              )
             } 
           />
-          <Route path="tasks" element={<TaskList />} />
-          <Route path="tools/public" element={<PublicTools />} />
-          <Route path="tools/my-toolbox" element={<MyToolbox />} />
+          <Route path="tasks" element={user ? <TaskList /> : <Navigate to="/" replace />} />
+          <Route path="tools/public" element={user ? <PublicTools /> : <Navigate to="/" replace />} />
+          <Route path="tools/my-toolbox" element={user ? <MyToolbox /> : <Navigate to="/" replace />} />
         </Route>
       </Routes>
     </Router>

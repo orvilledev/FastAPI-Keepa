@@ -4,6 +4,7 @@ from fastapi.responses import StreamingResponse
 from typing import List
 from uuid import UUID
 import io
+import logging
 from datetime import datetime
 from app.dependencies import get_current_user, verify_job_access
 from app.models.price_alert import PriceAlertResponse
@@ -13,6 +14,8 @@ from app.services.email_service import EmailService
 from app.services.report_service import ReportService
 from app.utils.error_handler import handle_api_errors
 from supabase import Client
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
