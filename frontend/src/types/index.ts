@@ -100,6 +100,14 @@ export interface UPC {
   created_at: string
 }
 
+export interface MAP {
+  id: string
+  upc: string
+  map_price: number
+  created_at: string
+  updated_at: string
+}
+
 export interface SchedulerStatus {
   next_run_time: string | null
   next_run_time_taipei: string | null
@@ -150,6 +158,18 @@ export interface DashboardWidget {
   widget_id: string
   display_order: number
   is_visible: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface Note {
+  id: string
+  user_id: string
+  title: string
+  content: string
+  category?: string
+  color?: string
+  importance?: 'low' | 'normal' | 'high' | 'urgent'
   created_at: string
   updated_at: string
 }

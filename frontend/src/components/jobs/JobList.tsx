@@ -88,6 +88,23 @@ export default function JobList() {
     }
   }
 
+  const handleDeleteJob = async (jobId: string, jobName: string) => {
+    if (!window.confirm(`Are you sure you want to delete "${jobName}"? This action cannot be undone and will delete all related batches, items, and alerts.`)) {
+      return
+    }
+
+    try {
+      await jobsApi.deleteJob(jobId)
+      // Reload jobs and stats
+      loadJobs(currentPage)
+      loadAllJobsForStats()
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to delete job'
+      alert(`Error: ${errorMessage}`)
+      console.error('Failed to delete job:', error)
+    }
+  }
+
 
   if (loading) {
     return <div className="text-center py-8">Loading...</div>
@@ -97,7 +114,7 @@ export default function JobList() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Jobs</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Express Jobs</h1>
           <p className="mt-1 text-sm text-gray-500">Manage and monitor your batch processing jobs</p>
         </div>
         <Link
@@ -179,12 +196,26 @@ export default function JobList() {
                     : '-'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <Link
-                    to={`/jobs/${job.id}`}
-                    className="text-indigo-600 hover:text-indigo-700 font-semibold hover:underline transition-colors"
-                  >
-                    View →
-                  </Link>
+                  <div className="flex items-center gap-3">
+                    <Link
+                      to={`/jobs/${job.id}`}
+                      className="text-indigo-600 hover:text-indigo-700 font-semibold hover:underline transition-colors"
+                    >
+                      View →
+                    </Link>
+                    <button
+                      onClick={() => handleDeleteJob(job.id, job.job_name)}
+                      disabled={job.status === 'processing'}
+                      className={`text-red-600 hover:text-red-700 font-medium transition-colors ${
+                        job.status === 'processing'
+                          ? 'opacity-50 cursor-not-allowed'
+                          : 'hover:underline'
+                      }`}
+                      title={job.status === 'processing' ? 'Cannot delete a job that is currently processing' : 'Delete job'}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

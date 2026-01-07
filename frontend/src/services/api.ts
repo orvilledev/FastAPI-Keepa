@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
-import type { BatchJob, JobStatus, PriceAlert, UPC, SchedulerStatus, PublicTool, QuickAccessLink, Task, Subtask, DashboardWidget, UserTool } from '../types'
+import type { BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, PublicTool, QuickAccessLink, Task, Subtask, DashboardWidget, UserTool, Note } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -92,6 +92,11 @@ export const jobsApi = {
     const response = await api.post(`/api/v1/jobs/${jobId}/trigger`)
     return response.data
   },
+  
+  deleteJob: async (jobId: string) => {
+    const response = await api.delete(`/api/v1/jobs/${jobId}`)
+    return response.data
+  },
 }
 
 // Batches API
@@ -146,6 +151,49 @@ export const upcsApi = {
   
   deleteAllUPCs: async () => {
     const response = await api.delete('/api/v1/upcs')
+    return response.data
+  },
+}
+
+// MAP API
+export const mapApi = {
+  addMAPs: async (maps: Array<{ upc: string; map_price: number }>) => {
+    const response = await api.post('/api/v1/map', maps)
+    return response.data
+  },
+  
+  listMAPs: async (limit: number = 100, offset: number = 0, search?: string) => {
+    const params = new URLSearchParams()
+    params.append('limit', limit.toString())
+    params.append('offset', offset.toString())
+    if (search && search.trim()) {
+      params.append('search', search.trim())
+    }
+    const response = await api.get<MAP[]>(`/api/v1/map?${params.toString()}`)
+    return response.data
+  },
+  
+  getMAPCount: async (search?: string) => {
+    const params = new URLSearchParams()
+    if (search && search.trim()) {
+      params.append('search', search.trim())
+    }
+    const response = await api.get<{ count: number }>(`/api/v1/map/count?${params.toString()}`)
+    return response.data
+  },
+  
+  getMAPByUPC: async (upc: string) => {
+    const response = await api.get<MAP>(`/api/v1/map/${upc}`)
+    return response.data
+  },
+  
+  deleteMAP: async (upc: string) => {
+    const response = await api.delete(`/api/v1/map/${upc}`)
+    return response.data
+  },
+  
+  deleteAllMAPs: async () => {
+    const response = await api.delete('/api/v1/map')
     return response.data
   },
 }
@@ -348,6 +396,39 @@ export const dashboardApi = {
   },
   updateWidgetOrder: async (widgets: { widget_id: string; display_order: number }[]) => {
     const response = await api.post<DashboardWidget[]>('/api/v1/dashboard/widgets/order', { widgets })
+    return response.data
+  },
+}
+
+// Notes API
+export const notesApi = {
+  listNotes: async (page: number = 0, pageSize: number = 20, search?: string, category?: string) => {
+    const params: any = { page, page_size: pageSize }
+    if (search) params.search = search
+    if (category) params.category = category
+    const response = await api.get<{
+      notes: Note[]
+      total: number
+      page: number
+      page_size: number
+      total_pages: number
+    }>('/api/v1/notes', { params })
+    return response.data
+  },
+  getNote: async (noteId: string) => {
+    const response = await api.get<Note>(`/api/v1/notes/${noteId}`)
+    return response.data
+  },
+  createNote: async (noteData: { title: string; content: string; category?: string; color?: string; importance?: string }) => {
+    const response = await api.post<Note>('/api/v1/notes', noteData)
+    return response.data
+  },
+  updateNote: async (noteId: string, noteData: { title?: string; content?: string; category?: string; color?: string; importance?: string }) => {
+    const response = await api.put<Note>(`/api/v1/notes/${noteId}`, noteData)
+    return response.data
+  },
+  deleteNote: async (noteId: string) => {
+    const response = await api.delete(`/api/v1/notes/${noteId}`)
     return response.data
   },
 }

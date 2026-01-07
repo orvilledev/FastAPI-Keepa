@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import SchedulerCountdown from './SchedulerCountdown'
 import QuickAccess from './QuickAccess'
+import UPCMAPStats from './UPCMAPStats'
 import { authApi, dashboardApi } from '../../services/api'
 
 interface WidgetItem {
@@ -19,6 +20,7 @@ export default function Dashboard() {
   const availableWidgets = useMemo(() => ({
     quickAccess: <QuickAccess />,
     schedulerCountdown: <SchedulerCountdown />,
+    upcMapStats: <UPCMAPStats />,
   }), [])
 
   useEffect(() => {
@@ -50,6 +52,7 @@ export default function Dashboard() {
             const defaultWidgets = [
               { id: 'quickAccess', component: availableWidgets.quickAccess },
               { id: 'schedulerCountdown', component: availableWidgets.schedulerCountdown },
+              { id: 'upcMapStats', component: availableWidgets.upcMapStats },
             ]
             setWidgets(defaultWidgets)
             
@@ -113,6 +116,7 @@ export default function Dashboard() {
           const defaultWidgets = [
             { id: 'quickAccess', component: availableWidgets.quickAccess },
             { id: 'schedulerCountdown', component: availableWidgets.schedulerCountdown },
+            { id: 'upcMapStats', component: availableWidgets.upcMapStats },
           ]
           setWidgets(defaultWidgets)
           
@@ -140,6 +144,7 @@ export default function Dashboard() {
         setWidgets([
           { id: 'quickAccess', component: availableWidgets.quickAccess },
           { id: 'schedulerCountdown', component: availableWidgets.schedulerCountdown },
+          { id: 'upcMapStats', component: availableWidgets.upcMapStats },
         ])
       } finally {
         setLoading(false)

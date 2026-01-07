@@ -75,7 +75,7 @@ export default function ReportView() {
             to="/jobs"
             className="text-indigo-600 hover:text-indigo-900 text-sm font-medium mb-2 inline-block"
           >
-            ← Back to Jobs
+            ← Back to Express Jobs
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">Price Alerts Report</h1>
           <p className="mt-2 text-sm text-gray-600">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { jobsApi, batchesApi } from '../../services/api'
 import type { BatchJob, JobStatus } from '../../types'
 import BatchStatus from '../dashboard/BatchStatus'
@@ -7,6 +7,7 @@ import { getStatusColor } from '../../utils/statusColors'
 
 export default function JobDetail() {
   const { jobId } = useParams<{ jobId: string }>()
+  const navigate = useNavigate()
   const [job, setJob] = useState<BatchJob | null>(null)
   const [status, setStatus] = useState<JobStatus | null>(null)
   const [loading, setLoading] = useState(true)
@@ -81,6 +82,24 @@ export default function JobDetail() {
     }
   }
 
+  const handleDeleteJob = async () => {
+    if (!jobId || !job) return
+    
+    if (!window.confirm(`Are you sure you want to delete "${job.job_name}"? This action cannot be undone and will delete all related batches, items, and alerts.`)) {
+      return
+    }
+
+    try {
+      await jobsApi.deleteJob(jobId)
+      // Redirect to jobs list after successful deletion
+      navigate('/jobs')
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to delete job'
+      alert(`Error: ${errorMessage}`)
+      console.error('Failed to delete job:', error)
+    }
+  }
+
   if (loading) {
     return <div className="text-center py-8">Loading...</div>
   }
@@ -97,7 +116,7 @@ export default function JobDetail() {
             to="/jobs"
             className="text-indigo-600 hover:text-indigo-900 text-sm font-medium mb-2 inline-block"
           >
-            ← Back to Jobs
+            ← Back to Express Jobs
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">{job.job_name}</h1>
         </div>
@@ -117,6 +136,14 @@ export default function JobDetail() {
             >
               View Report
             </Link>
+          )}
+          {job.status !== 'processing' && (
+            <button
+              onClick={handleDeleteJob}
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+            >
+              Delete Job
+            </button>
           )}
         </div>
       </div>

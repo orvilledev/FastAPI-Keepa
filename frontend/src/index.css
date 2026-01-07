@@ -87,3 +87,233 @@ code {
     monospace;
 }
 
+/* Note Content Styling - Ensures all React Quill formatting displays correctly */
+.note-content {
+  line-height: 1.6;
+  color: #374151;
+}
+
+.note-content p {
+  margin-bottom: 0.75rem;
+  margin-top: 0;
+}
+
+.note-content p:first-child {
+  margin-top: 0;
+}
+
+.note-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Lists - Bullets and Numbering */
+.note-content ul,
+.note-content ol {
+  margin-left: 1.5rem;
+  margin-right: 0;
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding-left: 0;
+  list-style-position: outside;
+}
+
+.note-content ul {
+  list-style-type: disc;
+}
+
+.note-content ol {
+  list-style-type: decimal;
+}
+
+.note-content li {
+  margin-bottom: 0.25rem;
+  margin-top: 0.25rem;
+  padding-left: 0.25rem;
+  display: list-item;
+}
+
+/* Nested lists */
+.note-content ul ul,
+.note-content ol ol,
+.note-content ul ol,
+.note-content ol ul {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+  margin-left: 1.5rem;
+}
+
+.note-content ul ul {
+  list-style-type: circle;
+}
+
+.note-content ul ul ul {
+  list-style-type: square;
+}
+
+/* Links */
+.note-content a {
+  color: #4f46e5;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.note-content a:hover {
+  color: #4338ca;
+  text-decoration: underline;
+}
+
+/* Text Formatting */
+.note-content strong,
+.note-content b {
+  font-weight: 600;
+}
+
+.note-content em,
+.note-content i {
+  font-style: italic;
+}
+
+.note-content u {
+  text-decoration: underline;
+}
+
+.note-content s,
+.note-content strike {
+  text-decoration: line-through;
+}
+
+/* Headers */
+.note-content h1,
+.note-content h2,
+.note-content h3,
+.note-content h4,
+.note-content h5,
+.note-content h6 {
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.2;
+}
+
+.note-content h1 {
+  font-size: 1.875rem;
+}
+
+.note-content h2 {
+  font-size: 1.5rem;
+}
+
+.note-content h3 {
+  font-size: 1.25rem;
+}
+
+.note-content h4 {
+  font-size: 1.125rem;
+}
+
+.note-content h5 {
+  font-size: 1rem;
+}
+
+.note-content h6 {
+  font-size: 0.875rem;
+}
+
+/* Subscript and Superscript */
+.note-content sub {
+  font-size: 0.75em;
+  vertical-align: sub;
+  line-height: 0;
+}
+
+.note-content sup {
+  font-size: 0.75em;
+  vertical-align: super;
+  line-height: 0;
+}
+
+/* Indentation */
+.note-content [style*="padding-left"] {
+  padding-left: 2rem !important;
+}
+
+/* Colors and Backgrounds - React Quill applies inline styles */
+.note-content [style*="color"] {
+  /* Preserve text colors */
+}
+
+.note-content [style*="background-color"] {
+  /* Preserve background colors */
+  padding: 0 0.125rem;
+  border-radius: 0.125rem;
+}
+
+/* Blockquotes */
+.note-content blockquote {
+  border-left: 4px solid #e5e7eb;
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-right: 0;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
+/* Code blocks */
+.note-content pre {
+  background-color: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+  margin: 0.75rem 0;
+  overflow-x: auto;
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+  font-size: 0.875rem;
+}
+
+.note-content code {
+  background-color: #f3f4f6;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+  font-size: 0.875rem;
+}
+
+/* Horizontal rules */
+.note-content hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 1rem 0;
+}
+
+/* Images */
+.note-content img {
+  max-width: 100%;
+  height: auto;
+  margin: 0.75rem 0;
+  border-radius: 0.375rem;
+}
+
+/* Note Box Styles */
+.note-box {
+  user-select: none;
+}
+
+/* Note Box Animations */
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.note-box {
+  animation: fadeIn 0.3s ease-out;
+}
+
+

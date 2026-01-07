@@ -6,6 +6,7 @@ export default function Sidebar() {
   const location = useLocation()
   const [isKeepaMenuOpen, setIsKeepaMenuOpen] = useState(true)
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false)
+  const [isMySpaceMenuOpen, setIsMySpaceMenuOpen] = useState(false)
   const [hasKeepaAccess, setHasKeepaAccess] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -47,8 +48,9 @@ export default function Sidebar() {
   }
 
   const keepaMenuItems = [
-    { path: '/jobs', label: 'Jobs', icon: '📦' },
+    { path: '/jobs', label: 'Express Jobs', icon: '📦' },
     { path: '/upcs', label: 'Manage UPCs', icon: '🔢' },
+    { path: '/map', label: 'Manage MAP', icon: '💰' },
   ]
 
   const toolsMenuItems = [
@@ -56,15 +58,21 @@ export default function Sidebar() {
     { path: '/tools/my-toolbox', label: 'My Toolbox', icon: '📦' },
   ]
 
+  const mySpaceMenuItems: Array<{ path: string; label: string; icon: string }> = [
+    { path: '/my-space/notes', label: 'My Notes', icon: '📝' },
+  ]
+
   // Check if any sub-item is active to keep menu open
   const hasActiveSubItem = keepaMenuItems.some(item => isActive(item.path))
   const hasActiveToolsSubItem = toolsMenuItems.some(item => isActive(item.path))
+  const hasActiveMySpaceSubItem = mySpaceMenuItems.some(item => isActive(item.path))
 
-  // Auto-open menu if a sub-item is active, and close the other menu
+  // Auto-open menu if a sub-item is active, and close the other menus
   useEffect(() => {
     if (hasActiveSubItem) {
       setIsKeepaMenuOpen(true)
       setIsToolsMenuOpen(false)
+      setIsMySpaceMenuOpen(false)
     }
   }, [hasActiveSubItem])
 
@@ -72,8 +80,17 @@ export default function Sidebar() {
     if (hasActiveToolsSubItem) {
       setIsToolsMenuOpen(true)
       setIsKeepaMenuOpen(false)
+      setIsMySpaceMenuOpen(false)
     }
   }, [hasActiveToolsSubItem])
+
+  useEffect(() => {
+    if (hasActiveMySpaceSubItem) {
+      setIsMySpaceMenuOpen(true)
+      setIsKeepaMenuOpen(false)
+      setIsToolsMenuOpen(false)
+    }
+  }, [hasActiveMySpaceSubItem])
 
   return (
     <aside className="w-64 bg-white/80 backdrop-blur-lg border-r border-gray-200/80 shadow-lg h-screen sticky top-0">
@@ -114,30 +131,31 @@ export default function Sidebar() {
             <span>My Tasks</span>
           </Link>
 
-          {/* Keepa Alert Service Dropdown - Only visible to users with access */}
-          {!loading && hasKeepaAccess && (
-            <div>
-              <button
-                onClick={() => {
-                  setIsKeepaMenuOpen(!isKeepaMenuOpen)
-                  if (!isKeepaMenuOpen) {
-                    setIsToolsMenuOpen(false)
-                  }
-                }}
-                className={`sidebar-link w-full text-left ${
-                  hasActiveSubItem ? 'sidebar-link-active' : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="mr-3 text-lg">⚙️</span>
-                <span className="flex-1">Keepa Alert Service</span>
-                <span className={`text-xs transition-transform duration-200 ${isKeepaMenuOpen ? 'rotate-90' : ''}`}>
-                  ▶
-                </span>
-              </button>
-              
-              {isKeepaMenuOpen && (
-                <div className="ml-4 mt-1 space-y-1 bg-gray-50 rounded-lg p-2">
-                  {keepaMenuItems.map((item) => (
+          {/* My Space Dropdown */}
+          <div>
+            <button
+              onClick={() => {
+                setIsMySpaceMenuOpen(!isMySpaceMenuOpen)
+                if (!isMySpaceMenuOpen) {
+                  setIsKeepaMenuOpen(false)
+                  setIsToolsMenuOpen(false)
+                }
+              }}
+              className={`sidebar-link w-full text-left ${
+                hasActiveMySpaceSubItem ? 'sidebar-link-active' : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="mr-3 text-lg">🏠</span>
+              <span className="flex-1">My Space</span>
+              <span className={`text-xs transition-transform duration-200 ${isMySpaceMenuOpen ? 'rotate-90' : ''}`}>
+                ▶
+              </span>
+            </button>
+            
+            {isMySpaceMenuOpen && (
+              <div className="ml-4 mt-1 space-y-1 bg-gray-50 rounded-lg p-2">
+                {mySpaceMenuItems.length > 0 ? (
+                  mySpaceMenuItems.map((item) => (
                     <Link
                       key={item.path}
                       to={item.path}
@@ -148,11 +166,52 @@ export default function Sidebar() {
                       <span className="mr-3 text-lg">{item.icon}</span>
                       <span>{item.label}</span>
                     </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+                  ))
+                ) : (
+                  <div className="text-xs text-gray-400 px-3 py-2">No items yet</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Keepa Alert Service Dropdown */}
+          <div>
+            <button
+              onClick={() => {
+                setIsKeepaMenuOpen(!isKeepaMenuOpen)
+                if (!isKeepaMenuOpen) {
+                  setIsToolsMenuOpen(false)
+                  setIsMySpaceMenuOpen(false)
+                }
+              }}
+              className={`sidebar-link w-full text-left ${
+                hasActiveSubItem ? 'sidebar-link-active' : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="mr-3 text-lg">⚙️</span>
+              <span className="flex-1">Keepa Alert Service</span>
+              <span className={`text-xs transition-transform duration-200 ${isKeepaMenuOpen ? 'rotate-90' : ''}`}>
+                ▶
+              </span>
+            </button>
+            
+            {isKeepaMenuOpen && (
+              <div className="ml-4 mt-1 space-y-1 bg-gray-50 rounded-lg p-2">
+                {keepaMenuItems.map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`sidebar-link ${
+                      isActive(item.path) ? 'sidebar-link-active' : 'sidebar-link-inactive'
+                    }`}
+                  >
+                    <span className="mr-3 text-lg">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Tools Dropdown */}
           <div>
@@ -161,6 +220,7 @@ export default function Sidebar() {
                 setIsToolsMenuOpen(!isToolsMenuOpen)
                 if (!isToolsMenuOpen) {
                   setIsKeepaMenuOpen(false)
+                  setIsMySpaceMenuOpen(false)
                 }
               }}
               className={`sidebar-link w-full text-left ${
