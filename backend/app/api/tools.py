@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from uuid import UUID
-from app.dependencies import get_current_user, get_admin_user
+from app.dependencies import get_current_user, get_admin_user, get_keepa_access_user, get_tools_manager_user
 from app.models.public_tool import PublicToolCreate, PublicToolUpdate, PublicToolResponse
 from app.models.user_tool import UserToolCreate, UserToolUpdate, UserToolResponse
 from app.models.job_aid import JobAidCreate, JobAidUpdate, JobAidResponse
@@ -28,10 +28,10 @@ async def get_public_tools(
 @handle_api_errors("create public tool")
 async def create_public_tool(
     tool_data: PublicToolCreate,
-    current_user: dict = Depends(get_admin_user),
+    current_user: dict = Depends(get_tools_manager_user),
     db: Client = Depends(get_supabase)
 ):
-    """Create a new public tool (admin only)."""
+    """Create a new public tool (tools management permission required)."""
     tool_dict = tool_data.model_dump()
     tool_dict["created_by"] = current_user["id"]
     
@@ -48,10 +48,10 @@ async def create_public_tool(
 async def update_public_tool(
     tool_id: UUID,
     tool_data: PublicToolUpdate,
-    current_user: dict = Depends(get_admin_user),
+    current_user: dict = Depends(get_tools_manager_user),
     db: Client = Depends(get_supabase)
 ):
-    """Update a public tool (admin only)."""
+    """Update a public tool (tools management permission required)."""
     # Check if tool exists
     check_response = db.table("public_tools").select("*").eq("id", str(tool_id)).execute()
     
@@ -74,10 +74,10 @@ async def update_public_tool(
 @handle_api_errors("delete public tool")
 async def delete_public_tool(
     tool_id: UUID,
-    current_user: dict = Depends(get_admin_user),
+    current_user: dict = Depends(get_tools_manager_user),
     db: Client = Depends(get_supabase)
 ):
-    """Delete a public tool (admin only)."""
+    """Delete a public tool (tools management permission required)."""
     # Check if tool exists
     check_response = db.table("public_tools").select("*").eq("id", str(tool_id)).execute()
     
@@ -290,10 +290,10 @@ async def get_job_aids(
 @handle_api_errors("create job aid")
 async def create_job_aid(
     aid_data: JobAidCreate,
-    current_user: dict = Depends(get_admin_user),
+    current_user: dict = Depends(get_tools_manager_user),
     db: Client = Depends(get_supabase)
 ):
-    """Create a new job aid (admin only)."""
+    """Create a new job aid (tools management permission required)."""
     aid_dict = aid_data.model_dump()
     aid_dict["created_by"] = current_user["id"]
     
@@ -310,10 +310,10 @@ async def create_job_aid(
 async def update_job_aid(
     aid_id: UUID,
     aid_data: JobAidUpdate,
-    current_user: dict = Depends(get_admin_user),
+    current_user: dict = Depends(get_tools_manager_user),
     db: Client = Depends(get_supabase)
 ):
-    """Update a job aid (admin only)."""
+    """Update a job aid (tools management permission required)."""
     # Check if aid exists
     check_response = db.table("job_aids").select("*").eq("id", str(aid_id)).execute()
     
@@ -336,10 +336,10 @@ async def update_job_aid(
 @handle_api_errors("delete job aid")
 async def delete_job_aid(
     aid_id: UUID,
-    current_user: dict = Depends(get_admin_user),
+    current_user: dict = Depends(get_tools_manager_user),
     db: Client = Depends(get_supabase)
 ):
-    """Delete a job aid (admin only)."""
+    """Delete a job aid (tools management permission required)."""
     # Check if aid exists
     check_response = db.table("job_aids").select("*").eq("id", str(aid_id)).execute()
     

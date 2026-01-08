@@ -81,6 +81,78 @@ async def get_admin_user(
     return current_user
 
 
+async def get_superadmin_user(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase)
+) -> dict:
+    """Verify user is superadmin (orvillebarba@gmail.com)."""
+    # Check if user email is the superadmin email
+    user_email = current_user.get("email", "").lower()
+    if user_email != "orvillebarba@gmail.com":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only superadmin can perform this action"
+        )
+    
+    return current_user
+
+
+async def get_keepa_access_user(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase)
+) -> dict:
+    """Verify user has Keepa Alert Service access (has_keepa_access = true)."""
+    # Check user's Keepa access in profiles table
+    profile_response = db.table("profiles").select("has_keepa_access, role").eq("id", current_user["id"]).execute()
+    
+    if not profile_response.data:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+    
+    profile = profile_response.data[0]
+    has_keepa_access = profile.get("has_keepa_access", False)
+    is_admin = profile.get("role") == "admin"
+    
+    # Allow if user has Keepa access OR is admin
+    if not has_keepa_access and not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Keepa Alert Service access required"
+        )
+    
+    return current_user
+
+
+async def get_tools_manager_user(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase)
+) -> dict:
+    """Verify user can manage Public Tools and Job Aids (can_manage_tools = true or admin)."""
+    # Check user's tools management permission in profiles table
+    profile_response = db.table("profiles").select("can_manage_tools, role").eq("id", current_user["id"]).execute()
+    
+    if not profile_response.data:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+    
+    profile = profile_response.data[0]
+    can_manage_tools = profile.get("can_manage_tools", False)
+    is_admin = profile.get("role") == "admin"
+    
+    # Allow if user has can_manage_tools permission OR is admin
+    if not can_manage_tools and not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission to manage tools required"
+        )
+    
+    return current_user
+
+
 async def check_is_admin(
     current_user: dict,
     db: Client

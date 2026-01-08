@@ -9,17 +9,20 @@ export default function Sidebar() {
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false)
   const [isMySpaceMenuOpen, setIsMySpaceMenuOpen] = useState(false)
   const [hasKeepaAccess, setHasKeepaAccess] = useState(false)
+  const [isSuperadmin, setIsSuperadmin] = useState(false)
   const [loading, setLoading] = useState(true)
 
-  // Check user's Keepa access permission
+  // Check user's Keepa access permission and superadmin status
   useEffect(() => {
     const checkKeepaAccess = async () => {
       try {
         const userInfo = await authApi.getCurrentUser()
         setHasKeepaAccess(userInfo.has_keepa_access || false)
+        setIsSuperadmin(userInfo.email?.toLowerCase() === 'orvillebarba@gmail.com')
       } catch (error) {
         console.error('Failed to check Keepa access:', error)
         setHasKeepaAccess(false)
+        setIsSuperadmin(false)
       } finally {
         setLoading(false)
       }
@@ -148,43 +151,45 @@ export default function Sidebar() {
                   <span>Dashboard</span>
                 </Link>
                 
-                {/* Keepa Alert Service Nested Dropdown */}
-                <div>
-                  <button
-                    onClick={() => {
-                      setIsKeepaMenuOpen(!isKeepaMenuOpen)
-                    }}
-                    className={`sidebar-link sidebar-link-inactive w-full text-left ${
-                      isKeepaMenuOpen ? 'text-black' : 'text-white'
-                    } ${
-                      hasActiveSubItem ? 'sidebar-link-active' : ''
-                    }`}
-                    style={{ color: isKeepaMenuOpen ? 'black' : 'white' }}
-                  >
-                    <span className="mr-3 text-lg">⚙️</span>
-                    <span className="flex-1" style={{ color: isKeepaMenuOpen ? 'black' : 'white' }}>Keepa Alert Service</span>
-                    <span className="text-xs" style={{ color: isKeepaMenuOpen ? 'black' : 'white' }}>
-                      {isKeepaMenuOpen ? '▼' : '▶'}
-                    </span>
-                  </button>
-                  
-                  {isKeepaMenuOpen && (
-                    <div className="ml-4 mt-1 space-y-1 bg-black rounded-lg p-2">
-                      {keepaMenuItems.map((item) => (
-                        <Link
-                          key={item.path}
-                          to={item.path}
-                          className={`sidebar-link ${
-                            isActive(item.path) ? 'sidebar-link-active' : 'sidebar-link-inactive'
-                          } text-white`}
-                        >
-                          <span className="mr-3 text-lg">{item.icon}</span>
-                          <span>{item.label}</span>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {/* Keepa Alert Service Nested Dropdown - Only show if user has access */}
+                {hasKeepaAccess && (
+                  <div>
+                    <button
+                      onClick={() => {
+                        setIsKeepaMenuOpen(!isKeepaMenuOpen)
+                      }}
+                      className={`sidebar-link sidebar-link-inactive w-full text-left ${
+                        isKeepaMenuOpen ? 'text-black' : 'text-white'
+                      } ${
+                        hasActiveSubItem ? 'sidebar-link-active' : ''
+                      }`}
+                      style={{ color: isKeepaMenuOpen ? 'black' : 'white' }}
+                    >
+                      <span className="mr-3 text-lg">⚙️</span>
+                      <span className="flex-1" style={{ color: isKeepaMenuOpen ? 'black' : 'white' }}>Keepa Alert Service</span>
+                      <span className="text-xs" style={{ color: isKeepaMenuOpen ? 'black' : 'white' }}>
+                        {isKeepaMenuOpen ? '▼' : '▶'}
+                      </span>
+                    </button>
+                    
+                    {isKeepaMenuOpen && (
+                      <div className="ml-4 mt-1 space-y-1 bg-black rounded-lg p-2">
+                        {keepaMenuItems.map((item) => (
+                          <Link
+                            key={item.path}
+                            to={item.path}
+                            className={`sidebar-link ${
+                              isActive(item.path) ? 'sidebar-link-active' : 'sidebar-link-inactive'
+                            } text-white`}
+                          >
+                            <span className="mr-3 text-lg">{item.icon}</span>
+                            <span>{item.label}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -258,6 +263,19 @@ export default function Sidebar() {
               </div>
             )}
           </div>
+
+          {/* User Management (Superadmin only) */}
+          {isSuperadmin && (
+            <Link
+              to="/admin/users"
+              className={`sidebar-link ${
+                isActive('/admin/users') ? 'sidebar-link-active' : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="mr-3 text-lg">👥</span>
+              <span>User Management</span>
+            </Link>
+          )}
         </div>
       </nav>
     </aside>

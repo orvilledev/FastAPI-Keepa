@@ -6,7 +6,7 @@ export default function PublicTools() {
   const [tools, setTools] = useState<PublicTool[]>([])
   const [starredTools, setStarredTools] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [canManageTools, setCanManageTools] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingTool, setEditingTool] = useState<PublicTool | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
@@ -24,7 +24,7 @@ export default function PublicTools() {
 
   useEffect(() => {
     loadTools()
-    checkAdminStatus()
+    checkToolsAccess()
   }, [])
 
   const loadStarredStatus = async () => {
@@ -37,13 +37,13 @@ export default function PublicTools() {
   }
 
 
-  const checkAdminStatus = async () => {
+  const checkToolsAccess = async () => {
     try {
       const userInfo = await authApi.getCurrentUser()
-      setIsAdmin(userInfo.role === 'admin')
+      setCanManageTools(userInfo.can_manage_tools || false)
     } catch (err) {
-      console.error('Failed to check admin status:', err)
-      setIsAdmin(false)
+      console.error('Failed to check tools access:', err)
+      setCanManageTools(false)
     }
   }
 
@@ -82,7 +82,7 @@ export default function PublicTools() {
       loadTools()
     } catch (err: any) {
       if (err.response?.status === 403) {
-        setError('Only admins can manage public tools')
+        setError('Permission to manage tools required')
       } else {
         setError(err.response?.data?.detail || editingTool ? 'Failed to update tool' : 'Failed to add tool')
       }
@@ -113,7 +113,7 @@ export default function PublicTools() {
       loadTools()
     } catch (err: any) {
       if (err.response?.status === 403) {
-        setError('Only admins can delete public tools')
+        setError('Permission to manage tools required')
       } else {
         setError(err.response?.data?.detail || 'Failed to delete tool')
       }
@@ -158,12 +158,14 @@ export default function PublicTools() {
           <h1 className="text-3xl font-bold text-gray-900">Public Tools</h1>
           <p className="mt-1 text-sm text-gray-500">Access external tools and resources</p>
         </div>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="btn-primary"
-        >
-          Create Tool
-        </button>
+        {canManageTools && (
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="btn-primary"
+          >
+            Create Tool
+          </button>
+        )}
       </div>
 
       {error && (
@@ -311,7 +313,7 @@ export default function PublicTools() {
                         >
                           {starredTools.has(tool.id) ? '⭐' : '☆'}
                         </button>
-                        {isAdmin && (
+                        {canManageTools && (
                           <div className="flex items-center space-x-2">
                             <button
                               onClick={() => handleEdit(tool)}
@@ -360,7 +362,7 @@ export default function PublicTools() {
         )
       })()}
 
-      {showAddForm && (
+      {showAddForm && canManageTools && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-6">
@@ -473,12 +475,14 @@ export default function PublicTools() {
       {tools.length === 0 && (
         <div className="card p-12 text-center">
           <div className="text-gray-500 mb-4">No public tools available yet.</div>
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="btn-primary"
-          >
-            Create First Tool
-          </button>
+          {canManageTools && (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="btn-primary"
+            >
+              Create First Tool
+            </button>
+          )}
         </div>
       )}
     </div>

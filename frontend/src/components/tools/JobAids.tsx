@@ -6,7 +6,7 @@ export default function JobAids() {
   const [aids, setAids] = useState<JobAid[]>([])
   const [starredAids, setStarredAids] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [canManageTools, setCanManageTools] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingAid, setEditingAid] = useState<JobAid | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
@@ -25,7 +25,7 @@ export default function JobAids() {
 
   useEffect(() => {
     loadAids()
-    checkAdminStatus()
+    checkToolsAccess()
   }, [])
 
   const loadStarredStatus = async () => {
@@ -37,13 +37,13 @@ export default function JobAids() {
     }
   }
 
-  const checkAdminStatus = async () => {
+  const checkToolsAccess = async () => {
     try {
       const userInfo = await authApi.getCurrentUser()
-      setIsAdmin(userInfo.role === 'admin')
+      setCanManageTools(userInfo.can_manage_tools || false)
     } catch (err) {
-      console.error('Failed to check admin status:', err)
-      setIsAdmin(false)
+      console.error('Failed to check tools access:', err)
+      setCanManageTools(false)
     }
   }
 
@@ -107,7 +107,7 @@ export default function JobAids() {
       loadAids()
     } catch (err: any) {
       if (err.response?.status === 403) {
-        setError('Only admins can manage job aids')
+        setError('Permission to manage tools required')
       } else {
         setError(err.response?.data?.detail || editingAid ? 'Failed to update job aid' : 'Failed to add job aid')
       }
@@ -139,7 +139,7 @@ export default function JobAids() {
       loadAids()
     } catch (err: any) {
       if (err.response?.status === 403) {
-        setError('Only admins can delete job aids')
+        setError('Permission to manage tools required')
       } else {
         setError(err.response?.data?.detail || 'Failed to delete job aid')
       }
@@ -161,7 +161,7 @@ export default function JobAids() {
           <h1 className="text-3xl font-bold text-gray-900">Job Aids</h1>
           <p className="mt-1 text-sm text-gray-500">Access job-related tools and resources</p>
         </div>
-        {isAdmin && (
+        {canManageTools && (
           <button
             onClick={() => setShowAddForm(true)}
             className="btn-primary"
@@ -316,7 +316,7 @@ export default function JobAids() {
                         >
                           {starredAids.has(aid.id) ? '⭐' : '☆'}
                         </button>
-                        {isAdmin && (
+                        {canManageTools && (
                           <>
                             <button
                               onClick={() => handleEdit(aid)}
@@ -377,7 +377,7 @@ export default function JobAids() {
         )
       })()}
 
-      {showAddForm && (
+      {showAddForm && canManageTools && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-6">
@@ -516,7 +516,7 @@ export default function JobAids() {
       {aids.length === 0 && (
         <div className="card p-12 text-center">
           <div className="text-gray-500 mb-4">No job aids available yet.</div>
-          {isAdmin && (
+          {canManageTools && (
             <button
               onClick={() => setShowAddForm(true)}
               className="btn-primary"

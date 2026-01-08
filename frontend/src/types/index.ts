@@ -4,6 +4,7 @@ export interface User {
   role?: string
   display_name?: string
   has_keepa_access?: boolean
+  can_manage_tools?: boolean
   user_metadata?: Record<string, any>
 }
 

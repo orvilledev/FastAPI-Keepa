@@ -891,6 +891,19 @@ export default function MyNotes() {
                   key={note.id}
                   draggable
                   onDragStart={(e) => {
+                    // Only allow dragging from the header area, not from content
+                    const target = e.target as HTMLElement
+                    const contentArea = e.currentTarget.querySelector('.note-content')
+                    const headerArea = e.currentTarget.querySelector('.note-header')
+                    const isInContent = contentArea && (contentArea.contains(target) || contentArea === target)
+                    const isInHeader = headerArea && (headerArea.contains(target) || headerArea === target)
+                    
+                    // Only allow dragging if clicking in header, not in content
+                    if (isInContent || !isInHeader) {
+                      e.preventDefault()
+                      return
+                    }
+                    
                     e.dataTransfer.effectAllowed = 'move'
                     e.dataTransfer.setData('text/plain', note.id)
                     e.currentTarget.style.opacity = '0.5'
@@ -908,10 +921,26 @@ export default function MyNotes() {
                     const targetNoteId = note.id
                     
                     if (draggedNoteId !== targetNoteId) {
-                      handleNoteReorder(draggedNoteId, targetNoteId)
+                      // Note reordering functionality - can be implemented later if needed
+                      console.log('Note reorder:', draggedNoteId, 'to', targetNoteId)
                     }
                   }}
-                  className={`bg-white ${color.border} border-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 note-box cursor-move`}
+                  onMouseDown={(e) => {
+                    // Prevent card dragging when clicking in content area
+                    const target = e.target as HTMLElement
+                    const contentArea = e.currentTarget.querySelector('.note-content')
+                    const isInContent = contentArea && (contentArea.contains(target) || contentArea === target)
+                    
+                    if (isInContent) {
+                      // Disable dragging for the card when interacting with content
+                      e.currentTarget.setAttribute('draggable', 'false')
+                    }
+                  }}
+                  onMouseUp={(e) => {
+                    // Re-enable dragging when mouse is released
+                    e.currentTarget.setAttribute('draggable', 'true')
+                  }}
+                  className={`bg-white ${color.border} border-4 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 note-box`}
                   style={{
                     animation: 'fadeIn 0.3s ease-out',
                     animationDelay: `${index * 0.05}s`,
@@ -919,7 +948,7 @@ export default function MyNotes() {
                   }}
                 >
                   {/* Header */}
-                  <div className="p-4 border-b border-gray-100">
+                  <div className="p-4 border-b border-gray-100 cursor-move note-header">
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="text-lg font-semibold text-gray-900 flex-1">{note.title}</h3>
                       <div className="flex gap-2 ml-2">
@@ -1018,7 +1047,7 @@ export default function MyNotes() {
                           </div>
                         )}
                         <div 
-                          className="text-gray-700 note-content"
+                          className="text-gray-700 note-content select-text"
                           style={{
                             minHeight: '100px',
                             maxHeight: '300px',
@@ -1028,6 +1057,7 @@ export default function MyNotes() {
                             WebkitUserSelect: 'text',
                             MozUserSelect: 'text',
                             msUserSelect: 'text',
+                            cursor: 'text',
                             filter: (() => {
                               // Don't blur if note is unlocked (password-protected notes)
                               const isUnlocked = note.has_password && (

@@ -52,6 +52,18 @@ export const authApi = {
     const response = await api.get('/api/v1/auth/profile')
     return response.data
   },
+  getAllUsers: async () => {
+    const response = await api.get<{ users: Array<{ id: string; email: string; role: string; display_name?: string; has_keepa_access: boolean; can_manage_tools: boolean; created_at: string }> }>('/api/v1/auth/users')
+    return response.data
+  },
+  updateUserKeepaAccess: async (userId: string, hasKeepaAccess: boolean) => {
+    const response = await api.put<{ user_id: string; has_keepa_access: boolean; message: string }>(`/api/v1/auth/users/${userId}/keepa-access`, { has_keepa_access: hasKeepaAccess })
+    return response.data
+  },
+  updateUserToolsAccess: async (userId: string, canManageTools: boolean) => {
+    const response = await api.put<{ user_id: string; can_manage_tools: boolean; message: string }>(`/api/v1/auth/users/${userId}/tools-access`, { can_manage_tools: canManageTools })
+    return response.data
+  },
   updateProfile: async (profileData: any) => {
     const response = await api.put('/api/v1/auth/profile', profileData)
     return response.data

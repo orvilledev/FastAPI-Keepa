@@ -19,6 +19,7 @@ import MyToolbox from './components/tools/MyToolbox'
 import JobAids from './components/tools/JobAids'
 import TaskList from './components/tasks/TaskList'
 import MyNotes from './components/notes/MyNotes'
+import UserManagement from './components/admin/UserManagement'
 import ProtectedRoute from './components/common/ProtectedRoute'
 
 function App() {
@@ -154,6 +155,7 @@ function App() {
           <Route path="tools/public" element={user ? <PublicTools /> : <Navigate to="/" replace />} />
           <Route path="tools/my-toolbox" element={user ? <MyToolbox /> : <Navigate to="/" replace />} />
           <Route path="tools/job-aids" element={user ? <JobAids /> : <Navigate to="/" replace />} />
+          <Route path="admin/users" element={user ? <UserManagement /> : <Navigate to="/" replace />} />
         </Route>
       </Routes>
     </Router>

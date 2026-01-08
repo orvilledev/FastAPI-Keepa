@@ -15,22 +15,38 @@ export default function Dashboard() {
   const [widgets, setWidgets] = useState<WidgetItem[]>([])
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
+  const [hasKeepaAccess, setHasKeepaAccess] = useState(false)
 
   // Define available widgets - use useMemo to prevent recreation on each render
-  const availableWidgets = useMemo(() => ({
-    quickAccess: <QuickAccess />,
-    schedulerCountdown: <SchedulerCountdown />,
-    upcMapStats: <UPCMAPStats />,
-  }), [])
+  // Only include Keepa-related widgets if user has access
+  const availableWidgets = useMemo(() => {
+    const widgets: Record<string, React.ReactNode> = {
+      quickAccess: <QuickAccess />,
+    }
+    
+    // Only add Keepa-related widgets if user has access
+    if (hasKeepaAccess) {
+      widgets.schedulerCountdown = <SchedulerCountdown />
+      widgets.upcMapStats = <UPCMAPStats />
+    }
+    
+    return widgets
+  }, [hasKeepaAccess])
+  
+  // Create widget components separately to avoid dependency issues
+  const quickAccessWidget = useMemo(() => <QuickAccess />, [])
+  const schedulerCountdownWidget = useMemo(() => <SchedulerCountdown />, [])
+  const upcMapStatsWidget = useMemo(() => <UPCMAPStats />, [])
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load user greeting
+        // Load user greeting and Keepa access
         const user = await authApi.getCurrentUser()
         const name = user.display_name || user.email?.split('@')[0] || 'there'
         const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1)
         setGreeting(`Welcome, ${capitalizedName}!`)
+        setHasKeepaAccess(user.has_keepa_access || false)
 
         // Load widget order
         try {
@@ -40,20 +56,30 @@ export default function Dashboard() {
           const widgetOrder = savedWidgets
             .filter(w => w.is_visible)
             .sort((a, b) => a.display_order - b.display_order)
-            .map(w => ({
-              id: w.widget_id,
-              component: availableWidgets[w.widget_id],
-            }))
+            .map(w => {
+              let component: React.ReactNode | undefined
+              if (w.widget_id === 'quickAccess') {
+                component = quickAccessWidget
+              } else if (w.widget_id === 'schedulerCountdown' && hasKeepaAccess) {
+                component = schedulerCountdownWidget
+              } else if (w.widget_id === 'upcMapStats' && hasKeepaAccess) {
+                component = upcMapStatsWidget
+              }
+              return { id: w.widget_id, component }
+            })
             .filter(w => w.component !== undefined)
           console.log('Processed widget order:', widgetOrder)
 
           // If no saved order, use default and save it
           if (widgetOrder.length === 0) {
             const defaultWidgets = [
-              { id: 'quickAccess', component: availableWidgets.quickAccess },
-              { id: 'schedulerCountdown', component: availableWidgets.schedulerCountdown },
-              { id: 'upcMapStats', component: availableWidgets.upcMapStats },
+              { id: 'quickAccess', component: quickAccessWidget },
             ]
+            // Only add Keepa widgets if user has access
+            if (hasKeepaAccess) {
+              defaultWidgets.push({ id: 'schedulerCountdown', component: schedulerCountdownWidget })
+              defaultWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
+            }
             setWidgets(defaultWidgets)
             
             // Save default order to database
@@ -70,12 +96,14 @@ export default function Dashboard() {
           } else {
             // Ensure all available widgets are included
             const savedWidgetIds = new Set(widgetOrder.map(w => w.id))
-            const missingWidgets = Object.keys(availableWidgets)
-              .filter(id => !savedWidgetIds.has(id))
-              .map(id => ({
-                id,
-                component: availableWidgets[id],
-              }))
+            const allAvailableWidgets: Array<{ id: string; component: React.ReactNode }> = [
+              { id: 'quickAccess', component: quickAccessWidget },
+            ]
+            if (hasKeepaAccess) {
+              allAvailableWidgets.push({ id: 'schedulerCountdown', component: schedulerCountdownWidget })
+              allAvailableWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
+            }
+            const missingWidgets = allAvailableWidgets.filter(w => !savedWidgetIds.has(w.id))
             
             if (missingWidgets.length > 0) {
               // Add missing widgets at the end
@@ -114,10 +142,13 @@ export default function Dashboard() {
           
           // Use default order if loading fails
           const defaultWidgets = [
-            { id: 'quickAccess', component: availableWidgets.quickAccess },
-            { id: 'schedulerCountdown', component: availableWidgets.schedulerCountdown },
-            { id: 'upcMapStats', component: availableWidgets.upcMapStats },
+            { id: 'quickAccess', component: quickAccessWidget },
           ]
+          // Only add Keepa widgets if user has access
+          if (hasKeepaAccess) {
+            defaultWidgets.push({ id: 'schedulerCountdown', component: schedulerCountdownWidget })
+            defaultWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
+          }
           setWidgets(defaultWidgets)
           
           // Try to save default order (might fail if table doesn't exist, that's okay)
@@ -140,11 +171,10 @@ export default function Dashboard() {
       } catch (err) {
         console.error('Failed to load user info:', err)
         setGreeting('Welcome!')
-        // Use default widget order
+        setHasKeepaAccess(false)
+        // Use default widget order (only QuickAccess for non-Keepa users)
         setWidgets([
-          { id: 'quickAccess', component: availableWidgets.quickAccess },
-          { id: 'schedulerCountdown', component: availableWidgets.schedulerCountdown },
-          { id: 'upcMapStats', component: availableWidgets.upcMapStats },
+          { id: 'quickAccess', component: quickAccessWidget },
         ])
       } finally {
         setLoading(false)
@@ -152,7 +182,7 @@ export default function Dashboard() {
     }
 
     loadData()
-  }, [])
+  }, [hasKeepaAccess, quickAccessWidget, schedulerCountdownWidget, upcMapStatsWidget])
 
   const handleDragStart = (index: number) => {
     setDraggedIndex(index)
