@@ -4,6 +4,7 @@ import { authApi } from '../../services/api'
 
 export default function Sidebar() {
   const location = useLocation()
+  const [isDashboardMenuOpen, setIsDashboardMenuOpen] = useState(true)
   const [isKeepaMenuOpen, setIsKeepaMenuOpen] = useState(true)
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false)
   const [isMySpaceMenuOpen, setIsMySpaceMenuOpen] = useState(false)
@@ -65,17 +66,30 @@ export default function Sidebar() {
     { path: '/tools/my-toolbox', label: 'My Toolbox', icon: '📦' },
   ]
 
+  const dashboardMenuItems = [
+    { path: '/dashboard', label: 'Dashboard', icon: '📊' },
+    { 
+      label: 'Keepa Alert Service', 
+      icon: '⚙️',
+      children: keepaMenuItems
+    },
+  ]
+
   // Check if any sub-item is active to keep menu open
   const hasActiveSubItem = keepaMenuItems.some(item => isActive(item.path))
   const hasActiveToolsSubItem = toolsMenuItems.some(item => isActive(item.path))
   const hasActiveMySpaceSubItem = mySpaceMenuItems.some(item => isActive(item.path))
+  const hasActiveDashboardSubItem = isActive('/dashboard') || hasActiveSubItem
 
   // Auto-open menu if a sub-item is active
   useEffect(() => {
-    if (hasActiveSubItem) {
-      setIsKeepaMenuOpen(true)
+    if (hasActiveDashboardSubItem) {
+      setIsDashboardMenuOpen(true)
+      if (hasActiveSubItem) {
+        setIsKeepaMenuOpen(true)
+      }
     }
-  }, [hasActiveSubItem])
+  }, [hasActiveDashboardSubItem, hasActiveSubItem])
 
   useEffect(() => {
     if (hasActiveToolsSubItem) {
@@ -106,16 +120,74 @@ export default function Sidebar() {
       </div>
       <nav className="mt-6 px-4">
         <div className="space-y-1">
-          {/* Dashboard */}
-          <Link
-            to="/dashboard"
-            className={`sidebar-link ${
-              location.pathname === '/dashboard' ? 'sidebar-link-active' : 'sidebar-link-inactive'
-            }`}
-          >
-            <span className="mr-3 text-lg">📊</span>
-            <span>Dashboard</span>
-          </Link>
+          {/* Home Dropdown */}
+          <div>
+            <button
+              onClick={() => {
+                setIsDashboardMenuOpen(!isDashboardMenuOpen)
+              }}
+              className="sidebar-link sidebar-link-inactive w-full text-left text-black"
+            >
+              <span className="mr-3 text-lg">🏠</span>
+              <span className="flex-1">Home</span>
+              <span className="text-xs">
+                {isDashboardMenuOpen ? '▼' : '▶'}
+              </span>
+            </button>
+            
+            {isDashboardMenuOpen && (
+              <div className={`ml-4 mt-1 space-y-1 rounded-lg p-2 ${isKeepaMenuOpen ? 'bg-transparent' : 'bg-black'}`}>
+                {/* Dashboard Link */}
+                <Link
+                  to="/dashboard"
+                  className={`sidebar-link ${
+                    isActive('/dashboard') ? 'sidebar-link-active' : 'sidebar-link-inactive'
+                  } ${isKeepaMenuOpen ? 'text-black' : 'text-white'}`}
+                >
+                  <span className="mr-3 text-lg">📊</span>
+                  <span>Dashboard</span>
+                </Link>
+                
+                {/* Keepa Alert Service Nested Dropdown */}
+                <div>
+                  <button
+                    onClick={() => {
+                      setIsKeepaMenuOpen(!isKeepaMenuOpen)
+                    }}
+                    className={`sidebar-link sidebar-link-inactive w-full text-left ${
+                      isKeepaMenuOpen ? 'text-black' : 'text-white'
+                    } ${
+                      hasActiveSubItem ? 'sidebar-link-active' : ''
+                    }`}
+                    style={{ color: isKeepaMenuOpen ? 'black' : 'white' }}
+                  >
+                    <span className="mr-3 text-lg">⚙️</span>
+                    <span className="flex-1" style={{ color: isKeepaMenuOpen ? 'black' : 'white' }}>Keepa Alert Service</span>
+                    <span className="text-xs" style={{ color: isKeepaMenuOpen ? 'black' : 'white' }}>
+                      {isKeepaMenuOpen ? '▼' : '▶'}
+                    </span>
+                  </button>
+                  
+                  {isKeepaMenuOpen && (
+                    <div className="ml-4 mt-1 space-y-1 bg-black rounded-lg p-2">
+                      {keepaMenuItems.map((item) => (
+                        <Link
+                          key={item.path}
+                          to={item.path}
+                          className={`sidebar-link ${
+                            isActive(item.path) ? 'sidebar-link-active' : 'sidebar-link-inactive'
+                          } text-white`}
+                        >
+                          <span className="mr-3 text-lg">{item.icon}</span>
+                          <span>{item.label}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* My Space Dropdown */}
           <div>
@@ -150,39 +222,6 @@ export default function Sidebar() {
                 ) : (
                   <div className="text-xs text-gray-400 px-3 py-2 text-white">No items yet</div>
                 )}
-              </div>
-            )}
-          </div>
-
-          {/* Keepa Alert Service Dropdown */}
-          <div>
-            <button
-              onClick={() => {
-                setIsKeepaMenuOpen(!isKeepaMenuOpen)
-              }}
-              className="sidebar-link sidebar-link-inactive w-full text-left text-black"
-            >
-              <span className="mr-3 text-lg">⚙️</span>
-              <span className="flex-1">Keepa Alert Service</span>
-              <span className="text-xs">
-                {isKeepaMenuOpen ? '▼' : '▶'}
-              </span>
-            </button>
-            
-            {isKeepaMenuOpen && (
-              <div className="ml-4 mt-1 space-y-1 bg-black rounded-lg p-2">
-                {keepaMenuItems.map((item) => (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`sidebar-link ${
-                      isActive(item.path) ? 'sidebar-link-active' : 'sidebar-link-inactive'
-                    } text-white`}
-                  >
-                    <span className="mr-3 text-lg">{item.icon}</span>
-                    <span>{item.label}</span>
-                  </Link>
-                ))}
               </div>
             )}
           </div>

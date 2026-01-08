@@ -36,7 +36,7 @@
   
   .sidebar-link {
     @apply flex items-center px-4 py-3 text-sm font-medium rounded-lg;
-    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+    transition: background 0.3s ease-in, color 0.3s ease-in, box-shadow 0.3s ease-in;
     will-change: background, color;
   }
   
@@ -61,30 +61,36 @@
     @apply bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md;
   }
   
-  /* When ANY menu item is hovered, remove highlight from ALL other items (parent or child) */
-  /* This ensures only one item is highlighted at a time */
-  nav:has(.sidebar-link:hover) .sidebar-link:not(:hover) {
-    background: transparent !important;
-    background-image: none !important;
-    color: rgb(55 65 81) !important;
-    box-shadow: none !important;
-  }
-  
   /* When hovering over a child item, ensure parent button is not highlighted */
-  nav > div:has(> .ml-4 .sidebar-link:hover) > button.sidebar-link:not(:hover) {
+  /* Only affects dropdown containers, not standalone links like Dashboard */
+  nav > div:has(> .ml-4 .sidebar-link:hover) > button.sidebar-link:not(:hover):not(.sidebar-link-active) {
     background: transparent !important;
     background-image: none !important;
     color: rgb(55 65 81) !important;
     box-shadow: none !important;
+    transition: background 0.3s ease-in, color 0.3s ease-in, box-shadow 0.3s ease-in !important;
   }
   
   /* When hovering over parent button, ensure child items are not highlighted */
-  nav > div:has(> button.sidebar-link:hover) > .ml-4 .sidebar-link:not(:hover) {
+  /* Only affects dropdown containers, not standalone links like Dashboard */
+  nav > div:has(> button.sidebar-link:hover) > .ml-4 .sidebar-link:not(:hover):not(.sidebar-link-active) {
     background: transparent !important;
     background-image: none !important;
     color: rgb(55 65 81) !important;
     box-shadow: none !important;
+    transition: background 0.3s ease-in, color 0.3s ease-in, box-shadow 0.3s ease-in !important;
   }
+  
+  /* When hovering over a parent menu button, remove highlight from other parent buttons in the same container */
+  /* This only affects dropdown parent buttons, not standalone links, and excludes active links */
+  nav > div:has(> button.sidebar-link:hover) > button.sidebar-link:not(:hover):not(.sidebar-link-active) {
+    background: transparent !important;
+    background-image: none !important;
+    color: rgb(55 65 81) !important;
+    box-shadow: none !important;
+    transition: background 0.3s ease-in, color 0.3s ease-in, box-shadow 0.3s ease-in !important;
+  }
+  
 }
 
 code {
