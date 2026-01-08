@@ -69,28 +69,22 @@ export default function Sidebar() {
   const hasActiveToolsSubItem = toolsMenuItems.some(item => isActive(item.path))
   const hasActiveMySpaceSubItem = mySpaceMenuItems.some(item => isActive(item.path))
 
-  // Auto-open menu if a sub-item is active, and close the other menus
+  // Auto-open menu if a sub-item is active
   useEffect(() => {
     if (hasActiveSubItem) {
       setIsKeepaMenuOpen(true)
-      setIsToolsMenuOpen(false)
-      setIsMySpaceMenuOpen(false)
     }
   }, [hasActiveSubItem])
 
   useEffect(() => {
     if (hasActiveToolsSubItem) {
       setIsToolsMenuOpen(true)
-      setIsKeepaMenuOpen(false)
-      setIsMySpaceMenuOpen(false)
     }
   }, [hasActiveToolsSubItem])
 
   useEffect(() => {
     if (hasActiveMySpaceSubItem) {
       setIsMySpaceMenuOpen(true)
-      setIsKeepaMenuOpen(false)
-      setIsToolsMenuOpen(false)
     }
   }, [hasActiveMySpaceSubItem])
 
@@ -127,24 +121,18 @@ export default function Sidebar() {
             <button
               onClick={() => {
                 setIsMySpaceMenuOpen(!isMySpaceMenuOpen)
-                if (!isMySpaceMenuOpen) {
-                  setIsKeepaMenuOpen(false)
-                  setIsToolsMenuOpen(false)
-                }
               }}
-              className={`sidebar-link w-full text-left ${
-                hasActiveMySpaceSubItem ? 'sidebar-link-active' : 'sidebar-link-inactive'
-              }`}
+              className="sidebar-link sidebar-link-inactive w-full text-left"
             >
               <span className="mr-3 text-lg">🏠</span>
               <span className="flex-1">My Space</span>
-              <span className={`text-xs transition-transform duration-200 ${isMySpaceMenuOpen ? 'rotate-90' : ''}`}>
-                ▶
+              <span className="text-xs">
+                {isMySpaceMenuOpen ? '▼' : '▶'}
               </span>
             </button>
             
             {isMySpaceMenuOpen && (
-              <div className="ml-4 mt-1 space-y-1 bg-gray-50 rounded-lg p-2">
+              <div className="ml-4 mt-1 space-y-1 bg-gray-200 rounded-lg p-2">
                 {mySpaceMenuItems.length > 0 ? (
                   mySpaceMenuItems.map((item) => (
                     <Link
@@ -170,24 +158,18 @@ export default function Sidebar() {
             <button
               onClick={() => {
                 setIsKeepaMenuOpen(!isKeepaMenuOpen)
-                if (!isKeepaMenuOpen) {
-                  setIsToolsMenuOpen(false)
-                  setIsMySpaceMenuOpen(false)
-                }
               }}
-              className={`sidebar-link w-full text-left ${
-                hasActiveSubItem ? 'sidebar-link-active' : 'sidebar-link-inactive'
-              }`}
+              className="sidebar-link sidebar-link-inactive w-full text-left"
             >
               <span className="mr-3 text-lg">⚙️</span>
               <span className="flex-1">Keepa Alert Service</span>
-              <span className={`text-xs transition-transform duration-200 ${isKeepaMenuOpen ? 'rotate-90' : ''}`}>
-                ▶
+              <span className="text-xs">
+                {isKeepaMenuOpen ? '▼' : '▶'}
               </span>
             </button>
             
             {isKeepaMenuOpen && (
-              <div className="ml-4 mt-1 space-y-1 bg-gray-50 rounded-lg p-2">
+              <div className="ml-4 mt-1 space-y-1 bg-gray-200 rounded-lg p-2">
                 {keepaMenuItems.map((item) => (
                   <Link
                     key={item.path}
@@ -209,24 +191,18 @@ export default function Sidebar() {
             <button
               onClick={() => {
                 setIsToolsMenuOpen(!isToolsMenuOpen)
-                if (!isToolsMenuOpen) {
-                  setIsKeepaMenuOpen(false)
-                  setIsMySpaceMenuOpen(false)
-                }
               }}
-              className={`sidebar-link w-full text-left ${
-                hasActiveToolsSubItem ? 'sidebar-link-active' : 'sidebar-link-inactive'
-              }`}
+              className="sidebar-link sidebar-link-inactive w-full text-left"
             >
               <span className="mr-3 text-lg">🔧</span>
               <span className="flex-1">Tools</span>
-              <span className={`text-xs transition-transform duration-200 ${isToolsMenuOpen ? 'rotate-90' : ''}`}>
-                ▶
+              <span className="text-xs">
+                {isToolsMenuOpen ? '▼' : '▶'}
               </span>
             </button>
             
             {isToolsMenuOpen && (
-              <div className="ml-4 mt-1 space-y-1 bg-gray-50 rounded-lg p-2">
+              <div className="ml-4 mt-1 space-y-1 bg-gray-200 rounded-lg p-2">
                 {toolsMenuItems.map((item) => (
                   <Link
                     key={item.path}
