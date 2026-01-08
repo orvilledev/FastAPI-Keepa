@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import init_db
-from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, tasks, dashboard
+from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, tasks, dashboard, map, notes
 from app.scheduler import setup_scheduler, start_scheduler, shutdown_scheduler
 import logging
 
@@ -65,9 +65,11 @@ app.include_router(jobs.router, prefix=settings.api_v1_str, tags=["jobs"])
 app.include_router(batches.router, prefix=settings.api_v1_str, tags=["batches"])
 app.include_router(reports.router, prefix=settings.api_v1_str, tags=["reports"])
 app.include_router(upcs.router, prefix=settings.api_v1_str, tags=["upcs"])
+app.include_router(map.router, prefix=settings.api_v1_str, tags=["map"])
 app.include_router(scheduler.router, prefix=settings.api_v1_str, tags=["scheduler"])
 app.include_router(tools.router, prefix=settings.api_v1_str, tags=["tools"])
 app.include_router(quick_access.router, prefix=settings.api_v1_str, tags=["quick-access"])
 app.include_router(tasks.router, prefix=settings.api_v1_str, tags=["tasks"])
 app.include_router(dashboard.router, prefix=settings.api_v1_str, tags=["dashboard"])
+app.include_router(notes.router, prefix=settings.api_v1_str, tags=["notes"])
 

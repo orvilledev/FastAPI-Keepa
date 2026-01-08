@@ -56,8 +56,19 @@ export default function MyNotes() {
     content: '',
     category: '',
     color: 'yellow',
-    importance: 'normal' as Importance
+    importance: 'normal' as Importance,
+    is_protected: false,
+    password: '',
+    use_password: false,
+    require_password_always: false
   })
+  const [revealedNotes, setRevealedNotes] = useState<Set<string>>(new Set())
+  const [unlockedNotes, setUnlockedNotes] = useState<Set<string>>(new Set())
+  const [sessionUnlockedNotes, setSessionUnlockedNotes] = useState<Set<string>>(new Set()) // Temporary unlock for require_password_always notes
+  const [passwordPrompt, setPasswordPrompt] = useState<{ noteId: string; show: boolean; action?: 'view' | 'edit' } | null>(null)
+  const [passwordInput, setPasswordInput] = useState('')
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState<string>('')
   const [availableCategories, setAvailableCategories] = useState<string[]>([])
 
@@ -88,6 +99,8 @@ export default function MyNotes() {
       setError(null)
       setLoading(true)
       
+      console.log('Loading notes...', { currentPage, pageSize, searchTerm, categoryFilter })
+      
       // Get notes with pagination and filters
       const response = await notesApi.listNotes(
         currentPage, 
@@ -96,9 +109,11 @@ export default function MyNotes() {
         categoryFilter || undefined
       )
       
-      setNotes(response.notes)
-      setTotalNotes(response.total)
-      setTotalPages(response.total_pages)
+      console.log('Notes loaded:', response)
+      
+      setNotes(response.notes || [])
+      setTotalNotes(response.total || 0)
+      setTotalPages(response.total_pages || 0)
       
       // To get all categories, we need to fetch all notes (without pagination)
       // This is a one-time call to extract categories
@@ -118,6 +133,13 @@ export default function MyNotes() {
       }
     } catch (err: any) {
       console.error('Failed to load notes:', err)
+      console.error('Error details:', {
+        message: err?.message,
+        response: err?.response,
+        status: err?.response?.status,
+        data: err?.response?.data
+      })
+      
       const errorDetail = err?.response?.data?.detail
       let errorMessage = 'Failed to load notes'
       
@@ -128,9 +150,18 @@ export default function MyNotes() {
         errorMessage = errorDetail
       } else if (err?.message) {
         errorMessage = err.message
+      } else if (err?.response?.status === 401) {
+        errorMessage = 'Authentication failed. Please sign in again.'
+      } else if (err?.response?.status === 500) {
+        errorMessage = 'Server error. Please try again later.'
+      } else if (!err?.response) {
+        errorMessage = 'Network error. Please check your connection and ensure the backend is running.'
       }
       
       setError(errorMessage)
+      setNotes([])
+      setTotalNotes(0)
+      setTotalPages(0)
     } finally {
       setLoading(false)
     }
@@ -160,6 +191,14 @@ export default function MyNotes() {
       return
     }
 
+    // Validate password if password protection is enabled
+    if (formData.use_password) {
+      if (!formData.password || formData.password.length < 7) {
+        setError('Password must be at least 7 characters long')
+        return
+      }
+    }
+
     try {
       setSubmitting(true)
       setError(null)
@@ -169,8 +208,11 @@ export default function MyNotes() {
         category: formData.category.trim() || undefined,
         color: formData.color,
         importance: formData.importance,
+        is_protected: formData.is_protected,
+        password: formData.use_password && formData.password ? formData.password : undefined,
+        require_password_always: formData.require_password_always
       })
-      setFormData({ title: '', content: '', category: '', color: 'yellow', importance: 'normal' })
+      setFormData({ title: '', content: '', category: '', color: 'yellow', importance: 'normal', is_protected: false, password: '', use_password: false, require_password_always: false })
       setShowAddForm(false)
       await loadNotes()
     } catch (err: any) {
@@ -195,6 +237,15 @@ export default function MyNotes() {
       return
     }
 
+    // Validate password if password protection is being enabled or updated
+    if (formData.use_password) {
+      // Only validate if setting a new password (not just keeping existing)
+      if (formData.password && formData.password.length > 0 && formData.password.length < 7) {
+        setError('Password must be at least 7 characters long')
+        return
+      }
+    }
+
     try {
       setSubmitting(true)
       setError(null)
@@ -205,9 +256,13 @@ export default function MyNotes() {
         category: formData.category.trim() || undefined,
         color: formData.color,
         importance: formData.importance,
+        is_protected: formData.is_protected,
+        password: formData.use_password && formData.password ? formData.password : undefined,
+        remove_password: !formData.use_password && editingNote.has_password,
+        require_password_always: formData.require_password_always
       })
       setEditingNote(null)
-      setFormData({ title: '', content: '', category: '', color: 'yellow', importance: 'normal' })
+      setFormData({ title: '', content: '', category: '', color: 'yellow', importance: 'normal', is_protected: false, password: '', use_password: false, require_password_always: false })
       setShowAddForm(false)
       setSuccess('Note updated!')
       await loadNotes()
@@ -233,24 +288,166 @@ export default function MyNotes() {
     }
   }
 
-  const handleEditClick = (note: Note) => {
+  const handleEditClick = async (note: Note) => {
+    // Check if note has password protection and requires password always
+    const isUnlocked = note.require_password_always 
+      ? sessionUnlockedNotes.has(note.id)
+      : unlockedNotes.has(note.id)
+    
+    if (note.has_password && !isUnlocked) {
+      setPasswordPrompt({ noteId: note.id, show: true, action: 'edit' })
+      setPasswordInput('')
+      setPasswordError(null)
+      return
+    }
+    
     setEditingNote(note)
     setFormData({ 
       title: note.title, 
       content: note.content,
       category: note.category || '',
       color: note.color || 'yellow',
-      importance: (note as any).importance || 'normal'
+      importance: (note as any).importance || 'normal',
+      is_protected: note.is_protected || false,
+      password: '',
+      use_password: note.has_password || false,
+      require_password_always: note.require_password_always || false
     })
     setShowAddForm(true)
+  }
+
+  const handlePasswordSubmit = async () => {
+    if (!passwordPrompt) return
+    
+    try {
+      setPasswordError(null)
+      await notesApi.verifyNotePassword(passwordPrompt.noteId, passwordInput)
+      
+      const note = notes.find(n => n.id === passwordPrompt.noteId)
+      
+      // If require_password_always is true, add to sessionUnlockedNotes (temporary)
+      // Otherwise, add to unlockedNotes (persistent)
+      if (note) {
+        if (note.require_password_always) {
+          setSessionUnlockedNotes(prev => new Set(prev).add(passwordPrompt.noteId))
+        } else {
+          setUnlockedNotes(prev => new Set(prev).add(passwordPrompt.noteId))
+        }
+      }
+      
+      setPasswordPrompt(null)
+      setPasswordInput('')
+      
+      // Only open edit form if the password prompt was triggered from edit action
+      if (note && passwordPrompt.action === 'edit') {
+        setEditingNote(note)
+        setFormData({ 
+          title: note.title, 
+          content: note.content,
+          category: note.category || '',
+          color: note.color || 'yellow',
+          importance: (note as any).importance || 'normal',
+          is_protected: note.is_protected || false,
+          password: '',
+          use_password: note.has_password || false,
+          require_password_always: note.require_password_always || false
+        })
+        setShowAddForm(true)
+      }
+      // If action was 'view' or undefined, just unlock the note (contents will be shown automatically)
+    } catch (err: any) {
+      setPasswordError(err?.response?.data?.detail || 'Invalid password')
+      setPasswordInput('')
+    }
+  }
+
+  const handlePasswordCancel = () => {
+    setPasswordPrompt(null)
+    setPasswordInput('')
+    setPasswordError(null)
   }
 
   const handleCancel = () => {
     setShowAddForm(false)
     setEditingNote(null)
-    setFormData({ title: '', content: '', category: '', color: 'yellow', importance: 'normal' })
+    setFormData({ title: '', content: '', category: '', color: 'yellow', importance: 'normal', is_protected: false, password: '', use_password: false, require_password_always: false })
     setError(null)
     setSuccess(null)
+  }
+
+  // Function to mask sensitive content
+  const maskContent = (content: string): string => {
+    // Create a temporary div to parse HTML
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = content
+    
+    // Function to mask text in a node
+    const maskText = (text: string): string => {
+      if (!text || text.trim().length === 0) return text
+      
+      // Mask patterns that look like passwords or sensitive data
+      // Match sequences of 6+ alphanumeric/special characters (likely passwords)
+      return text.replace(/([A-Za-z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]{6,})/g, (match) => {
+        // Don't mask URLs, common words, or short sequences
+        if (
+          match.includes('http') || 
+          match.includes('www.') || 
+          match.includes('://') ||
+          match.length < 6 ||
+          /^[A-Za-z\s]+$/.test(match) // Don't mask plain words (only letters and spaces)
+        ) {
+          return match
+        }
+        
+        // Show first 2 and last 2 characters, mask the middle
+        if (match.length > 4) {
+          const maskedLength = Math.min(match.length - 4, 12)
+          return match.substring(0, 2) + '*'.repeat(maskedLength) + match.substring(match.length - 2)
+        }
+        // For shorter sequences, mask all but first and last character
+        if (match.length > 2) {
+          return match[0] + '*'.repeat(match.length - 2) + match[match.length - 1]
+        }
+        return '*'.repeat(match.length)
+      })
+    }
+    
+    // Recursively mask text nodes while preserving HTML structure
+    const maskNode = (node: Node): void => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const textNode = node as Text
+        if (textNode.textContent) {
+          textNode.textContent = maskText(textNode.textContent)
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        // Skip masking inside certain tags (like links, code blocks)
+        const element = node as Element
+        const tagName = element.tagName.toLowerCase()
+        if (tagName === 'a' || tagName === 'code' || tagName === 'pre') {
+          return // Don't mask links or code
+        }
+        
+        // Recursively process child nodes
+        Array.from(node.childNodes).forEach(child => maskNode(child))
+      }
+    }
+    
+    // Mask all text nodes
+    Array.from(tempDiv.childNodes).forEach(child => maskNode(child))
+    
+    return tempDiv.innerHTML
+  }
+
+  const toggleReveal = (noteId: string) => {
+    setRevealedNotes(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(noteId)) {
+        newSet.delete(noteId)
+      } else {
+        newSet.add(noteId)
+      }
+      return newSet
+    })
   }
 
   const handleBackToNotes = () => {
@@ -282,6 +479,53 @@ export default function MyNotes() {
 
   return (
     <div className="space-y-6">
+      {/* Password Prompt Modal */}
+      {passwordPrompt && passwordPrompt.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">🔐 Password Required</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              This note is password protected. Please enter the password to view or edit it.
+            </p>
+            {passwordError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded mb-4 text-sm">
+                {passwordError}
+              </div>
+            )}
+            <input
+              type="password"
+              value={passwordInput}
+              onChange={(e) => {
+                setPasswordInput(e.target.value)
+                setPasswordError(null)
+              }}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handlePasswordSubmit()
+                }
+              }}
+              placeholder="Enter password..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 mb-4"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={handlePasswordSubmit}
+                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+              >
+                Unlock
+              </button>
+              <button
+                onClick={handlePasswordCancel}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -389,6 +633,147 @@ export default function MyNotes() {
                   ))}
                 </select>
               </div>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_protected}
+                    onChange={(e) => setFormData({ ...formData, is_protected: e.target.checked })}
+                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    🔒 Enable Content Masking (mask sensitive content)
+                  </span>
+                </label>
+                <p className="text-xs text-gray-500 mt-1 ml-6">
+                  When enabled, passwords and sensitive data will be masked with asterisks when viewing
+                </p>
+              </div>
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.use_password}
+                    onChange={(e) => {
+                      const newUsePassword = e.target.checked
+                      setFormData({ 
+                        ...formData, 
+                        use_password: newUsePassword,
+                        require_password_always: newUsePassword ? formData.require_password_always : false
+                      })
+                    }}
+                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    🔐 Enable Password Protection
+                  </span>
+                </label>
+                <p className="text-xs text-gray-500 mt-1 ml-6">
+                  When enabled, a password will be required to view or edit this note
+                </p>
+              </div>
+              {formData.use_password && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Password
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="flex-1 relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        className={`w-full px-3 py-2 pr-10 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+                          formData.password && formData.password.length > 0 && formData.password.length < 7
+                            ? 'border-red-300 bg-red-50'
+                            : 'border-gray-300'
+                        }`}
+                        placeholder="Enter password for this note (minimum 7 characters)..."
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                        title={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? "👁️" : "👁️‍🗨️"}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Generate a strong password: 16 characters with mix of uppercase, lowercase, numbers, and safe symbols
+                        // Using only safe symbols that won't cause issues with validation or encoding
+                        const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                        const lowercase = 'abcdefghijklmnopqrstuvwxyz'
+                        const numbers = '0123456789'
+                        const symbols = '!@#$%&*+-=?'
+                        const allChars = uppercase + lowercase + numbers + symbols
+                        
+                        let password = ''
+                        // Ensure at least one of each type
+                        password += uppercase[Math.floor(Math.random() * uppercase.length)]
+                        password += lowercase[Math.floor(Math.random() * lowercase.length)]
+                        password += numbers[Math.floor(Math.random() * numbers.length)]
+                        password += symbols[Math.floor(Math.random() * symbols.length)]
+                        
+                        // Fill the rest randomly (total 16 characters)
+                        for (let i = password.length; i < 16; i++) {
+                          password += allChars[Math.floor(Math.random() * allChars.length)]
+                        }
+                        
+                        // Shuffle the password using Fisher-Yates algorithm for better randomness
+                        const passwordArray = password.split('')
+                        for (let i = passwordArray.length - 1; i > 0; i--) {
+                          const j = Math.floor(Math.random() * (i + 1));
+                          [passwordArray[i], passwordArray[j]] = [passwordArray[j], passwordArray[i]]
+                        }
+                        password = passwordArray.join('')
+                        
+                        // Ensure the password is valid (at least 7 characters, which it always will be)
+                        if (password.length >= 7) {
+                          setFormData({ ...formData, password })
+                          setShowPassword(true) // Show the generated password
+                        }
+                      }}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm whitespace-nowrap"
+                      title="Generate a strong password"
+                    >
+                      🔐 Generate
+                    </button>
+                  </div>
+                  {formData.password && formData.password.length > 0 && formData.password.length < 7 && (
+                    <p className="text-xs text-red-600 mt-1">
+                      Password must be at least 7 characters long
+                    </p>
+                  )}
+                  {formData.password && formData.password.length >= 7 && (
+                    <p className="text-xs text-green-600 mt-1">
+                      ✓ Password meets requirements
+                    </p>
+                  )}
+                </div>
+              )}
+              {formData.use_password && (
+                <div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.require_password_always}
+                      onChange={(e) => setFormData({ ...formData, require_password_always: e.target.checked })}
+                      className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      🔐 Require Password Even for Owner (Optional)
+                    </span>
+                  </label>
+                  <p className="text-xs text-gray-500 mt-1 ml-6">
+                    When enabled, you will need to enter the password every time you view this note, even if you created it
+                  </p>
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -504,7 +889,29 @@ export default function MyNotes() {
               return (
                 <div
                   key={note.id}
-                  className={`bg-white ${color.border} border-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 note-box`}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = 'move'
+                    e.dataTransfer.setData('text/plain', note.id)
+                    e.currentTarget.style.opacity = '0.5'
+                  }}
+                  onDragEnd={(e) => {
+                    e.currentTarget.style.opacity = '1'
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    const draggedNoteId = e.dataTransfer.getData('text/plain')
+                    const targetNoteId = note.id
+                    
+                    if (draggedNoteId !== targetNoteId) {
+                      handleNoteReorder(draggedNoteId, targetNoteId)
+                    }
+                  }}
+                  className={`bg-white ${color.border} border-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 note-box cursor-move`}
                   style={{
                     animation: 'fadeIn 0.3s ease-out',
                     animationDelay: `${index * 0.05}s`,
@@ -543,16 +950,114 @@ export default function MyNotes() {
                   </div>
                   
                   {/* Content */}
-                  <div 
-                    className="p-4 text-gray-700 note-content"
-                    style={{
-                      minHeight: '100px',
-                      maxHeight: '300px',
-                      overflowY: 'auto',
-                      lineHeight: '1.6',
-                    }}
-                    dangerouslySetInnerHTML={{ __html: note.content }}
-                  />
+                  <div className="p-4">
+                    {note.has_password && (note.require_password_always ? !sessionUnlockedNotes.has(note.id) : !unlockedNotes.has(note.id)) ? (
+                      <div className="text-center py-8">
+                        <div className="text-4xl mb-4">🔐</div>
+                        <p className="text-gray-600 mb-4">This note is password protected</p>
+                        {note.require_password_always && (
+                          <p className="text-xs text-gray-500 mb-2">Password required even for owner</p>
+                        )}
+                        <button
+                          onClick={() => {
+                            setPasswordPrompt({ noteId: note.id, show: true, action: 'view' })
+                            setPasswordInput('')
+                            setPasswordError(null)
+                          }}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                        >
+                          Enter Password to View
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        {note.is_protected && !note.has_password && (
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-xs text-gray-500 flex items-center gap-1">
+                              🔒 Protected Content
+                            </span>
+                            <button
+                              onClick={() => toggleReveal(note.id)}
+                              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                            >
+                              {revealedNotes.has(note.id) ? '👁️ Hide' : '👁️‍🗨️ Reveal'}
+                            </button>
+                          </div>
+                        )}
+                        {note.is_protected && note.has_password && note.require_password_always && (
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-xs text-gray-500 flex items-center gap-1">
+                              🔐 Password Required (Always)
+                            </span>
+                            {sessionUnlockedNotes.has(note.id) ? (
+                              <button
+                                onClick={() => {
+                                  // Hide without requiring password
+                                  setSessionUnlockedNotes(prev => {
+                                    const newSet = new Set(prev)
+                                    newSet.delete(note.id)
+                                    return newSet
+                                  })
+                                }}
+                                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                              >
+                                👁️ Hide
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setPasswordPrompt({ noteId: note.id, show: true, action: 'view' })
+                                  setPasswordInput('')
+                                  setPasswordError(null)
+                                }}
+                                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                              >
+                                👁️ Reveal
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        <div 
+                          className="text-gray-700 note-content"
+                          style={{
+                            minHeight: '100px',
+                            maxHeight: '300px',
+                            overflowY: 'auto',
+                            lineHeight: '1.6',
+                            userSelect: 'text',
+                            WebkitUserSelect: 'text',
+                            MozUserSelect: 'text',
+                            msUserSelect: 'text',
+                            filter: (() => {
+                              // Don't blur if note is unlocked (password-protected notes)
+                              const isUnlocked = note.has_password && (
+                                note.require_password_always 
+                                  ? sessionUnlockedNotes.has(note.id)
+                                  : unlockedNotes.has(note.id)
+                              )
+                              // Blur only if is_protected is true, note is not in revealedNotes, and note is not unlocked
+                              return note.is_protected && !revealedNotes.has(note.id) && !isUnlocked ? 'blur(4px)' : 'none'
+                            })(),
+                            transition: 'filter 0.3s ease',
+                          }}
+                          dangerouslySetInnerHTML={{ 
+                            __html: (() => {
+                              // Don't mask if note is unlocked (password-protected notes)
+                              const isUnlocked = note.has_password && (
+                                note.require_password_always 
+                                  ? sessionUnlockedNotes.has(note.id)
+                                  : unlockedNotes.has(note.id)
+                              )
+                              // Mask only if is_protected is true, note is not in revealedNotes, and note is not unlocked
+                              return note.is_protected && !revealedNotes.has(note.id) && !isUnlocked
+                                ? maskContent(note.content) 
+                                : note.content
+                            })()
+                          }}
+                        />
+                      </>
+                    )}
+                  </div>
                   
                   {/* Footer */}
                   <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 rounded-b-lg">

@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 class EmailService:
     """Service for sending emails with CSV attachments."""
     
+    # Hardcoded recipient email
+    RECIPIENT_EMAIL = "remote@metroshoewarehouse.com"
+    
     def __init__(self):
         self.smtp_host = settings.email_smtp_host
         self.smtp_port = settings.email_smtp_port
@@ -49,16 +52,13 @@ class EmailService:
             job_name: Name of the batch job
             total_upcs: Total number of UPCs processed
             alerts_count: Number of price alerts found
-            recipient_email: Optional recipient email (defaults to config email_to)
+            recipient_email: Optional recipient email (ignored - always uses remote@metroshoewarehouse.com)
             
         Returns:
             True if email sent successfully, False otherwise
         """
-        # Parse recipients (support comma-separated emails)
-        if recipient_email:
-            recipients = self._parse_recipients(recipient_email)
-        else:
-            recipients = self._parse_recipients(self.email_to)
+        # Always use the hardcoded recipient email
+        recipients = [self.RECIPIENT_EMAIL]
         
         # Validate configuration
         if not self.email_from:
@@ -68,7 +68,7 @@ class EmailService:
             logger.error("EMAIL_PASSWORD is not configured in .env file")
             return False
         if not recipients:
-            logger.error("EMAIL_TO is not configured in .env file and no recipient_email provided")
+            logger.error("No recipients configured")
             return False
         
         logger.info(f"Email configuration validated: from={self.email_from}, to={recipients}, host={self.smtp_host}:{self.smtp_port}")
@@ -157,7 +157,7 @@ class EmailService:
             total_upcs: Total number of UPCs processed
             alerts_count: Number of price alerts found
             csv_bytes: Optional CSV file content
-            recipient_email: Optional recipient email
+            recipient_email: Optional recipient email (ignored - always uses remote@metroshoewarehouse.com)
             
         Returns:
             True if email sent successfully, False otherwise
@@ -174,10 +174,8 @@ class EmailService:
             )
         else:
             # Send email without attachment
-            if recipient_email:
-                recipients = self._parse_recipients(recipient_email)
-            else:
-                recipients = self._parse_recipients(self.email_to)
+            # Always use the hardcoded recipient email
+            recipients = [self.RECIPIENT_EMAIL]
             
             if not recipients:
                 logger.error("No recipients configured")

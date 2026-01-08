@@ -103,14 +103,20 @@ async def download_csv(
     job: dict = Depends(verify_job_access),
     db: Client = Depends(get_supabase)
 ):
-    """Download CSV report for a job."""
+    """Download Excel report for a job."""
     job_id = UUID(job["id"])
     report_service = ReportService(db)
     csv_bytes, filename = report_service.generate_csv_for_job(job_id, job["job_name"])
     
+    # Determine content type based on file extension
+    if filename.endswith('.xlsx'):
+        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    else:
+        media_type = "text/csv"
+    
     return StreamingResponse(
         io.BytesIO(csv_bytes),
-        media_type="text/csv",
+        media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
 

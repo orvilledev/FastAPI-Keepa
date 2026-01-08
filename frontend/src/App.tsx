@@ -15,6 +15,7 @@ import UPCManagement from './components/upcs/UPCManagement'
 import MAPManagement from './components/map/MAPManagement'
 import PublicTools from './components/tools/PublicTools'
 import MyToolbox from './components/tools/MyToolbox'
+import JobAids from './components/tools/JobAids'
 import TaskList from './components/tasks/TaskList'
 import MyNotes from './components/notes/MyNotes'
 import ProtectedRoute from './components/common/ProtectedRoute'
@@ -139,6 +140,7 @@ function App() {
           <Route path="my-space/notes" element={user ? <MyNotes /> : <Navigate to="/" replace />} />
           <Route path="tools/public" element={user ? <PublicTools /> : <Navigate to="/" replace />} />
           <Route path="tools/my-toolbox" element={user ? <MyToolbox /> : <Navigate to="/" replace />} />
+          <Route path="tools/job-aids" element={user ? <JobAids /> : <Navigate to="/" replace />} />
         </Route>
       </Routes>
     </Router>

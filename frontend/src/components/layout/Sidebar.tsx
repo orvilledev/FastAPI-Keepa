@@ -55,11 +55,13 @@ export default function Sidebar() {
 
   const toolsMenuItems = [
     { path: '/tools/public', label: 'Public Tools', icon: '🌐' },
-    { path: '/tools/my-toolbox', label: 'My Toolbox', icon: '📦' },
+    { path: '/tools/job-aids', label: 'Job Aids', icon: '🔧' },
   ]
 
   const mySpaceMenuItems: Array<{ path: string; label: string; icon: string }> = [
     { path: '/my-space/notes', label: 'My Notes', icon: '📝' },
+    { path: '/tasks', label: 'My Tasks', icon: '✅' },
+    { path: '/tools/my-toolbox', label: 'My Toolbox', icon: '📦' },
   ]
 
   // Check if any sub-item is active to keep menu open
@@ -118,17 +120,6 @@ export default function Sidebar() {
           >
             <span className="mr-3 text-lg">📊</span>
             <span>Dashboard</span>
-          </Link>
-
-          {/* My Tasks */}
-          <Link
-            to="/tasks"
-            className={`sidebar-link ${
-              location.pathname === '/tasks' ? 'sidebar-link-active' : 'sidebar-link-inactive'
-            }`}
-          >
-            <span className="mr-3 text-lg">✅</span>
-            <span>My Tasks</span>
           </Link>
 
           {/* My Space Dropdown */}

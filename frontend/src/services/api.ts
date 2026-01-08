@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
-import type { BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, PublicTool, QuickAccessLink, Task, Subtask, DashboardWidget, UserTool, Note } from '../types'
+import type { BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, PublicTool, QuickAccessLink, Task, Subtask, DashboardWidget, UserTool, Note, JobAid } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -258,7 +258,7 @@ export const toolsApi = {
   },
   
   getMyToolbox: async () => {
-    const response = await api.get<PublicTool[]>('/api/v1/tools/my-toolbox')
+    const response = await api.get<{ public_tools: PublicTool[]; job_aids: JobAid[] }>('/api/v1/tools/my-toolbox')
     return response.data
   },
   // User Tools (personal tools)
@@ -291,6 +291,51 @@ export const toolsApi = {
   deleteUserTool: async (toolId: string) => {
     const response = await api.delete(`/api/v1/tools/user/${toolId}`)
     return response.data
+  },
+  // Job Aids
+  getJobAids: async () => {
+    const response = await api.get<JobAid[]>('/api/v1/tools/job-aids')
+    return response.data
+  },
+  createJobAid: async (aidData: {
+    name: string
+    description?: string
+    url: string
+    video_url?: string
+    developer?: string
+    category?: string
+    icon?: string
+  }) => {
+    const response = await api.post<JobAid>('/api/v1/tools/job-aids', aidData)
+    return response.data
+  },
+  updateJobAid: async (aidId: string, aidData: {
+    name?: string
+    description?: string
+    url?: string
+    video_url?: string
+    developer?: string
+    category?: string
+    icon?: string
+  }) => {
+    const response = await api.put<JobAid>(`/api/v1/tools/job-aids/${aidId}`, aidData)
+    return response.data
+  },
+  deleteJobAid: async (aidId: string) => {
+    const response = await api.delete(`/api/v1/tools/job-aids/${aidId}`)
+    return response.data
+  },
+  starJobAid: async (aidId: string) => {
+    const response = await api.post(`/api/v1/tools/job-aids/${aidId}/star`)
+    return response.data
+  },
+  unstarJobAid: async (aidId: string) => {
+    const response = await api.delete(`/api/v1/tools/job-aids/${aidId}/star`)
+    return response.data
+  },
+  getStarredJobAidIds: async () => {
+    const response = await api.get<{ starred_ids: string[] }>('/api/v1/tools/job-aids/starred')
+    return response.data.starred_ids
   },
 }
 
@@ -419,12 +464,20 @@ export const notesApi = {
     const response = await api.get<Note>(`/api/v1/notes/${noteId}`)
     return response.data
   },
-  createNote: async (noteData: { title: string; content: string; category?: string; color?: string; importance?: string }) => {
+  createNote: async (noteData: { title: string; content: string; category?: string; color?: string; importance?: string; is_protected?: boolean; password?: string; require_password_always?: boolean }) => {
     const response = await api.post<Note>('/api/v1/notes', noteData)
     return response.data
   },
-  updateNote: async (noteId: string, noteData: { title?: string; content?: string; category?: string; color?: string; importance?: string }) => {
+  updateNote: async (noteId: string, noteData: { title?: string; content?: string; category?: string; color?: string; importance?: string; is_protected?: boolean; password?: string; remove_password?: boolean; require_password_always?: boolean }) => {
     const response = await api.put<Note>(`/api/v1/notes/${noteId}`, noteData)
+    return response.data
+  },
+  verifyNotePassword: async (noteId: string, password: string) => {
+    const response = await api.post<{ verified: boolean }>(`/api/v1/notes/${noteId}/verify-password`, { password })
+    return response.data
+  },
+  reorderNotes: async (noteIds: string[]) => {
+    const response = await api.post<{ message: string }>('/api/v1/notes/reorder', { note_ids: noteIds })
     return response.data
   },
   deleteNote: async (noteId: string) => {

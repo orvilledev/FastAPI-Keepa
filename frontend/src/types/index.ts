@@ -36,6 +36,20 @@ export interface PublicTool {
   updated_at: string
 }
 
+export interface JobAid {
+  id: string
+  name: string
+  description?: string
+  url: string
+  video_url?: string
+  category?: string
+  icon?: string
+  developer?: string
+  created_by?: string
+  created_at: string
+  updated_at: string
+}
+
 export interface UserTool {
   id: string
   user_id: string
@@ -170,6 +184,10 @@ export interface Note {
   category?: string
   color?: string
   importance?: 'low' | 'normal' | 'high' | 'urgent'
+  is_protected?: boolean
+  has_password?: boolean
+  require_password_always?: boolean
+  position?: number
   created_at: string
   updated_at: string
 }

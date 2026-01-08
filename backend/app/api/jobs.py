@@ -129,3 +129,34 @@ async def trigger_job(
     
     return {"message": "Job triggered successfully", "job_id": str(job_id)}
 
+
+@router.delete("/jobs/{job_id}")
+@handle_api_errors("delete job")
+async def delete_job(
+    job: dict = Depends(verify_job_access),
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase)
+):
+    """Delete a job and all related data (admin only, or job owner)."""
+    job_id = UUID(job["id"])
+    job_repo = JobRepository(db)
+    
+    # Check if user is admin or job owner
+    is_admin = await check_is_admin(current_user, db)
+    if not is_admin and job["created_by"] != current_user["id"]:
+        raise HTTPException(
+            status_code=403, 
+            detail="You can only delete your own jobs. Admin access required to delete other users' jobs."
+        )
+    
+    # Prevent deletion of processing jobs (optional safety check)
+    if job["status"] == "processing":
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot delete a job that is currently processing. Please wait for it to complete or stop it first."
+        )
+    
+    # Delete the job (cascade will handle related records)
+    job_repo.delete_job(job_id)
+    
+    return {"message": "Job deleted successfully", "job_id": str(job_id)}

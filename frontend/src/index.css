@@ -297,7 +297,23 @@ code {
 
 /* Note Box Styles */
 .note-box {
-  user-select: none;
+  /* Allow text selection in note boxes */
+}
+
+.note-box .note-content,
+.note-content {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  cursor: text;
+}
+
+.note-box .note-content * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
 }
 
 /* Note Box Animations */

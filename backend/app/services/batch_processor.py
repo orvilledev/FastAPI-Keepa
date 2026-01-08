@@ -279,23 +279,21 @@ class BatchProcessor:
                 # Rate limiting delay between batches (1-2 seconds)
                 await asyncio.sleep(1.5)
             
-            # Generate CSV report
-            alerts_response = self.db.table("price_alerts").select("*").eq(
-                "batch_job_id", str(job_id)
-            ).execute()
+            # Generate comprehensive CSV report using ReportService
+            from app.services.report_service import ReportService
             
-            alerts = alerts_response.data
-            
-            # Get job info
             job_response = self.db.table("batch_jobs").select("*").eq("id", str(job_id)).execute()
             job_data = job_response.data[0]
             job_name = job_data["job_name"]
             
-            # Convert alerts to format for CSV using helper method
-            alerts_for_csv = self.csv_generator.convert_alerts_to_csv_format(alerts)
+            report_service = ReportService(self.db)
+            csv_bytes, filename = report_service.generate_csv_for_job(job_id, job_name)
             
-            csv_bytes = self.csv_generator.generate_price_alerts_csv(alerts_for_csv)
-            filename = self.csv_generator.generate_csv_filename(job_name)
+            # Get alerts count for email
+            alerts_response = self.db.table("price_alerts").select("*").eq(
+                "batch_job_id", str(job_id)
+            ).execute()
+            alerts = alerts_response.data
             
             # Send email with CSV
             total_upcs = sum(batch["upc_count"] for batch in batches)

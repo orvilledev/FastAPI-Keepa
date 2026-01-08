@@ -74,4 +74,12 @@ class JobRepository:
             "id, batch_number, status, processed_count, upc_count"
         ).eq("batch_job_id", str(job_id)).order("batch_number").execute()
         return response.data
+    
+    def delete_job(self, job_id: UUID) -> None:
+        """Delete a job and all related data (cascades to batches, items, alerts)."""
+        # Check if job exists (get_job will raise 404 if not found)
+        self.get_job(job_id)
+        
+        # Delete job (cascade will handle related records)
+        self.db.table(self.table).delete().eq("id", str(job_id)).execute()
 
