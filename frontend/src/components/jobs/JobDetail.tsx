@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { jobsApi, batchesApi } from '../../services/api'
+import { jobsApi, batchesApi, schedulerApi, authApi } from '../../services/api'
 import type { BatchJob, JobStatus } from '../../types'
 import BatchStatus from '../dashboard/BatchStatus'
 import { getStatusColor } from '../../utils/statusColors'
@@ -12,13 +12,38 @@ export default function JobDetail() {
   const [status, setStatus] = useState<JobStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [polling, setPolling] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editJobName, setEditJobName] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [editEmailRecipients, setEditEmailRecipients] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [isDailyRun, setIsDailyRun] = useState(false)
+  const [schedulerInfo, setSchedulerInfo] = useState<any>(null)
+  const [schedulerSettings, setSchedulerSettings] = useState<any>(null)
+  const [editTimezone, setEditTimezone] = useState('Asia/Taipei')
+  const [editHour, setEditHour] = useState(20)
+  const [editMinute, setEditMinute] = useState(0)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     if (jobId) {
       loadJob()
       loadStatus()
+      checkAdminStatus()
     }
   }, [jobId])
+
+  const checkAdminStatus = async () => {
+    try {
+      const userInfo = await authApi.getCurrentUser()
+      const isAdminUser = userInfo?.role === 'admin'
+      setIsAdmin(isAdminUser)
+      console.log('Admin status checked:', { role: userInfo?.role, isAdmin: isAdminUser })
+    } catch (error) {
+      console.error('Failed to check admin status:', error)
+      setIsAdmin(false)
+    }
+  }
 
   useEffect(() => {
     if (job?.status === 'processing') {
@@ -39,6 +64,36 @@ export default function JobDetail() {
     try {
       const data = await jobsApi.getJob(jobId)
       setJob(data)
+      // Check if this is a daily run - check for "Daily" in job name or if it matches daily run pattern
+      const isDaily = data.job_name && (
+        data.job_name.startsWith('Daily Keepa Report -') ||
+        data.job_name.startsWith('Daily ') ||
+        /Daily.*Report/i.test(data.job_name)
+      )
+      setIsDailyRun(isDaily)
+      console.log('Daily run check:', { jobName: data.job_name, isDaily })
+      
+      // Always load scheduler settings if it's a daily run (or if we're on the daily run page)
+      if (isDaily) {
+        // Load scheduler info and settings for daily runs
+        try {
+          const [schedulerData, settings] = await Promise.all([
+            schedulerApi.getNextRun(),
+            schedulerApi.getSettings()
+          ])
+          setSchedulerInfo(schedulerData)
+          setSchedulerSettings(settings)
+          setEditTimezone(settings.timezone || 'Asia/Taipei')
+          setEditHour(settings.hour || 20)
+          setEditMinute(settings.minute || 0)
+        } catch (err) {
+          console.error('Failed to load scheduler info:', err)
+          // Set defaults even if loading fails
+          setEditTimezone('Asia/Taipei')
+          setEditHour(20)
+          setEditMinute(0)
+        }
+      }
     } catch (error) {
       console.error('Failed to load job:', error)
     }
@@ -82,6 +137,87 @@ export default function JobDetail() {
     }
   }
 
+  const handleEdit = async () => {
+    if (!job) return
+    setEditJobName(job.job_name)
+    setEditDescription(job.description || '')
+    setEditEmailRecipients(job.email_recipients || '')
+    
+    // Load scheduler settings if it's a daily run and settings haven't been loaded
+    if (isDailyRun && !schedulerSettings) {
+      try {
+        const settings = await schedulerApi.getSettings()
+        setSchedulerSettings(settings)
+        setEditTimezone(settings.timezone || 'Asia/Taipei')
+        setEditHour(settings.hour || 20)
+        setEditMinute(settings.minute || 0)
+      } catch (err) {
+        console.error('Failed to load scheduler settings:', err)
+        // Use defaults
+        setEditTimezone('Asia/Taipei')
+        setEditHour(20)
+        setEditMinute(0)
+      }
+    } else if (schedulerSettings) {
+      // Update edit values from current settings
+      setEditTimezone(schedulerSettings.timezone || 'Asia/Taipei')
+      setEditHour(schedulerSettings.hour || 20)
+      setEditMinute(schedulerSettings.minute || 0)
+    }
+    
+    setShowEditModal(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!jobId || !editJobName.trim()) return
+    
+    setSaving(true)
+    try {
+      // Update job
+      const updatedJob = await jobsApi.updateJob(jobId, { 
+        job_name: editJobName.trim(),
+        description: editDescription.trim() || undefined,
+        email_recipients: editEmailRecipients.trim() || undefined
+      })
+      setJob(updatedJob)
+      
+      // Update scheduler settings if admin and settings changed
+      if (isAdmin && isDailyRun && schedulerSettings) {
+        const settingsChanged = 
+          editTimezone !== schedulerSettings.timezone ||
+          editHour !== schedulerSettings.hour ||
+          editMinute !== schedulerSettings.minute
+        
+        if (settingsChanged) {
+          try {
+            await schedulerApi.updateSettings({
+              timezone: editTimezone,
+              hour: editHour,
+              minute: editMinute
+            })
+            // Reload scheduler info
+            const schedulerData = await schedulerApi.getNextRun()
+            setSchedulerInfo(schedulerData)
+            const updatedSettings = await schedulerApi.getSettings()
+            setSchedulerSettings(updatedSettings)
+          } catch (err: any) {
+            console.error('Failed to update scheduler settings:', err)
+            // Don't fail the whole operation if scheduler update fails
+            alert(`Job updated, but scheduler settings update failed: ${err?.response?.data?.detail || err?.message}`)
+          }
+        }
+      }
+      
+      setShowEditModal(false)
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to update job'
+      alert(`Error: ${errorMessage}`)
+      console.error('Failed to update job:', error)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleDeleteJob = async () => {
     if (!jobId || !job) return
     
@@ -122,12 +258,20 @@ export default function JobDetail() {
         </div>
         <div className="flex space-x-3">
           {job.status !== 'processing' && (
-            <button
-              onClick={handleTrigger}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-            >
-              Trigger Job
-            </button>
+            <>
+              <button
+                onClick={handleEdit}
+                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+              >
+                Edit
+              </button>
+              <button
+                onClick={handleTrigger}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+              >
+                Trigger Job
+              </button>
+            </>
           )}
           {job.status === 'completed' && (
             <Link
@@ -258,6 +402,226 @@ export default function JobDetail() {
           </table>
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-semibold text-gray-900">Edit Daily Run</h2>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="space-y-4">
+                {/* Job Name / Report Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Report Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={editJobName}
+                    onChange={(e) => setEditJobName(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="Enter report name"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">This is the name that will appear in the email subject and report</p>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    rows={3}
+                    placeholder="Optional description or notes for this daily run"
+                  />
+                </div>
+
+                {/* Email Recipients */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email Recipients (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={editEmailRecipients}
+                    onChange={(e) => setEditEmailRecipients(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="email1@example.com, email2@example.com"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Comma-separated email addresses. If empty, uses default system email settings.</p>
+                </div>
+
+                {/* Scheduler Settings (for daily runs) */}
+                {isDailyRun && (
+                  <div className="border-t pt-4 mt-4">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-3">Scheduler Settings</h3>
+                    {isAdmin ? (
+                      <div className="space-y-4">
+                        {/* Timezone */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Timezone *
+                          </label>
+                          <select
+                            value={editTimezone}
+                            onChange={(e) => setEditTimezone(e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          >
+                            <optgroup label="US Timezones">
+                              <option value="America/New_York">Eastern Time (UTC-5/-4)</option>
+                              <option value="America/Chicago">Central Time (UTC-6/-5)</option>
+                              <option value="America/Denver">Mountain Time (UTC-7/-6)</option>
+                              <option value="America/Los_Angeles">Pacific Time (UTC-8/-7)</option>
+                              <option value="America/Anchorage">Alaska Time (UTC-9/-8)</option>
+                              <option value="Pacific/Honolulu">Hawaii Time (UTC-10)</option>
+                            </optgroup>
+                            <optgroup label="Asia">
+                              <option value="Asia/Taipei">Asia/Taipei (UTC+8)</option>
+                              <option value="Asia/Tokyo">Asia/Tokyo (UTC+9)</option>
+                              <option value="Asia/Shanghai">Asia/Shanghai (UTC+8)</option>
+                              <option value="Asia/Hong_Kong">Asia/Hong_Kong (UTC+8)</option>
+                              <option value="Asia/Singapore">Asia/Singapore (UTC+8)</option>
+                              <option value="Asia/Seoul">Asia/Seoul (UTC+9)</option>
+                              <option value="Asia/Dubai">Asia/Dubai (UTC+4)</option>
+                              <option value="Asia/Kolkata">Asia/Kolkata (UTC+5:30)</option>
+                            </optgroup>
+                            <optgroup label="Europe">
+                              <option value="Europe/London">Europe/London (UTC+0/+1)</option>
+                              <option value="Europe/Paris">Europe/Paris (UTC+1/+2)</option>
+                              <option value="Europe/Berlin">Europe/Berlin (UTC+1/+2)</option>
+                              <option value="Europe/Rome">Europe/Rome (UTC+1/+2)</option>
+                              <option value="Europe/Madrid">Europe/Madrid (UTC+1/+2)</option>
+                              <option value="Europe/Moscow">Europe/Moscow (UTC+3)</option>
+                            </optgroup>
+                            <optgroup label="Australia & Pacific">
+                              <option value="Australia/Sydney">Australia/Sydney (UTC+10/+11)</option>
+                              <option value="Australia/Melbourne">Australia/Melbourne (UTC+10/+11)</option>
+                              <option value="Australia/Brisbane">Australia/Brisbane (UTC+10)</option>
+                              <option value="Pacific/Auckland">Pacific/Auckland (UTC+12/+13)</option>
+                            </optgroup>
+                            <optgroup label="Americas (Other)">
+                              <option value="America/Toronto">Canada Eastern (UTC-5/-4)</option>
+                              <option value="America/Vancouver">Canada Pacific (UTC-8/-7)</option>
+                              <option value="America/Mexico_City">Mexico City (UTC-6/-5)</option>
+                              <option value="America/Sao_Paulo">Sao Paulo (UTC-3)</option>
+                              <option value="America/Buenos_Aires">Buenos Aires (UTC-3)</option>
+                            </optgroup>
+                            <optgroup label="Other">
+                              <option value="UTC">UTC (UTC+0)</option>
+                              <option value="Africa/Johannesburg">Africa/Johannesburg (UTC+2)</option>
+                              <option value="Asia/Jerusalem">Asia/Jerusalem (UTC+2/+3)</option>
+                            </optgroup>
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">Timezone for the scheduled daily run</p>
+                        </div>
+
+                        {/* Time */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Hour (0-23) *
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="23"
+                              value={editHour}
+                              onChange={(e) => setEditHour(parseInt(e.target.value) || 0)}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Minute (0-59) *
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="59"
+                              value={editMinute}
+                              onChange={(e) => setEditMinute(parseInt(e.target.value) || 0)}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Next Run Info */}
+                        {schedulerInfo?.next_run_time_taipei && (
+                          <div className="bg-blue-50 rounded-lg p-3">
+                            <p className="text-sm text-blue-800">
+                              <span className="font-medium">Next Run:</span> {schedulerInfo.next_run_time_taipei}
+                            </p>
+                          </div>
+                        )}
+                        
+                        {!schedulerSettings && (
+                          <div className="bg-yellow-50 rounded-lg p-3">
+                            <p className="text-sm text-yellow-800">
+                              Loading scheduler settings...
+                            </p>
+                          </div>
+                        )}
+
+                        <p className="text-xs text-gray-500">
+                          Note: Scheduler settings are global and affect all future daily runs. Changes will take effect immediately.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">Scheduled Time:</span>
+                          <span className="font-medium text-gray-900">{schedulerInfo?.scheduled_time || `${schedulerSettings.hour}:${schedulerSettings.minute.toString().padStart(2, '0')} ${schedulerSettings.timezone}`}</span>
+                        </div>
+                        {schedulerInfo?.next_run_time_taipei && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-600">Next Run:</span>
+                            <span className="font-medium text-gray-900">{schedulerInfo.next_run_time_taipei}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">Timezone:</span>
+                          <span className="font-medium text-gray-900">{schedulerSettings.timezone}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                          Note: Scheduler settings are global and affect all future daily runs. Only administrators can change the schedule.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex justify-end space-x-3 pt-4 border-t">
+                  <button
+                    onClick={() => setShowEditModal(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                    disabled={saving}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveEdit}
+                    disabled={saving || !editJobName.trim()}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {saving ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -11,16 +11,20 @@ from typing import List
 logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler()
-# Taipei timezone (UTC+8)
+# Default timezone (can be changed via settings)
 TAIPEI_TZ = timezone('Asia/Taipei')
+CURRENT_TZ = TAIPEI_TZ  # Current timezone (can be updated)
+CURRENT_HOUR = 20  # Current hour (can be updated)
+CURRENT_MINUTE = 0  # Current minute (can be updated)
 
 
 async def run_daily_job():
-    """Execute daily batch job at 8 PM Taipei time."""
+    """Execute daily batch job at scheduled time."""
     try:
         from datetime import datetime
-        taipei_time = datetime.now(TAIPEI_TZ)
-        logger.info(f"Starting daily batch job execution at {taipei_time.strftime('%Y-%m-%d %H:%M:%S %Z')} Taipei time")
+        current_time = datetime.now(CURRENT_TZ)
+        tz_name = str(CURRENT_TZ).split('/')[-1] if '/' in str(CURRENT_TZ) else str(CURRENT_TZ)
+        logger.info(f"Starting daily batch job execution at {current_time.strftime('%Y-%m-%d %H:%M:%S %Z')} {tz_name} time")
         
         db = get_supabase()
         processor = BatchProcessor()
@@ -46,7 +50,8 @@ async def run_daily_job():
         
         # Create and process job
         from uuid import UUID
-        job_name = f"Daily Keepa Report - {taipei_time.strftime('%Y-%m-%d %H:%M')} (Taipei)"
+        tz_name = str(CURRENT_TZ).split('/')[-1] if '/' in str(CURRENT_TZ) else str(CURRENT_TZ)
+        job_name = f"Daily Keepa Report - {current_time.strftime('%Y-%m-%d %H:%M')} ({tz_name})"
         job_id = await processor.create_batch_job(
             job_name=job_name,
             upcs=upcs,
@@ -64,21 +69,49 @@ async def run_daily_job():
         logger.error(f"Error executing daily batch job: {e}", exc_info=True)
 
 
-def setup_scheduler():
+def setup_scheduler(timezone_str: str = "Asia/Taipei", hour: int = 20, minute: int = 0):
     """Setup and start the scheduler."""
-    # Schedule daily job at 8 PM Taipei time (20:00)
+    global CURRENT_TZ, CURRENT_HOUR, CURRENT_MINUTE
+    
+    try:
+        tz = timezone(timezone_str)
+        CURRENT_TZ = tz
+        CURRENT_HOUR = hour
+        CURRENT_MINUTE = minute
+    except Exception as e:
+        logger.warning(f"Invalid timezone {timezone_str}, using default: {e}")
+        tz = TAIPEI_TZ
+        CURRENT_TZ = TAIPEI_TZ
+        CURRENT_HOUR = 20
+        CURRENT_MINUTE = 0
+    
+    # Schedule daily job
     # Using timezone-aware scheduling
     scheduler.add_job(
         run_daily_job,
-        trigger=CronTrigger(hour=20, minute=0, timezone=TAIPEI_TZ),
+        trigger=CronTrigger(hour=CURRENT_HOUR, minute=CURRENT_MINUTE, timezone=CURRENT_TZ),
         id="daily_keepa_job",
-        name="Daily Keepa Price Alert Job - 8 PM Taipei",
+        name=f"Daily Keepa Price Alert Job - {CURRENT_HOUR:02d}:{CURRENT_MINUTE:02d} {timezone_str}",
         replace_existing=True,
     )
     
     logger.info(
-        "Scheduler configured to run daily at 8:00 PM Taipei time (UTC+8)"
+        f"Scheduler configured to run daily at {CURRENT_HOUR:02d}:{CURRENT_MINUTE:02d} {timezone_str}"
     )
+
+
+def update_scheduler_settings(timezone_str: str = "Asia/Taipei", hour: int = 20, minute: int = 0):
+    """Update scheduler settings and reschedule the job."""
+    global CURRENT_TZ, CURRENT_HOUR, CURRENT_MINUTE
+    
+    # Remove existing job
+    try:
+        scheduler.remove_job("daily_keepa_job")
+    except Exception:
+        pass  # Job might not exist
+    
+    # Setup with new settings
+    setup_scheduler(timezone_str, hour, minute)
 
 
 def start_scheduler():

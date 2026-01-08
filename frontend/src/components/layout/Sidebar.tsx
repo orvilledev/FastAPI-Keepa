@@ -51,6 +51,7 @@ export default function Sidebar() {
     { path: '/jobs', label: 'Express Jobs', icon: '📦' },
     { path: '/upcs', label: 'Manage UPCs', icon: '🔢' },
     { path: '/map', label: 'Manage MAP', icon: '💰' },
+    { path: '/daily-run', label: 'Daily Run', icon: '🔄' },
   ]
 
   const toolsMenuItems = [
@@ -122,7 +123,7 @@ export default function Sidebar() {
               onClick={() => {
                 setIsMySpaceMenuOpen(!isMySpaceMenuOpen)
               }}
-              className="sidebar-link sidebar-link-inactive w-full text-left"
+              className="sidebar-link sidebar-link-inactive w-full text-left text-black"
             >
               <span className="mr-3 text-lg">🏠</span>
               <span className="flex-1">My Space</span>
@@ -132,7 +133,7 @@ export default function Sidebar() {
             </button>
             
             {isMySpaceMenuOpen && (
-              <div className="ml-4 mt-1 space-y-1 bg-gray-200 rounded-lg p-2">
+              <div className="ml-4 mt-1 space-y-1 bg-black rounded-lg p-2">
                 {mySpaceMenuItems.length > 0 ? (
                   mySpaceMenuItems.map((item) => (
                     <Link
@@ -140,14 +141,14 @@ export default function Sidebar() {
                       to={item.path}
                       className={`sidebar-link ${
                         isActive(item.path) ? 'sidebar-link-active' : 'sidebar-link-inactive'
-                      }`}
+                      } text-white`}
                     >
                       <span className="mr-3 text-lg">{item.icon}</span>
                       <span>{item.label}</span>
                     </Link>
                   ))
                 ) : (
-                  <div className="text-xs text-gray-400 px-3 py-2">No items yet</div>
+                  <div className="text-xs text-gray-400 px-3 py-2 text-white">No items yet</div>
                 )}
               </div>
             )}
@@ -159,7 +160,7 @@ export default function Sidebar() {
               onClick={() => {
                 setIsKeepaMenuOpen(!isKeepaMenuOpen)
               }}
-              className="sidebar-link sidebar-link-inactive w-full text-left"
+              className="sidebar-link sidebar-link-inactive w-full text-left text-black"
             >
               <span className="mr-3 text-lg">⚙️</span>
               <span className="flex-1">Keepa Alert Service</span>
@@ -169,14 +170,14 @@ export default function Sidebar() {
             </button>
             
             {isKeepaMenuOpen && (
-              <div className="ml-4 mt-1 space-y-1 bg-gray-200 rounded-lg p-2">
+              <div className="ml-4 mt-1 space-y-1 bg-black rounded-lg p-2">
                 {keepaMenuItems.map((item) => (
                   <Link
                     key={item.path}
                     to={item.path}
                     className={`sidebar-link ${
                       isActive(item.path) ? 'sidebar-link-active' : 'sidebar-link-inactive'
-                    }`}
+                    } text-white`}
                   >
                     <span className="mr-3 text-lg">{item.icon}</span>
                     <span>{item.label}</span>
@@ -186,30 +187,30 @@ export default function Sidebar() {
             )}
           </div>
 
-          {/* Tools Dropdown */}
+          {/* Resources Dropdown */}
           <div>
             <button
               onClick={() => {
                 setIsToolsMenuOpen(!isToolsMenuOpen)
               }}
-              className="sidebar-link sidebar-link-inactive w-full text-left"
+              className="sidebar-link sidebar-link-inactive w-full text-left text-black"
             >
-              <span className="mr-3 text-lg">🔧</span>
-              <span className="flex-1">Tools</span>
+              <span className="mr-3 text-lg">📚</span>
+              <span className="flex-1">Resources</span>
               <span className="text-xs">
                 {isToolsMenuOpen ? '▼' : '▶'}
               </span>
             </button>
             
             {isToolsMenuOpen && (
-              <div className="ml-4 mt-1 space-y-1 bg-gray-200 rounded-lg p-2">
+              <div className="ml-4 mt-1 space-y-1 bg-black rounded-lg p-2">
                 {toolsMenuItems.map((item) => (
                   <Link
                     key={item.path}
                     to={item.path}
                     className={`sidebar-link ${
                       isActive(item.path) ? 'sidebar-link-active' : 'sidebar-link-inactive'
-                    }`}
+                    } text-white`}
                   >
                     <span className="mr-3 text-lg">{item.icon}</span>
                     <span>{item.label}</span>

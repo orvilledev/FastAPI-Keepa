@@ -83,6 +83,11 @@ export const jobsApi = {
     return response.data
   },
   
+  updateJob: async (jobId: string, jobData: { job_name?: string; description?: string; email_recipients?: string }) => {
+    const response = await api.put<BatchJob>(`/api/v1/jobs/${jobId}`, jobData)
+    return response.data
+  },
+  
   getJobStatus: async (jobId: string) => {
     const response = await api.get<JobStatus>(`/api/v1/jobs/${jobId}/status`)
     return response.data
@@ -202,6 +207,14 @@ export const mapApi = {
 export const schedulerApi = {
   getNextRun: async () => {
     const response = await api.get<SchedulerStatus>('/api/v1/scheduler/next-run')
+    return response.data
+  },
+  getSettings: async () => {
+    const response = await api.get<{ timezone: string; hour: number; minute: number; enabled: boolean }>('/api/v1/scheduler/settings')
+    return response.data
+  },
+  updateSettings: async (settings: { timezone?: string; hour?: number; minute?: number; enabled?: boolean }) => {
+    const response = await api.put<{ timezone: string; hour: number; minute: number; enabled: boolean; message: string }>('/api/v1/scheduler/settings', settings)
     return response.data
   },
 }

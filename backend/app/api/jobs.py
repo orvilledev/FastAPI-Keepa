@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from typing import List
 from uuid import UUID
 from app.dependencies import get_current_user, get_admin_user, check_is_admin, verify_job_access
-from app.models.batch import BatchJobCreate, BatchJobResponse
+from app.models.batch import BatchJobCreate, BatchJobUpdate, BatchJobResponse
 from app.database import get_supabase
 from app.services.batch_processor import BatchProcessor
 from app.repositories.job_repository import JobRepository
@@ -128,6 +128,47 @@ async def trigger_job(
     background_tasks.add_task(processor.process_job, job_id)
     
     return {"message": "Job triggered successfully", "job_id": str(job_id)}
+
+
+@router.put("/jobs/{job_id}", response_model=BatchJobResponse)
+@handle_api_errors("update job")
+async def update_job(
+    job_id: UUID,
+    job_data: BatchJobUpdate,
+    job: dict = Depends(verify_job_access),
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase)
+):
+    """Update a batch job (admin only or job owner)."""
+    from app.dependencies import check_is_admin
+    
+    job_id_uuid = UUID(job["id"])
+    job_repo = JobRepository(db)
+    
+    # Check if user is admin or job owner
+    is_admin = await check_is_admin(current_user, db)
+    if not is_admin and job["created_by"] != current_user["id"]:
+        raise HTTPException(
+            status_code=403, 
+            detail="You can only edit your own jobs. Admin access required to edit other users' jobs."
+        )
+    
+    # Prevent editing of processing jobs
+    if job["status"] == "processing":
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot edit a job that is currently processing. Please wait for it to complete or stop it first."
+        )
+    
+    # Update the job
+    updated_job = job_repo.update_job(
+        job_id=job_id_uuid,
+        job_name=job_data.job_name,
+        description=job_data.description,
+        email_recipients=job_data.email_recipients
+    )
+    
+    return BatchJobResponse(**updated_job)
 
 
 @router.delete("/jobs/{job_id}")

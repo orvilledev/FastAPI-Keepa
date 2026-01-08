@@ -48,6 +48,11 @@
     @apply text-gray-700;
   }
   
+  /* Parent menu buttons should have pure black text */
+  button.sidebar-link.sidebar-link-inactive {
+    @apply text-black;
+  }
+  
   .sidebar-link-inactive:hover {
     @apply bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md;
   }

@@ -11,6 +11,13 @@ class BatchJobCreate(BaseModel):
     upcs: list[str]  # List of UPCs to process
 
 
+class BatchJobUpdate(BaseModel):
+    """Model for updating a batch job."""
+    job_name: Optional[str] = None
+    description: Optional[str] = None
+    email_recipients: Optional[str] = None
+
+
 class BatchJobResponse(BaseModel):
     """Model for batch job response."""
     id: UUID
@@ -22,6 +29,8 @@ class BatchJobResponse(BaseModel):
     created_at: datetime
     completed_at: Optional[datetime]
     error_message: Optional[str]
+    description: Optional[str] = None
+    email_recipients: Optional[str] = None
 
     class Config:
         from_attributes = True

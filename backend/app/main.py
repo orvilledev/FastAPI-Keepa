@@ -34,7 +34,23 @@ async def startup_event():
     logger.info("Initializing database connection...")
     init_db()
     logger.info("Setting up scheduler...")
-    setup_scheduler()
+    # Try to load scheduler settings from database
+    try:
+        from app.database import get_supabase
+        db = get_supabase()
+        settings_response = db.table("scheduler_settings").select("*").eq("id", "00000000-0000-0000-0000-000000000000").execute()
+        if settings_response.data:
+            settings = settings_response.data[0]
+            setup_scheduler(
+                timezone_str=settings.get("timezone", "Asia/Taipei"),
+                hour=settings.get("hour", 20),
+                minute=settings.get("minute", 0)
+            )
+        else:
+            setup_scheduler()  # Use defaults
+    except Exception as e:
+        logger.warning(f"Failed to load scheduler settings, using defaults: {e}")
+        setup_scheduler()  # Use defaults
     start_scheduler()
     logger.info("Application startup complete")
 

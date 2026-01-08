@@ -73,6 +73,8 @@ export interface BatchJob {
   created_at: string
   completed_at?: string
   error_message?: string
+  description?: string
+  email_recipients?: string
 }
 
 export interface UPCBatch {

@@ -52,6 +52,30 @@ class JobRepository:
         }).execute()
         return response.data[0]
     
+    def update_job(
+        self,
+        job_id: UUID,
+        job_name: Optional[str] = None,
+        description: Optional[str] = None,
+        email_recipients: Optional[str] = None
+    ) -> dict:
+        """Update job information."""
+        update_data = {}
+        if job_name is not None:
+            update_data["job_name"] = job_name
+        if description is not None:
+            update_data["description"] = description if description.strip() else None
+        if email_recipients is not None:
+            update_data["email_recipients"] = email_recipients if email_recipients.strip() else None
+        
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        
+        response = self.db.table(self.table).update(update_data).eq("id", str(job_id)).execute()
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Job not found")
+        return response.data[0]
+    
     def update_job_status(
         self, 
         job_id: UUID, 

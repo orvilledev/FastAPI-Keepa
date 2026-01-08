@@ -10,6 +10,7 @@ import Dashboard from './components/dashboard/Dashboard'
 import JobList from './components/jobs/JobList'
 import JobDetail from './components/jobs/JobDetail'
 import CreateJob from './components/jobs/CreateJob'
+import DailyRun from './components/jobs/DailyRun'
 import ReportView from './components/reports/ReportView'
 import UPCManagement from './components/upcs/UPCManagement'
 import MAPManagement from './components/map/MAPManagement'
@@ -130,6 +131,18 @@ function App() {
               user ? (
                 <ProtectedRoute requireKeepaAccess={true}>
                   <MAPManagement />
+                </ProtectedRoute>
+              ) : (
+                <Navigate to="/" replace />
+              )
+            } 
+          />
+          <Route 
+            path="daily-run" 
+            element={
+              user ? (
+                <ProtectedRoute requireKeepaAccess={true}>
+                  <DailyRun />
                 </ProtectedRoute>
               ) : (
                 <Navigate to="/" replace />
