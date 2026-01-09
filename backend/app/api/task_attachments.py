@@ -64,9 +64,18 @@ async def get_task_attachments(
         raise HTTPException(status_code=404, detail="Task not found")
     
     task = task_check.data[0]
-    if task.get("user_id") != current_user["id"] and task.get("assigned_to") != current_user["id"]:
-        raise HTTPException(status_code=403, detail="You don't have access to this task")
+    user_id = current_user["id"]
     
+    # Allow access if user created the task, is assigned to it, or has can_assign_tasks permission
+    can_access = (
+        task.get("user_id") == user_id or 
+        task.get("assigned_to") == user_id or
+        current_user.get("can_assign_tasks", False)
+    )
+    
+    if not can_access:
+        raise HTTPException(status_code=403, detail="You don't have access to this task")
+
     response = db.table("task_attachments").select("*").eq("task_id", str(task_id)).order("created_at", desc=True).execute()
     
     attachments = []
@@ -96,7 +105,16 @@ async def upload_task_attachment(
         raise HTTPException(status_code=404, detail="Task not found")
     
     task = task_check.data[0]
-    if task.get("user_id") != current_user["id"] and task.get("assigned_to") != current_user["id"]:
+    user_id = current_user["id"]
+    
+    # Allow upload if user created the task, is assigned to it, or has can_assign_tasks permission
+    can_upload = (
+        task.get("user_id") == user_id or 
+        task.get("assigned_to") == user_id or
+        current_user.get("can_assign_tasks", False)
+    )
+    
+    if not can_upload:
         raise HTTPException(
             status_code=403,
             detail="You can only upload attachments for tasks you created or are assigned to"

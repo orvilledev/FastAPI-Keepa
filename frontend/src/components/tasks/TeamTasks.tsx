@@ -223,6 +223,48 @@ export default function TeamTasks() {
     }
   }
 
+  const handleDelete = async (taskId: string) => {
+    if (!confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
+      return
+    }
+    try {
+      await tasksApi.deleteTask(taskId)
+      setSuccess('Task deleted!')
+      setError('')
+      await loadTasks()
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.detail || 'Failed to delete task'
+      setError(errorMessage)
+      setSuccess('')
+    }
+  }
+
+  const handleSubtaskDelete = async (taskId: string, subtaskId: string) => {
+    if (!confirm('Are you sure you want to delete this subtask?')) {
+      return
+    }
+    try {
+      await tasksApi.deleteSubtask(taskId, subtaskId)
+      // Reload subtasks for this task
+      const data = await tasksApi.getSubtasks(taskId)
+      setSubtasks(prev => ({ ...prev, [taskId]: data }))
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to delete subtask')
+    }
+  }
+
+  const handleDeleteAttachment = async (attachmentId: string, taskId: string) => {
+    if (!confirm('Are you sure you want to delete this attachment?')) {
+      return
+    }
+    try {
+      await tasksApi.deleteTaskAttachment(attachmentId)
+      await loadAttachments(taskId)
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to delete attachment')
+    }
+  }
+
   const canReview = (task: Task) => {
     return task.user_id === currentUserId || currentUserInfo?.can_assign_tasks
   }
@@ -318,13 +360,29 @@ export default function TeamTasks() {
       if (selectedFiles.length > 0) {
         try {
           setUploadingFiles(true)
+          const uploadErrors: string[] = []
           for (const file of selectedFiles) {
-            await tasksApi.uploadTaskAttachment(newTask.id, file)
+            try {
+              await tasksApi.uploadTaskAttachment(newTask.id, file)
+            } catch (singleFileErr: any) {
+              const errMsg = singleFileErr.response?.data?.detail || singleFileErr.message || 'Unknown error'
+              console.error(`Failed to upload ${file.name}:`, errMsg)
+              uploadErrors.push(`${file.name}: ${errMsg}`)
+            }
           }
-          setSuccess('Team task created and files uploaded successfully!')
+          if (uploadErrors.length === 0) {
+            setSuccess('Task created and files uploaded successfully!')
+          } else if (uploadErrors.length < selectedFiles.length) {
+            setSuccess(`Task created. Some files uploaded, but ${uploadErrors.length} failed.`)
+            setError(`Upload errors: ${uploadErrors.join('; ')}`)
+          } else {
+            setSuccess('Task created!')
+            setError(`All file uploads failed: ${uploadErrors.join('; ')}`)
+          }
         } catch (fileErr: any) {
-          console.error('Failed to upload some files:', fileErr)
-          setSuccess('Team task created, but some files failed to upload. You can upload them manually.')
+          console.error('Failed to upload files:', fileErr)
+          setSuccess('Task created, but files failed to upload.')
+          setError(fileErr.response?.data?.detail || 'File upload failed')
         } finally {
           setUploadingFiles(false)
         }

@@ -410,41 +410,53 @@ export default function MyNotes() {
 
   const handlePasswordSubmit = async () => {
     if (!passwordPrompt) return
-    
+
+    // Capture values before any state changes to avoid closure issues
+    const noteId = passwordPrompt.noteId
+    const action = passwordPrompt.action
+    const note = notes.find(n => n.id === noteId)
+
     try {
       setPasswordError(null)
-      await notesApi.verifyNotePassword(passwordPrompt.noteId, passwordInput)
-      
-      const note = notes.find(n => n.id === passwordPrompt.noteId)
-      
+      await notesApi.verifyNotePassword(noteId, passwordInput)
+
+      // Close the modal first
+      setPasswordPrompt(null)
+      setPasswordInput('')
+
       // If require_password_always is true, add to sessionUnlockedNotes (temporary)
       // Otherwise, add to unlockedNotes (persistent)
       if (note) {
         if (note.require_password_always) {
-          setSessionUnlockedNotes(prev => new Set(prev).add(passwordPrompt.noteId))
+          setSessionUnlockedNotes(prev => {
+            const newSet = new Set(prev)
+            newSet.add(noteId)
+            return newSet
+          })
         } else {
-          setUnlockedNotes(prev => new Set(prev).add(passwordPrompt.noteId))
+          setUnlockedNotes(prev => {
+            const newSet = new Set(prev)
+            newSet.add(noteId)
+            return newSet
+          })
         }
-      }
-      
-      setPasswordPrompt(null)
-      setPasswordInput('')
-      
-      // Only open edit form if the password prompt was triggered from edit action
-      if (note && passwordPrompt.action === 'edit') {
-        setEditingNote(note)
-        setFormData({ 
-          title: note.title, 
-          content: note.content,
-          category: note.category || '',
-          color: note.color || 'yellow',
-          importance: (note as any).importance || 'normal',
-          is_protected: note.is_protected || false,
-          password: '',
-          use_password: note.has_password || false,
-          require_password_always: note.require_password_always || false
-        })
-        setShowAddForm(true)
+
+        // Only open edit form if the password prompt was triggered from edit action
+        if (action === 'edit') {
+          setEditingNote(note)
+          setFormData({
+            title: note.title,
+            content: note.content,
+            category: note.category || '',
+            color: note.color || 'yellow',
+            importance: (note as any).importance || 'normal',
+            is_protected: note.is_protected || false,
+            password: '',
+            use_password: note.has_password || false,
+            require_password_always: note.require_password_always || false
+          })
+          setShowAddForm(true)
+        }
       }
       // If action was 'view' or undefined, just unlock the note (contents will be shown automatically)
     } catch (err: any) {
@@ -488,16 +500,39 @@ export default function MyNotes() {
 
   // Helper function to get display content for a note
   const getNoteDisplayContent = useCallback((note: Note): string => {
-    const isUnlocked = isNoteUnlocked(note)
-    const shouldMask = note.is_protected && !revealedNotes.has(note.id) && !isUnlocked
-    return shouldMask ? (maskedContentCache[note.id] || note.content) : note.content
+    // For password-protected notes, check if unlocked via password
+    if (note.has_password) {
+      const isUnlocked = isNoteUnlocked(note)
+      if (!isUnlocked) {
+        // Note is locked, show masked content
+        return maskedContentCache[note.id] || note.content
+      }
+      // Note is unlocked via password, show full content
+      return note.content
+    }
+    
+    // For protected notes without password, use revealedNotes state
+    if (note.is_protected && !revealedNotes.has(note.id)) {
+      return maskedContentCache[note.id] || note.content
+    }
+    
+    return note.content
   }, [maskedContentCache, revealedNotes, isNoteUnlocked])
 
   // Helper function to get blur filter for a note
   const getNoteBlurFilter = useCallback((note: Note): string => {
-    const isUnlocked = isNoteUnlocked(note)
-    const shouldBlur = note.is_protected && !revealedNotes.has(note.id) && !isUnlocked
-    return shouldBlur ? 'blur(4px)' : 'none'
+    // For password-protected notes, check if unlocked via password
+    if (note.has_password) {
+      const isUnlocked = isNoteUnlocked(note)
+      return isUnlocked ? 'none' : 'blur(4px)'
+    }
+    
+    // For protected notes without password, use revealedNotes state
+    if (note.is_protected && !revealedNotes.has(note.id)) {
+      return 'blur(4px)'
+    }
+    
+    return 'none'
   }, [revealedNotes, isNoteUnlocked])
 
   const toggleReveal = (noteId: string) => {

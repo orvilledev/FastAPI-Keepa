@@ -133,12 +133,29 @@ async def delete_task(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
-    """Delete a task (user can only delete their own tasks)."""
-    response = db.table("tasks").delete().eq("id", str(task_id)).eq("user_id", current_user["id"]).execute()
+    """Delete a task (user can delete tasks they created or are assigned to)."""
+    # First check if the task exists and user has permission to delete it
+    task_check = db.table("tasks").select("id, user_id, assigned_to").eq("id", str(task_id)).execute()
     
-    if not response.data:
+    if not task_check.data:
         raise HTTPException(status_code=404, detail="Task not found")
     
+    task = task_check.data[0]
+    user_id = current_user["id"]
+    
+    # Allow delete if user created the task OR is assigned to it OR has can_assign_tasks permission
+    can_delete = (
+        task["user_id"] == user_id or 
+        task.get("assigned_to") == user_id or
+        current_user.get("can_assign_tasks", False)
+    )
+    
+    if not can_delete:
+        raise HTTPException(status_code=403, detail="You don't have permission to delete this task")
+    
+    # Delete the task
+    db.table("tasks").delete().eq("id", str(task_id)).execute()
+
     return {"message": "Task deleted successfully"}
 
 

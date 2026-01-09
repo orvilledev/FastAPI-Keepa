@@ -547,11 +547,8 @@ export const tasksApi = {
   uploadTaskAttachment: async (taskId: string, file: File) => {
     const formData = new FormData()
     formData.append('file', file)
-    const response = await api.post<TaskAttachment>(`/api/v1/tasks/${taskId}/attachments`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    })
+    // Don't set Content-Type header - let browser set it with boundary for multipart/form-data
+    const response = await api.post<TaskAttachment>(`/api/v1/tasks/${taskId}/attachments`, formData)
     return response.data
   },
   deleteTaskAttachment: async (attachmentId: string) => {

@@ -121,24 +121,24 @@ export default function SchedulerCountdown() {
     <div className="bg-[#0B1020] rounded-xl shadow-xl p-6 text-white border border-white/20">
       <div className="flex items-center justify-between">
         <div className="flex-1">
-          <h3 className="text-lg font-semibold mb-2">Orbit Hub Daily Email Run</h3>
+          <h3 className="text-lg font-semibold mb-2">Keepa Off Price Daily Run</h3>
           <p className="text-white/70 text-sm mb-4">
             Scheduled for {status.scheduled_time} ({status.timezone})
           </p>
           {timeLeft && status.seconds_until !== null && status.seconds_until > 0 ? (
             <div className="flex items-center space-x-4">
               <div className="text-center">
-                <div className="text-4xl font-bold">{String(timeLeft.hours).padStart(2, '0')}</div>
+                <div className="text-4xl font-bold text-[#F97316]">{String(timeLeft.hours).padStart(2, '0')}</div>
                 <div className="text-xs text-white/70 mt-1">Hours</div>
               </div>
-              <div className="text-3xl font-bold">:</div>
+              <div className="text-3xl font-bold text-[#F97316]">:</div>
               <div className="text-center">
-                <div className="text-4xl font-bold">{String(timeLeft.minutes).padStart(2, '0')}</div>
+                <div className="text-4xl font-bold text-[#F97316]">{String(timeLeft.minutes).padStart(2, '0')}</div>
                 <div className="text-xs text-white/70 mt-1">Minutes</div>
               </div>
-              <div className="text-3xl font-bold">:</div>
+              <div className="text-3xl font-bold text-[#F97316]">:</div>
               <div className="text-center">
-                <div className="text-4xl font-bold">{String(timeLeft.seconds).padStart(2, '0')}</div>
+                <div className="text-4xl font-bold text-[#F97316]">{String(timeLeft.seconds).padStart(2, '0')}</div>
                 <div className="text-xs text-white/70 mt-1">Seconds</div>
               </div>
             </div>
