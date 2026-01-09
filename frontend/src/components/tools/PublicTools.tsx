@@ -15,6 +15,7 @@ export default function PublicTools() {
     name: '',
     description: '',
     url: '',
+    video_url: '',
     developer: '',
     category: '',
     icon: '',
@@ -76,7 +77,7 @@ export default function PublicTools() {
         await toolsApi.createPublicTool(formData)
         setSuccess('Tool added successfully!')
       }
-      setFormData({ name: '', description: '', url: '', developer: '', category: '', icon: '' })
+      setFormData({ name: '', description: '', url: '', video_url: '', developer: '', category: '', icon: '' })
       setShowAddForm(false)
       setEditingTool(null)
       loadTools()
@@ -95,6 +96,7 @@ export default function PublicTools() {
       name: tool.name,
       description: tool.description || '',
       url: tool.url,
+      video_url: tool.video_url || '',
       developer: tool.developer || '',
       category: tool.category || '',
       icon: tool.icon || '',
@@ -256,7 +258,7 @@ export default function PublicTools() {
                 onClick={() => setSelectedCategory(null)}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   selectedCategory === null
-                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md'
+                    ? 'bg-[#0B1020] text-white shadow-md'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -268,7 +270,7 @@ export default function PublicTools() {
                   onClick={() => setSelectedCategory(category)}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                     selectedCategory === category
-                      ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md'
+                      ? 'bg-[#0B1020] text-white shadow-md'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -317,7 +319,7 @@ export default function PublicTools() {
                           <div className="flex items-center space-x-2">
                             <button
                               onClick={() => handleEdit(tool)}
-                              className="text-indigo-600 hover:text-indigo-800 text-sm"
+                              className="text-[#0B1020] hover:text-indigo-800 text-sm"
                             >
                               Edit
                             </button>
@@ -341,19 +343,31 @@ export default function PublicTools() {
                     )}
                     <div className="flex items-center gap-2 mb-4">
                       {tool.category && (
-                        <span className="inline-block px-2 py-1 text-xs font-medium bg-indigo-100 text-indigo-800 rounded">
+                        <span className="inline-block px-2 py-1 text-xs font-medium bg-[#0B1020]/10 text-[#0B1020] rounded">
                           {tool.category}
                         </span>
                       )}
                     </div>
-                    <a
-                      href={tool.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-primary text-sm inline-block w-full text-center"
-                    >
-                      Open Tool →
-                    </a>
+                    <div className="space-y-2">
+                      <a
+                        href={tool.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm inline-block w-full text-center px-6 py-2.5 bg-[#F97316] hover:bg-[#EA580C] text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                      >
+                        Open Tool →
+                      </a>
+                      {tool.video_url && (
+                        <a
+                          href={tool.video_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm inline-block w-full text-center px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-medium shadow-md hover:shadow-lg"
+                        >
+                          📹 Watch Video →
+                        </a>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -374,7 +388,7 @@ export default function PublicTools() {
                   onClick={() => {
                     setShowAddForm(false)
                     setEditingTool(null)
-                    setFormData({ name: '', description: '', url: '', developer: '', category: '', icon: '' })
+                    setFormData({ name: '', description: '', url: '', video_url: '', developer: '', category: '', icon: '' })
                     setError('')
                   }}
                   className="text-gray-400 hover:text-gray-600 text-2xl"
@@ -394,6 +408,18 @@ export default function PublicTools() {
                     onChange={(e) => setFormData({ ...formData, url: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     placeholder="https://example.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Video Link (Optional)
+                  </label>
+                  <input
+                    type="url"
+                    value={formData.video_url}
+                    onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="https://youtube.com/watch?v=... or video URL"
                   />
                 </div>
                 <div>
@@ -433,7 +459,7 @@ export default function PublicTools() {
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="e.g., Keepa API Documentation"
+                      placeholder="e.g., Team Resources"
                     />
                   </div>
                   <div>
@@ -455,7 +481,7 @@ export default function PublicTools() {
                     onClick={() => {
                       setShowAddForm(false)
                       setEditingTool(null)
-                      setFormData({ name: '', description: '', url: '', developer: '', category: '', icon: '' })
+                      setFormData({ name: '', description: '', url: '', video_url: '', developer: '', category: '', icon: '' })
                       setError('')
                     }}
                     className="btn-secondary"

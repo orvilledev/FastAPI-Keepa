@@ -127,7 +127,7 @@ export default function QuickAccess() {
             setEditingLink(null)
             setFormData({ title: '', url: '', icon: '' })
           }}
-          className="px-3 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors"
+          className="px-3 py-1.5 text-sm font-medium text-[#0B1020] hover:text-[#1a2235] hover:bg-gray-100 rounded-lg transition-colors"
         >
           + Add Link
         </button>
@@ -174,7 +174,7 @@ export default function QuickAccess() {
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-                placeholder="e.g., Keepa API"
+                placeholder="e.g., Google Docs"
               />
             </div>
             <div>
@@ -218,7 +218,7 @@ export default function QuickAccess() {
               </button>
               <button
                 type="submit"
-                className="px-3 py-1.5 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                className="px-3 py-1.5 text-sm font-medium bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235]"
               >
                 {editingLink ? 'Update' : 'Add'}
               </button>
@@ -236,7 +236,7 @@ export default function QuickAccess() {
           {links.map((link) => (
             <div
               key={link.id}
-              className="group relative p-4 border border-gray-200 rounded-lg hover:border-indigo-300 hover:shadow-md transition-all"
+              className="group relative p-4 border border-gray-200 rounded-lg hover:border-[#0B1020]/30 hover:shadow-md transition-all"
             >
               <a
                 href={link.url}
@@ -247,7 +247,7 @@ export default function QuickAccess() {
                 {link.icon && (
                   <span className="text-3xl">{link.icon}</span>
                 )}
-                <span className="text-sm font-medium text-gray-900 group-hover:text-indigo-600">
+                <span className="text-sm font-medium text-gray-900 group-hover:text-[#0B1020]">
                   {link.title}
                 </span>
               </a>
@@ -257,7 +257,7 @@ export default function QuickAccess() {
                     e.preventDefault()
                     handleEdit(link)
                   }}
-                  className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
+                  className="p-1 text-[#0B1020] hover:bg-gray-100 rounded"
                   title="Edit"
                 >
                   ✏️

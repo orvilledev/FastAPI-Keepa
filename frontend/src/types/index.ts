@@ -5,6 +5,7 @@ export interface User {
   display_name?: string
   has_keepa_access?: boolean
   can_manage_tools?: boolean
+  can_assign_tasks?: boolean
   user_metadata?: Record<string, any>
 }
 
@@ -29,6 +30,7 @@ export interface PublicTool {
   name: string
   description?: string
   url: string
+  video_url?: string
   category?: string
   icon?: string
   developer?: string
@@ -154,6 +156,9 @@ export interface Task {
   status: 'pending' | 'in_progress' | 'completed'
   priority: 'low' | 'medium' | 'high'
   due_date?: string
+  assigned_to?: string
+  assignment_purpose?: string
+  is_urgent?: boolean
   created_at: string
   updated_at: string
 }
@@ -165,6 +170,36 @@ export interface Subtask {
   description?: string
   status: 'pending' | 'completed'
   display_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface TaskValidation {
+  id: string
+  task_id: string
+  submitted_by: string
+  validation_type: 'file' | 'text'
+  file_name?: string
+  file_url?: string
+  file_size?: number
+  text_content?: string
+  status: 'pending' | 'approved' | 'rejected'
+  reviewed_by?: string
+  review_notes?: string
+  reviewed_at?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface TaskAttachment {
+  id: string
+  task_id: string
+  uploaded_by: string
+  file_name: string
+  file_url: string
+  file_size: number
+  file_type: string
+  file_category: 'image' | 'pdf' | 'excel' | 'csv' | 'powerpoint' | 'word' | 'other'
   created_at: string
   updated_at: string
 }

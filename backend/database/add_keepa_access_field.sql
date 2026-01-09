@@ -1,5 +1,5 @@
 -- Add has_keepa_access field to profiles table
--- This field controls access to Keepa Alert Service menu and its features
+-- This field controls access to Orbit Hub menu and its features
 -- Run this in Supabase SQL Editor
 
 ALTER TABLE profiles 

@@ -66,7 +66,7 @@ export default function UPCMAPStats() {
         >
           <div>
             <div className="text-xs text-gray-500 mb-1">UPCs</div>
-            <div className="text-2xl font-bold text-indigo-600 group-hover:text-indigo-700">
+            <div className="text-2xl font-bold text-[#0B1020] group-hover:text-[#1a2235]">
               {upcCount !== null ? upcCount.toLocaleString() : '—'}
             </div>
           </div>
@@ -75,11 +75,11 @@ export default function UPCMAPStats() {
         {/* MAP Count */}
         <Link
           to="/map"
-          className="group hover:bg-purple-50 rounded-lg p-3 transition-colors border border-transparent hover:border-purple-200"
+          className="group hover:bg-orange-50 rounded-lg p-3 transition-colors border border-transparent hover:border-orange-200"
         >
           <div>
             <div className="text-xs text-gray-500 mb-1">MAP Entries</div>
-            <div className="text-2xl font-bold text-purple-600 group-hover:text-purple-700">
+            <div className="text-2xl font-bold text-[#0B1020] group-hover:text-[#1a2235]">
               {mapCount !== null ? mapCount.toLocaleString() : '—'}
             </div>
           </div>

@@ -156,7 +156,37 @@ export default function MAPManagement() {
         return
       }
 
-      const result = await mapApi.addMAPs(mapEntries)
+      // First, check for duplicates
+      const duplicateCheck = await mapApi.checkMAPDuplicates(mapEntries)
+
+      // Check if cancelled after duplicate check
+      if (abortControllerRef.current?.signal.aborted) {
+        return
+      }
+
+      // If duplicates found, show confirmation dialog
+      let replaceDuplicates = false
+      if (duplicateCheck.duplicate_count > 0) {
+        const duplicateList = duplicateCheck.duplicate_upcs.slice(0, 10).join(', ')
+        const moreText = duplicateCheck.duplicate_upcs.length > 10 
+          ? ` and ${duplicateCheck.duplicate_upcs.length - 10} more` 
+          : ''
+        
+        const message = `The following UPC(s) already exist in the system:\n\n${duplicateList}${moreText}\n\nDo you want to replace the existing MAP entries with the new ones?`
+        
+        const confirmed = window.confirm(message)
+        
+        if (!confirmed) {
+          setError(`Upload cancelled. ${duplicateCheck.duplicate_count} duplicate UPC(s) were not replaced.`)
+          setAdding(false)
+          return
+        }
+        
+        replaceDuplicates = true
+      }
+
+      // Proceed with adding MAP entries (with replacement if confirmed)
+      const result = await mapApi.addMAPs(mapEntries, replaceDuplicates)
 
       // Check if cancelled after API call
       if (abortControllerRef.current?.signal.aborted) {
@@ -165,18 +195,31 @@ export default function MAPManagement() {
 
       // Safely handle response with defaults
       const added = result?.added || 0
-      const updated = result?.updated || 0
+      const rejected = result?.rejected || 0
+      const replaced = result?.replaced || 0
       const invalid = result?.invalid || 0
 
-      let successMessage = `Successfully added ${added} MAP entries.`
-      if (updated > 0) {
-        successMessage += ` Updated ${updated} existing entries.`
+      // Success case - if we replaced duplicates, show appropriate message
+      let successMessage = ''
+      if (replaceDuplicates && duplicateCheck.duplicate_count > 0) {
+        const newEntries = added - replaced
+        if (newEntries > 0 && replaced > 0) {
+          successMessage = `Successfully added ${newEntries} new MAP entry/entries and replaced ${replaced} existing entry/entries.`
+        } else if (replaced > 0) {
+          successMessage = `Successfully replaced ${replaced} existing MAP entry/entries.`
+        } else {
+          successMessage = `Successfully added ${added} MAP entry/entries.`
+        }
+      } else {
+        successMessage = `Successfully added ${added} MAP entry/entries.`
       }
+      
       if (invalid > 0) {
-        successMessage += ` ${invalid} invalid entries.`
+        successMessage += ` ${invalid} invalid entries were skipped.`
       }
-
+      
       setSuccess(successMessage)
+      setError('')
       setMapInput('')
       
       // Reload data
@@ -304,7 +347,7 @@ export default function MAPManagement() {
             <button
               type="submit"
               disabled={adding}
-              className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-md text-sm font-medium"
+              className="bg-[#0B1020] hover:bg-[#1a2235] disabled:bg-gray-400 text-white px-4 py-2 rounded-md text-sm font-medium"
             >
               {adding ? 'Adding...' : 'Add MAP Entries'}
             </button>
@@ -407,7 +450,7 @@ export default function MAPManagement() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-mono font-medium text-gray-900">
                         {map.upc}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-indigo-600">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-[#0B1020]">
                         ${Number(map.map_price).toFixed(2)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

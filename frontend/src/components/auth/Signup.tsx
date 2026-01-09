@@ -110,7 +110,7 @@ export default function Signup() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-[#0B1020] hover:bg-[#1a2235] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0B1020] disabled:opacity-50"
             >
               {loading ? 'Creating account...' : 'Sign up'}
             </button>
@@ -119,7 +119,7 @@ export default function Signup() {
           <div className="text-center">
             <Link
               to="/login"
-              className="text-sm text-indigo-600 hover:text-indigo-500"
+              className="text-sm text-[#0B1020] hover:text-[#1a2235]"
             >
               Already have an account? Sign in
             </Link>

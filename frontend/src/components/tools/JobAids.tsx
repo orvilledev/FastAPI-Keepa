@@ -259,7 +259,7 @@ export default function JobAids() {
                 onClick={() => setSelectedCategory(null)}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   selectedCategory === null
-                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md'
+                    ? 'bg-[#0B1020] text-white shadow-md'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -271,7 +271,7 @@ export default function JobAids() {
                   onClick={() => setSelectedCategory(category)}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                     selectedCategory === category
-                      ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md'
+                      ? 'bg-[#0B1020] text-white shadow-md'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -320,7 +320,7 @@ export default function JobAids() {
                           <>
                             <button
                               onClick={() => handleEdit(aid)}
-                              className="text-indigo-600 hover:text-indigo-800 text-sm"
+                              className="text-[#0B1020] hover:text-indigo-800 text-sm"
                             >
                               Edit
                             </button>
@@ -344,7 +344,7 @@ export default function JobAids() {
                     )}
                     <div className="flex items-center gap-2 mb-4">
                       {aid.category && (
-                        <span className="inline-block px-2 py-1 text-xs font-medium bg-indigo-100 text-indigo-800 rounded">
+                        <span className="inline-block px-2 py-1 text-xs font-medium bg-[#0B1020]/10 text-[#0B1020] rounded">
                           {aid.category}
                         </span>
                       )}
@@ -354,7 +354,7 @@ export default function JobAids() {
                         href={aid.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm inline-block w-full text-center px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all font-medium shadow-md hover:shadow-lg"
+                        className="text-sm inline-block w-full text-center px-4 py-2 bg-[#0B1020] hover:bg-[#1a2235] text-white rounded-lg transition-all font-medium shadow-md hover:shadow-lg"
                       >
                         Open Job Aid →
                       </a>
@@ -461,7 +461,7 @@ export default function JobAids() {
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="e.g., Keepa API Documentation"
+                      placeholder="e.g., Getting Started Guide"
                     />
                   </div>
                   <div>

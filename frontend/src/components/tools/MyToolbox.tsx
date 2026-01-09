@@ -240,7 +240,7 @@ export default function MyToolbox() {
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="e.g., Keepa API Documentation"
+                      placeholder="e.g., My Notes"
                     />
                   </div>
                   <div>
@@ -357,7 +357,7 @@ export default function MyToolbox() {
                         href={aid.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm inline-block w-full text-center px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all font-medium shadow-md hover:shadow-lg"
+                        className="text-sm inline-block w-full text-center px-4 py-2 bg-[#0B1020] hover:bg-[#1a2235] text-white rounded-lg transition-all font-medium shadow-md hover:shadow-lg"
                       >
                         Open Job Aid →
                       </a>
@@ -387,7 +387,7 @@ export default function MyToolbox() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {starredTools.map((tool) => (
-                  <div key={tool.id} className="card card-hover p-6 border-l-4 border-l-indigo-500">
+                  <div key={tool.id} className="card card-hover p-6 border-l-4 border-l-[#0B1020]">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center space-x-3 flex-1">
                         {tool.icon && <span className="text-2xl">{tool.icon}</span>}
@@ -411,19 +411,31 @@ export default function MyToolbox() {
                     )}
                     <div className="flex items-center gap-2 mb-4">
                       {tool.category && (
-                        <span className="inline-block px-2 py-1 text-xs font-medium bg-indigo-100 text-indigo-800 rounded">
+                        <span className="inline-block px-2 py-1 text-xs font-medium bg-[#0B1020]/10 text-[#0B1020] rounded">
                           {tool.category}
                         </span>
                       )}
                     </div>
-                    <a
-                      href={tool.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-primary text-sm inline-block w-full text-center"
-                    >
-                      Open Tool →
-                    </a>
+                    <div className="space-y-2">
+                      <a
+                        href={tool.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm inline-block w-full text-center px-4 py-2 bg-[#0B1020] hover:bg-[#1a2235] text-white rounded-lg transition-all font-medium shadow-md hover:shadow-lg"
+                      >
+                        Open Tool →
+                      </a>
+                      {tool.video_url && (
+                        <a
+                          href={tool.video_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm inline-block w-full text-center px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-medium shadow-md hover:shadow-lg"
+                        >
+                          📹 Watch Video →
+                        </a>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -439,7 +451,7 @@ export default function MyToolbox() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {personalTools.map((tool) => (
-                  <div key={tool.id} className="card card-hover p-6 border-l-4 border-l-purple-500">
+                  <div key={tool.id} className="card card-hover p-6 border-l-4 border-l-[#0B1020]">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center space-x-3 flex-1">
                         {tool.icon && <span className="text-2xl">{tool.icon}</span>}
@@ -448,7 +460,7 @@ export default function MyToolbox() {
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => handleEdit(tool)}
-                          className="text-indigo-600 hover:text-indigo-800 text-sm"
+                          className="text-[#0B1020] hover:text-indigo-800 text-sm"
                           title="Edit"
                         >
                           ✏️
@@ -472,11 +484,11 @@ export default function MyToolbox() {
                     )}
                     <div className="flex items-center gap-2 mb-4">
                       {tool.category && (
-                        <span className="inline-block px-2 py-1 text-xs font-medium bg-indigo-100 text-indigo-800 rounded">
+                        <span className="inline-block px-2 py-1 text-xs font-medium bg-[#0B1020]/10 text-[#0B1020] rounded">
                           {tool.category}
                         </span>
                       )}
-                      <span className="inline-block px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded">
+                      <span className="inline-block px-2 py-1 text-xs font-medium bg-[#0B1020]/10 text-[#0B1020] rounded">
                         Personal
                       </span>
                     </div>

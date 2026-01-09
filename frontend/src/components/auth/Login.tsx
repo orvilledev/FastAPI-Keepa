@@ -66,13 +66,11 @@ export default function Login() {
       <div className="max-w-md w-full">
         <div className="card p-8 shadow-xl">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl mb-4 shadow-lg">
-              <span className="text-white font-bold text-2xl">K</span>
-            </div>
-            <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              Welcome Back
+            <img src="/orbit-logo.svg" alt="Orbit" className="w-16 h-16 mx-auto mb-4" />
+            <h2 className="text-3xl font-bold text-[#0B1020]">
+              Welcome to Orbit
             </h2>
-            <p className="mt-2 text-sm text-gray-500">Sign in to your Keepa Dashboard</p>
+            <p className="mt-2 text-sm text-gray-500">Sign in to Orbit Hub</p>
           </div>
           <form className="space-y-6" onSubmit={handleLogin}>
             {error && (
@@ -110,7 +108,7 @@ export default function Login() {
                       setError('')
                       setForgotPasswordSuccess(false)
                     }}
-                    className="text-sm text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
+                    className="text-sm text-[#0B1020] hover:text-[#1a2235] font-medium transition-colors"
                   >
                     Forgot password?
                   </button>
@@ -142,7 +140,7 @@ export default function Login() {
             <div className="text-center">
               <Link
                 to="/signup"
-                className="text-sm text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
+                className="text-sm text-[#0B1020] hover:text-[#1a2235] font-medium transition-colors"
               >
                 Don't have an account? <span className="font-semibold">Sign up</span>
               </Link>

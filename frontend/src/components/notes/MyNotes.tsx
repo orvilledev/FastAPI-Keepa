@@ -1,9 +1,20 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react'
 import { Link } from 'react-router-dom'
 import { notesApi } from '../../services/api'
 import type { Note } from '../../types'
-import ReactQuill from 'react-quill'
-import 'react-quill/dist/quill.snow.css'
+
+// Lazy load ReactQuill - only loads when the editor is actually needed
+const ReactQuill = lazy(() => import('react-quill'))
+
+// Editor loading placeholder
+const EditorLoading = () => (
+  <div className="border border-gray-300 rounded-lg p-4 min-h-[200px] flex items-center justify-center bg-gray-50">
+    <div className="flex flex-col items-center space-y-2">
+      <div className="w-8 h-8 border-4 border-[#0B1020] border-t-transparent rounded-full animate-spin"></div>
+      <span className="text-gray-500 text-sm">Loading editor...</span>
+    </div>
+  </div>
+)
 
 // Custom toolbar with all requested features
 const modules = {
@@ -39,6 +50,54 @@ const importanceOptions: { value: Importance; label: string; color: string }[] =
   { value: 'high', label: 'High', color: 'bg-yellow-100 text-yellow-700' },
   { value: 'urgent', label: 'Urgent', color: 'bg-red-100 text-red-700' },
 ]
+
+// Move maskContent outside component to prevent recreation on every render
+const maskContent = (content: string): string => {
+  const tempDiv = document.createElement('div')
+  tempDiv.innerHTML = content
+  
+  const maskText = (text: string): string => {
+    if (!text || text.trim().length === 0) return text
+    return text.replace(/([A-Za-z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]{6,})/g, (match) => {
+      if (
+        match.includes('http') || 
+        match.includes('www.') || 
+        match.includes('://') ||
+        match.length < 6 ||
+        /^[A-Za-z\s]+$/.test(match)
+      ) {
+        return match
+      }
+      if (match.length > 4) {
+        const maskedLength = Math.min(match.length - 4, 12)
+        return match.substring(0, 2) + '*'.repeat(maskedLength) + match.substring(match.length - 2)
+      }
+      if (match.length > 2) {
+        return match[0] + '*'.repeat(match.length - 2) + match[match.length - 1]
+      }
+      return '*'.repeat(match.length)
+    })
+  }
+  
+  const maskNode = (node: Node): void => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const textNode = node as Text
+      if (textNode.textContent) {
+        textNode.textContent = maskText(textNode.textContent)
+      }
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const element = node as Element
+      const tagName = element.tagName.toLowerCase()
+      if (tagName === 'a' || tagName === 'code' || tagName === 'pre') {
+        return
+      }
+      Array.from(node.childNodes).forEach(child => maskNode(child))
+    }
+  }
+  
+  Array.from(tempDiv.childNodes).forEach(child => maskNode(child))
+  return tempDiv.innerHTML
+}
 
 export default function MyNotes() {
   const [notes, setNotes] = useState<Note[]>([])
@@ -78,7 +137,7 @@ export default function MyNotes() {
     { value: 'pink', label: 'Pink', border: 'border-pink-400' },
     { value: 'blue', label: 'Blue', border: 'border-blue-400' },
     { value: 'green', label: 'Green', border: 'border-green-400' },
-    { value: 'purple', label: 'Purple', border: 'border-purple-400' },
+    { value: 'orange', label: 'Orange', border: 'border-orange-400' },
     { value: 'orange', label: 'Orange', border: 'border-orange-400' },
     { value: 'red', label: 'Red', border: 'border-red-400' },
     { value: 'teal', label: 'Teal', border: 'border-teal-400' },
@@ -86,20 +145,58 @@ export default function MyNotes() {
     { value: 'indigo', label: 'Indigo', border: 'border-indigo-400' },
   ]
   const [submitting, setSubmitting] = useState(false)
+  const [quillCssLoaded, setQuillCssLoaded] = useState(false)
   const quillRef = useRef<ReactQuill>(null)
 
   const pageSize = 20
+
+  // Dynamically load Quill CSS only when the editor is needed
+  useEffect(() => {
+    if (showAddForm && !quillCssLoaded) {
+      import('react-quill/dist/quill.snow.css').then(() => {
+        setQuillCssLoaded(true)
+      }).catch(() => {
+        // Fallback: add link tag manually
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = 'https://unpkg.com/react-quill@2.0.0/dist/quill.snow.css'
+        document.head.appendChild(link)
+        setQuillCssLoaded(true)
+      })
+    }
+  }, [showAddForm, quillCssLoaded])
 
   const getNoteColor = (colorName: string = 'yellow') => {
     return noteColors.find(c => c.value === colorName) || noteColors[0]
   }
 
+  // Load categories only once on mount (separate from pagination)
+  const loadCategories = useCallback(async () => {
+    if (availableCategories.length > 0) return // Already loaded
+    
+    try {
+      // Fetch a larger set of notes just once to extract categories
+      const response = await notesApi.listNotes(0, 100, undefined, undefined)
+      const categories = Array.from(new Set(
+        response.notes
+          .map(note => note.category)
+          .filter((cat): cat is string => !!cat && cat.trim() !== '')
+      )).sort()
+      setAvailableCategories(categories)
+    } catch (err) {
+      console.warn('Failed to load categories:', err)
+    }
+  }, [availableCategories.length])
+
+  // Load categories only once on mount
+  useEffect(() => {
+    loadCategories()
+  }, []) // Empty dependency - only run once
+
   const loadNotes = useCallback(async () => {
     try {
       setError(null)
       setLoading(true)
-      
-      console.log('Loading notes...', { currentPage, pageSize, searchTerm, categoryFilter })
       
       // Get notes with pagination and filters
       const response = await notesApi.listNotes(
@@ -109,26 +206,21 @@ export default function MyNotes() {
         categoryFilter || undefined
       )
       
-      console.log('Notes loaded:', response)
-      
       setNotes(response.notes || [])
       setTotalNotes(response.total || 0)
       setTotalPages(response.total_pages || 0)
       
-      // To get all categories, we need to fetch all notes (without pagination)
-      // This is a one-time call to extract categories
-      if (availableCategories.length === 0) {
-        try {
-          const allNotesResponse = await notesApi.listNotes(0, 100, undefined, undefined)
-          const categories = Array.from(new Set(
-            allNotesResponse.notes
-              .map(note => note.category)
-              .filter((cat): cat is string => !!cat && cat.trim() !== '')
-          )).sort()
-          setAvailableCategories(categories)
-        } catch (err) {
-          // If this fails, we'll just use empty categories
-          console.warn('Failed to load categories:', err)
+      // Update categories from current response (adds any new categories)
+      if (response.notes && response.notes.length > 0) {
+        const newCategories = response.notes
+          .map(note => note.category)
+          .filter((cat): cat is string => !!cat && cat.trim() !== '')
+        
+        if (newCategories.length > 0) {
+          setAvailableCategories(prev => {
+            const combined = new Set([...prev, ...newCategories])
+            return Array.from(combined).sort()
+          })
         }
       }
     } catch (err: any) {
@@ -165,7 +257,7 @@ export default function MyNotes() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, searchTerm, categoryFilter, pageSize, availableCategories.length])
+  }, [currentPage, searchTerm, categoryFilter, pageSize])
 
   useEffect(() => {
     loadNotes()
@@ -375,68 +467,38 @@ export default function MyNotes() {
     setSuccess(null)
   }
 
-  // Function to mask sensitive content
-  const maskContent = (content: string): string => {
-    // Create a temporary div to parse HTML
-    const tempDiv = document.createElement('div')
-    tempDiv.innerHTML = content
-    
-    // Function to mask text in a node
-    const maskText = (text: string): string => {
-      if (!text || text.trim().length === 0) return text
-      
-      // Mask patterns that look like passwords or sensitive data
-      // Match sequences of 6+ alphanumeric/special characters (likely passwords)
-      return text.replace(/([A-Za-z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]{6,})/g, (match) => {
-        // Don't mask URLs, common words, or short sequences
-        if (
-          match.includes('http') || 
-          match.includes('www.') || 
-          match.includes('://') ||
-          match.length < 6 ||
-          /^[A-Za-z\s]+$/.test(match) // Don't mask plain words (only letters and spaces)
-        ) {
-          return match
-        }
-        
-        // Show first 2 and last 2 characters, mask the middle
-        if (match.length > 4) {
-          const maskedLength = Math.min(match.length - 4, 12)
-          return match.substring(0, 2) + '*'.repeat(maskedLength) + match.substring(match.length - 2)
-        }
-        // For shorter sequences, mask all but first and last character
-        if (match.length > 2) {
-          return match[0] + '*'.repeat(match.length - 2) + match[match.length - 1]
-        }
-        return '*'.repeat(match.length)
-      })
-    }
-    
-    // Recursively mask text nodes while preserving HTML structure
-    const maskNode = (node: Node): void => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const textNode = node as Text
-        if (textNode.textContent) {
-          textNode.textContent = maskText(textNode.textContent)
-        }
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        // Skip masking inside certain tags (like links, code blocks)
-        const element = node as Element
-        const tagName = element.tagName.toLowerCase()
-        if (tagName === 'a' || tagName === 'code' || tagName === 'pre') {
-          return // Don't mask links or code
-        }
-        
-        // Recursively process child nodes
-        Array.from(node.childNodes).forEach(child => maskNode(child))
+  // Memoize masked content to avoid expensive recomputation on every render
+  const maskedContentCache = useMemo(() => {
+    const cache: Record<string, string> = {}
+    notes.forEach(note => {
+      if (note.is_protected) {
+        cache[note.id] = maskContent(note.content)
       }
-    }
-    
-    // Mask all text nodes
-    Array.from(tempDiv.childNodes).forEach(child => maskNode(child))
-    
-    return tempDiv.innerHTML
-  }
+    })
+    return cache
+  }, [notes])
+
+  // Helper function to check if a note is unlocked
+  const isNoteUnlocked = useCallback((note: Note): boolean => {
+    if (!note.has_password) return true
+    return note.require_password_always 
+      ? sessionUnlockedNotes.has(note.id)
+      : unlockedNotes.has(note.id)
+  }, [sessionUnlockedNotes, unlockedNotes])
+
+  // Helper function to get display content for a note
+  const getNoteDisplayContent = useCallback((note: Note): string => {
+    const isUnlocked = isNoteUnlocked(note)
+    const shouldMask = note.is_protected && !revealedNotes.has(note.id) && !isUnlocked
+    return shouldMask ? (maskedContentCache[note.id] || note.content) : note.content
+  }, [maskedContentCache, revealedNotes, isNoteUnlocked])
+
+  // Helper function to get blur filter for a note
+  const getNoteBlurFilter = useCallback((note: Note): string => {
+    const isUnlocked = isNoteUnlocked(note)
+    const shouldBlur = note.is_protected && !revealedNotes.has(note.id) && !isUnlocked
+    return shouldBlur ? 'blur(4px)' : 'none'
+  }, [revealedNotes, isNoteUnlocked])
 
   const toggleReveal = (noteId: string) => {
     setRevealedNotes(prev => {
@@ -511,7 +573,7 @@ export default function MyNotes() {
             <div className="flex gap-3">
               <button
                 onClick={handlePasswordSubmit}
-                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                className="flex-1 px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors font-medium"
               >
                 Unlock
               </button>
@@ -535,7 +597,7 @@ export default function MyNotes() {
         {!showAddForm && (
           <button
             onClick={() => setShowAddForm(true)}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+            className="px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors font-medium"
           >
             + Add Note
           </button>
@@ -641,7 +703,7 @@ export default function MyNotes() {
                     type="checkbox"
                     checked={formData.is_protected}
                     onChange={(e) => setFormData({ ...formData, is_protected: e.target.checked })}
-                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                    className="w-4 h-4 text-[#0B1020] border-gray-300 rounded focus:ring-indigo-500"
                   />
                   <span className="text-sm font-medium text-gray-700">
                     🔒 Enable Content Masking (mask sensitive content)
@@ -664,7 +726,7 @@ export default function MyNotes() {
                         require_password_always: newUsePassword ? formData.require_password_always : false
                       })
                     }}
-                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                    className="w-4 h-4 text-[#0B1020] border-gray-300 rounded focus:ring-indigo-500"
                   />
                   <span className="text-sm font-medium text-gray-700">
                     🔐 Enable Password Protection
@@ -738,7 +800,7 @@ export default function MyNotes() {
                           setShowPassword(true) // Show the generated password
                         }
                       }}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm whitespace-nowrap"
+                      className="px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors font-medium text-sm whitespace-nowrap"
                       title="Generate a strong password"
                     >
                       🔐 Generate
@@ -763,7 +825,7 @@ export default function MyNotes() {
                       type="checkbox"
                       checked={formData.require_password_always}
                       onChange={(e) => setFormData({ ...formData, require_password_always: e.target.checked })}
-                      className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                      className="w-4 h-4 text-[#0B1020] border-gray-300 rounded focus:ring-indigo-500"
                     />
                     <span className="text-sm font-medium text-gray-700">
                       🔐 Require Password Even for Owner (Optional)
@@ -780,16 +842,18 @@ export default function MyNotes() {
                 Content
               </label>
               <div className="border border-gray-300 rounded-lg overflow-hidden">
-                <ReactQuill
-                  ref={quillRef}
-                  theme="snow"
-                  value={formData.content}
-                  onChange={(value) => setFormData({ ...formData, content: value })}
-                  modules={modules}
-                  formats={formats}
-                  placeholder="Enter note content... Use the toolbar to format your text, add bullets, links, etc. You can type emojis directly (😀 🎉 ✅) or copy-paste them."
-                  style={{ minHeight: '200px' }}
-                />
+                <Suspense fallback={<EditorLoading />}>
+                  <ReactQuill
+                    ref={quillRef}
+                    theme="snow"
+                    value={formData.content}
+                    onChange={(value) => setFormData({ ...formData, content: value })}
+                    modules={modules}
+                    formats={formats}
+                    placeholder="Enter note content... Use the toolbar to format your text, add bullets, links, etc. You can type emojis directly (😀 🎉 ✅) or copy-paste them."
+                    style={{ minHeight: '200px' }}
+                  />
+                </Suspense>
               </div>
               <style>{`
                 .ql-editor {
@@ -804,7 +868,7 @@ export default function MyNotes() {
               <button
                 onClick={editingNote ? handleUpdateNote : handleAddNote}
                 disabled={submitting}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? 'Saving...' : editingNote ? 'Update Note' : 'Create Note'}
               </button>
@@ -873,7 +937,7 @@ export default function MyNotes() {
           {!searchTerm && (
             <button
               onClick={() => setShowAddForm(true)}
-              className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+              className="mt-4 px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors font-medium"
             >
               Create your first note
             </button>
@@ -954,7 +1018,7 @@ export default function MyNotes() {
                       <div className="flex gap-2 ml-2">
                         <button
                           onClick={() => handleEditClick(note)}
-                          className="px-2 py-1 text-sm text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
+                          className="px-2 py-1 text-sm text-[#0B1020] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
                           title="Edit"
                         >
                           Edit
@@ -993,7 +1057,7 @@ export default function MyNotes() {
                             setPasswordInput('')
                             setPasswordError(null)
                           }}
-                          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                          className="px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors font-medium"
                         >
                           Enter Password to View
                         </button>
@@ -1007,7 +1071,7 @@ export default function MyNotes() {
                             </span>
                             <button
                               onClick={() => toggleReveal(note.id)}
-                              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                              className="text-xs text-[#0B1020] hover:text-indigo-800 font-medium"
                             >
                               {revealedNotes.has(note.id) ? '👁️ Hide' : '👁️‍🗨️ Reveal'}
                             </button>
@@ -1028,7 +1092,7 @@ export default function MyNotes() {
                                     return newSet
                                   })
                                 }}
-                                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                                className="text-xs text-[#0B1020] hover:text-indigo-800 font-medium"
                               >
                                 👁️ Hide
                               </button>
@@ -1039,7 +1103,7 @@ export default function MyNotes() {
                                   setPasswordInput('')
                                   setPasswordError(null)
                                 }}
-                                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                                className="text-xs text-[#0B1020] hover:text-indigo-800 font-medium"
                               >
                                 👁️ Reveal
                               </button>
@@ -1058,32 +1122,10 @@ export default function MyNotes() {
                             MozUserSelect: 'text',
                             msUserSelect: 'text',
                             cursor: 'text',
-                            filter: (() => {
-                              // Don't blur if note is unlocked (password-protected notes)
-                              const isUnlocked = note.has_password && (
-                                note.require_password_always 
-                                  ? sessionUnlockedNotes.has(note.id)
-                                  : unlockedNotes.has(note.id)
-                              )
-                              // Blur only if is_protected is true, note is not in revealedNotes, and note is not unlocked
-                              return note.is_protected && !revealedNotes.has(note.id) && !isUnlocked ? 'blur(4px)' : 'none'
-                            })(),
+                            filter: getNoteBlurFilter(note),
                             transition: 'filter 0.3s ease',
                           }}
-                          dangerouslySetInnerHTML={{ 
-                            __html: (() => {
-                              // Don't mask if note is unlocked (password-protected notes)
-                              const isUnlocked = note.has_password && (
-                                note.require_password_always 
-                                  ? sessionUnlockedNotes.has(note.id)
-                                  : unlockedNotes.has(note.id)
-                              )
-                              // Mask only if is_protected is true, note is not in revealedNotes, and note is not unlocked
-                              return note.is_protected && !revealedNotes.has(note.id) && !isUnlocked
-                                ? maskContent(note.content) 
-                                : note.content
-                            })()
-                          }}
+                          dangerouslySetInnerHTML={{ __html: getNoteDisplayContent(note) }}
                         />
                       </>
                     )}

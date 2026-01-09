@@ -23,7 +23,7 @@
   }
   
   .btn-primary {
-    @apply bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium px-6 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 transform hover:-translate-y-0.5;
+    @apply bg-[#0B1020] hover:bg-[#1a2235] text-white font-medium px-6 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 transform hover:-translate-y-0.5;
   }
   
   .btn-secondary {
@@ -41,7 +41,7 @@
   }
   
   .sidebar-link-active {
-    @apply bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md;
+    @apply bg-[#0B1020] text-white shadow-md;
   }
   
   .sidebar-link-inactive {
@@ -53,42 +53,52 @@
     @apply text-black;
   }
   
+  /* Hover state - always white text on dark background */
   .sidebar-link-inactive:hover {
-    @apply bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md;
+    @apply bg-[#0B1020] shadow-md;
+    color: white !important;
   }
   
   .sidebar-link-active:hover {
-    @apply bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md;
+    @apply bg-[#0B1020] shadow-md;
+    color: white !important;
   }
   
-  /* When hovering over a child item, ensure parent button is not highlighted */
-  /* Only affects dropdown containers, not standalone links like Dashboard */
-  nav > div:has(> .ml-4 .sidebar-link:hover) > button.sidebar-link:not(:hover):not(.sidebar-link-active) {
-    background: transparent !important;
-    background-image: none !important;
-    color: rgb(55 65 81) !important;
-    box-shadow: none !important;
-    transition: background 0.3s ease-in, color 0.3s ease-in, box-shadow 0.3s ease-in !important;
+  /* When hovering any sidebar link, ensure text is white since background becomes dark */
+  .sidebar-link:hover {
+    background: #0B1020 !important;
+    color: white !important;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
   }
   
-  /* When hovering over parent button, ensure child items are not highlighted */
-  /* Only affects dropdown containers, not standalone links like Dashboard */
-  nav > div:has(> button.sidebar-link:hover) > .ml-4 .sidebar-link:not(:hover):not(.sidebar-link-active) {
-    background: transparent !important;
-    background-image: none !important;
-    color: rgb(55 65 81) !important;
-    box-shadow: none !important;
-    transition: background 0.3s ease-in, color 0.3s ease-in, box-shadow 0.3s ease-in !important;
+  /* Override any inline styles on hover */
+  .sidebar-link:hover span {
+    color: white !important;
   }
   
-  /* When hovering over a parent menu button, remove highlight from other parent buttons in the same container */
-  /* This only affects dropdown parent buttons, not standalone links, and excludes active links */
-  nav > div:has(> button.sidebar-link:hover) > button.sidebar-link:not(:hover):not(.sidebar-link-active) {
+  /* Child items in dark dropdown containers - white text by default */
+  .dark-dropdown .sidebar-link-inactive {
+    color: rgba(255, 255, 255, 0.8) !important;
     background: transparent !important;
-    background-image: none !important;
-    color: rgb(55 65 81) !important;
+  }
+  
+  /* When hovering a child item in dark dropdown, highlight with lighter background */
+  .dark-dropdown .sidebar-link-inactive:hover {
+    background: rgba(255, 255, 255, 0.15) !important;
+    color: white !important;
     box-shadow: none !important;
-    transition: background 0.3s ease-in, color 0.3s ease-in, box-shadow 0.3s ease-in !important;
+  }
+  
+  /* Ensure non-hovered siblings in dark dropdown stay transparent */
+  .dark-dropdown .sidebar-link:not(:hover):not(.sidebar-link-active) {
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  
+  /* Active items in dark dropdown */
+  .dark-dropdown .sidebar-link-active {
+    background: rgba(255, 255, 255, 0.2) !important;
+    color: white !important;
   }
   
 }
@@ -163,13 +173,13 @@ code {
 
 /* Links */
 .note-content a {
-  color: #4f46e5;
+  color: #0B1020;
   text-decoration: underline;
   cursor: pointer;
 }
 
 .note-content a:hover {
-  color: #4338ca;
+  color: #1a2235;
   text-decoration: underline;
 }
 

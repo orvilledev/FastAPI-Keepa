@@ -1,4 +1,4 @@
--- Keepa Dashboard Database Schema
+-- Orbit Database Schema
 -- Run this in Supabase SQL Editor
 
 -- Users table (extends Supabase auth.users)

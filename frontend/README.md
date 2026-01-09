@@ -1,6 +1,6 @@
-# Frontend - Keepa Dashboard
+# Frontend - Orbit
 
-React + TypeScript frontend for the Keepa Dashboard system.
+React + TypeScript frontend for the Orbit system.
 
 ## Setup
 

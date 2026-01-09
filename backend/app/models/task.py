@@ -12,6 +12,9 @@ class TaskCreate(BaseModel):
     status: Optional[str] = 'pending'
     priority: Optional[str] = 'medium'
     due_date: Optional[datetime] = None
+    assigned_to: Optional[UUID] = None
+    assignment_purpose: Optional[str] = None
+    is_urgent: Optional[bool] = False
 
 
 class TaskUpdate(BaseModel):
@@ -21,6 +24,9 @@ class TaskUpdate(BaseModel):
     status: Optional[str] = None
     priority: Optional[str] = None
     due_date: Optional[datetime] = None
+    assigned_to: Optional[UUID] = None
+    assignment_purpose: Optional[str] = None
+    is_urgent: Optional[bool] = None
 
 
 class TaskResponse(BaseModel):
@@ -32,6 +38,9 @@ class TaskResponse(BaseModel):
     status: str
     priority: str
     due_date: Optional[datetime] = None
+    assigned_to: Optional[UUID] = None
+    assignment_purpose: Optional[str] = None
+    is_urgent: Optional[bool] = False
     created_at: datetime
     updated_at: datetime
 

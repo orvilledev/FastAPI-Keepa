@@ -20,26 +20,29 @@ async def get_tasks(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
-    """Get all tasks for the current user, optionally filtered by status or priority."""
-    query = db.table("tasks").select("*").eq("user_id", current_user["id"])
+    """Get all tasks visible to the team (all authenticated users can see all tasks), optionally filtered by status or priority."""
+    # Get all tasks - team-wide view where everyone can see all tasks
+    query = db.table("tasks").select("*")
     
     if status:
         query = query.eq("status", status)
     if priority:
         query = query.eq("priority", priority)
     
-    # Order by created_at descending (newest first)
+    # Execute query
     try:
         response = query.order("created_at", desc=True).execute()
     except Exception as e:
         # If ordering fails, try without ordering
         response = query.execute()
     
-    if not response.data:
+    response_data = response.data or []
+    
+    if not response_data:
         return []
     
     # Sort tasks: those with due_date first (sorted by due_date), then those without due_date
-    tasks = response.data
+    tasks = response_data
     tasks_with_due = [t for t in tasks if t.get("due_date")]
     tasks_without_due = [t for t in tasks if not t.get("due_date")]
     
@@ -69,9 +72,12 @@ async def create_task(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
-    """Create a new task for the current user."""
-    task_dict = task_data.model_dump()
+    """Create a new task. Anyone can create tasks and assign them to others (Team Tasks)."""
+    # Use mode='json' to automatically serialize UUIDs and datetimes to strings
+    task_dict = task_data.model_dump(mode='json')
     task_dict["user_id"] = current_user["id"]
+    
+    # Anyone can assign tasks to others - no permission check needed
     
     response = db.table("tasks").insert(task_dict).execute()
     
@@ -89,18 +95,30 @@ async def update_task(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
-    """Update a task (user can only update their own tasks)."""
-    # Check if task exists and belongs to user
-    check_response = db.table("tasks").select("*").eq("id", str(task_id)).eq("user_id", current_user["id"]).execute()
+    """Update a task (all authenticated users can update tasks due to team-wide visibility)."""
+    # Check if task exists - RLS policies handle permissions
+    check_response = db.table("tasks").select("*").eq("id", str(task_id)).execute()
     
     if not check_response.data:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    # Update task
-    update_data = {k: v for k, v in task_data.model_dump().items() if v is not None}
+    task = check_response.data[0]
+    # Use mode='json' to automatically serialize UUIDs and datetimes to strings
+    update_data = {k: v for k, v in task_data.model_dump(mode='json').items() if v is not None}
+    
+    # Check if user is trying to change assigned_to
+    if "assigned_to" in update_data and update_data["assigned_to"] != task.get("assigned_to"):
+        # Only task creator can change assignment
+        if task.get("user_id") != current_user["id"]:
+            raise HTTPException(
+                status_code=403,
+                detail="Only the task creator can change task assignment."
+            )
+    
     update_data["updated_at"] = "now()"
     
-    response = db.table("tasks").update(update_data).eq("id", str(task_id)).eq("user_id", current_user["id"]).execute()
+    # Update task - RLS policies handle permissions
+    response = db.table("tasks").update(update_data).eq("id", str(task_id)).execute()
     
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to update task")

@@ -2,7 +2,8 @@ import { useEffect, useState, useMemo } from 'react'
 import SchedulerCountdown from './SchedulerCountdown'
 import QuickAccess from './QuickAccess'
 import UPCMAPStats from './UPCMAPStats'
-import { authApi, dashboardApi } from '../../services/api'
+import { dashboardApi } from '../../services/api'
+import { useUser } from '../../contexts/UserContext'
 
 interface WidgetItem {
   id: string
@@ -10,12 +11,12 @@ interface WidgetItem {
 }
 
 export default function Dashboard() {
+  const { hasKeepaAccess, displayName, userInfoLoading } = useUser()
   const [greeting, setGreeting] = useState('')
   const [loading, setLoading] = useState(true)
   const [widgets, setWidgets] = useState<WidgetItem[]>([])
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
-  const [hasKeepaAccess, setHasKeepaAccess] = useState(false)
 
   // Define available widgets - use useMemo to prevent recreation on each render
   // Only include Keepa-related widgets if user has access
@@ -38,16 +39,20 @@ export default function Dashboard() {
   const schedulerCountdownWidget = useMemo(() => <SchedulerCountdown />, [])
   const upcMapStatsWidget = useMemo(() => <UPCMAPStats />, [])
 
+  // Set greeting from context
+  useEffect(() => {
+    if (!userInfoLoading && displayName) {
+      const capitalizedName = displayName.charAt(0).toUpperCase() + displayName.slice(1)
+      setGreeting(`Welcome, ${capitalizedName}!`)
+    }
+  }, [displayName, userInfoLoading])
+
   useEffect(() => {
     const loadData = async () => {
-      try {
-        // Load user greeting and Keepa access
-        const user = await authApi.getCurrentUser()
-        const name = user.display_name || user.email?.split('@')[0] || 'there'
-        const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1)
-        setGreeting(`Welcome, ${capitalizedName}!`)
-        setHasKeepaAccess(user.has_keepa_access || false)
+      // Wait for user info to be loaded
+      if (userInfoLoading) return
 
+      try {
         // Load widget order
         try {
           console.log('Loading widget order...')
@@ -169,20 +174,23 @@ export default function Dashboard() {
           }
         }
       } catch (err) {
-        console.error('Failed to load user info:', err)
-        setGreeting('Welcome!')
-        setHasKeepaAccess(false)
+        console.error('Failed to load widgets:', err)
         // Use default widget order (only QuickAccess for non-Keepa users)
-        setWidgets([
+        const defaultWidgets = [
           { id: 'quickAccess', component: quickAccessWidget },
-        ])
+        ]
+        if (hasKeepaAccess) {
+          defaultWidgets.push({ id: 'schedulerCountdown', component: schedulerCountdownWidget })
+          defaultWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
+        }
+        setWidgets(defaultWidgets)
       } finally {
         setLoading(false)
       }
     }
 
     loadData()
-  }, [hasKeepaAccess, quickAccessWidget, schedulerCountdownWidget, upcMapStatsWidget])
+  }, [hasKeepaAccess, userInfoLoading, quickAccessWidget, schedulerCountdownWidget, upcMapStatsWidget])
 
   const handleDragStart = (index: number) => {
     setDraggedIndex(index)
@@ -281,7 +289,7 @@ export default function Dashboard() {
       </div>
 
       {saving && (
-        <div className="fixed bottom-4 right-4 bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-lg">
+        <div className="fixed bottom-4 right-4 bg-[#0B1020] text-white px-4 py-2 rounded-lg shadow-lg">
           Saving widget order...
         </div>
       )}

@@ -23,20 +23,35 @@ class UPCRepository:
         response = self.db.table(self.table).select("id", count="exact").limit(0).execute()
         return response.count if hasattr(response, 'count') else len(response.data)
     
+    def upc_exists(self, upc: str) -> bool:
+        """Check if a UPC already exists in the database."""
+        response = self.db.table(self.table).select("id").eq("upc", upc).limit(1).execute()
+        return len(response.data) > 0
+    
     def add_upc(self, upc: str) -> bool:
         """
         Add a UPC to the database.
         
         Returns:
-            True if added, False if duplicate
+            True if added, raises HTTPException if duplicate
         """
+        # Check if UPC already exists
+        if self.upc_exists(upc):
+            raise HTTPException(
+                status_code=400,
+                detail=f"UPC {upc} already exists in the database"
+            )
+        
         try:
             result = self.db.table(self.table).insert({"upc": upc}).execute()
             return bool(result.data)
         except Exception as e:
             error_str = str(e)
             if "duplicate" in error_str.lower() or "unique" in error_str.lower():
-                return False
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"UPC {upc} already exists in the database"
+                )
             raise
     
     def delete_upc(self, upc: str) -> bool:

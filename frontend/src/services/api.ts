@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
-import type { BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, PublicTool, QuickAccessLink, Task, Subtask, DashboardWidget, UserTool, Note, JobAid } from '../types'
+import type { BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, PublicTool, QuickAccessLink, Task, Subtask, DashboardWidget, UserTool, Note, JobAid, TaskValidation, TaskAttachment } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -11,11 +11,43 @@ const api = axios.create({
   },
 })
 
-// Add auth token to requests
-api.interceptors.request.use(async (config) => {
-  const { data: { session } } = await supabase.auth.getSession()
+// Cache for auth token to avoid repeated getSession calls
+let cachedToken: string | null = null
+let tokenExpiresAt: number = 0
+
+// Listen for auth changes to update cached token
+supabase.auth.onAuthStateChange((_event, session) => {
   if (session?.access_token) {
-    config.headers.Authorization = `Bearer ${session.access_token}`
+    cachedToken = session.access_token
+    // Set expiry 5 minutes before actual expiry for safety
+    tokenExpiresAt = (session.expires_at || 0) * 1000 - 5 * 60 * 1000
+  } else {
+    cachedToken = null
+    tokenExpiresAt = 0
+  }
+})
+
+// Initialize token on load
+supabase.auth.getSession().then(({ data: { session } }) => {
+  if (session?.access_token) {
+    cachedToken = session.access_token
+    tokenExpiresAt = (session.expires_at || 0) * 1000 - 5 * 60 * 1000
+  }
+})
+
+// Add auth token to requests (using cached token)
+api.interceptors.request.use(async (config) => {
+  // Only fetch fresh session if token is expired or missing
+  if (!cachedToken || Date.now() > tokenExpiresAt) {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.access_token) {
+      cachedToken = session.access_token
+      tokenExpiresAt = (session.expires_at || 0) * 1000 - 5 * 60 * 1000
+    }
+  }
+  
+  if (cachedToken) {
+    config.headers.Authorization = `Bearer ${cachedToken}`
   }
   return config
 })
@@ -53,7 +85,7 @@ export const authApi = {
     return response.data
   },
   getAllUsers: async () => {
-    const response = await api.get<{ users: Array<{ id: string; email: string; role: string; display_name?: string; has_keepa_access: boolean; can_manage_tools: boolean; created_at: string }> }>('/api/v1/auth/users')
+    const response = await api.get<{ users: Array<{ id: string; email: string; role: string; display_name?: string; has_keepa_access: boolean; can_manage_tools: boolean; can_assign_tasks: boolean; created_at: string }> }>('/api/v1/auth/users')
     return response.data
   },
   updateUserKeepaAccess: async (userId: string, hasKeepaAccess: boolean) => {
@@ -62,6 +94,10 @@ export const authApi = {
   },
   updateUserToolsAccess: async (userId: string, canManageTools: boolean) => {
     const response = await api.put<{ user_id: string; can_manage_tools: boolean; message: string }>(`/api/v1/auth/users/${userId}/tools-access`, { can_manage_tools: canManageTools })
+    return response.data
+  },
+  updateUserTasksAccess: async (userId: string, canAssignTasks: boolean) => {
+    const response = await api.put<{ user_id: string; can_assign_tasks: boolean; message: string }>(`/api/v1/auth/users/${userId}/tasks-access`, { can_assign_tasks: canAssignTasks })
     return response.data
   },
   updateProfile: async (profileData: any) => {
@@ -174,8 +210,13 @@ export const upcsApi = {
 
 // MAP API
 export const mapApi = {
-  addMAPs: async (maps: Array<{ upc: string; map_price: number }>) => {
-    const response = await api.post('/api/v1/map', maps)
+  checkMAPDuplicates: async (maps: Array<{ upc: string; map_price: number }>) => {
+    const response = await api.post('/api/v1/map/check-duplicates', maps)
+    return response.data
+  },
+  
+  addMAPs: async (maps: Array<{ upc: string; map_price: number }>, replaceDuplicates: boolean = false) => {
+    const response = await api.post(`/api/v1/map?replace_duplicates=${replaceDuplicates}`, maps)
     return response.data
   },
   
@@ -242,6 +283,7 @@ export const toolsApi = {
     name: string
     description?: string
     url: string
+    video_url?: string
     developer?: string
     category?: string
     icon?: string
@@ -254,6 +296,7 @@ export const toolsApi = {
     name?: string
     description?: string
     url?: string
+    video_url?: string
     developer?: string
     category?: string
     icon?: string
@@ -411,6 +454,8 @@ export const tasksApi = {
     status?: string
     priority?: string
     due_date?: string
+    assigned_to?: string
+    assignment_purpose?: string
   }) => {
     const response = await api.post<Task>('/api/v1/tasks', taskData)
     return response.data
@@ -421,6 +466,8 @@ export const tasksApi = {
     status?: string
     priority?: string
     due_date?: string
+    assigned_to?: string
+    assignment_purpose?: string
   }) => {
     const response = await api.put<Task>(`/api/v1/tasks/${taskId}`, taskData)
     return response.data
@@ -454,6 +501,61 @@ export const tasksApi = {
   },
   deleteSubtask: async (taskId: string, subtaskId: string) => {
     const response = await api.delete(`/api/v1/tasks/${taskId}/subtasks/${subtaskId}`)
+    return response.data
+  },
+  // Task Validations
+  getTaskValidations: async (taskId: string) => {
+    const response = await api.get<TaskValidation[]>(`/api/v1/tasks/${taskId}/validations`)
+    return response.data
+  },
+  uploadFileValidation: async (taskId: string, file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await api.post<TaskValidation>(`/api/v1/tasks/${taskId}/validations/file`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  },
+  submitTextValidation: async (taskId: string, textContent: string) => {
+    const formData = new FormData()
+    formData.append('text_content', textContent)
+    const response = await api.post<TaskValidation>(`/api/v1/tasks/${taskId}/validations/text`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  },
+  reviewValidation: async (validationId: string, status: 'approved' | 'rejected', reviewNotes?: string) => {
+    const response = await api.put<TaskValidation>(`/api/v1/task-validations/${validationId}/review`, {
+      status,
+      review_notes: reviewNotes,
+    })
+    return response.data
+  },
+  deleteValidation: async (validationId: string) => {
+    const response = await api.delete(`/api/v1/task-validations/${validationId}`)
+    return response.data
+  },
+  // Task Attachments
+  getTaskAttachments: async (taskId: string) => {
+    const response = await api.get<TaskAttachment[]>(`/api/v1/tasks/${taskId}/attachments`)
+    return response.data
+  },
+  uploadTaskAttachment: async (taskId: string, file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await api.post<TaskAttachment>(`/api/v1/tasks/${taskId}/attachments`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  },
+  deleteTaskAttachment: async (attachmentId: string) => {
+    const response = await api.delete(`/api/v1/task-attachments/${attachmentId}`)
     return response.data
   },
 }

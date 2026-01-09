@@ -66,7 +66,7 @@ export default function JobDetail() {
       setJob(data)
       // Check if this is a daily run - check for "Daily" in job name or if it matches daily run pattern
       const isDaily = data.job_name && (
-        data.job_name.startsWith('Daily Keepa Report -') ||
+        data.job_name.startsWith('Daily Orbit Report -') ||
         data.job_name.startsWith('Daily ') ||
         /Daily.*Report/i.test(data.job_name)
       )
@@ -250,7 +250,7 @@ export default function JobDetail() {
         <div>
           <Link
             to="/jobs"
-            className="text-indigo-600 hover:text-indigo-900 text-sm font-medium mb-2 inline-block"
+            className="text-[#0B1020] hover:text-[#1a2235] text-sm font-medium mb-2 inline-block"
           >
             ← Back to Express Jobs
           </Link>
@@ -267,7 +267,7 @@ export default function JobDetail() {
               </button>
               <button
                 onClick={handleTrigger}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                className="bg-[#0B1020] hover:bg-[#1a2235] text-white px-4 py-2 rounded-md text-sm font-medium"
               >
                 Trigger Job
               </button>
@@ -612,7 +612,7 @@ export default function JobDetail() {
                   <button
                     onClick={handleSaveEdit}
                     disabled={saving || !editJobName.trim()}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {saving ? 'Saving...' : 'Save Changes'}
                   </button>

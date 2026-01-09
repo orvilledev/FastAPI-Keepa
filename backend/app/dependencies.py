@@ -101,7 +101,7 @@ async def get_keepa_access_user(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ) -> dict:
-    """Verify user has Keepa Alert Service access (has_keepa_access = true)."""
+    """Verify user has Orbit Hub access (has_keepa_access = true)."""
     # Check user's Keepa access in profiles table
     profile_response = db.table("profiles").select("has_keepa_access, role").eq("id", current_user["id"]).execute()
     
@@ -119,7 +119,7 @@ async def get_keepa_access_user(
     if not has_keepa_access and not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Keepa Alert Service access required"
+            detail="Orbit Hub access required"
         )
     
     return current_user
@@ -148,6 +148,36 @@ async def get_tools_manager_user(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Permission to manage tools required"
+        )
+    
+    return current_user
+
+
+async def get_task_assigner_or_superadmin_user(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase)
+) -> dict:
+    """Verify user is superadmin OR has can_assign_tasks permission."""
+    # Check if user is superadmin
+    user_email = current_user.get("email", "").lower()
+    if user_email == "orvillebarba@gmail.com":
+        return current_user
+    
+    # Check user's task assignment permission in profiles table
+    profile_response = db.table("profiles").select("can_assign_tasks").eq("id", current_user["id"]).execute()
+    
+    if not profile_response.data:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+    
+    can_assign_tasks = profile_response.data[0].get("can_assign_tasks", False)
+    
+    if not can_assign_tasks:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Task assignment permission required"
         )
     
     return current_user

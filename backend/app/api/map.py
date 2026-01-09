@@ -15,10 +15,67 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.post("/map/check-duplicates", response_model=dict)
+@handle_api_errors("check MAP duplicates")
+async def check_map_duplicates(
+    maps: List[dict],
+    current_user: dict = Depends(get_admin_user),
+    db: Client = Depends(get_supabase)
+):
+    """
+    Check which MAP entries already exist in the database (admin only).
+    
+    Accepts a list of dicts with 'upc' and 'map_price' keys.
+    Returns list of duplicate UPCs.
+    """
+    if not maps:
+        raise HTTPException(status_code=400, detail="No MAP entries provided")
+    
+    # Validate entries
+    valid_maps = []
+    invalid_count = 0
+    
+    for map_entry in maps:
+        if not isinstance(map_entry, dict):
+            invalid_count += 1
+            continue
+        
+        upc = map_entry.get('upc', '').strip() if map_entry.get('upc') else ''
+        map_price = map_entry.get('map_price')
+        
+        if not upc:
+            invalid_count += 1
+            continue
+        
+        try:
+            price = Decimal(str(map_price))
+            if price < 0:
+                invalid_count += 1
+                continue
+            valid_maps.append({"upc": upc, "map_price": price})
+        except (ValueError, TypeError):
+            invalid_count += 1
+    
+    if not valid_maps:
+        raise HTTPException(status_code=400, detail="No valid MAP entries provided")
+    
+    # Check for duplicates
+    map_repo = MAPRepository(db)
+    duplicate_upcs = map_repo.check_duplicates(valid_maps)
+    
+    return {
+        "duplicate_upcs": duplicate_upcs,
+        "duplicate_count": len(duplicate_upcs),
+        "total_entries": len(valid_maps),
+        "invalid": invalid_count
+    }
+
+
 @router.post("/map", response_model=dict, status_code=201)
 @handle_api_errors("add MAP entries")
 async def add_maps(
     maps: List[dict],
+    replace_duplicates: bool = False,
     current_user: dict = Depends(get_admin_user),
     db: Client = Depends(get_supabase)
 ):
@@ -62,17 +119,35 @@ async def add_maps(
     
     # Insert MAP entries using repository
     map_repo = MAPRepository(db)
-    result = map_repo.add_maps_bulk(valid_maps)
+    result = map_repo.add_maps_bulk(valid_maps, replace_duplicates=replace_duplicates)
     
-    logger.info(f"Added {result['added']} MAP entries, updated {result['updated']}, {result['invalid']} invalid")
+    total_rejected = result.get("rejected", 0)
+    total_added = result.get("added", 0)
     
-    return {
-        "message": "MAP entries processed successfully",
-        "added": result["added"],
-        "updated": result["updated"],
-        "invalid": invalid_count + result["invalid"],
-        "errors": result.get("errors")
-    }
+    if replace_duplicates:
+        logger.info(f"Added/updated {total_added} MAP entries (with replacement), {result['invalid']} invalid")
+        response = {
+            "message": "MAP entries processed successfully",
+            "added": total_added,
+            "rejected": 0,
+            "replaced": total_rejected if total_rejected > 0 else 0,
+            "invalid": invalid_count + result["invalid"],
+            "errors": result.get("errors")
+        }
+    else:
+        logger.info(f"Added {total_added} MAP entries, rejected {total_rejected} duplicates, {result['invalid']} invalid")
+        response = {
+            "message": "MAP entries processed successfully" if total_rejected == 0 else f"MAP entries processed with {total_rejected} duplicate(s) rejected",
+            "added": total_added,
+            "rejected": total_rejected,
+            "invalid": invalid_count + result["invalid"],
+            "errors": result.get("errors")
+        }
+        
+        if result.get("duplicate_upcs"):
+            response["duplicate_upcs"] = result["duplicate_upcs"]
+    
+    return response
 
 
 @router.get("/map", response_model=List[MAPResponse])

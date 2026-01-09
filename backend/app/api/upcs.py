@@ -24,7 +24,7 @@ async def add_upcs(
     """
     Add UPCs to the database for daily scheduler processing (admin only).
     
-    Accepts a list of UPC strings. Duplicates are automatically skipped.
+    Accepts a list of UPC strings. Duplicate UPCs (both within the request and in the database) are rejected with error messages.
     """
     if not upcs:
         raise HTTPException(status_code=400, detail="No UPCs provided")
@@ -45,31 +45,73 @@ async def add_upcs(
     if not valid_upcs:
         raise HTTPException(status_code=400, detail="No valid UPCs provided")
     
+    # Check for duplicates within the same request
+    seen_in_request = set()
+    request_duplicates = []
+    unique_valid_upcs = []
+    
+    for upc in valid_upcs:
+        if upc in seen_in_request:
+            request_duplicates.append(upc)
+        else:
+            seen_in_request.add(upc)
+            unique_valid_upcs.append(upc)
+    
     # Insert UPCs using repository
     upc_repo = UPCRepository(db)
     added_count = 0
-    duplicate_count = 0
+    db_duplicate_count = 0
     errors = []
+    duplicate_upcs = []
     
-    for upc in valid_upcs:
+    # Add request duplicates to error list
+    for upc in request_duplicates:
+        duplicate_upcs.append(upc)
+        errors.append(f"UPC {upc}: Duplicate entry in the same request")
+    
+    # Process unique UPCs from request
+    for upc in unique_valid_upcs:
         try:
-            if upc_repo.add_upc(upc):
-                added_count += 1
+            upc_repo.add_upc(upc)
+            added_count += 1
+        except HTTPException as e:
+            # Check if it's a duplicate error
+            if "already exists" in str(e.detail).lower():
+                db_duplicate_count += 1
+                duplicate_upcs.append(upc)
+                errors.append(f"UPC {upc}: Already exists in the database")
             else:
-                duplicate_count += 1
+                errors.append(f"UPC {upc}: {str(e.detail)}")
         except Exception as e:
             errors.append(f"UPC {upc}: {str(e)}")
     
-    logger.info(f"Added {added_count} UPCs, {duplicate_count} duplicates skipped")
+    total_duplicates = len(request_duplicates) + db_duplicate_count
     
-    return {
-        "message": "UPCs processed successfully",
+    logger.info(f"Added {added_count} UPCs, {total_duplicates} duplicates rejected ({len(request_duplicates)} in request, {db_duplicate_count} in database)")
+    
+    # Build response with clear error messages
+    response = {
+        "message": "UPCs processed successfully" if total_duplicates == 0 else f"UPCs processed with {total_duplicates} duplicate(s) rejected",
         "added": added_count,
-        "duplicates_skipped": duplicate_count,
+        "duplicates_rejected": total_duplicates,
         "invalid": len(invalid_upcs),
         "errors": errors if errors else None,
         "invalid_upcs": invalid_upcs if invalid_upcs else None
     }
+    
+    if duplicate_upcs:
+        response["duplicate_upcs"] = duplicate_upcs
+    
+    # If there are duplicates, raise an error to make it clear
+    if total_duplicates > 0:
+        error_message = f"Duplicate UPC entries detected: {total_duplicates} duplicate(s) rejected. "
+        if len(request_duplicates) > 0:
+            error_message += f"{len(request_duplicates)} duplicate(s) found in the same request. "
+        if db_duplicate_count > 0:
+            error_message += f"{db_duplicate_count} duplicate(s) already exist in the database."
+        response["error_message"] = error_message.strip()
+    
+    return response
 
 
 @router.get("/upcs", response_model=List[UPCResponse])

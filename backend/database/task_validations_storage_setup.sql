@@ -1,0 +1,62 @@
+-- Storage bucket setup instructions for task validations
+-- 
+-- IMPORTANT: Storage buckets and policies cannot be created via SQL in Supabase SQL Editor
+-- due to permission restrictions. Please follow these steps:
+--
+-- OPTION 1: Create via Supabase Dashboard (Recommended)
+-- 1. Go to your Supabase Dashboard
+-- 2. Navigate to Storage section
+-- 3. Click "Create a new bucket"
+-- 4. Set bucket name: "task-validations"
+-- 5. Set as Public: Yes
+-- 6. Click "Create bucket"
+--
+-- OPTION 2: Create via Supabase Management API
+-- Use the Supabase Management API or Supabase CLI to create the bucket
+--
+-- OPTION 3: The backend will attempt to create the bucket automatically
+-- The backend code will try to create the bucket if it doesn't exist when uploading files
+--
+-- After creating the bucket, you can set up policies via the Dashboard:
+-- 1. Go to Storage > task-validations bucket
+-- 2. Click on "Policies" tab
+-- 3. Add the following policies:
+--
+-- Policy 1: "Authenticated users can upload task validations"
+--   Operation: INSERT
+--   Policy definition:
+--   (bucket_id = 'task-validations' AND auth.role() = 'authenticated')
+--
+-- Policy 2: "Users can view task validation files"
+--   Operation: SELECT
+--   Policy definition:
+--   (bucket_id = 'task-validations' AND (
+--     EXISTS (
+--       SELECT 1 FROM task_validations tv
+--       JOIN tasks t ON t.id = tv.task_id
+--       WHERE tv.file_url LIKE '%' || storage.objects.name || '%'
+--       AND (t.user_id = auth.uid() OR t.assigned_to = auth.uid())
+--     )
+--   ))
+--
+-- Policy 3: "Users can delete their own pending validation files"
+--   Operation: DELETE
+--   Policy definition:
+--   (bucket_id = 'task-validations' AND (
+--     EXISTS (
+--       SELECT 1 FROM task_validations tv
+--       WHERE tv.file_url LIKE '%' || storage.objects.name || '%'
+--       AND tv.submitted_by = auth.uid()
+--       AND tv.status = 'pending'
+--     )
+--   ))
+--
+-- NOTE: For simplicity, you can also use a more permissive policy:
+-- Policy (Simple): "Authenticated users can manage task validation files"
+--   Operations: SELECT, INSERT, DELETE
+--   Policy definition:
+--   (bucket_id = 'task-validations' AND auth.role() = 'authenticated')
+--
+-- This simpler policy allows all authenticated users to upload, view, and delete files.
+-- The application-level logic in the backend will handle the actual access control.
+

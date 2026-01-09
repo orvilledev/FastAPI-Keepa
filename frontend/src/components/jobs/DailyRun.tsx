@@ -80,9 +80,9 @@ export default function DailyRun() {
     try {
       setError('')
       const allJobs = await jobsApi.listJobs(100, 0)
-      // Filter for daily runs (jobs that start with "Daily Keepa Report -")
+      // Filter for daily runs (jobs that start with "Daily Orbit Report -")
       const dailyJobs = allJobs.filter((job: any) => 
-        job.job_name && job.job_name.startsWith('Daily Keepa Report -')
+        job.job_name && job.job_name.startsWith('Daily Orbit Report -')
       )
       // Sort by created_at descending (most recent first)
       dailyJobs.sort((a: any, b: any) => 
@@ -135,7 +135,7 @@ export default function DailyRun() {
         <div className="text-center">
           <div className="text-4xl mb-4">🔒</div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Restricted</h2>
-          <p className="text-gray-600">You don't have access to Keepa Alert Service features.</p>
+          <p className="text-gray-600">You don't have access to Orbit Hub features.</p>
         </div>
       </div>
     )
@@ -145,7 +145,7 @@ export default function DailyRun() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Daily Run</h1>
-        <p className="mt-1 text-sm text-gray-500">Manage and view Keepa Daily Off Price Email Runs</p>
+        <p className="mt-1 text-sm text-gray-500">Manage and view Orbit Hub Daily Email Runs</p>
       </div>
 
       {/* Next Scheduled Run */}
@@ -170,7 +170,7 @@ export default function DailyRun() {
             {nextRun.seconds_until && nextRun.seconds_until > 0 && (
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Time Until Next Run:</span>
-                <span className="font-medium text-indigo-600">
+                <span className="font-medium text-[#0B1020]">
                   {Math.floor(nextRun.seconds_until / 3600)}h {Math.floor((nextRun.seconds_until % 3600) / 60)}m
                 </span>
               </div>
@@ -248,7 +248,7 @@ export default function DailyRun() {
                   </div>
                   <Link
                     to={`/jobs/${run.id}`}
-                    className="ml-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+                    className="ml-4 px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors text-sm font-medium"
                   >
                     View Details →
                   </Link>

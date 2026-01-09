@@ -51,7 +51,7 @@ async def run_daily_job():
         # Create and process job
         from uuid import UUID
         tz_name = str(CURRENT_TZ).split('/')[-1] if '/' in str(CURRENT_TZ) else str(CURRENT_TZ)
-        job_name = f"Daily Keepa Report - {current_time.strftime('%Y-%m-%d %H:%M')} ({tz_name})"
+        job_name = f"Daily Orbit Report - {current_time.strftime('%Y-%m-%d %H:%M')} ({tz_name})"
         job_id = await processor.create_batch_job(
             job_name=job_name,
             upcs=upcs,
@@ -91,7 +91,7 @@ def setup_scheduler(timezone_str: str = "Asia/Taipei", hour: int = 20, minute: i
         run_daily_job,
         trigger=CronTrigger(hour=CURRENT_HOUR, minute=CURRENT_MINUTE, timezone=CURRENT_TZ),
         id="daily_keepa_job",
-        name=f"Daily Keepa Price Alert Job - {CURRENT_HOUR:02d}:{CURRENT_MINUTE:02d} {timezone_str}",
+        name=f"Daily Orbit Hub Job - {CURRENT_HOUR:02d}:{CURRENT_MINUTE:02d} {timezone_str}",
         replace_existing=True,
     )
     

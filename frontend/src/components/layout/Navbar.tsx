@@ -15,13 +15,13 @@ export default function Navbar() {
       <div className="px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
           <div className="flex items-center">
-            <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              Keepa Dashboard
+            <h1 className="text-xl font-bold text-[#0B1020]">
+              Orbit
             </h1>
           </div>
           <div className="flex items-center space-x-4">
             <div className="hidden sm:flex items-center space-x-3 px-4 py-2 bg-gray-50 rounded-lg">
-              <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
+              <div className="w-8 h-8 bg-[#0B1020] rounded-full flex items-center justify-center">
                 <span className="text-white text-xs font-semibold">
                   {user?.display_name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase()}
                 </span>

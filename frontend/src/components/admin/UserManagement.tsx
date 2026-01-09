@@ -8,6 +8,7 @@ interface User {
   display_name?: string
   has_keepa_access: boolean
   can_manage_tools: boolean
+  can_assign_tasks: boolean
   created_at: string
 }
 
@@ -50,7 +51,7 @@ export default function UserManagement() {
   }
 
   const handleToggleKeepaAccess = async (userId: string, currentAccess: boolean) => {
-    if (!window.confirm(`Are you sure you want to ${currentAccess ? 'revoke' : 'grant'} Keepa Alert Service access for this user?`)) {
+    if (!window.confirm(`Are you sure you want to ${currentAccess ? 'revoke' : 'grant'} Orbit Hub access for this user?`)) {
       return
     }
 
@@ -76,6 +77,25 @@ export default function UserManagement() {
     try {
       setUpdating(userId)
       await authApi.updateUserToolsAccess(userId, !currentAccess)
+      // Reload users to get updated data
+      await loadUsers()
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.detail || err?.message || 'Failed to update user access'
+      alert(`Error: ${errorMessage}`)
+      console.error('Failed to update user access:', err)
+    } finally {
+      setUpdating(null)
+    }
+  }
+
+  const handleToggleTasksAccess = async (userId: string, currentAccess: boolean) => {
+    if (!window.confirm(`Are you sure you want to ${currentAccess ? 'revoke' : 'grant'} Task Assignment access for this user?`)) {
+      return
+    }
+
+    try {
+      setUpdating(userId)
+      await authApi.updateUserTasksAccess(userId, !currentAccess)
       // Reload users to get updated data
       await loadUsers()
     } catch (err: any) {
@@ -132,10 +152,13 @@ export default function UserManagement() {
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Keepa Alert Service Access
+                  Orbit Hub Access
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Tools Management Access
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Task Assignment Access
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -145,7 +168,7 @@ export default function UserManagement() {
             <tbody className="bg-white divide-y divide-gray-200">
               {users.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
                     No users found
                   </td>
                 </tr>
@@ -154,7 +177,7 @@ export default function UserManagement() {
                   <tr key={user.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
+                        <div className="w-10 h-10 bg-[#0B1020] rounded-full flex items-center justify-center">
                           <span className="text-white text-sm font-semibold">
                             {user.display_name?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase()}
                           </span>
@@ -170,7 +193,7 @@ export default function UserManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-medium rounded ${
                         user.role === 'admin' 
-                          ? 'bg-purple-100 text-purple-800' 
+                          ? 'bg-[#0B1020]/10 text-[#0B1020]' 
                           : 'bg-gray-100 text-gray-800'
                       }`}>
                         {user.role === 'admin' ? 'Admin' : 'User'}
@@ -194,6 +217,15 @@ export default function UserManagement() {
                         {user.can_manage_tools ? '✓ Granted' : '✗ Not Granted'}
                       </span>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs font-medium rounded ${
+                        user.can_assign_tasks 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {user.can_assign_tasks ? '✓ Granted' : '✗ Not Granted'}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex flex-col gap-2">
                         <button
@@ -208,8 +240,8 @@ export default function UserManagement() {
                           {updating === user.id 
                             ? 'Updating...' 
                             : user.has_keepa_access 
-                              ? 'Revoke Keepa' 
-                              : 'Grant Keepa'
+? 'Revoke Hub'
+                              : 'Grant Hub'
                           }
                         </button>
                         <button
@@ -226,6 +258,22 @@ export default function UserManagement() {
                             : user.can_manage_tools 
                               ? 'Revoke Tools' 
                               : 'Grant Tools'
+                          }
+                        </button>
+                        <button
+                          onClick={() => handleToggleTasksAccess(user.id, user.can_assign_tasks)}
+                          disabled={updating === user.id}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                            user.can_assign_tasks
+                              ? 'bg-red-600 hover:bg-red-700 text-white'
+                              : 'bg-green-600 hover:bg-green-700 text-white'
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          {updating === user.id 
+                            ? 'Updating...' 
+                            : user.can_assign_tasks 
+                              ? 'Revoke Tasks' 
+                              : 'Grant Tasks'
                           }
                         </button>
                       </div>

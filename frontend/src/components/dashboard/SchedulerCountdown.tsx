@@ -118,28 +118,28 @@ export default function SchedulerCountdown() {
   }
 
   return (
-    <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl shadow-xl p-6 text-white border border-white/20">
+    <div className="bg-[#0B1020] rounded-xl shadow-xl p-6 text-white border border-white/20">
       <div className="flex items-center justify-between">
         <div className="flex-1">
-          <h3 className="text-lg font-semibold mb-2">Keepa Daily Off Price Email Run</h3>
-          <p className="text-indigo-100 text-sm mb-4">
+          <h3 className="text-lg font-semibold mb-2">Orbit Hub Daily Email Run</h3>
+          <p className="text-white/70 text-sm mb-4">
             Scheduled for {status.scheduled_time} ({status.timezone})
           </p>
           {timeLeft && status.seconds_until !== null && status.seconds_until > 0 ? (
             <div className="flex items-center space-x-4">
               <div className="text-center">
                 <div className="text-4xl font-bold">{String(timeLeft.hours).padStart(2, '0')}</div>
-                <div className="text-xs text-indigo-100 mt-1">Hours</div>
+                <div className="text-xs text-white/70 mt-1">Hours</div>
               </div>
               <div className="text-3xl font-bold">:</div>
               <div className="text-center">
                 <div className="text-4xl font-bold">{String(timeLeft.minutes).padStart(2, '0')}</div>
-                <div className="text-xs text-indigo-100 mt-1">Minutes</div>
+                <div className="text-xs text-white/70 mt-1">Minutes</div>
               </div>
               <div className="text-3xl font-bold">:</div>
               <div className="text-center">
                 <div className="text-4xl font-bold">{String(timeLeft.seconds).padStart(2, '0')}</div>
-                <div className="text-xs text-indigo-100 mt-1">Seconds</div>
+                <div className="text-xs text-white/70 mt-1">Seconds</div>
               </div>
             </div>
           ) : (
@@ -147,7 +147,7 @@ export default function SchedulerCountdown() {
           )}
         </div>
         <div className="text-right ml-6">
-          <div className="text-sm text-indigo-100 mb-1">Next Run</div>
+          <div className="text-sm text-white/70 mb-1">Next Run</div>
           <div className="text-lg font-semibold">{status.next_run_time_taipei}</div>
           <div className="mt-2">
             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${

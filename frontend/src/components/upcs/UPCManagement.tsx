@@ -83,13 +83,42 @@ export default function UPCManagement() {
 
       const result = await upcsApi.addUPCs(upcList)
       
-      setSuccess(
-        `Successfully added ${result.added} UPCs. ` +
-        (result.duplicates_skipped > 0 ? `${result.duplicates_skipped} duplicates skipped. ` : '') +
-        (result.invalid > 0 ? `${result.invalid} invalid UPCs. ` : '')
-      )
+      // Check if there are duplicates or if nothing was added
+      const duplicatesRejected = result.duplicates_rejected || 0
+      const added = result.added || 0
       
-      setUpcInput('')
+      if (duplicatesRejected > 0 || (added === 0 && upcList.length > 0)) {
+        // Show error message for duplicates
+        let errorMessage = ''
+        if (duplicatesRejected > 0) {
+          errorMessage = `Failed to upload ${duplicatesRejected} duplicate UPC(s). `
+          if (result.duplicate_upcs && result.duplicate_upcs.length > 0) {
+            const duplicateList = result.duplicate_upcs.slice(0, 10).join(', ')
+            const moreText = result.duplicate_upcs.length > 10 ? ` and ${result.duplicate_upcs.length - 10} more` : ''
+            errorMessage += `Duplicate UPCs: ${duplicateList}${moreText}. `
+          }
+          errorMessage += 'These UPCs already exist in the system.'
+        } else if (added === 0) {
+          errorMessage = 'Failed to upload UPCs. All entries were rejected as duplicates or invalid.'
+        }
+        
+        if (added > 0) {
+          errorMessage += ` ${added} UPC(s) were successfully added.`
+        }
+        
+        setError(errorMessage)
+        setSuccess('')
+      } else {
+        // Success case
+        let successMessage = `Successfully added ${added} UPC(s).`
+        if (result.invalid > 0) {
+          successMessage += ` ${result.invalid} invalid UPC(s) were skipped.`
+        }
+        setSuccess(successMessage)
+        setError('')
+        setUpcInput('')
+      }
+      
       loadUPCCount()
       loadUPCs()
     } catch (err: any) {
@@ -190,7 +219,7 @@ export default function UPCManagement() {
             <button
               type="submit"
               disabled={adding}
-              className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-md text-sm font-medium"
+              className="bg-[#0B1020] hover:bg-[#1a2235] disabled:bg-gray-400 text-white px-4 py-2 rounded-md text-sm font-medium"
             >
               {adding ? 'Adding...' : 'Add UPCs'}
             </button>

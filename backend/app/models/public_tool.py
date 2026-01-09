@@ -10,6 +10,7 @@ class PublicToolCreate(BaseModel):
     name: str
     description: Optional[str] = None
     url: str
+    video_url: Optional[str] = None
     category: Optional[str] = None
     icon: Optional[str] = None
     developer: Optional[str] = None
@@ -20,6 +21,7 @@ class PublicToolUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     url: Optional[str] = None
+    video_url: Optional[str] = None
     category: Optional[str] = None
     icon: Optional[str] = None
     developer: Optional[str] = None
@@ -31,6 +33,7 @@ class PublicToolResponse(BaseModel):
     name: str
     description: Optional[str] = None
     url: str
+    video_url: Optional[str] = None
     category: Optional[str] = None
     icon: Optional[str] = None
     developer: Optional[str] = None

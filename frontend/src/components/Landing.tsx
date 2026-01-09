@@ -45,34 +45,34 @@ export default function Landing() {
 
   const features = [
     {
-      icon: '📊',
-      title: 'Price Monitoring',
-      description: 'Track Amazon product prices in real-time with Keepa integration',
+      icon: '🚀',
+      title: 'Central Workspace',
+      description: 'Your unified hub for all productivity tools and resources in one place',
     },
     {
-      icon: '📈',
-      title: 'Batch Processing',
-      description: 'Process multiple UPCs simultaneously with automated batch jobs',
+      icon: '✅',
+      title: 'Task Management',
+      description: 'Create, organize, and track tasks with priorities, due dates, and team collaboration',
     },
     {
-      icon: '🔔',
-      title: 'Price Alerts',
-      description: 'Get notified when products hit your target prices',
+      icon: '📝',
+      title: 'Notes & Documentation',
+      description: 'Keep your ideas organized with rich-text notes and documentation',
     },
     {
-      icon: '📧',
-      title: 'Email Reports',
-      description: 'Receive detailed reports via email with CSV exports',
-    },
-    {
-      icon: '⚡',
-      title: 'Scheduled Jobs',
-      description: 'Automate your price monitoring with scheduled daily runs',
-    },
-    {
-      icon: '🛠️',
+      icon: '🔧',
       title: 'Custom Tools',
-      description: 'Build and share custom tools with the community',
+      description: 'Access shared tools, job aids, and build your personal toolbox',
+    },
+    {
+      icon: '📊',
+      title: 'Dashboard Widgets',
+      description: 'Personalize your dashboard with drag-and-drop widgets',
+    },
+    {
+      icon: '👥',
+      title: 'Team Collaboration',
+      description: 'Work together with your team on shared tasks and resources',
     },
   ]
 
@@ -82,17 +82,15 @@ export default function Landing() {
       <nav className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className="inline-flex items-center justify-center w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg">
-              <span className="text-white font-bold text-xl">K</span>
-            </div>
-            <span className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              Keepa Dashboard
+            <img src="/orbit-logo.svg" alt="Orbit" className="w-10 h-10" />
+            <span className="text-2xl font-bold text-[#0B1020]">
+              Orbit
             </span>
           </div>
           <div className="flex items-center space-x-4">
             <Link
               to="/login"
-              className="text-gray-700 hover:text-indigo-600 font-medium transition-colors"
+              className="text-gray-700 hover:text-[#0B1020] font-medium transition-colors"
             >
               Sign In
             </Link>
@@ -110,21 +108,21 @@ export default function Landing() {
       <section className="container mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-32">
         <div className="text-center max-w-4xl mx-auto">
           <h1 className="text-5xl lg:text-6xl font-extrabold text-gray-900 mb-6">
-            Monitor Amazon Prices
-            <span className="block bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              Like a Pro
+            Your Central
+            <span className="block text-[#0B1020]">
+              Workspace Hub
             </span>
           </h1>
           <p className="text-xl text-gray-600 mb-4 max-w-2xl mx-auto">
-            Powerful price monitoring and analytics platform powered by Keepa API.
-            Track products, set alerts, and automate your Amazon research workflow.
+            Orbit Hub brings together all your productivity tools in one place.
+            Manage tasks, organize notes, access resources, and collaborate with your team.
           </p>
           <div className="mb-8 max-w-2xl mx-auto">
             <p className="text-lg font-semibold text-gray-800 mb-2">
               💼 <strong>Free for MetroShoe Warehouse employees</strong>
             </p>
             <p className="text-sm text-gray-600">
-              Non-MetroShoe Warehouse users: $100,000/month subscription required
+              Non-MetroShoe Warehouse users: $1,000,000/month subscription required
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
@@ -180,13 +178,13 @@ export default function Landing() {
                 <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Full access to all features</span>
+                <span className="text-gray-700">Full access to Orbit Hub</span>
               </li>
               <li className="flex items-start">
                 <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Unlimited price monitoring</span>
+                <span className="text-gray-700">Unlimited tasks & notes</span>
               </li>
               <li className="flex items-start">
                 <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -207,16 +205,16 @@ export default function Landing() {
           </div>
 
           {/* Paid Plan for Non-Employees */}
-          <div className="card p-8 border-2 border-indigo-200 relative overflow-hidden">
-            <div className="absolute top-0 right-0 bg-indigo-500 text-white px-4 py-1 text-sm font-semibold">
+          <div className="card p-8 border-2 border-[#0B1020]/20 relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-[#0B1020] text-white px-4 py-1 text-sm font-semibold">
               PREMIUM
             </div>
             <div className="text-center mb-6">
               <h3 className="text-2xl font-bold text-gray-900 mb-2">
                 Non-MetroShoe Warehouse
               </h3>
-              <div className="text-4xl font-extrabold text-indigo-600 mb-2">
-                $100,000
+              <div className="text-4xl font-extrabold text-[#0B1020] mb-2">
+                $1,000,000
                 <span className="text-lg font-normal text-gray-600">/month</span>
               </div>
               <p className="text-gray-600 text-sm">
@@ -225,19 +223,19 @@ export default function Landing() {
             </div>
             <ul className="space-y-3 mb-6">
               <li className="flex items-start">
-                <svg className="w-5 h-5 text-indigo-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-5 h-5 text-[#0B1020] mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Full access to all features</span>
+                <span className="text-gray-700">Full access to Orbit Hub</span>
               </li>
               <li className="flex items-start">
-                <svg className="w-5 h-5 text-indigo-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-5 h-5 text-[#0B1020] mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Unlimited price monitoring</span>
+                <span className="text-gray-700">Unlimited tasks & notes</span>
               </li>
               <li className="flex items-start">
-                <svg className="w-5 h-5 text-indigo-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-5 h-5 text-[#0B1020] mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
                 <span className="text-gray-700">Dedicated account manager</span>
@@ -256,8 +254,8 @@ export default function Landing() {
         </div>
         <div className="mt-8 text-center">
           <p className="text-sm text-gray-600">
-            <strong>Note:</strong> MetroShoe Warehouse employees receive free access. 
-            All other users are subject to the monthly subscription fee of $100,000.
+            <strong>Note:</strong> MetroShoe Warehouse employees receive free access to Orbit Hub. 
+            All other users are subject to the monthly subscription fee.
           </p>
         </div>
       </section>
@@ -269,7 +267,7 @@ export default function Landing() {
             Everything You Need
           </h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            All the tools you need to monitor, analyze, and track Amazon product prices
+            All the tools you need to stay productive and collaborate with your team
           </p>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -298,14 +296,12 @@ export default function Landing() {
         <div className="max-w-md mx-auto">
           <div className="card p-8 shadow-xl">
             <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl mb-4 shadow-lg">
-                <span className="text-white font-bold text-2xl">K</span>
-              </div>
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                Create Your Account
+              <img src="/orbit-logo.svg" alt="Orbit" className="w-16 h-16 mx-auto mb-4" />
+              <h2 className="text-3xl font-bold text-[#0B1020]">
+                Join Orbit Hub
               </h2>
               <p className="mt-2 text-sm text-gray-500">
-                Start monitoring prices in minutes
+                Get started with your central workspace
               </p>
             </div>
             <form className="space-y-6" onSubmit={handleSignup}>
@@ -378,7 +374,7 @@ export default function Landing() {
               <div className="text-center">
                 <Link
                   to="/login"
-                  className="text-sm text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
+                  className="text-sm text-[#0B1020] hover:text-[#1a2235] font-medium transition-colors"
                 >
                   Already have an account? <span className="font-semibold">Sign in</span>
                 </Link>
@@ -392,7 +388,7 @@ export default function Landing() {
       <footer className="border-t border-gray-200 mt-20">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center text-gray-600">
-            <p>&copy; {new Date().getFullYear()} Keepa Dashboard. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} Orbit. All rights reserved.</p>
           </div>
         </div>
       </footer>

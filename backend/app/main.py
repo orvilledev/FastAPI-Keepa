@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import init_db
-from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, tasks, dashboard, map, notes
+from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, tasks, task_validations, task_attachments, dashboard, map, notes
 from app.scheduler import setup_scheduler, start_scheduler, shutdown_scheduler
 import logging
 
@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Keepa Dashboard API",
-    description="API for Keepa data processing and reporting",
+    title="Orbit API",
+    description="API for Orbit productivity platform",
     version="1.0.0",
 )
 
@@ -66,7 +66,7 @@ async def shutdown_event():
 @app.get("/")
 async def root():
     """Root endpoint."""
-    return {"message": "Keepa Dashboard API", "version": "1.0.0"}
+    return {"message": "Orbit API", "version": "1.0.0"}
 
 
 @app.get("/health")
@@ -86,6 +86,8 @@ app.include_router(scheduler.router, prefix=settings.api_v1_str, tags=["schedule
 app.include_router(tools.router, prefix=settings.api_v1_str, tags=["tools"])
 app.include_router(quick_access.router, prefix=settings.api_v1_str, tags=["quick-access"])
 app.include_router(tasks.router, prefix=settings.api_v1_str, tags=["tasks"])
+app.include_router(task_validations.router, prefix=settings.api_v1_str, tags=["task-validations"])
+app.include_router(task_attachments.router, prefix=settings.api_v1_str, tags=["task-attachments"])
 app.include_router(dashboard.router, prefix=settings.api_v1_str, tags=["dashboard"])
 app.include_router(notes.router, prefix=settings.api_v1_str, tags=["notes"])
 

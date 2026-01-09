@@ -33,7 +33,7 @@ export default function JobCard({ job }: JobCardProps) {
         </div>
         <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
           <div
-            className="bg-indigo-600 h-2 rounded-full"
+            className="bg-[#0B1020] h-2 rounded-full"
             style={{
               width: `${(job.completed_batches / job.total_batches) * 100}%`,
             }}
@@ -43,7 +43,7 @@ export default function JobCard({ job }: JobCardProps) {
       <div className="mt-4">
         <Link
           to={`/jobs/${job.id}`}
-          className="text-indigo-600 hover:text-indigo-900 text-sm font-medium"
+          className="text-[#0B1020] hover:text-[#1a2235] text-sm font-medium"
         >
           View Details →
         </Link>

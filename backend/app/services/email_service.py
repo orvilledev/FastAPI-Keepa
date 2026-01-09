@@ -80,13 +80,13 @@ class EmailService:
             msg["From"] = self.email_from_name
             # Join multiple recipients with comma for the "To" header
             msg["To"] = ", ".join(recipients)
-            msg["Subject"] = f"Keepa Price Alert Report - {job_name}"
+            msg["Subject"] = f"Orbit Hub Report - {job_name}"
             
             # Create email body
             body = f"""
             Hello,
             
-            Your Keepa price alert report has been generated.
+            Your Orbit Hub report has been generated.
             
             Job Details:
             - Job Name: {job_name}
@@ -96,7 +96,7 @@ class EmailService:
             Please find the detailed report attached as a CSV file.
             
             Best regards,
-            Keepa Dashboard System
+            Orbit
             """
             
             msg.attach(MIMEText(body, "plain"))
@@ -186,12 +186,12 @@ class EmailService:
                 # Format: Display name only (email address used for SMTP auth but not shown)
                 msg["From"] = self.email_from_name
                 msg["To"] = ", ".join(recipients)
-                msg["Subject"] = f"Keepa Job Completed - {job_name}"
+                msg["Subject"] = f"Orbit Hub Job Completed - {job_name}"
                 
                 body = f"""
                 Hello,
                 
-                Your Keepa batch job has completed processing.
+                Your Orbit Hub batch job has completed processing.
                 
                 Job Details:
                 - Job Name: {job_name}
@@ -201,7 +201,7 @@ class EmailService:
                 You can view the full report in the dashboard.
                 
                 Best regards,
-                Keepa Dashboard System
+                Orbit
                 """
                 
                 msg.attach(MIMEText(body, "plain"))

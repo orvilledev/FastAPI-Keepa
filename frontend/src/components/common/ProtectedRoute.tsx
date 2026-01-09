@@ -1,6 +1,5 @@
 import { Navigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
-import { authApi } from '../../services/api'
+import { useUser } from '../../contexts/UserContext'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -8,37 +7,18 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, requireKeepaAccess = false }: ProtectedRouteProps) {
-  const [hasAccess, setHasAccess] = useState<boolean | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { hasKeepaAccess, userInfoLoading } = useUser()
 
-  useEffect(() => {
-    const checkAccess = async () => {
-      try {
-        if (requireKeepaAccess) {
-          const userInfo = await authApi.getCurrentUser()
-          setHasAccess(userInfo.has_keepa_access || false)
-        } else {
-          setHasAccess(true)
-        }
-      } catch (error) {
-        console.error('Failed to check access:', error)
-        setHasAccess(false)
-      } finally {
-        setLoading(false)
-      }
-    }
-    checkAccess()
-  }, [requireKeepaAccess])
-
-  if (loading) {
+  // Show loading only briefly while user info is being fetched
+  if (userInfoLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-500">Loading...</div>
+      <div className="flex items-center justify-center py-12">
+        <div className="w-8 h-8 border-4 border-[#0B1020] border-t-transparent rounded-full animate-spin"></div>
       </div>
     )
   }
 
-  if (requireKeepaAccess && !hasAccess) {
+  if (requireKeepaAccess && !hasKeepaAccess) {
     return <Navigate to="/dashboard" replace />
   }
 

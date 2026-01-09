@@ -1,6 +1,6 @@
 """Authentication API endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, status, Body
-from app.dependencies import get_current_user, get_superadmin_user
+from app.dependencies import get_current_user, get_superadmin_user, get_task_assigner_or_superadmin_user
 from app.database import get_supabase
 from app.models.user import ProfileUpdate, ProfileResponse
 from app.utils.error_handler import handle_api_errors
@@ -21,12 +21,13 @@ async def get_current_user_info(
     db: Client = Depends(get_supabase)
 ):
     """Get current authenticated user information including role and Keepa access."""
-    # Get user role, display_name, has_keepa_access, and can_manage_tools from profiles table
-    profile_response = db.table("profiles").select("role, display_name, has_keepa_access, can_manage_tools").eq("id", current_user["id"]).execute()
+    # Get user role, display_name, has_keepa_access, can_manage_tools, and can_assign_tasks from profiles table
+    profile_response = db.table("profiles").select("role, display_name, has_keepa_access, can_manage_tools, can_assign_tasks").eq("id", current_user["id"]).execute()
     role = profile_response.data[0].get("role", "user") if profile_response.data else "user"
     display_name = None
     has_keepa_access = False
     can_manage_tools = False
+    can_assign_tasks = False
     if profile_response.data and len(profile_response.data) > 0:
         display_name = profile_response.data[0].get("display_name")
         # If display_name is empty string, treat as None
@@ -34,6 +35,7 @@ async def get_current_user_info(
             display_name = None
         has_keepa_access = profile_response.data[0].get("has_keepa_access", False) or False
         can_manage_tools = profile_response.data[0].get("can_manage_tools", False) or False
+        can_assign_tasks = profile_response.data[0].get("can_assign_tasks", False) or False
     
     return {
         "id": current_user.get("id"),
@@ -42,6 +44,7 @@ async def get_current_user_info(
         "display_name": display_name,
         "has_keepa_access": has_keepa_access,
         "can_manage_tools": can_manage_tools,
+        "can_assign_tasks": can_assign_tasks,
         "user_metadata": current_user.get("user_metadata", {}),
     }
 
@@ -183,7 +186,7 @@ async def update_display_name(
 
 
 class UserKeepaAccessUpdate(BaseModel):
-    """Model for updating user's Keepa Alert Service access."""
+    """Model for updating user's Orbit Hub access."""
     user_id: str
     has_keepa_access: bool
 
@@ -191,12 +194,12 @@ class UserKeepaAccessUpdate(BaseModel):
 @router.get("/users")
 @handle_api_errors("get all users")
 async def get_all_users(
-    current_user: dict = Depends(get_superadmin_user),
+    current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
-    """Get all users (superadmin only)."""
+    """Get all users (any authenticated user can view users for task assignment)."""
     try:
-        response = db.table("profiles").select("id, email, role, display_name, has_keepa_access, can_manage_tools, created_at").order("created_at", desc=True).execute()
+        response = db.table("profiles").select("id, email, role, display_name, has_keepa_access, can_manage_tools, can_assign_tasks, created_at").order("created_at", desc=True).execute()
         return {
             "users": response.data or []
         }
@@ -215,7 +218,7 @@ async def update_user_keepa_access(
     current_user: dict = Depends(get_superadmin_user),
     db: Client = Depends(get_supabase)
 ):
-    """Update user's Keepa Alert Service access (superadmin only)."""
+    """Update user's Orbit Hub access (superadmin only)."""
     try:
         from datetime import datetime
         
@@ -234,7 +237,7 @@ async def update_user_keepa_access(
         return {
             "user_id": user_id,
             "has_keepa_access": has_keepa_access,
-            "message": "Keepa Alert Service access updated successfully"
+            "message": "Orbit Hub access updated successfully"
         }
     except HTTPException:
         raise
@@ -273,6 +276,44 @@ async def update_user_tools_access(
             "user_id": user_id,
             "can_manage_tools": can_manage_tools,
             "message": "Tools management access updated successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update user access: {str(e)}"
+        )
+
+
+@router.put("/users/{user_id}/tasks-access")
+@handle_api_errors("update user tasks access")
+async def update_user_tasks_access(
+    user_id: str,
+    can_assign_tasks: bool = Body(..., embed=True),
+    current_user: dict = Depends(get_superadmin_user),
+    db: Client = Depends(get_supabase)
+):
+    """Update user's task assignment access (superadmin only)."""
+    try:
+        from datetime import datetime
+        
+        # Update the user's can_assign_tasks field
+        response = db.table("profiles").update({
+            "can_assign_tasks": can_assign_tasks,
+            "updated_at": datetime.utcnow().isoformat()
+        }).eq("id", user_id).execute()
+        
+        if not response.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        return {
+            "user_id": user_id,
+            "can_assign_tasks": can_assign_tasks,
+            "message": "Task assignment access updated successfully"
         }
     except HTTPException:
         raise

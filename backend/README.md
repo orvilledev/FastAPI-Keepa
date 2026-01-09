@@ -1,6 +1,6 @@
-# Backend - Keepa Dashboard API
+# Backend - Orbit API
 
-FastAPI backend for the Keepa Dashboard system.
+FastAPI backend for the Orbit system.
 
 ## Setup
 

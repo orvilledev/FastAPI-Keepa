@@ -199,7 +199,7 @@ export default function JobList() {
                   <div className="flex items-center gap-3">
                     <Link
                       to={`/jobs/${job.id}`}
-                      className="text-indigo-600 hover:text-indigo-700 font-semibold hover:underline transition-colors"
+                      className="text-[#0B1020] hover:text-[#1a2235] font-semibold hover:underline transition-colors"
                     >
                       View →
                     </Link>
