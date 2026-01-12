@@ -1,7 +1,46 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense, useRef, useMemo, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { tasksApi, authApi } from '../../services/api'
 import type { Task, User, TaskValidation, TaskAttachment, Subtask } from '../../types'
+import { supabase } from '../../lib/supabase'
+
+// Lazy load ReactQuill
+const ReactQuill = lazy(() => import('react-quill'))
+
+// Editor loading placeholder
+const EditorLoading = () => (
+  <div className="border border-gray-300 rounded-lg p-4 min-h-[150px] flex items-center justify-center bg-gray-50">
+    <div className="flex flex-col items-center space-y-2">
+      <div className="w-8 h-8 border-4 border-[#0B1020] border-t-transparent rounded-full animate-spin"></div>
+      <span className="text-gray-500 text-sm">Loading editor...</span>
+    </div>
+  </div>
+)
+
+// Quill modules base config
+const quillModulesBase = {
+  toolbar: {
+    container: [
+      [{ 'header': [1, 2, 3, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      ['link', 'image'],
+      [{ 'color': [] }, { 'background': [] }],
+      ['clean'],
+    ],
+  },
+  clipboard: {
+    matchVisual: false,
+  },
+}
+
+const quillFormats = [
+  'header',
+  'bold', 'italic', 'underline', 'strike',
+  'list', 'bullet',
+  'link', 'image',
+  'color', 'background',
+]
 
 export default function TeamTasks() {
   const [tasks, setTasks] = useState<Task[]>([])
@@ -31,29 +70,45 @@ export default function TeamTasks() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [formData, setFormData] = useState({
     title: '',
+    link: '',
+    purpose: '',
+    purpose_custom: '',
     description: '',
     status: 'pending' as 'pending' | 'in_progress' | 'completed',
     priority: 'medium' as 'low' | 'medium' | 'high',
     due_date: '',
     assigned_to: '',
-    assignment_purpose: '',
-    assignment_purpose_custom: '',
   })
-  const [purposeType, setPurposeType] = useState<string>('')
   const [success, setSuccess] = useState('')
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
-  const [uploadingFiles, setUploadingFiles] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [subtasks, setSubtasks] = useState<Record<string, Subtask[]>>({})
   const [showSubtaskForm, setShowSubtaskForm] = useState<string | null>(null)
   const [editingSubtask, setEditingSubtask] = useState<{ taskId: string; subtask: Subtask } | null>(null)
-  const [subtaskFormData, setSubtaskFormData] = useState({ title: '', description: '' })
+  const [subtaskFormData, setSubtaskFormData] = useState({ title: '', description: '', assigned_to: '' })
   const [updatingSubtasks, setUpdatingSubtasks] = useState<Set<string>>(new Set())
+  const [quillCssLoaded, setQuillCssLoaded] = useState(false)
+  const quillRef = useRef<any>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
 
   useEffect(() => {
     loadCurrentUser()
     loadUsers()
   }, [])
+
+  // Load Quill CSS when form is shown
+  useEffect(() => {
+    if (showAddForm && !quillCssLoaded) {
+      import('react-quill/dist/quill.snow.css').then(() => {
+        setQuillCssLoaded(true)
+      }).catch(() => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = 'https://unpkg.com/react-quill@2.0.0/dist/quill.snow.css'
+        document.head.appendChild(link)
+        setQuillCssLoaded(true)
+      })
+    }
+  }, [showAddForm, quillCssLoaded])
 
   useEffect(() => {
     if (currentUserId) {
@@ -142,7 +197,8 @@ export default function TeamTasks() {
       if (!subtasks[taskId]) {
         try {
           const data = await tasksApi.getSubtasks(taskId)
-          setSubtasks({ ...subtasks, [taskId]: data })
+          console.log('Loaded subtasks for task', taskId, ':', data)
+          setSubtasks(prev => ({ ...prev, [taskId]: data }))
         } catch (err: any) {
           console.error('Failed to load subtasks:', err)
         }
@@ -239,6 +295,101 @@ export default function TeamTasks() {
     }
   }
 
+  const handleStatusChange = async (taskId: string, newStatus: 'pending' | 'in_progress' | 'completed') => {
+    try {
+      // Find the task to check if current user is assigned
+      const task = tasks.find(t => t.id === taskId)
+      if (!task) {
+        setError('Task not found')
+        return
+      }
+
+      // Update the task status
+      await tasksApi.updateTask(taskId, { status: newStatus })
+      
+      // If task is marked as completed by the assigned user, notify the sender
+      if (newStatus === 'completed' && task.assigned_to === currentUserId && task.user_id !== currentUserId) {
+        // The backend will handle the notification
+        setSuccess('Task marked as completed! The task creator will be notified.')
+      } else {
+        setSuccess('Task status updated!')
+      }
+      
+      // Reload tasks to reflect the change
+      await loadTasks()
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.detail || 'Failed to update task status'
+      setError(errorMessage)
+      setSuccess('')
+    }
+  }
+
+  const handleSubtaskSubmit = async (e: React.FormEvent, taskId: string) => {
+    e.preventDefault()
+    if (!subtaskFormData.title.trim()) {
+      return
+    }
+
+    try {
+      if (editingSubtask && editingSubtask.taskId === taskId) {
+        // Update existing subtask
+        await tasksApi.updateSubtask(taskId, editingSubtask.subtask.id, {
+          title: subtaskFormData.title.trim(),
+          description: subtaskFormData.description.trim() || undefined,
+          assigned_to: subtaskFormData.assigned_to || undefined,
+        })
+      } else {
+        // Create new subtask
+        await tasksApi.createSubtask(taskId, {
+          title: subtaskFormData.title.trim(),
+          description: subtaskFormData.description.trim() || undefined,
+          assigned_to: subtaskFormData.assigned_to || undefined,
+        })
+      }
+
+      // Reload subtasks for this task
+      const data = await tasksApi.getSubtasks(taskId)
+      setSubtasks(prev => ({ ...prev, [taskId]: data }))
+
+      // Reset form
+      setShowSubtaskForm(null)
+      setEditingSubtask(null)
+      setSubtaskFormData({ title: '', description: '', assigned_to: '' })
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to save subtask')
+    }
+  }
+
+  const handleSubtaskStatusChange = async (taskId: string, subtaskId: string, newStatus: 'pending' | 'completed') => {
+    const updateKey = `${taskId}-${subtaskId}`
+    setUpdatingSubtasks(prev => new Set(prev).add(updateKey))
+    
+    try {
+      await tasksApi.updateSubtask(taskId, subtaskId, { status: newStatus })
+      // Reload subtasks for this task
+      const data = await tasksApi.getSubtasks(taskId)
+      setSubtasks(prev => ({ ...prev, [taskId]: data }))
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to update subtask status')
+    } finally {
+      setUpdatingSubtasks(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(updateKey)
+        return newSet
+      })
+    }
+  }
+
+  const handleSubtaskEdit = (taskId: string, subtask: Subtask) => {
+    setEditingSubtask({ taskId, subtask })
+    setShowSubtaskForm(taskId)
+    setSubtaskFormData({
+      title: subtask.title,
+      description: subtask.description || '',
+      assigned_to: subtask.assigned_to || '',
+    })
+  }
+
   const handleSubtaskDelete = async (taskId: string, subtaskId: string) => {
     if (!confirm('Are you sure you want to delete this subtask?')) {
       return
@@ -311,6 +462,137 @@ export default function TeamTasks() {
     return user?.display_name || user?.email || 'Unknown User'
   }
 
+  // Resize image to max 450x450px
+  const resizeImage = useCallback((file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const img = new Image()
+        img.onload = () => {
+          const maxWidth = 450
+          const maxHeight = 450
+          
+          let width = img.width
+          let height = img.height
+          
+          // Calculate new dimensions maintaining aspect ratio
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height)
+            width = width * ratio
+            height = height * ratio
+          }
+          
+          // Create canvas and resize
+          const canvas = document.createElement('canvas')
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+          
+          if (!ctx) {
+            reject(new Error('Failed to get canvas context'))
+            return
+          }
+          
+          ctx.drawImage(img, 0, 0, width, height)
+          
+          // Convert canvas to blob
+          canvas.toBlob((blob) => {
+            if (!blob) {
+              reject(new Error('Failed to create blob'))
+              return
+            }
+            const resizedFile = new File([blob], file.name, {
+              type: file.type || 'image/png',
+              lastModified: Date.now()
+            })
+            resolve(resizedFile)
+          }, file.type || 'image/png', 0.9)
+        }
+        img.onerror = () => reject(new Error('Failed to load image'))
+        img.src = e.target?.result as string
+      }
+      reader.onerror = () => reject(new Error('Failed to read file'))
+      reader.readAsDataURL(file)
+    })
+  }, [])
+
+  // Handle image/file paste in Quill editor
+  const handleImageUpload = useCallback(async (file: File): Promise<string> => {
+    try {
+      setUploadingImage(true)
+      
+      // Resize image if it's an image file
+      let fileToUpload = file
+      if (file.type.startsWith('image/')) {
+        try {
+          fileToUpload = await resizeImage(file)
+        } catch (error) {
+          console.warn('Failed to resize image, using original:', error)
+          // Continue with original file if resize fails
+        }
+      }
+      
+      const timestamp = Date.now()
+      const fileExt = fileToUpload.name.split('.').pop()
+      const fileName = `${timestamp}-${Math.random().toString(36).substring(7)}.${fileExt}`
+      const filePath = `task-descriptions/${currentUserId}/${fileName}`
+
+      // Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('task-attachments')
+        .upload(filePath, fileToUpload, {
+          cacheControl: '3600',
+          upsert: false
+        })
+
+      if (error) throw error
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('task-attachments')
+        .getPublicUrl(filePath)
+
+      return urlData.publicUrl
+    } catch (error: any) {
+      console.error('Error uploading image:', error)
+      alert(`Failed to upload image: ${error.message}`)
+      throw error
+    } finally {
+      setUploadingImage(false)
+    }
+  }, [currentUserId, resizeImage])
+
+  // Create Quill modules with image handler (memoized)
+  const quillModules = useMemo(() => ({
+    ...quillModulesBase,
+    toolbar: {
+      ...quillModulesBase.toolbar,
+      handlers: {
+        image: function(this: any) {
+          const input = document.createElement('input')
+          input.setAttribute('type', 'file')
+          input.setAttribute('accept', 'image/*')
+          input.click()
+          
+          input.onchange = async () => {
+            const file = input.files?.[0]
+            if (file) {
+              try {
+                const url = await handleImageUpload(file)
+                const quill = this.quill
+                const range = quill.getSelection(true)
+                quill.insertEmbed(range.index, 'image', url, 'user')
+                quill.setSelection(range.index + 1)
+              } catch (error) {
+                console.error('Failed to upload image:', error)
+              }
+            }
+          }
+        }
+      }
+    }
+  }), [handleImageUpload])
+
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return ''
     if (bytes < 1024) return `${bytes} B`
@@ -328,23 +610,23 @@ export default function TeamTasks() {
       return
     }
 
-    // Assignment and purpose are optional - can assign to self or leave unassigned
-    // Determine the final purpose value (only if assigned)
-    const finalPurpose = formData.assigned_to && purposeType
-      ? (purposeType === 'Others' 
-          ? formData.assignment_purpose_custom.trim()
-          : purposeType)
-      : undefined
-
     try {
+      // Determine the final purpose value
+      const finalPurpose = formData.purpose
+        ? (formData.purpose === 'Others' 
+            ? formData.purpose_custom.trim()
+            : formData.purpose)
+        : undefined
+
       const taskData = {
         title: formData.title,
+        link: formData.link.trim() || undefined,
+        purpose: finalPurpose,
         description: formData.description || undefined,
         status: formData.status,
         priority: formData.priority,
         due_date: formData.due_date || undefined,
         assigned_to: formData.assigned_to || undefined,
-        assignment_purpose: finalPurpose,
       }
 
       let newTask
@@ -356,41 +638,7 @@ export default function TeamTasks() {
         setSuccess('Task created successfully!')
       }
       
-      // Upload selected files as attachments if any
-      if (selectedFiles.length > 0) {
-        try {
-          setUploadingFiles(true)
-          const uploadErrors: string[] = []
-          for (const file of selectedFiles) {
-            try {
-              await tasksApi.uploadTaskAttachment(newTask.id, file)
-            } catch (singleFileErr: any) {
-              const errMsg = singleFileErr.response?.data?.detail || singleFileErr.message || 'Unknown error'
-              console.error(`Failed to upload ${file.name}:`, errMsg)
-              uploadErrors.push(`${file.name}: ${errMsg}`)
-            }
-          }
-          if (uploadErrors.length === 0) {
-            setSuccess('Task created and files uploaded successfully!')
-          } else if (uploadErrors.length < selectedFiles.length) {
-            setSuccess(`Task created. Some files uploaded, but ${uploadErrors.length} failed.`)
-            setError(`Upload errors: ${uploadErrors.join('; ')}`)
-          } else {
-            setSuccess('Task created!')
-            setError(`All file uploads failed: ${uploadErrors.join('; ')}`)
-          }
-        } catch (fileErr: any) {
-          console.error('Failed to upload files:', fileErr)
-          setSuccess('Task created, but files failed to upload.')
-          setError(fileErr.response?.data?.detail || 'File upload failed')
-        } finally {
-          setUploadingFiles(false)
-        }
-      }
-      
-      setFormData({ title: '', description: '', status: 'pending', priority: 'medium', due_date: '', assigned_to: '', assignment_purpose: '', assignment_purpose_custom: '' })
-      setPurposeType('')
-      setSelectedFiles([])
+      setFormData({ title: '', link: '', purpose: '', purpose_custom: '', description: '', status: 'pending', priority: 'medium', due_date: '', assigned_to: '' })
       setShowAddForm(false)
       setEditingTask(null)
       setError('')
@@ -401,6 +649,38 @@ export default function TeamTasks() {
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to create task')
     }
+  }
+
+  const handleEdit = (task: Task) => {
+    setEditingTask(task)
+    setShowAddForm(true)
+    
+    // Determine if purpose is in the predefined list or is custom
+    const purposeOptions = [
+      'Box Contents Validation',
+      'Master Sheet',
+      'Amazon Audit',
+      'Amazon Case',
+      'Amazon Reimbursement',
+      'FBA Inventory'
+    ]
+    
+    const taskPurpose = task.purpose || ''
+    const isCustomPurpose = taskPurpose && !purposeOptions.includes(taskPurpose)
+    
+    setFormData({
+      title: task.title || '',
+      link: task.link || '',
+      purpose: isCustomPurpose ? 'Others' : (taskPurpose || ''),
+      purpose_custom: isCustomPurpose ? taskPurpose : '',
+      description: task.description || '',
+      status: task.status || 'pending',
+      priority: task.priority || 'medium',
+      due_date: task.due_date || '',
+      assigned_to: task.assigned_to || '',
+    })
+    setError('')
+    setSuccess('')
   }
 
   const filteredTasks = tasks.filter(task => {
@@ -429,9 +709,7 @@ export default function TeamTasks() {
           onClick={() => {
             setShowAddForm(true)
             setEditingTask(null)
-            setFormData({ title: '', description: '', status: 'pending', priority: 'medium', due_date: '', assigned_to: '', assignment_purpose: '', assignment_purpose_custom: '' })
-            setPurposeType('')
-            setSelectedFiles([])
+            setFormData({ title: '', link: '', purpose: '', purpose_custom: '', description: '', status: 'pending', priority: 'medium', due_date: '', assigned_to: '' })
           }}
           className="btn-primary"
         >
@@ -462,9 +740,7 @@ export default function TeamTasks() {
               onClick={() => {
                 setShowAddForm(false)
                 setEditingTask(null)
-                setFormData({ title: '', description: '', status: 'pending', priority: 'medium', due_date: '', assigned_to: '', assignment_purpose: '', assignment_purpose_custom: '' })
-                setPurposeType('')
-                setSelectedFiles([])
+                setFormData({ title: '', link: '', purpose: '', purpose_custom: '', description: '', status: 'pending', priority: 'medium', due_date: '', assigned_to: '' })
                 setError('')
                 setSuccess('')
               }}
@@ -489,15 +765,158 @@ export default function TeamTasks() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
+                Link (Optional)
+              </label>
+              <input
+                type="url"
+                value={formData.link}
+                onChange={(e) => setFormData({ ...formData, link: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                placeholder="https://example.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Purpose of Task
+              </label>
+              <select
+                value={formData.purpose}
+                onChange={(e) => {
+                  setFormData({ ...formData, purpose: e.target.value, purpose_custom: '' })
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                <option value="">Select purpose...</option>
+                <option value="Box Contents Validation">Box Contents Validation</option>
+                <option value="Master Sheet">Master Sheet</option>
+                <option value="Amazon Audit">Amazon Audit</option>
+                <option value="Amazon Case">Amazon Case</option>
+                <option value="Amazon Reimbursement">Amazon Reimbursement</option>
+                <option value="FBA Inventory">FBA Inventory</option>
+                <option value="Others">Others</option>
+              </select>
+              {formData.purpose === 'Others' && (
+                <input
+                  type="text"
+                  value={formData.purpose_custom}
+                  onChange={(e) => setFormData({ ...formData, purpose_custom: e.target.value })}
+                  className="w-full mt-2 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="Specify purpose..."
+                />
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Description
               </label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                rows={3}
-                placeholder="Enter task description"
-              />
+              <div className="border border-gray-300 rounded-lg overflow-hidden">
+                <Suspense fallback={<EditorLoading />}>
+                  <ReactQuill
+                    ref={quillRef}
+                    theme="snow"
+                    value={formData.description}
+                    onChange={(value) => setFormData({ ...formData, description: value })}
+                    modules={quillModules}
+                    formats={quillFormats}
+                    placeholder="Enter task description... You can paste images or files here (Ctrl+V or Cmd+V)"
+                    style={{ minHeight: '150px' }}
+                    onPaste={(e) => {
+                      const clipboardData = e.clipboardData
+                      const items = clipboardData.items
+
+                      for (let i = 0; i < items.length; i++) {
+                        const item = items[i]
+                        
+                        // Handle image paste
+                        if (item.type.indexOf('image') !== -1) {
+                          e.preventDefault()
+                          const file = item.getAsFile()
+                          if (file) {
+                            handleImageUpload(file).then((url) => {
+                              const quill = quillRef.current?.getEditor()
+                              if (quill) {
+                                const range = quill.getSelection(true)
+                                quill.insertEmbed(range.index, 'image', url, 'user')
+                                quill.setSelection(range.index + 1)
+                              }
+                            }).catch(() => {
+                              // Error already handled in handleImageUpload
+                            })
+                          }
+                          return
+                        }
+                        
+                        // Handle file paste
+                        if (item.kind === 'file' && item.type.indexOf('image') === -1) {
+                          e.preventDefault()
+                          const file = item.getAsFile()
+                          if (file) {
+                            handleImageUpload(file).then((url) => {
+                              const quill = quillRef.current?.getEditor()
+                              if (quill) {
+                                const range = quill.getSelection(true)
+                                const fileName = file.name
+                                quill.insertText(range.index, `📎 ${fileName} `, 'user')
+                                quill.insertEmbed(range.index + fileName.length + 2, 'link', url, 'user')
+                                quill.setSelection(range.index + fileName.length + 2)
+                              }
+                            }).catch(() => {
+                              // Error already handled
+                            })
+                          }
+                          return
+                        }
+                      }
+                    }}
+                  />
+                </Suspense>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                💡 Tip: Paste images or files directly into the editor (Ctrl+V / Cmd+V). Images will be embedded, files will be linked.
+              </p>
+              <style>{`
+                .ql-editor {
+                  min-height: 150px;
+                }
+                .ql-container {
+                  font-size: 14px;
+                }
+                .ql-editor img {
+                  max-width: 450px;
+                  max-height: 450px;
+                  width: auto;
+                  height: auto;
+                  object-fit: contain;
+                  cursor: pointer;
+                  border: 1px solid #e5e7eb;
+                  border-radius: 4px;
+                  margin: 4px 0;
+                }
+                .ql-editor img:hover {
+                  opacity: 0.8;
+                }
+                .ql-editor a {
+                  color: #0B1020;
+                  text-decoration: underline;
+                }
+                /* Style for rendered description images */
+                div[class*="text-sm"] img,
+                div[class*="text-gray"] img {
+                  max-width: 450px;
+                  max-height: 450px;
+                  width: auto;
+                  height: auto;
+                  object-fit: contain;
+                  cursor: pointer;
+                  border: 1px solid #e5e7eb;
+                  border-radius: 4px;
+                  margin: 4px 0;
+                }
+                div[class*="text-sm"] img:hover,
+                div[class*="text-gray"] img:hover {
+                  opacity: 0.8;
+                }
+              `}</style>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -559,130 +978,25 @@ export default function TeamTasks() {
                 </select>
               </div>
             </div>
-            {formData.assigned_to && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Purpose of Assignment (Optional)
-                </label>
-                <select
-                  value={purposeType}
-                  onChange={(e) => {
-                    setPurposeType(e.target.value)
-                    if (e.target.value !== 'Others') {
-                      setFormData({ ...formData, assignment_purpose_custom: '' })
-                    }
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent mb-2"
-                >
-                  <option value="">Select purpose...</option>
-                  <option value="Box Contents Validation">Box Contents Validation</option>
-                  <option value="Amazon Cases">Amazon Cases</option>
-                  <option value="Amazon Audit">Amazon Audit</option>
-                  <option value="Master Sheet">Master Sheet</option>
-                  <option value="Inventory Adjustment">Inventory Adjustment</option>
-                  <option value="Others">Others</option>
-                </select>
-                {purposeType === 'Others' && (
-                  <textarea
-                    value={formData.assignment_purpose_custom}
-                    onChange={(e) => setFormData({ ...formData, assignment_purpose_custom: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent mt-2"
-                    rows={3}
-                    placeholder="Specify the purpose..."
-                  />
-                )}
-              </div>
-            )}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Attachments (Optional)
-              </label>
-              <input
-                type="file"
-                multiple
-                accept="image/*,.pdf,.xls,.xlsx,.csv,.ppt,.pptx,.doc,.docx"
-                onChange={(e) => {
-                  if (e.target.files) {
-                    const files = Array.from(e.target.files)
-                    // Validate file types and sizes
-                    const validFiles: File[] = []
-                    const invalidFiles: string[] = []
-                    
-                    files.forEach(file => {
-                      const allowedTypes = [
-                        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
-                        'application/pdf',
-                        'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                        'text/csv', 'application/csv',
-                        'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-                        'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                      ]
-                      
-                      if (!allowedTypes.includes(file.type)) {
-                        invalidFiles.push(`${file.name} (unsupported type)`)
-                      } else if (file.size > 50 * 1024 * 1024) {
-                        invalidFiles.push(`${file.name} (exceeds 50MB)`)
-                      } else {
-                        validFiles.push(file)
-                      }
-                    })
-                    
-                    if (invalidFiles.length > 0) {
-                      alert(`Some files were not added:\n${invalidFiles.join('\n')}\n\nAllowed: Images, PDF, Excel, CSV, PowerPoint, Word (max 50MB each)`)
-                    }
-                    
-                    setSelectedFiles(prev => [...prev, ...validFiles])
-                  }
-                }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              />
-              {selectedFiles.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {selectedFiles.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
-                      <span className="text-gray-700">
-                        📎 {file.name} ({formatFileSize(file.size)})
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedFiles(prev => prev.filter((_, i) => i !== index))
-                        }}
-                        className="text-red-600 hover:text-red-800 ml-2"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <p className="mt-1 text-xs text-gray-500">
-                Supported: Images (JPEG, PNG, GIF, WebP), PDF, Excel, CSV, PowerPoint, Word. Max 50MB per file.
-              </p>
-            </div>
             <div className="flex justify-end space-x-3 pt-4">
               <button
                 type="button"
                 onClick={() => {
                   setShowAddForm(false)
                   setEditingTask(null)
-                  setFormData({ title: '', description: '', status: 'pending', priority: 'medium', due_date: '', assigned_to: '', assignment_purpose: '', assignment_purpose_custom: '' })
-                  setPurposeType('')
-                  setSelectedFiles([])
+                  setFormData({ title: '', link: '', purpose: '', purpose_custom: '', description: '', status: 'pending', priority: 'medium', due_date: '', assigned_to: '' })
                   setError('')
                   setSuccess('')
                 }}
                 className="btn-secondary"
-                disabled={uploadingFiles}
               >
                 Cancel
               </button>
               <button 
                 type="submit" 
                 className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={uploadingFiles}
               >
-                {uploadingFiles ? 'Creating & Uploading...' : editingTask ? 'Update Task' : 'Create Task'}
+                {editingTask ? 'Update Task' : 'Create Task'}
               </button>
             </div>
           </form>
@@ -813,10 +1127,24 @@ export default function TeamTasks() {
                       </button>
                       <button
                         type="button"
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation()
                           setSelectedTask(task)
                           setShowTaskModal(true)
+                          // Always fetch fresh attachments when opening modal
+                          try {
+                            console.log('Loading attachments for task:', task.id)
+                            const taskAttachments = await tasksApi.getTaskAttachments(task.id)
+                            console.log('Attachments loaded:', taskAttachments)
+                            setModalAttachments(taskAttachments || [])
+                          } catch (err: any) {
+                            console.error('Failed to load attachments:', err)
+                            const errorMsg = err?.response?.data?.detail || err?.message || 'Failed to load attachments'
+                            console.error('Error details:', errorMsg)
+                            setModalAttachments([])
+                            // Show error to user
+                            setError(`Failed to load attachments: ${errorMsg}`)
+                          }
                         }}
                         className={`text-lg font-semibold hover:text-[#0B1020] transition-colors text-left cursor-pointer ${
                           task.status === 'completed' ? 'line-through text-gray-500' : 'text-gray-900'
@@ -858,13 +1186,28 @@ export default function TeamTasks() {
                       )}
                     </div>
                     {task.description && (
-                      <p className="text-sm text-gray-600 mb-3 ml-8">{task.description}</p>
-                    )}
-                    {task.assignment_purpose && (
-                      <div className="ml-8 mb-3 p-3 bg-blue-50 border-l-4 border-blue-400 rounded">
-                        <p className="text-xs font-semibold text-blue-800 mb-1">Purpose of Assignment:</p>
-                        <p className="text-sm text-blue-900">{task.assignment_purpose}</p>
-                      </div>
+                      <div 
+                        className="text-sm text-gray-600 mb-3 ml-8"
+                        dangerouslySetInnerHTML={{ __html: task.description }}
+                        onClick={(e) => {
+                          // Make images downloadable
+                          const target = e.target as HTMLElement
+                          if (target.tagName === 'IMG') {
+                            e.preventDefault()
+                            const img = target as HTMLImageElement
+                            const link = document.createElement('a')
+                            link.href = img.src
+                            link.download = img.alt || `image-${Date.now()}.png`
+                            link.target = '_blank'
+                            document.body.appendChild(link)
+                            link.click()
+                            document.body.removeChild(link)
+                          }
+                        }}
+                        style={{
+                          cursor: 'default'
+                        }}
+                      />
                     )}
                     <div className="flex items-center justify-between ml-8">
                       <div className="flex items-center space-x-3 flex-wrap gap-2">
@@ -896,16 +1239,22 @@ export default function TeamTasks() {
                         onClick={async () => {
                           setSelectedTask(task)
                           setShowTaskModal(true)
-                          // Load attachments for this task
+                          // Always fetch fresh attachments when opening modal
                           try {
-                            const attachments = await tasksApi.getTaskAttachments(task.id)
-                            setModalAttachments(attachments)
-                          } catch (err) {
+                            console.log('Loading attachments for task:', task.id)
+                            const taskAttachments = await tasksApi.getTaskAttachments(task.id)
+                            console.log('Attachments loaded:', taskAttachments)
+                            setModalAttachments(taskAttachments || [])
+                          } catch (err: any) {
                             console.error('Failed to load attachments:', err)
+                            const errorMsg = err?.response?.data?.detail || err?.message || 'Failed to load attachments'
+                            console.error('Error details:', errorMsg)
                             setModalAttachments([])
+                            // Show error to user
+                            setError(`Failed to load attachments: ${errorMsg}`)
                           }
                         }}
-                        className="px-3 py-1.5 text-sm bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors"
+                        className="px-3 py-1.5 text-sm bg-[#0B1020] text-white rounded-lg hover:bg-[#F97316] transition-colors"
                         title="View Task"
                       >
                         View Task
@@ -936,30 +1285,22 @@ export default function TeamTasks() {
                     </div>
 
                     {/* Subtasks Section */}
-                    <div className="mt-4 pt-4 border-t border-gray-200 ml-8">
-                      <div className="flex items-center justify-between mb-2">
-                        <button
-                          onClick={() => toggleTaskExpansion(task.id)}
-                          className="flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-900"
-                        >
-                          <span>{expandedTasks.has(task.id) ? '▼' : '▶'}</span>
-                          <span>Subtasks ({subtasks[task.id]?.length || 0})</span>
-                        </button>
-                        {expandedTasks.has(task.id) && (
+                    {isExpanded && (
+                      <div className="mt-4 pt-4 border-t border-gray-200 ml-8">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold text-gray-900">Subtasks ({subtasks[task.id]?.length || 0})</h4>
                           <button
                             onClick={() => {
                               setShowSubtaskForm(task.id)
                               setEditingSubtask(null)
-                              setSubtaskFormData({ title: '', description: '' })
+                              setSubtaskFormData({ title: '', description: '', assigned_to: '' })
                             }}
-                            className="text-xs px-2 py-1 text-[#0B1020] hover:bg-gray-100 rounded"
+                            className="px-3 py-1.5 text-sm bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors"
                           >
                             + Add Subtask
                           </button>
-                        )}
-                      </div>
+                        </div>
 
-                      {expandedTasks.has(task.id) && (
                         <div className="ml-6 space-y-2">
                           {/* Subtask Form */}
                           {showSubtaskForm === task.id && (
@@ -980,13 +1321,25 @@ export default function TeamTasks() {
                                   rows={2}
                                   placeholder="Description (optional)"
                                 />
+                                <select
+                                  value={subtaskFormData.assigned_to}
+                                  onChange={(e) => setSubtaskFormData({ ...subtaskFormData, assigned_to: e.target.value })}
+                                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                >
+                                  <option value="">Assign to (optional)</option>
+                                  {allUsers.map((user) => (
+                                    <option key={user.id} value={user.id}>
+                                      {user.display_name || user.email || user.id}
+                                    </option>
+                                  ))}
+                                </select>
                                 <div className="flex justify-end space-x-2">
                                   <button
                                     type="button"
                                     onClick={() => {
                                       setShowSubtaskForm(null)
                                       setEditingSubtask(null)
-                                      setSubtaskFormData({ title: '', description: '' })
+                                      setSubtaskFormData({ title: '', description: '', assigned_to: '' })
                                     }}
                                     className="px-3 py-1 text-xs text-gray-700 hover:bg-gray-100 rounded"
                                   >
@@ -1010,6 +1363,11 @@ export default function TeamTasks() {
                                 const updateKey = `${task.id}-${subtask.id}`
                                 const isUpdating = updatingSubtasks.has(updateKey)
                                 
+                                // Debug: log subtask data
+                                if (subtask.assigned_to) {
+                                  console.log('Subtask assigned_to:', subtask.id, subtask.assigned_to, getUserName(subtask.assigned_to))
+                                }
+                                
                                 return (
                                   <div
                                     key={subtask.id}
@@ -1028,13 +1386,20 @@ export default function TeamTasks() {
                                       }}
                                       className="w-4 h-4 text-[#0B1020] rounded focus:ring-indigo-500 cursor-pointer flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                                     />
-                                    <span
-                                      className={`flex-1 text-sm ${
-                                        subtask.status === 'completed' ? 'line-through text-gray-500' : 'text-gray-900'
-                                      }`}
-                                    >
-                                      {subtask.title}
-                                    </span>
+                                    <div className="flex-1 flex items-center gap-2">
+                                      <span
+                                        className={`text-sm ${
+                                          subtask.status === 'completed' ? 'line-through text-gray-500' : 'text-gray-900'
+                                        }`}
+                                      >
+                                        {subtask.title}
+                                      </span>
+                                      {subtask.assigned_to && (
+                                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                                          👤 {getUserName(subtask.assigned_to)}
+                                        </span>
+                                      )}
+                                    </div>
                                     <button
                                       onClick={() => handleSubtaskEdit(task.id, subtask)}
                                       className="p-1 text-[#0B1020] hover:bg-gray-100 rounded text-xs"
@@ -1059,189 +1424,6 @@ export default function TeamTasks() {
                             )
                           )}
                         </div>
-                      )}
-                    </div>
-
-                    {/* Attachments Section */}
-                    {isExpanded && (
-                      <div className="mt-4 ml-8 space-y-4">
-                        <div className="flex justify-between items-center">
-                          <h4 className="font-semibold text-gray-900">Attachments</h4>
-                          <button
-                            onClick={() => {
-                              setShowAttachmentModal(task.id)
-                              setSelectedAttachmentFile(null)
-                            }}
-                            className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
-                          >
-                            + Upload Attachment
-                          </button>
-                        </div>
-
-                        {(!attachments[task.id] || attachments[task.id].length === 0) ? (
-                          <div className="text-sm text-gray-500 py-4">
-                            No attachments uploaded yet.
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {attachments[task.id].map((attachment) => (
-                              <div
-                                key={attachment.id}
-                                className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-between"
-                              >
-                                <div className="flex items-center space-x-3 flex-1">
-                                  <span className="text-2xl">{getFileIcon(attachment.file_category)}</span>
-                                  <div className="flex-1 min-w-0">
-                                    <a
-                                      href={attachment.file_url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-sm font-medium text-[#0B1020] hover:text-indigo-800 truncate block"
-                                    >
-                                      {attachment.file_name}
-                                    </a>
-                                    <p className="text-xs text-gray-500">
-                                      {(attachment.file_size / 1024).toFixed(2)} KB • {attachment.file_category}
-                                    </p>
-                                  </div>
-                                </div>
-                                <button
-                                  onClick={() => handleDeleteAttachment(attachment.id, task.id)}
-                                  className="ml-3 px-2 py-1 text-red-600 hover:text-red-800 text-sm"
-                                  title="Delete attachment"
-                                >
-                                  🗑️
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Validations Section */}
-                    {isExpanded && (
-                      <div className="mt-4 ml-8 space-y-4">
-                        <div className="flex justify-between items-center">
-                          <h4 className="font-semibold text-gray-900">Validations & Approvals</h4>
-                          {isAssignedToMe(task) && (
-                            <button
-                              onClick={() => {
-                                setShowUploadModal(task.id)
-                                setUploadType('file')
-                              }}
-                              className="px-3 py-1.5 bg-[#0B1020] text-white text-sm rounded-lg hover:bg-[#1a2235]"
-                            >
-                              + Upload File/Text
-                            </button>
-                          )}
-                        </div>
-
-                        {taskValidations.length === 0 ? (
-                          <div className="text-sm text-gray-500 py-4">
-                            No validations submitted yet.
-                            {isAssignedToMe(task) && ' Click "Upload File/Text" to submit for approval.'}
-                          </div>
-                        ) : (
-                          <div className="space-y-3">
-                            {taskValidations.map((validation) => (
-                              <div
-                                key={validation.id}
-                                className="p-3 bg-gray-50 rounded-lg border border-gray-200"
-                              >
-                                <div className="flex items-start justify-between mb-2">
-                                  <div className="flex-1">
-                                    <div className="flex items-center space-x-2 mb-1">
-                                      <span className={`px-2 py-1 rounded text-xs font-medium ${getValidationStatusColor(validation.status)}`}>
-                                        {validation.status}
-                                      </span>
-                                      <span className="text-xs text-gray-500">
-                                        {validation.validation_type === 'file' ? '📎 File' : '📝 Text'}
-                                      </span>
-                                      <span className="text-xs text-gray-500">
-                                        Submitted by: {getUserName(validation.submitted_by)}
-                                      </span>
-                                      <span className="text-xs text-gray-500">
-                                        {new Date(validation.created_at).toLocaleDateString()}
-                                      </span>
-                                    </div>
-                                    
-                                    {validation.validation_type === 'file' ? (
-                                      <div className="text-sm">
-                                        <a
-                                          href={validation.file_url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-[#0B1020] hover:underline"
-                                        >
-                                          📄 {validation.file_name}
-                                        </a>
-                                        {validation.file_size && (
-                                          <span className="text-gray-500 ml-2">
-                                            ({formatFileSize(validation.file_size)})
-                                          </span>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <div className="text-sm text-gray-700 bg-white p-2 rounded border border-gray-200 mt-1">
-                                        {validation.text_content}
-                                      </div>
-                                    )}
-
-                                    {validation.review_notes && (
-                                      <div className="mt-2 text-sm text-gray-600 italic">
-                                        Review note: {validation.review_notes}
-                                      </div>
-                                    )}
-
-                                    {validation.reviewed_by && (
-                                      <div className="text-xs text-gray-500 mt-1">
-                                        Reviewed by: {getUserName(validation.reviewed_by)} on{' '}
-                                        {validation.reviewed_at && new Date(validation.reviewed_at).toLocaleDateString()}
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  <div className="flex items-center space-x-2">
-                                    {validation.status === 'pending' && canReview(task) && (
-                                      <div className="flex flex-col space-y-2">
-                                        <input
-                                          type="text"
-                                          placeholder="Review notes (optional)"
-                                          value={reviewNotes[validation.id] || ''}
-                                          onChange={(e) => setReviewNotes(prev => ({ ...prev, [validation.id]: e.target.value }))}
-                                          className="px-2 py-1 text-xs border border-gray-300 rounded"
-                                        />
-                                        <div className="flex space-x-1">
-                                          <button
-                                            onClick={() => handleReview(validation.id, 'approved')}
-                                            className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
-                                          >
-                                            ✓ Approve
-                                          </button>
-                                          <button
-                                            onClick={() => handleReview(validation.id, 'rejected')}
-                                            className="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
-                                          >
-                                            ✗ Reject
-                                          </button>
-                                        </div>
-                                      </div>
-                                    )}
-                                    {validation.status === 'pending' && validation.submitted_by === currentUserId && (
-                                      <button
-                                        onClick={() => handleDeleteValidation(validation.id, task.id)}
-                                        className="px-2 py-1 text-red-600 text-xs hover:bg-red-50 rounded"
-                                      >
-                                        Delete
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
@@ -1458,18 +1640,33 @@ export default function TeamTasks() {
               {/* Description */}
               <div>
                 <label className="text-sm font-medium text-gray-500">Description</label>
-                <p className="mt-1 text-gray-900">{selectedTask.description || 'No description provided'}</p>
+                {selectedTask.description ? (
+                  <div 
+                    className="mt-1 text-gray-900"
+                    dangerouslySetInnerHTML={{ __html: selectedTask.description }}
+                    onClick={(e) => {
+                      // Make images downloadable
+                      const target = e.target as HTMLElement
+                      if (target.tagName === 'IMG') {
+                        e.preventDefault()
+                        const img = target as HTMLImageElement
+                        const link = document.createElement('a')
+                        link.href = img.src
+                        link.download = img.alt || `image-${Date.now()}.png`
+                        link.target = '_blank'
+                        document.body.appendChild(link)
+                        link.click()
+                        document.body.removeChild(link)
+                      }
+                    }}
+                    style={{
+                      cursor: 'default'
+                    }}
+                  />
+                ) : (
+                  <p className="mt-1 text-gray-500">No description provided</p>
+                )}
               </div>
-
-              {/* Purpose of Assignment */}
-              {selectedTask.assignment_purpose && (
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Purpose of Assignment</label>
-                  <div className="mt-2 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg">
-                    <p className="text-gray-900 font-medium">{selectedTask.assignment_purpose}</p>
-                  </div>
-                </div>
-              )}
 
               {/* Assignment Info */}
               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
@@ -1525,9 +1722,7 @@ export default function TeamTasks() {
                       </a>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-sm text-gray-500">No attachments uploaded yet.</p>
-                )}
+                ) : null}
               </div>
             </div>
 

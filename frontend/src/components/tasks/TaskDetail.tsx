@@ -263,14 +263,6 @@ export default function TaskDetail() {
                 </div>
               )}
 
-              {task.assignment_purpose && (
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Purpose of Assignment</label>
-                  <div className="mt-2 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg">
-                    <p className="text-gray-900 font-medium">{task.assignment_purpose}</p>
-                  </div>
-                </div>
-              )}
 
               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
                 <div>

@@ -355,7 +355,7 @@ export default function PublicTools() {
                         rel="noopener noreferrer"
                         className="text-sm inline-block w-full text-center px-6 py-2.5 bg-[#F97316] hover:bg-[#EA580C] text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
                       >
-                        Open Tool →
+                        Use Tool →
                       </a>
                       {tool.video_url && (
                         <a

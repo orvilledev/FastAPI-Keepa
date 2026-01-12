@@ -152,6 +152,8 @@ export interface Task {
   id: string
   user_id: string
   title: string
+  link?: string
+  purpose?: string
   description?: string
   status: 'pending' | 'in_progress' | 'completed'
   priority: 'low' | 'medium' | 'high'
@@ -170,6 +172,7 @@ export interface Subtask {
   description?: string
   status: 'pending' | 'completed'
   display_order: number
+  assigned_to?: string
   created_at: string
   updated_at: string
 }
@@ -228,5 +231,19 @@ export interface Note {
   position?: number
   created_at: string
   updated_at: string
+}
+
+export interface Notification {
+  id: string
+  user_id: string
+  type: string
+  title: string
+  message: string
+  related_id?: string
+  related_type?: string
+  is_read: boolean
+  read_at?: string
+  metadata?: Record<string, any>
+  created_at: string
 }
 

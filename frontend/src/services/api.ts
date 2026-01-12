@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
-import type { BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, PublicTool, QuickAccessLink, Task, Subtask, DashboardWidget, UserTool, Note, JobAid, TaskValidation, TaskAttachment } from '../types'
+import type { BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, PublicTool, QuickAccessLink, Task, Subtask, DashboardWidget, UserTool, Note, JobAid, TaskValidation, TaskAttachment, Notification } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -55,9 +55,39 @@ api.interceptors.request.use(async (config) => {
 // Centralized error handling
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     // Extract error message from response
     const message = error.response?.data?.detail || error.message || 'An error occurred'
+    
+    // Handle 401 Unauthorized - try to refresh token
+    if (error.response?.status === 401 && error.config && !error.config._retry) {
+      error.config._retry = true
+      
+      try {
+        // Get fresh session from Supabase
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        if (session?.access_token) {
+          // Update cached token
+          cachedToken = session.access_token
+          tokenExpiresAt = (session.expires_at || 0) * 1000 - 5 * 60 * 1000
+          
+          // Retry the request with new token
+          error.config.headers.Authorization = `Bearer ${cachedToken}`
+          return api.request(error.config)
+        } else {
+          // No valid session, redirect to login
+          console.error('No valid session found, redirecting to login')
+          window.location.href = '/login'
+          return Promise.reject(error)
+        }
+      } catch (refreshError) {
+        // Failed to refresh, redirect to login
+        console.error('Failed to refresh token:', refreshError)
+        window.location.href = '/login'
+        return Promise.reject(error)
+      }
+    }
     
     // Log error for debugging
     console.error('API Error:', {
@@ -607,6 +637,33 @@ export const notesApi = {
   deleteNote: async (noteId: string) => {
     const response = await api.delete(`/api/v1/notes/${noteId}`)
     return response.data
+  },
+}
+
+export const notificationsApi = {
+  getNotifications: async (unreadOnly: boolean = false, limit: number = 50): Promise<Notification[]> => {
+    const response = await api.get(`/api/v1/notifications`, {
+      params: { unread_only: unreadOnly, limit }
+    })
+    return response.data
+  },
+  
+  getUnreadCount: async (): Promise<number> => {
+    const response = await api.get(`/api/v1/notifications/unread-count`)
+    return response.data.count
+  },
+  
+  markAsRead: async (notificationId: string): Promise<Notification> => {
+    const response = await api.put(`/api/v1/notifications/${notificationId}/read`)
+    return response.data
+  },
+  
+  markAllAsRead: async (): Promise<void> => {
+    await api.put(`/api/v1/notifications/read-all`)
+  },
+  
+  deleteNotification: async (notificationId: string): Promise<void> => {
+    await api.delete(`/api/v1/notifications/${notificationId}`)
   },
 }
 

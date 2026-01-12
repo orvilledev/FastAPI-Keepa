@@ -354,7 +354,7 @@ export default function JobAids() {
                         href={aid.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm inline-block w-full text-center px-4 py-2 bg-[#0B1020] hover:bg-[#1a2235] text-white rounded-lg transition-all font-medium shadow-md hover:shadow-lg"
+                        className="text-sm inline-block w-full text-center px-4 py-2 bg-[#F97316] hover:bg-[#1a2235] text-white rounded-lg transition-all font-medium shadow-md hover:shadow-lg"
                       >
                         Open Job Aid →
                       </a>

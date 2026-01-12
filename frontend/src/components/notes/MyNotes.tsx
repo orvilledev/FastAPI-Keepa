@@ -138,7 +138,6 @@ export default function MyNotes() {
     { value: 'blue', label: 'Blue', border: 'border-blue-400' },
     { value: 'green', label: 'Green', border: 'border-green-400' },
     { value: 'orange', label: 'Orange', border: 'border-orange-400' },
-    { value: 'orange', label: 'Orange', border: 'border-orange-400' },
     { value: 'red', label: 'Red', border: 'border-red-400' },
     { value: 'teal', label: 'Teal', border: 'border-teal-400' },
     { value: 'gray', label: 'Gray', border: 'border-gray-400' },

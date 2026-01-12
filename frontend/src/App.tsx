@@ -22,6 +22,7 @@ const MyToolbox = lazy(() => import('./components/tools/MyToolbox'))
 const JobAids = lazy(() => import('./components/tools/JobAids'))
 const TeamTasks = lazy(() => import('./components/tasks/TeamTasks'))
 const MyNotes = lazy(() => import('./components/notes/MyNotes'))
+const Notifications = lazy(() => import('./components/notifications/Notifications'))
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
 
 // Loading spinner component
@@ -147,6 +148,7 @@ function AppRoutes() {
           />
           <Route path="team-tasks" element={user ? <TeamTasks /> : <Navigate to="/" replace />} />
           <Route path="my-space/notes" element={user ? <MyNotes /> : <Navigate to="/" replace />} />
+          <Route path="notifications" element={user ? <Notifications /> : <Navigate to="/" replace />} />
           <Route path="tools/public" element={user ? <PublicTools /> : <Navigate to="/" replace />} />
           <Route path="tools/my-toolbox" element={user ? <MyToolbox /> : <Navigate to="/" replace />} />
           <Route path="tools/job-aids" element={user ? <JobAids /> : <Navigate to="/" replace />} />
