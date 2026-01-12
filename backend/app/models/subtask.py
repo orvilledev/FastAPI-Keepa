@@ -11,6 +11,7 @@ class SubtaskCreate(BaseModel):
     description: Optional[str] = None
     status: Optional[str] = 'pending'
     display_order: Optional[int] = 0
+    assigned_to: Optional[UUID] = None
 
 
 class SubtaskUpdate(BaseModel):
@@ -19,6 +20,7 @@ class SubtaskUpdate(BaseModel):
     description: Optional[str] = None
     status: Optional[str] = None
     display_order: Optional[int] = None
+    assigned_to: Optional[UUID] = None
 
 
 class SubtaskResponse(BaseModel):
@@ -29,6 +31,7 @@ class SubtaskResponse(BaseModel):
     description: Optional[str] = None
     status: str
     display_order: int
+    assigned_to: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
 

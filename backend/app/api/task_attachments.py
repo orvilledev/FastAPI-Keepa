@@ -66,17 +66,55 @@ async def get_task_attachments(
     task = task_check.data[0]
     user_id = current_user["id"]
     
+    # Check if user has can_assign_tasks permission from profile
+    profile_check = db.table("profiles").select("can_assign_tasks").eq("id", user_id).execute()
+    can_assign_tasks = False
+    if profile_check.data and len(profile_check.data) > 0:
+        can_assign_tasks = profile_check.data[0].get("can_assign_tasks", False) or False
+    
     # Allow access if user created the task, is assigned to it, or has can_assign_tasks permission
     can_access = (
         task.get("user_id") == user_id or 
         task.get("assigned_to") == user_id or
-        current_user.get("can_assign_tasks", False)
+        can_assign_tasks
     )
     
     if not can_access:
         raise HTTPException(status_code=403, detail="You don't have access to this task")
 
-    response = db.table("task_attachments").select("*").eq("task_id", str(task_id)).order("created_at", desc=True).execute()
+    # Query attachments with logging
+    task_id_str = str(task_id)
+    logger.info(f"Fetching attachments for task_id: {task_id_str} (type: {type(task_id)}) (user: {user_id})")
+    
+    # Query for this specific task - try both string and UUID formats
+    try:
+        response = db.table("task_attachments").select("*").eq("task_id", task_id_str).order("created_at", desc=True).execute()
+        logger.info(f"Query with string task_id - Found {len(response.data) if response.data else 0} attachments")
+        
+        # If no results, try with UUID object
+        if not response.data or len(response.data) == 0:
+            logger.info(f"Trying query with UUID object format...")
+            try:
+                alt_response = db.table("task_attachments").select("*").eq("task_id", task_id).order("created_at", desc=True).execute()
+                logger.info(f"Query with UUID object - Found {len(alt_response.data) if alt_response.data else 0} attachments")
+                if alt_response.data and len(alt_response.data) > 0:
+                    response = alt_response
+            except Exception as alt_err:
+                logger.warning(f"Alternative query failed: {alt_err}")
+        
+        # Debug: Check all attachments for this task_id pattern
+        if not response.data or len(response.data) == 0:
+            logger.info(f"Checking all attachments to see task_id formats...")
+            all_check = db.table("task_attachments").select("id, task_id, file_name").limit(20).execute()
+            logger.info(f"Sample attachments (first 20): {all_check.data}")
+            # Check if any match when we compare strings
+            if all_check.data:
+                matching = [a for a in all_check.data if str(a.get('task_id', '')) == task_id_str]
+                logger.info(f"Found {len(matching)} attachments with matching task_id when comparing as strings")
+        
+    except Exception as query_err:
+        logger.error(f"Error querying attachments: {query_err}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to query attachments: {str(query_err)}")
     
     attachments = []
     for attachment in response.data or []:
@@ -86,6 +124,7 @@ async def get_task_attachments(
             logger.warning(f"Error parsing attachment {attachment.get('id')}: {e}")
             continue
     
+    logger.info(f"Returning {len(attachments)} attachments")
     return attachments
 
 
@@ -107,11 +146,17 @@ async def upload_task_attachment(
     task = task_check.data[0]
     user_id = current_user["id"]
     
+    # Check if user has can_assign_tasks permission from profile
+    profile_check = db.table("profiles").select("can_assign_tasks").eq("id", user_id).execute()
+    can_assign_tasks = False
+    if profile_check.data and len(profile_check.data) > 0:
+        can_assign_tasks = profile_check.data[0].get("can_assign_tasks", False) or False
+    
     # Allow upload if user created the task, is assigned to it, or has can_assign_tasks permission
     can_upload = (
         task.get("user_id") == user_id or 
         task.get("assigned_to") == user_id or
-        current_user.get("can_assign_tasks", False)
+        can_assign_tasks
     )
     
     if not can_upload:

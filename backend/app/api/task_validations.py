@@ -22,16 +22,14 @@ async def get_task_validations(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
-    """Get all validations for a task."""
-    # Verify user has access to this task
-    task_check = db.table("tasks").select("id, user_id, assigned_to").eq("id", str(task_id)).execute()
+    """Get all validations for a task. All authenticated users can view validations for team tasks."""
+    # Verify task exists (team tasks are visible to all authenticated users)
+    task_check = db.table("tasks").select("id").eq("id", str(task_id)).execute()
     
     if not task_check.data:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    task = task_check.data[0]
-    if task.get("user_id") != current_user["id"] and task.get("assigned_to") != current_user["id"]:
-        raise HTTPException(status_code=403, detail="You don't have access to this task")
+    # All authenticated users can view validations for team tasks (no permission check needed)
     
     response = db.table("task_validations").select("*").eq("task_id", str(task_id)).order("created_at", desc=True).execute()
     

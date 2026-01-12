@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     email_smtp_host: str = "smtp.gmail.com"
     email_smtp_port: int = 587
     email_from: str
-    email_from_name: str = "Orbit Hub (TESTING PHASE)"  # Display name for emails
+    email_from_name: str = "Keepa Alert Service"  # Display name for emails
     email_password: str
     email_to: str  # Can be comma-separated for multiple recipients
     

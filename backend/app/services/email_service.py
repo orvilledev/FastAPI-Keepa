@@ -80,13 +80,13 @@ class EmailService:
             msg["From"] = self.email_from_name
             # Join multiple recipients with comma for the "To" header
             msg["To"] = ", ".join(recipients)
-            msg["Subject"] = f"Orbit Hub Report - {job_name}"
+            msg["Subject"] = f"Keepa Off Price Report - {job_name}"
             
             # Create email body
             body = f"""
             Hello,
             
-            Your Orbit Hub report has been generated.
+            Your Keepa Off Price report has been generated.
             
             Job Details:
             - Job Name: {job_name}
@@ -96,7 +96,7 @@ class EmailService:
             Please find the detailed report attached as a CSV file.
             
             Best regards,
-            Orbit
+            Keepa Alert Service
             """
             
             msg.attach(MIMEText(body, "plain"))
@@ -217,4 +217,43 @@ class EmailService:
             except Exception as e:
                 logger.error(f"Failed to send job completion email: {e}")
                 return False
+    
+    def send_email(
+        self,
+        to_email: str,
+        subject: str,
+        body: str
+    ) -> bool:
+        """
+        Send a simple text email.
+        
+        Args:
+            to_email: Recipient email address
+            subject: Email subject
+            body: Email body text
+            
+        Returns:
+            True if email sent successfully, False otherwise
+        """
+        try:
+            msg = MIMEMultipart()
+            msg["From"] = f"{self.email_from_name} <{self.email_from}>"
+            msg["To"] = to_email
+            msg["Subject"] = subject
+            
+            msg.attach(MIMEText(body, "plain"))
+            
+            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+                server.starttls()
+                server.login(self.email_from, self.email_password)
+                server.send_message(msg, to_addrs=[to_email])
+            
+            logger.info(f"Email sent successfully to {to_email}")
+            return True
+            
+        except Exception as e:
+            error_msg = f"Failed to send email: {type(e).__name__}: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            self.last_error = error_msg
+            return False
 
