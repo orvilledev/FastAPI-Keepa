@@ -1,7 +1,13 @@
 """Application configuration settings."""
 from pydantic_settings import BaseSettings
 from typing import List
+from pathlib import Path
+import os
 
+# Find .env file relative to backend directory, not current working directory
+# This ensures .env is found regardless of where the command is run from
+BACKEND_DIR = Path(__file__).parent.parent
+ENV_FILE = BACKEND_DIR / ".env"
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
@@ -39,7 +45,9 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.cors_origins.split(",")]
     
     class Config:
-        env_file = ".env"
+        # Use absolute path to .env file relative to backend directory
+        # Falls back to ".env" in current directory if backend/.env doesn't exist
+        env_file = str(ENV_FILE) if ENV_FILE.exists() else ".env"
         case_sensitive = False
 
 
