@@ -33,6 +33,12 @@ A comprehensive full-stack productivity platform built with FastAPI and React. F
   - Task validations
   - Purpose field for context
   - Urgent flag
+- **Notifications System** - Real-time notifications for task activities
+  - Task assignment notifications
+  - Task completion notifications
+  - Unread notification count
+  - Mark as read / mark all as read
+  - Notification deletion
 - **Job Aids** - Video tutorials and documentation
 - **MAP Management** - Minimum Advertised Price tracking
 
@@ -90,6 +96,8 @@ A comprehensive full-stack productivity platform built with FastAPI and React. F
 - **Task Validations** - Add validation criteria to tasks
 - **Purpose Field** - Add context and purpose to tasks
 - **Urgent Flag** - Mark tasks as urgent
+- **Task Notifications** - Automatic notifications for task assignments and completions
+- **Email Notifications** - Email alerts when assigned tasks are completed
 
 ### Tools Management
 - **Public Tools** - Admin-managed public tool directory with video URLs
@@ -114,6 +122,15 @@ A comprehensive full-stack productivity platform built with FastAPI and React. F
 - **Display Name** - Customizable user display name
 - **Profile Management** - Update profile information
 - **Business Details** - Store company and contact information
+
+### Notifications
+- **Real-time Notifications** - Get notified about important task activities
+- **Task Assignment Alerts** - Notified when tasks are assigned to you
+- **Task Completion Alerts** - Notified when assigned tasks are completed
+- **Unread Count** - Track number of unread notifications
+- **Mark as Read** - Mark individual or all notifications as read
+- **Notification Management** - Delete notifications you no longer need
+- **Email Integration** - Email notifications for task completions
 
 ## Setup
 
@@ -313,6 +330,10 @@ Run these additional migration files in your Supabase SQL Editor (in order):
 20. **Verify User Isolation** - `backend/database/verify_user_isolation.sql`
     - Verification script for RLS policies
 
+21. **Notifications** - `backend/database/notifications_schema.sql`
+    - Creates `notifications` table for user notifications
+    - Supports task assignments, completions, and other notification types
+
 ### Granting Orbit Hub Access
 
 To grant access to specific users:
@@ -449,6 +470,13 @@ WHERE role = 'admin';
 - `PUT /api/v1/tools/job-aids/{aid_id}` - Update job aid (admin only)
 - `DELETE /api/v1/tools/job-aids/{aid_id}` - Delete job aid (admin only)
 
+### Notifications
+- `GET /api/v1/notifications` - Get user's notifications (with optional unread filter)
+- `GET /api/v1/notifications/unread-count` - Get count of unread notifications
+- `PUT /api/v1/notifications/{notification_id}/read` - Mark notification as read
+- `PUT /api/v1/notifications/read-all` - Mark all notifications as read
+- `DELETE /api/v1/notifications/{notification_id}` - Delete notification
+
 ## Deployment
 
 ### Backend (Render)
@@ -553,11 +581,13 @@ WHERE role = 'admin';
 ### Task Management
 1. **Go to Tasks** - Access from "My Space" in sidebar
 2. **Create tasks** - Add title, description, priority, due date, and purpose
-3. **Add subtasks** - Break down tasks into smaller items
-4. **Attach files** - Upload relevant files to tasks
-5. **Add validations** - Create validation criteria
-6. **Track progress** - Update status and mark items complete
-7. **Filter tasks** - View by status (All, Pending, In Progress, Completed)
+3. **Assign tasks** - Assign tasks to team members (they'll receive notifications)
+4. **Add subtasks** - Break down tasks into smaller items
+5. **Attach files** - Upload relevant files to tasks
+6. **Add validations** - Create validation criteria
+7. **Track progress** - Update status and mark items complete
+8. **Filter tasks** - View by status (All, Pending, In Progress, Completed)
+9. **Receive notifications** - Get notified when tasks are assigned to you or completed
 
 ### Tools Management
 1. **Browse Public Tools** - View admin-managed tools
@@ -572,6 +602,13 @@ WHERE role = 'admin';
 2. **Reorder widgets** - Drag and drop widgets to customize layout
 3. **View scheduler countdown** - See time until next daily email run
 4. **View UPC/MAP stats** - Quick view of your data counts
+
+### Notifications
+1. **View notifications** - Check your notifications for task assignments and completions
+2. **Unread count** - See how many unread notifications you have
+3. **Mark as read** - Mark individual notifications or all notifications as read
+4. **Delete notifications** - Remove notifications you no longer need
+5. **Email alerts** - Receive email notifications when tasks assigned to you are completed
 
 ## Daily Scheduler
 
