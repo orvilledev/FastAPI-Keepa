@@ -1,7 +1,7 @@
 """Scheduler API endpoints."""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from app.dependencies import get_current_user, get_admin_user, check_is_admin
-from app.scheduler import scheduler, TAIPEI_TZ, update_scheduler_settings
+from app.scheduler import scheduler, update_scheduler_settings
 from app.database import get_supabase
 from app.utils.error_handler import handle_api_errors
 from datetime import datetime, timedelta
@@ -25,40 +25,42 @@ class SchedulerSettingsUpdate(BaseModel):
 
 @router.get("/scheduler/next-run")
 async def get_next_scheduled_run(
+    category: str = Query(default='dnk', regex='^(dnk|clk)$'),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
-    """Get the next scheduled run time for the daily job."""
+    """Get the next scheduled run time for the daily job for a specific category."""
     try:
-        # Get scheduler settings
+        # Get scheduler settings for the specified category
         try:
-            settings_response = db.table("scheduler_settings").select("*").eq("id", "00000000-0000-0000-0000-000000000000").execute()
+            settings_response = db.table("scheduler_settings").select("*").eq("category", category).execute()
             if settings_response.data:
                 settings = settings_response.data[0]
-                tz_str = settings.get("timezone", "Asia/Taipei")
-                hour = settings.get("hour", 20)
+                tz_str = settings.get("timezone", "America/Chicago")
+                hour = settings.get("hour", 6)
                 minute = settings.get("minute", 0)
             else:
-                tz_str = "Asia/Taipei"
-                hour = 20
+                tz_str = "America/Chicago"
+                hour = 6
                 minute = 0
         except Exception:
-            tz_str = "Asia/Taipei"
-            hour = 20
+            tz_str = "America/Chicago"
+            hour = 6
             minute = 0
-        
+
         from pytz import timezone as pytz_timezone
         current_tz = pytz_timezone(tz_str)
-        
+
         # Get scheduler running status safely
         try:
             is_running = scheduler.running
         except (AttributeError, RuntimeError):
             is_running = False
-        
-        # Get the scheduled job
+
+        # Get the scheduled job for this category
+        job_id = f"daily_{category}_job"
         try:
-            job = scheduler.get_job("daily_keepa_job")
+            job = scheduler.get_job(job_id)
         except Exception:
             job = None
         
@@ -112,34 +114,38 @@ async def get_next_scheduled_run(
 @router.get("/scheduler/settings")
 @handle_api_errors("get scheduler settings")
 async def get_scheduler_settings(
+    category: str = Query(default='dnk', regex='^(dnk|clk)$'),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
-    """Get current scheduler settings."""
+    """Get current scheduler settings for a specific category."""
     try:
-        response = db.table("scheduler_settings").select("*").eq("id", "00000000-0000-0000-0000-000000000000").execute()
+        response = db.table("scheduler_settings").select("*").eq("category", category).execute()
         if not response.data:
             # Return default settings if not found
             return {
-                "timezone": "Asia/Taipei",
-                "hour": 20,
+                "timezone": "America/Chicago",
+                "hour": 6,
                 "minute": 0,
-                "enabled": True
+                "enabled": True,
+                "category": category
             }
         settings = response.data[0]
         return {
-            "timezone": settings.get("timezone", "Asia/Taipei"),
-            "hour": settings.get("hour", 20),
+            "timezone": settings.get("timezone", "America/Chicago"),
+            "hour": settings.get("hour", 6),
             "minute": settings.get("minute", 0),
-            "enabled": settings.get("enabled", True)
+            "enabled": settings.get("enabled", True),
+            "category": settings.get("category", category)
         }
     except Exception as e:
         # Return default settings on error
         return {
-            "timezone": "Asia/Taipei",
-            "hour": 20,
+            "timezone": "America/Chicago",
+            "hour": 6,
             "minute": 0,
-            "enabled": True
+            "enabled": True,
+            "category": category
         }
 
 
@@ -147,12 +153,13 @@ async def get_scheduler_settings(
 @handle_api_errors("update scheduler settings")
 async def update_scheduler_settings_endpoint(
     settings_data: SchedulerSettingsUpdate,
+    category: str = Query(default='dnk', regex='^(dnk|clk)$'),
     current_user: dict = Depends(get_admin_user),
     db: Client = Depends(get_supabase)
 ):
-    """Update scheduler settings (admin only)."""
-    # Get current settings
-    current_response = db.table("scheduler_settings").select("*").eq("id", "00000000-0000-0000-0000-000000000000").execute()
+    """Update scheduler settings for a specific category (admin only)."""
+    # Get current settings for this category
+    current_response = db.table("scheduler_settings").select("*").eq("category", category).execute()
     
     update_data = {}
     if settings_data.timezone is not None:
@@ -173,33 +180,35 @@ async def update_scheduler_settings_endpoint(
     
     update_data["updated_by"] = current_user["id"]
     update_data["updated_at"] = "now()"
-    
+    update_data["category"] = category
+
     # Update or insert settings
     if current_response.data:
-        response = db.table("scheduler_settings").update(update_data).eq("id", "00000000-0000-0000-0000-000000000000").execute()
+        response = db.table("scheduler_settings").update(update_data).eq("category", category).execute()
     else:
-        update_data["id"] = "00000000-0000-0000-0000-000000000000"
         response = db.table("scheduler_settings").insert(update_data).execute()
-    
+
     # Get updated settings
     updated_settings = response.data[0] if response.data else update_data
-    
+
     # Update the actual scheduler
     try:
         update_scheduler_settings(
-            timezone_str=updated_settings.get("timezone", "Asia/Taipei"),
-            hour=updated_settings.get("hour", 20),
-            minute=updated_settings.get("minute", 0)
+            timezone_str=updated_settings.get("timezone", "America/Chicago"),
+            hour=updated_settings.get("hour", 6),
+            minute=updated_settings.get("minute", 0),
+            category=category
         )
     except Exception as e:
-        logger.error(f"Failed to update scheduler: {e}")
+        logger.error(f"Failed to update {category.upper()} scheduler: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to update scheduler: {str(e)}")
-    
+
     return {
-        "timezone": updated_settings.get("timezone", "Asia/Taipei"),
-        "hour": updated_settings.get("hour", 20),
+        "timezone": updated_settings.get("timezone", "America/Chicago"),
+        "hour": updated_settings.get("hour", 6),
         "minute": updated_settings.get("minute", 0),
         "enabled": updated_settings.get("enabled", True),
-        "message": "Scheduler settings updated successfully"
+        "category": category,
+        "message": f"{category.upper()} scheduler settings updated successfully"
     }
 

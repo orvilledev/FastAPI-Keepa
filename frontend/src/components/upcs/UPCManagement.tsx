@@ -2,9 +2,19 @@ import { useState, useEffect } from 'react'
 import { upcsApi } from '../../services/api'
 import type { UPC } from '../../types'
 
-export default function UPCManagement() {
+interface UPCManagementProps {
+  category: 'dnk' | 'clk'
+  title?: string
+  description?: string
+}
+
+export default function UPCManagement({
+  category,
+  title,
+  description
+}: UPCManagementProps) {
   const [upcs, setUpcs] = useState<UPC[]>([])
-  const [allUpcs, setAllUpcs] = useState<UPC[]>([]) // Store all UPCs for filtering
+  const [allUpcs, setAllUpcs] = useState<UPC[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
@@ -15,14 +25,18 @@ export default function UPCManagement() {
   const [currentPage, setCurrentPage] = useState(0)
   const [limit] = useState(100)
 
+  // Default title and description based on category
+  const displayTitle = title || `Manage ${category.toUpperCase()} UPCs`
+  const displayDescription = description || `Manage ${category.toUpperCase()} UPCs for daily scheduler processing. Total: ${totalCount} UPCs`
+
   useEffect(() => {
     loadUPCCount()
     loadUPCs()
-  }, [currentPage])
+  }, [currentPage, category])
 
   const loadUPCCount = async () => {
     try {
-      const data = await upcsApi.getUPCCount()
+      const data = await upcsApi.getUPCCount(category)
       setTotalCount(data.count)
     } catch (error) {
       console.error('Failed to load UPC count:', error)
@@ -32,9 +46,8 @@ export default function UPCManagement() {
   const loadUPCs = async () => {
     try {
       setLoading(true)
-      const data = await upcsApi.listUPCs(limit, currentPage * limit)
+      const data = await upcsApi.listUPCs(limit, currentPage * limit, category)
       setAllUpcs(data)
-      // Apply search filter if there's a search term
       if (searchTerm.trim()) {
         const filtered = data.filter((upc) =>
           upc.upc.toLowerCase().includes(searchTerm.toLowerCase().trim())
@@ -81,7 +94,14 @@ export default function UPCManagement() {
         return
       }
 
-      const result = await upcsApi.addUPCs(upcList)
+      // Ensure upcList is an array
+      if (!Array.isArray(upcList)) {
+        setError('Invalid UPC format')
+        setAdding(false)
+        return
+      }
+
+      const result = await upcsApi.addUPCs(upcList, category)
       
       // Check if there are duplicates or if nothing was added
       const duplicatesRejected = result.duplicates_rejected || 0
@@ -122,7 +142,30 @@ export default function UPCManagement() {
       loadUPCCount()
       loadUPCs()
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to add UPCs')
+      console.error('Error adding UPCs:', err)
+      // Handle FastAPI validation errors (422) - they have a different structure
+      let errorMessage = 'Failed to add UPCs'
+      if (err.response?.data) {
+        const errorData = err.response.data
+        // FastAPI validation errors return an array of errors
+        if (Array.isArray(errorData)) {
+          errorMessage = errorData.map((e: any) => e.msg || e.message || JSON.stringify(e)).join(', ')
+        } else if (errorData.detail) {
+          // Single error detail
+          if (Array.isArray(errorData.detail)) {
+            errorMessage = errorData.detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join(', ')
+          } else {
+            errorMessage = typeof errorData.detail === 'string' ? errorData.detail : JSON.stringify(errorData.detail)
+          }
+        } else if (errorData.message) {
+          errorMessage = typeof errorData.message === 'string' ? errorData.message : JSON.stringify(errorData.message)
+        } else {
+          errorMessage = JSON.stringify(errorData)
+        }
+      } else if (err.message) {
+        errorMessage = err.message
+      }
+      setError(errorMessage)
     } finally {
       setAdding(false)
     }
@@ -134,7 +177,7 @@ export default function UPCManagement() {
     }
 
     try {
-      await upcsApi.deleteUPC(upc)
+      await upcsApi.deleteUPC(upc, category)
       setSuccess(`UPC ${upc} deleted successfully`)
       loadUPCCount()
       loadUPCs()
@@ -149,8 +192,8 @@ export default function UPCManagement() {
     }
 
     try {
-      await upcsApi.deleteAllUPCs()
-      setSuccess('All UPCs deleted successfully')
+      await upcsApi.deleteAllUPCs(category)
+      setSuccess(`All ${category.toUpperCase()} UPCs deleted successfully`)
       setUpcs([])
       setTotalCount(0)
       setCurrentPage(0)
@@ -165,9 +208,9 @@ export default function UPCManagement() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Manage UPCs</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{displayTitle}</h1>
           <p className="mt-2 text-sm text-gray-600">
-            Manage UPCs for daily scheduler processing. Total: {totalCount} UPCs
+            {displayDescription}
           </p>
         </div>
         {totalCount > 0 && (

@@ -1,11 +1,14 @@
 """FastAPI application entry point."""
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from app.config import settings
 from app.database import init_db
 from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, tasks, task_validations, task_attachments, dashboard, map, notes, notifications
 from app.scheduler import setup_scheduler, start_scheduler, shutdown_scheduler
 import logging
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +30,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Custom exception handler for validation errors
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle validation errors with detailed logging for debugging."""
+    errors = exc.errors()
+
+    # Get request body for debugging
+    try:
+        body = await request.body()
+        body_json = json.loads(body) if body else {}
+        logger.error(f"Validation error for {request.method} {request.url.path}")
+        logger.error(f"Request body: {json.dumps(body_json, indent=2)}")
+        logger.error(f"Validation errors: {json.dumps(errors, indent=2)}")
+    except Exception as e:
+        logger.error(f"Could not parse request body: {e}")
+
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": errors}
+    )
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -34,23 +58,40 @@ async def startup_event():
     logger.info("Initializing database connection...")
     init_db()
     logger.info("Setting up scheduler...")
-    # Try to load scheduler settings from database
+    # Try to load scheduler settings from database for both DNK and CLK
     try:
         from app.database import get_supabase
         db = get_supabase()
-        settings_response = db.table("scheduler_settings").select("*").eq("id", "00000000-0000-0000-0000-000000000000").execute()
-        if settings_response.data:
-            settings = settings_response.data[0]
+
+        # Load DNK settings
+        dnk_settings_response = db.table("scheduler_settings").select("*").eq("category", "dnk").execute()
+        if dnk_settings_response.data:
+            dnk_settings = dnk_settings_response.data[0]
             setup_scheduler(
-                timezone_str=settings.get("timezone", "Asia/Taipei"),
-                hour=settings.get("hour", 20),
-                minute=settings.get("minute", 0)
+                timezone_str=dnk_settings.get("timezone", "America/Chicago"),
+                hour=dnk_settings.get("hour", 6),
+                minute=dnk_settings.get("minute", 0),
+                category='dnk'
             )
         else:
-            setup_scheduler()  # Use defaults
+            setup_scheduler(category='dnk')  # Use DNK defaults
+
+        # Load CLK settings
+        clk_settings_response = db.table("scheduler_settings").select("*").eq("category", "clk").execute()
+        if clk_settings_response.data:
+            clk_settings = clk_settings_response.data[0]
+            setup_scheduler(
+                timezone_str=clk_settings.get("timezone", "America/Chicago"),
+                hour=clk_settings.get("hour", 6),
+                minute=clk_settings.get("minute", 0),
+                category='clk'
+            )
+        else:
+            setup_scheduler(category='clk')  # Use CLK defaults
     except Exception as e:
         logger.warning(f"Failed to load scheduler settings, using defaults: {e}")
-        setup_scheduler()  # Use defaults
+        setup_scheduler(category='dnk')  # Use DNK defaults
+        setup_scheduler(category='clk')  # Use CLK defaults
     start_scheduler()
     logger.info("Application startup complete")
 

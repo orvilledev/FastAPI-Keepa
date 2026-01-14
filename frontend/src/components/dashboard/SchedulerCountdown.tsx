@@ -85,7 +85,7 @@ export default function SchedulerCountdown() {
 
       return () => clearInterval(interval)
     }
-  }, [status?.seconds_until, loadStatus])
+  }, [status?.seconds_until])
 
 
   if (loading) {

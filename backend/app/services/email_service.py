@@ -14,16 +14,14 @@ logger = logging.getLogger(__name__)
 
 class EmailService:
     """Service for sending emails with CSV attachments."""
-    
-    # Hardcoded recipient email
-    RECIPIENT_EMAIL = "remote@metroshoewarehouse.com"
-    
+
     def __init__(self):
         self.smtp_host = settings.email_smtp_host
         self.smtp_port = settings.email_smtp_port
         self.email_from = settings.email_from
         self.email_from_name = settings.email_from_name
         self.email_password = settings.email_password
+        # Use configured email_to from settings
         self.email_to = settings.email_to
         self.last_error = None
     
@@ -45,20 +43,21 @@ class EmailService:
     ) -> bool:
         """
         Send email with CSV attachment.
-        
+
         Args:
             csv_bytes: CSV file content as bytes
             filename: Name of the CSV file
             job_name: Name of the batch job
             total_upcs: Total number of UPCs processed
             alerts_count: Number of price alerts found
-            recipient_email: Optional recipient email (ignored - always uses remote@metroshoewarehouse.com)
-            
+            recipient_email: Optional recipient email, defaults to configured email_to
+
         Returns:
             True if email sent successfully, False otherwise
         """
-        # Always use the hardcoded recipient email
-        recipients = [self.RECIPIENT_EMAIL]
+        # Use provided email or fall back to configured default
+        email_to = recipient_email or self.email_to
+        recipients = self._parse_recipients(email_to)
         
         # Validate configuration
         if not self.email_from:
@@ -151,14 +150,14 @@ class EmailService:
     ) -> bool:
         """
         Send job completion email with optional CSV attachment.
-        
+
         Args:
             job_name: Name of the batch job
             total_upcs: Total number of UPCs processed
             alerts_count: Number of price alerts found
             csv_bytes: Optional CSV file content
-            recipient_email: Optional recipient email (ignored - always uses remote@metroshoewarehouse.com)
-            
+            recipient_email: Optional recipient email, defaults to configured email_to
+
         Returns:
             True if email sent successfully, False otherwise
         """
@@ -174,8 +173,8 @@ class EmailService:
             )
         else:
             # Send email without attachment
-            # Always use the hardcoded recipient email
-            recipients = [self.RECIPIENT_EMAIL]
+            email_to = recipient_email or self.email_to
+            recipients = self._parse_recipients(email_to)
             
             if not recipients:
                 logger.error("No recipients configured")

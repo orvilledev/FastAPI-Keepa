@@ -116,6 +116,7 @@ export interface JobStatus {
 export interface UPC {
   id: string
   upc: string
+  category: string
   created_at: string
 }
 

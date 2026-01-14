@@ -14,6 +14,8 @@ const JobList = lazy(() => import('./components/jobs/JobList'))
 const JobDetail = lazy(() => import('./components/jobs/JobDetail'))
 const CreateJob = lazy(() => import('./components/jobs/CreateJob'))
 const DailyRun = lazy(() => import('./components/jobs/DailyRun'))
+const DNKDailyRun = lazy(() => import('./components/jobs/DNKDailyRun'))
+const CLKDailyRun = lazy(() => import('./components/jobs/CLKDailyRun'))
 const ReportView = lazy(() => import('./components/reports/ReportView'))
 const UPCManagement = lazy(() => import('./components/upcs/UPCManagement'))
 const MAPManagement = lazy(() => import('./components/map/MAPManagement'))
@@ -61,98 +63,28 @@ function AppRoutes() {
           path="/"
           element={user ? <Layout /> : <Navigate to="/" replace />}
         >
-          <Route path="dashboard" element={user ? <Dashboard /> : <Navigate to="/" replace />} />
-          <Route 
-            path="jobs" 
-            element={
-              user ? (
-                <ProtectedRoute requireKeepaAccess={true}>
-                  <JobList />
-                </ProtectedRoute>
-              ) : (
-                <Navigate to="/" replace />
-              )
-            } 
-          />
-          <Route 
-            path="jobs/new" 
-            element={
-              user ? (
-                <ProtectedRoute requireKeepaAccess={true}>
-                  <CreateJob />
-                </ProtectedRoute>
-              ) : (
-                <Navigate to="/" replace />
-              )
-            } 
-          />
-          <Route 
-            path="jobs/:jobId" 
-            element={
-              user ? (
-                <ProtectedRoute requireKeepaAccess={true}>
-                  <JobDetail />
-                </ProtectedRoute>
-              ) : (
-                <Navigate to="/" replace />
-              )
-            } 
-          />
-          <Route 
-            path="reports/:jobId" 
-            element={
-              user ? (
-                <ProtectedRoute requireKeepaAccess={true}>
-                  <ReportView />
-                </ProtectedRoute>
-              ) : (
-                <Navigate to="/" replace />
-              )
-            } 
-          />
-          <Route 
-            path="upcs" 
-            element={
-              user ? (
-                <ProtectedRoute requireKeepaAccess={true}>
-                  <UPCManagement />
-                </ProtectedRoute>
-              ) : (
-                <Navigate to="/" replace />
-              )
-            } 
-          />
-          <Route 
-            path="map" 
-            element={
-              user ? (
-                <ProtectedRoute requireKeepaAccess={true}>
-                  <MAPManagement />
-                </ProtectedRoute>
-              ) : (
-                <Navigate to="/" replace />
-              )
-            } 
-          />
-          <Route 
-            path="daily-run" 
-            element={
-              user ? (
-                <ProtectedRoute requireKeepaAccess={true}>
-                  <DailyRun />
-                </ProtectedRoute>
-              ) : (
-                <Navigate to="/" replace />
-              )
-            } 
-          />
-          <Route path="team-tasks" element={user ? <TeamTasks /> : <Navigate to="/" replace />} />
-          <Route path="my-space/notes" element={user ? <MyNotes /> : <Navigate to="/" replace />} />
-          <Route path="notifications" element={user ? <Notifications /> : <Navigate to="/" replace />} />
-          <Route path="tools/public" element={user ? <PublicTools /> : <Navigate to="/" replace />} />
-          <Route path="tools/my-toolbox" element={user ? <MyToolbox /> : <Navigate to="/" replace />} />
-          <Route path="tools/job-aids" element={user ? <JobAids /> : <Navigate to="/" replace />} />
-          <Route path="admin/users" element={user ? <UserManagement /> : <Navigate to="/" replace />} />
+          <Route path="dashboard" element={<Dashboard />} />
+
+          {/* Keepa-access required routes */}
+          <Route path="jobs" element={<ProtectedRoute requireKeepaAccess={true}><JobList /></ProtectedRoute>} />
+          <Route path="jobs/new" element={<ProtectedRoute requireKeepaAccess={true}><CreateJob /></ProtectedRoute>} />
+          <Route path="jobs/:jobId" element={<ProtectedRoute requireKeepaAccess={true}><JobDetail /></ProtectedRoute>} />
+          <Route path="reports/:jobId" element={<ProtectedRoute requireKeepaAccess={true}><ReportView /></ProtectedRoute>} />
+          <Route path="upcs" element={<ProtectedRoute requireKeepaAccess={true}><UPCManagement category="dnk" /></ProtectedRoute>} />
+          <Route path="clk-upcs" element={<ProtectedRoute requireKeepaAccess={true}><UPCManagement category="clk" /></ProtectedRoute>} />
+          <Route path="map" element={<ProtectedRoute requireKeepaAccess={true}><MAPManagement /></ProtectedRoute>} />
+          <Route path="daily-run" element={<Navigate to="/daily-run/dnk" replace />} />
+          <Route path="daily-run/dnk" element={<ProtectedRoute requireKeepaAccess={true}><DNKDailyRun /></ProtectedRoute>} />
+          <Route path="daily-run/clk" element={<ProtectedRoute requireKeepaAccess={true}><CLKDailyRun /></ProtectedRoute>} />
+
+          {/* General authenticated routes */}
+          <Route path="team-tasks" element={<TeamTasks />} />
+          <Route path="my-space/notes" element={<MyNotes />} />
+          <Route path="notifications" element={<Notifications />} />
+          <Route path="tools/public" element={<PublicTools />} />
+          <Route path="tools/my-toolbox" element={<MyToolbox />} />
+          <Route path="tools/job-aids" element={<JobAids />} />
+          <Route path="admin/users" element={<UserManagement />} />
         </Route>
       </Routes>
     </Suspense>

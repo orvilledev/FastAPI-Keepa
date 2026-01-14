@@ -1,6 +1,6 @@
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { notificationsApi } from '../../services/api'
 
 export default function Navbar() {
@@ -8,14 +8,24 @@ export default function Navbar() {
   const navigate = useNavigate()
   const [unreadCount, setUnreadCount] = useState(0)
 
+  // Memoize loadUnreadCount to prevent recreating intervals on every render
+  const loadUnreadCount = useCallback(async () => {
+    try {
+      const count = await notificationsApi.getUnreadCount()
+      setUnreadCount(count)
+    } catch (err) {
+      console.error('Failed to load unread count:', err)
+    }
+  }, [])
+
   useEffect(() => {
     if (user) {
       loadUnreadCount()
-      // Refresh every 10 seconds for better responsiveness
-      const interval = setInterval(loadUnreadCount, 10000)
+      // Refresh every 30 seconds to reduce server load
+      const interval = setInterval(loadUnreadCount, 30000)
       return () => clearInterval(interval)
     }
-  }, [user])
+  }, [user, loadUnreadCount])
   
   // Also refresh when window regains focus
   useEffect(() => {
@@ -26,16 +36,7 @@ export default function Navbar() {
       window.addEventListener('focus', handleFocus)
       return () => window.removeEventListener('focus', handleFocus)
     }
-  }, [user])
-
-  const loadUnreadCount = async () => {
-    try {
-      const count = await notificationsApi.getUnreadCount()
-      setUnreadCount(count)
-    } catch (err) {
-      console.error('Failed to load unread count:', err)
-    }
-  }
+  }, [user, loadUnreadCount])
 
   const handleSignOut = async () => {
     await signOut()

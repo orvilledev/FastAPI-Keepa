@@ -3,7 +3,8 @@ import { upcsApi, mapApi } from '../../services/api'
 import { Link } from 'react-router-dom'
 
 export default function UPCMAPStats() {
-  const [upcCount, setUpcCount] = useState<number | null>(null)
+  const [dnkUpcCount, setDnkUpcCount] = useState<number | null>(null)
+  const [clkUpcCount, setClkUpcCount] = useState<number | null>(null)
   const [mapCount, setMapCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -13,14 +14,16 @@ export default function UPCMAPStats() {
       try {
         setError(null)
         setLoading(true)
-        
-        // Load both counts in parallel
-        const [upcData, mapData] = await Promise.all([
-          upcsApi.getUPCCount(),
+
+        // Load all counts in parallel
+        const [dnkUpcData, clkUpcData, mapData] = await Promise.all([
+          upcsApi.getUPCCount('dnk'),
+          upcsApi.getUPCCount('clk'),
           mapApi.getMAPCount()
         ])
-        
-        setUpcCount(upcData.count)
+
+        setDnkUpcCount(dnkUpcData.count)
+        setClkUpcCount(clkUpcData.count)
         setMapCount(mapData.count)
       } catch (err: any) {
         console.error('Failed to load UPC/MAP counts:', err)
@@ -58,16 +61,29 @@ export default function UPCMAPStats() {
   return (
     <div className="card p-4">
       <h3 className="text-sm font-semibold text-gray-700 mb-3">Data Statistics</h3>
-      <div className="grid grid-cols-2 gap-4">
-        {/* UPC Count */}
+      <div className="grid grid-cols-3 gap-3">
+        {/* DNK UPC Count */}
         <Link
           to="/upcs"
           className="group hover:bg-indigo-50 rounded-lg p-3 transition-colors border border-transparent hover:border-indigo-200"
         >
           <div>
-            <div className="text-xs text-gray-500 mb-1">UPCs</div>
+            <div className="text-xs text-gray-500 mb-1">DNK UPCs</div>
             <div className="text-2xl font-bold text-[#0B1020] group-hover:text-[#1a2235]">
-              {upcCount !== null ? upcCount.toLocaleString() : '—'}
+              {dnkUpcCount !== null ? dnkUpcCount.toLocaleString() : '—'}
+            </div>
+          </div>
+        </Link>
+
+        {/* CLK UPC Count */}
+        <Link
+          to="/clk-upcs"
+          className="group hover:bg-blue-50 rounded-lg p-3 transition-colors border border-transparent hover:border-blue-200"
+        >
+          <div>
+            <div className="text-xs text-gray-500 mb-1">CLK UPCs</div>
+            <div className="text-2xl font-bold text-[#0B1020] group-hover:text-[#1a2235]">
+              {clkUpcCount !== null ? clkUpcCount.toLocaleString() : '—'}
             </div>
           </div>
         </Link>

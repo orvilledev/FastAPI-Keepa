@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
-import SchedulerCountdown from './SchedulerCountdown'
+import DNKSchedulerCountdown from './DNKSchedulerCountdown'
+import CLKSchedulerCountdown from './CLKSchedulerCountdown'
 import QuickAccess from './QuickAccess'
 import UPCMAPStats from './UPCMAPStats'
 import { dashboardApi } from '../../services/api'
@@ -27,7 +28,8 @@ export default function Dashboard() {
     
     // Only add Keepa-related widgets if user has access
     if (hasKeepaAccess) {
-      widgets.schedulerCountdown = <SchedulerCountdown />
+      widgets.dnkSchedulerCountdown = <DNKSchedulerCountdown />
+      widgets.clkSchedulerCountdown = <CLKSchedulerCountdown />
       widgets.upcMapStats = <UPCMAPStats />
     }
     
@@ -36,7 +38,8 @@ export default function Dashboard() {
   
   // Create widget components separately to avoid dependency issues
   const quickAccessWidget = useMemo(() => <QuickAccess />, [])
-  const schedulerCountdownWidget = useMemo(() => <SchedulerCountdown />, [])
+  const dnkSchedulerCountdownWidget = useMemo(() => <DNKSchedulerCountdown />, [])
+  const clkSchedulerCountdownWidget = useMemo(() => <CLKSchedulerCountdown />, [])
   const upcMapStatsWidget = useMemo(() => <UPCMAPStats />, [])
 
   // Set greeting from context
@@ -55,9 +58,7 @@ export default function Dashboard() {
       try {
         // Load widget order
         try {
-          console.log('Loading widget order...')
           const savedWidgets = await dashboardApi.getWidgets()
-          console.log('Loaded widgets from API:', savedWidgets)
           const widgetOrder = savedWidgets
             .filter(w => w.is_visible)
             .sort((a, b) => a.display_order - b.display_order)
@@ -65,15 +66,16 @@ export default function Dashboard() {
               let component: React.ReactNode | undefined
               if (w.widget_id === 'quickAccess') {
                 component = quickAccessWidget
-              } else if (w.widget_id === 'schedulerCountdown' && hasKeepaAccess) {
-                component = schedulerCountdownWidget
+              } else if (w.widget_id === 'dnkSchedulerCountdown' && hasKeepaAccess) {
+                component = dnkSchedulerCountdownWidget
+              } else if (w.widget_id === 'clkSchedulerCountdown' && hasKeepaAccess) {
+                component = clkSchedulerCountdownWidget
               } else if (w.widget_id === 'upcMapStats' && hasKeepaAccess) {
                 component = upcMapStatsWidget
               }
               return { id: w.widget_id, component }
             })
             .filter(w => w.component !== undefined)
-          console.log('Processed widget order:', widgetOrder)
 
           // If no saved order, use default and save it
           if (widgetOrder.length === 0) {
@@ -82,7 +84,8 @@ export default function Dashboard() {
             ]
             // Only add Keepa widgets if user has access
             if (hasKeepaAccess) {
-              defaultWidgets.push({ id: 'schedulerCountdown', component: schedulerCountdownWidget })
+              defaultWidgets.push({ id: 'dnkSchedulerCountdown', component: dnkSchedulerCountdownWidget })
+              defaultWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
               defaultWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
             }
             setWidgets(defaultWidgets)
@@ -105,7 +108,8 @@ export default function Dashboard() {
               { id: 'quickAccess', component: quickAccessWidget },
             ]
             if (hasKeepaAccess) {
-              allAvailableWidgets.push({ id: 'schedulerCountdown', component: schedulerCountdownWidget })
+              allAvailableWidgets.push({ id: 'dnkSchedulerCountdown', component: dnkSchedulerCountdownWidget })
+              allAvailableWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
               allAvailableWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
             }
             const missingWidgets = allAvailableWidgets.filter(w => !savedWidgetIds.has(w.id))
@@ -151,7 +155,8 @@ export default function Dashboard() {
           ]
           // Only add Keepa widgets if user has access
           if (hasKeepaAccess) {
-            defaultWidgets.push({ id: 'schedulerCountdown', component: schedulerCountdownWidget })
+            defaultWidgets.push({ id: 'dnkSchedulerCountdown', component: dnkSchedulerCountdownWidget })
+            defaultWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
             defaultWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
           }
           setWidgets(defaultWidgets)
@@ -180,7 +185,8 @@ export default function Dashboard() {
           { id: 'quickAccess', component: quickAccessWidget },
         ]
         if (hasKeepaAccess) {
-          defaultWidgets.push({ id: 'schedulerCountdown', component: schedulerCountdownWidget })
+          defaultWidgets.push({ id: 'dnkSchedulerCountdown', component: dnkSchedulerCountdownWidget })
+          defaultWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
           defaultWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
         }
         setWidgets(defaultWidgets)
@@ -190,7 +196,7 @@ export default function Dashboard() {
     }
 
     loadData()
-  }, [hasKeepaAccess, userInfoLoading, quickAccessWidget, schedulerCountdownWidget, upcMapStatsWidget])
+  }, [hasKeepaAccess, userInfoLoading, quickAccessWidget, dnkSchedulerCountdownWidget, clkSchedulerCountdownWidget, upcMapStatsWidget])
 
   const handleDragStart = (index: number) => {
     setDraggedIndex(index)
@@ -218,24 +224,9 @@ export default function Dashboard() {
         widget_id: widget.id,
         display_order: index,
       }))
-      console.log('Saving widget order:', orderData)
-      const result = await dashboardApi.updateWidgetOrder(orderData)
-      console.log('Widget order saved successfully:', result)
-      
-      // Verify the save worked by checking the returned order
-      if (result && result.length > 0) {
-        const savedOrder = result
-          .filter(w => w.is_visible)
-          .sort((a, b) => a.display_order - b.display_order)
-          .map(w => w.widget_id)
-        console.log('Verified saved order:', savedOrder)
-      }
+      await dashboardApi.updateWidgetOrder(orderData)
     } catch (err: any) {
       console.error('Failed to save widget order:', err)
-      console.error('Error details:', err.response?.data || err.message)
-      console.error('Full error:', err)
-      
-      // Show error to user
       alert(`Failed to save widget order: ${err.response?.data?.detail || err.message || 'Unknown error'}. Please check if the dashboard_widgets table exists in your database.`)
     } finally {
       setSaving(false)

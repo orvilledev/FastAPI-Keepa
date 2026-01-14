@@ -70,35 +70,103 @@
     color: white !important;
     box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
   }
-  
+
   /* Override any inline styles on hover */
   .sidebar-link:hover span {
     color: white !important;
   }
-  
-  /* Child items in dark dropdown containers - white text by default */
-  .dark-dropdown .sidebar-link-inactive {
-    color: rgba(255, 255, 255, 0.8) !important;
+
+  /* 2nd level menu items in parent container - WHITE text by default */
+  .ml-4.mt-1 > .sidebar-link-inactive {
+    color: white !important;
     background: transparent !important;
   }
-  
-  /* When hovering a child item in dark dropdown, highlight with lighter background */
+
+  .ml-4.mt-1 > .sidebar-link-inactive span {
+    color: white !important;
+  }
+
+  /* 2nd level menu items hover - ORANGE text */
+  .ml-4.mt-1 > .sidebar-link:hover {
+    color: #F97316 !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+  }
+
+  .ml-4.mt-1 > .sidebar-link:hover span {
+    color: #F97316 !important;
+  }
+
+  /* Child items in dark dropdown containers (3rd level parent buttons) - WHITE text by default */
+  .dark-dropdown .sidebar-link-inactive {
+    color: white !important;
+    background: transparent !important;
+  }
+
+  .dark-dropdown .sidebar-link-inactive span {
+    color: white !important;
+  }
+
+  /* Dashboard link when Keepa menu is open - BLACK text, transparent background */
+  .dark-dropdown .sidebar-link.keepa-open {
+    color: black !important;
+    background: transparent !important;
+  }
+
+  .dark-dropdown .sidebar-link.keepa-open span {
+    color: black !important;
+  }
+
+  /* Dashboard link hover when Keepa menu is open - still ORANGE */
+  .dark-dropdown .sidebar-link.keepa-open:hover {
+    color: #F97316 !important;
+    background: rgba(249, 115, 22, 0.1) !important;
+  }
+
+  .dark-dropdown .sidebar-link.keepa-open:hover span {
+    color: #F97316 !important;
+  }
+
+  /* When hovering a child item in dark dropdown, highlight with lighter background and ORANGE text */
   .dark-dropdown .sidebar-link-inactive:hover {
     background: rgba(255, 255, 255, 0.15) !important;
-    color: white !important;
+    color: #F97316 !important;
     box-shadow: none !important;
   }
-  
+
+  /* Override span color inside hovered items in dark dropdown - MUST come after general .sidebar-link:hover span */
+  .dark-dropdown .sidebar-link:hover span {
+    color: #F97316 !important;
+  }
+
   /* Ensure non-hovered siblings in dark dropdown stay transparent */
   .dark-dropdown .sidebar-link:not(:hover):not(.sidebar-link-active) {
     background: transparent !important;
     box-shadow: none !important;
   }
-  
+
   /* Active items in dark dropdown */
   .dark-dropdown .sidebar-link-active {
     background: rgba(255, 255, 255, 0.2) !important;
     color: white !important;
+  }
+
+  /* 3rd level menu items in flyout menus - WHITE text by default */
+  .flyout-menu .sidebar-link-inactive {
+    color: white !important;
+  }
+
+  .flyout-menu .sidebar-link-inactive span {
+    color: white !important;
+  }
+
+  /* 3rd level menu items in flyout menus - ORANGE text on hover */
+  .flyout-menu .sidebar-link-inactive:hover {
+    color: #F97316 !important;
+  }
+
+  /* Override span color inside hovered 3rd level menu items - MUST come after general .sidebar-link:hover span */
+  .flyout-menu .sidebar-link:hover span {
+    color: #F97316 !important;
   }
   
 }

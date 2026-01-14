@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useUser } from '../../contexts/UserContext'
 
 // SVG Icon components that inherit text color via currentColor
@@ -97,8 +97,15 @@ export default function Sidebar() {
   const { hasKeepaAccess, isSuperadmin } = useUser()
   const [isDashboardMenuOpen, setIsDashboardMenuOpen] = useState(true)
   const [isKeepaMenuOpen, setIsKeepaMenuOpen] = useState(true)
+  const [isDailyRunsMenuOpen, setIsDailyRunsMenuOpen] = useState(false)
+  const [isManageUPCsMenuOpen, setIsManageUPCsMenuOpen] = useState(false)
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false)
   const [isMySpaceMenuOpen, setIsMySpaceMenuOpen] = useState(false)
+
+  const dailyRunsButtonRef = useRef<HTMLButtonElement>(null)
+  const manageUPCsButtonRef = useRef<HTMLButtonElement>(null)
+  const dailyRunsTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const manageUPCsTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const isActive = (path: string) => {
     const currentPath = location.pathname
@@ -121,11 +128,29 @@ export default function Sidebar() {
     return false
   }
 
+  const dailyRunsMenuItems = [
+    { path: '/daily-run/dnk', label: 'DNK Daily Run', icon: 'refresh' as const },
+    { path: '/daily-run/clk', label: 'CLK Daily Run', icon: 'refresh' as const },
+  ]
+
+  const manageUPCsMenuItems = [
+    { path: '/upcs', label: 'Manage DNK UPCs', icon: 'barcode' as const },
+    { path: '/clk-upcs', label: 'Manage CLK UPCs', icon: 'barcode' as const },
+  ]
+
   const keepaMenuItems = [
     { path: '/jobs', label: 'Express Jobs', icon: 'package' as const },
-    { path: '/upcs', label: 'Manage UPCs', icon: 'barcode' as const },
+    {
+      label: 'Manage UPCs',
+      icon: 'barcode' as const,
+      children: manageUPCsMenuItems
+    },
     { path: '/map', label: 'Manage MAP', icon: 'dollar' as const },
-    { path: '/daily-run', label: 'Daily Run', icon: 'refresh' as const },
+    {
+      label: 'Daily Runs',
+      icon: 'refresh' as const,
+      children: dailyRunsMenuItems
+    },
   ]
 
   const toolsMenuItems = [
@@ -149,20 +174,30 @@ export default function Sidebar() {
   ]
 
   // Check if any sub-item is active to keep menu open
-  const hasActiveSubItem = keepaMenuItems.some(item => isActive(item.path))
+  const hasActiveDailyRunsSubItem = dailyRunsMenuItems.some(item => isActive(item.path))
+  const hasActiveManageUPCsSubItem = manageUPCsMenuItems.some(item => isActive(item.path))
+  const hasActiveSubItem = keepaMenuItems.some(item =>
+    item.path ? isActive(item.path) : (item.children && item.children.some(child => isActive(child.path)))
+  )
   const hasActiveToolsSubItem = toolsMenuItems.some(item => isActive(item.path))
   const hasActiveMySpaceSubItem = mySpaceMenuItems.some(item => isActive(item.path))
-  const hasActiveDashboardSubItem = isActive('/dashboard') || hasActiveSubItem
+  const hasActiveDashboardSubItem = isActive('/dashboard') || hasActiveSubItem || hasActiveDailyRunsSubItem || hasActiveManageUPCsSubItem
 
   // Auto-open menu if a sub-item is active
   useEffect(() => {
     if (hasActiveDashboardSubItem) {
       setIsDashboardMenuOpen(true)
-      if (hasActiveSubItem) {
+      if (hasActiveSubItem || hasActiveDailyRunsSubItem || hasActiveManageUPCsSubItem) {
         setIsKeepaMenuOpen(true)
       }
+      if (hasActiveDailyRunsSubItem) {
+        setIsDailyRunsMenuOpen(true)
+      }
+      if (hasActiveManageUPCsSubItem) {
+        setIsManageUPCsMenuOpen(true)
+      }
     }
-  }, [hasActiveDashboardSubItem, hasActiveSubItem])
+  }, [hasActiveDashboardSubItem, hasActiveSubItem, hasActiveDailyRunsSubItem, hasActiveManageUPCsSubItem])
 
   useEffect(() => {
     if (hasActiveToolsSubItem) {
@@ -177,7 +212,7 @@ export default function Sidebar() {
   }, [hasActiveMySpaceSubItem])
 
   return (
-    <aside className="w-64 bg-white/80 backdrop-blur-lg border-r border-gray-200/80 shadow-lg h-screen sticky top-0">
+    <aside className="w-64 bg-white/80 backdrop-blur-lg border-r border-gray-200/80 shadow-lg h-screen sticky top-0 z-50">
       <div className="p-6 border-b border-gray-200/80">
         <div className="flex items-center space-x-2">
           <img src="/orbit-logo.svg" alt="Orbit" className="w-8 h-8" />
@@ -241,18 +276,105 @@ export default function Sidebar() {
                     
                     {isKeepaMenuOpen && (
                       <div className="ml-4 mt-1 space-y-1 bg-[#0B1020] rounded-lg p-2 dark-dropdown">
-                        {keepaMenuItems.map((item) => (
-                          <Link
-                            key={item.path}
-                            to={item.path}
-                            className={`sidebar-link ${
-                              isActive(item.path) ? 'sidebar-link-active' : 'sidebar-link-inactive'
-                            }`}
-                          >
-                            <span className="mr-3">{Icons[item.icon]}</span>
-                            <span>{item.label}</span>
-                          </Link>
-                        ))}
+                        {keepaMenuItems.map((item) => {
+                          // If item has children, render as nested dropdown with flyout
+                          if (item.children) {
+                            const isOpen = (item.label === 'Daily Runs' && isDailyRunsMenuOpen) ||
+                                          (item.label === 'Manage UPCs' && isManageUPCsMenuOpen)
+                            const hasActiveChild = (item.label === 'Daily Runs' && hasActiveDailyRunsSubItem) ||
+                                                  (item.label === 'Manage UPCs' && hasActiveManageUPCsSubItem)
+                            const buttonRef = item.label === 'Daily Runs' ? dailyRunsButtonRef : manageUPCsButtonRef
+                            const timeoutRef = item.label === 'Daily Runs' ? dailyRunsTimeoutRef : manageUPCsTimeoutRef
+
+                            const handleMouseEnter = () => {
+                              // Clear any pending close timeout
+                              if (timeoutRef.current) {
+                                clearTimeout(timeoutRef.current)
+                                timeoutRef.current = null
+                              }
+                              if (item.label === 'Daily Runs') {
+                                setIsDailyRunsMenuOpen(true)
+                              } else if (item.label === 'Manage UPCs') {
+                                setIsManageUPCsMenuOpen(true)
+                              }
+                            }
+
+                            const handleMouseLeave = () => {
+                              // Add a delay before closing to allow moving to flyout
+                              timeoutRef.current = setTimeout(() => {
+                                if (item.label === 'Daily Runs') {
+                                  setIsDailyRunsMenuOpen(false)
+                                } else if (item.label === 'Manage UPCs') {
+                                  setIsManageUPCsMenuOpen(false)
+                                }
+                              }, 200)
+                            }
+
+                            return (
+                              <div key={item.label} className="relative group">
+                                <button
+                                  ref={buttonRef}
+                                  onMouseEnter={handleMouseEnter}
+                                  onMouseLeave={handleMouseLeave}
+                                  className={`sidebar-link sidebar-link-inactive w-full text-left ${
+                                    hasActiveChild ? 'sidebar-link-active' : ''
+                                  }`}
+                                >
+                                  <span className="mr-3">{Icons[item.icon]}</span>
+                                  <span className="flex-1">{item.label}</span>
+                                  <span>
+                                    {Icons.chevronRight}
+                                  </span>
+                                </button>
+
+                                {/* Flyout menu on the right */}
+                                {isOpen && (
+                                  <div
+                                    className="flyout-menu absolute left-full top-0 ml-2 bg-[#1a2235] rounded-lg shadow-2xl border border-white/20 min-w-[200px] z-[9999]"
+                                    onMouseEnter={handleMouseEnter}
+                                    onMouseLeave={handleMouseLeave}
+                                  >
+                                    <div className="p-2 space-y-1">
+                                      {item.children.map((childItem) => (
+                                        <Link
+                                          key={childItem.path}
+                                          to={childItem.path}
+                                          className={`sidebar-link ${
+                                            isActive(childItem.path) ? 'sidebar-link-active' : 'sidebar-link-inactive'
+                                          }`}
+                                          onClick={() => {
+                                            if (item.label === 'Daily Runs') {
+                                              setIsDailyRunsMenuOpen(false)
+                                            } else if (item.label === 'Manage UPCs') {
+                                              setIsManageUPCsMenuOpen(false)
+                                            }
+                                          }}
+                                        >
+                                          <span className="mr-3">{Icons[childItem.icon]}</span>
+                                          <span>{childItem.label}</span>
+                                        </Link>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          }
+
+                          // Regular menu item without children
+                          return (
+                            <Link
+                              key={item.path}
+                              to={item.path!}
+                              className={`sidebar-link ${
+                                isActive(item.path!) ? 'sidebar-link-active' : 'sidebar-link-inactive'
+                              }`}
+                            >
+                              <span className="mr-3">{Icons[item.icon]}</span>
+                              <span>{item.label}</span>
+                            </Link>
+                          )
+                        })}
                       </div>
                     )}
                   </div>

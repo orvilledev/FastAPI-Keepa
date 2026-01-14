@@ -212,28 +212,45 @@ export const reportsApi = {
 
 // UPCs API
 export const upcsApi = {
-  addUPCs: async (upcs: string[]) => {
-    const response = await api.post('/api/v1/upcs', upcs)
+  addUPCs: async (upcs: string[], category: 'dnk' | 'clk' = 'dnk') => {
+    const upcsArray = Array.isArray(upcs) ? upcs : [upcs]
+    const requestBody = { upcs: upcsArray, category }
+
+    // Temporary debug logging
+    console.log('addUPCs called with:', { upcs: upcsArray.length, category })
+    console.log('Request body:', JSON.stringify(requestBody))
+
+    try {
+      const response = await api.post('/api/v1/upcs', requestBody)
+      console.log('addUPCs success:', response.data)
+      return response.data
+    } catch (error: any) {
+      console.error('addUPCs error:', error.response?.data)
+      throw error
+    }
+  },
+  
+  listUPCs: async (limit: number = 100, offset: number = 0, category?: 'dnk' | 'clk') => {
+    const categoryParam = category ? `&category=${category}` : ''
+    const response = await api.get<UPC[]>(`/api/v1/upcs?limit=${limit}&offset=${offset}${categoryParam}`)
     return response.data
   },
   
-  listUPCs: async (limit: number = 100, offset: number = 0) => {
-    const response = await api.get<UPC[]>(`/api/v1/upcs?limit=${limit}&offset=${offset}`)
+  getUPCCount: async (category?: 'dnk' | 'clk') => {
+    const categoryParam = category ? `?category=${category}` : ''
+    const response = await api.get<{ count: number }>(`/api/v1/upcs/count${categoryParam}`)
     return response.data
   },
   
-  getUPCCount: async () => {
-    const response = await api.get<{ count: number }>('/api/v1/upcs/count')
+  deleteUPC: async (upc: string, category?: 'dnk' | 'clk') => {
+    const categoryParam = category ? `?category=${category}` : ''
+    const response = await api.delete(`/api/v1/upcs/${upc}${categoryParam}`)
     return response.data
   },
   
-  deleteUPC: async (upc: string) => {
-    const response = await api.delete(`/api/v1/upcs/${upc}`)
-    return response.data
-  },
-  
-  deleteAllUPCs: async () => {
-    const response = await api.delete('/api/v1/upcs')
+  deleteAllUPCs: async (category?: 'dnk' | 'clk') => {
+    const categoryParam = category ? `?category=${category}` : ''
+    const response = await api.delete(`/api/v1/upcs${categoryParam}`)
     return response.data
   },
 }
@@ -288,16 +305,16 @@ export const mapApi = {
 
 // Scheduler API
 export const schedulerApi = {
-  getNextRun: async () => {
-    const response = await api.get<SchedulerStatus>('/api/v1/scheduler/next-run')
+  getNextRun: async (category: 'dnk' | 'clk' = 'dnk') => {
+    const response = await api.get<SchedulerStatus>(`/api/v1/scheduler/next-run?category=${category}`)
     return response.data
   },
-  getSettings: async () => {
-    const response = await api.get<{ timezone: string; hour: number; minute: number; enabled: boolean }>('/api/v1/scheduler/settings')
+  getSettings: async (category: 'dnk' | 'clk' = 'dnk') => {
+    const response = await api.get<{ timezone: string; hour: number; minute: number; enabled: boolean; category: string }>(`/api/v1/scheduler/settings?category=${category}`)
     return response.data
   },
-  updateSettings: async (settings: { timezone?: string; hour?: number; minute?: number; enabled?: boolean }) => {
-    const response = await api.put<{ timezone: string; hour: number; minute: number; enabled: boolean; message: string }>('/api/v1/scheduler/settings', settings)
+  updateSettings: async (settings: { timezone?: string; hour?: number; minute?: number; enabled?: boolean }, category: 'dnk' | 'clk' = 'dnk') => {
+    const response = await api.put<{ timezone: string; hour: number; minute: number; enabled: boolean; category: string; message: string }>(`/api/v1/scheduler/settings?category=${category}`, settings)
     return response.data
   },
 }
