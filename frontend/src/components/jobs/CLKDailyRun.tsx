@@ -1,0 +1,393 @@
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { jobsApi, authApi, schedulerApi } from '../../services/api'
+
+interface DailyRunJob {
+  id: string
+  job_name: string
+  status: string
+  total_batches: number
+  completed_batches: number
+  created_at: string
+  completed_at?: string
+  error_message?: string
+}
+
+export default function CLKDailyRun() {
+  const [loading, setLoading] = useState(true)
+  const [hasKeepaAccess, setHasKeepaAccess] = useState(false)
+  const [dailyRuns, setDailyRuns] = useState<DailyRunJob[]>([])
+  const [nextRun, setNextRun] = useState<any>(null)
+  const [schedulerSettings, setSchedulerSettings] = useState<any>(null)
+  const [error, setError] = useState('')
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [settingsForm, setSettingsForm] = useState({ timezone: 'America/Chicago', hour: 6, minute: 0 })
+  const [savingSettings, setSavingSettings] = useState(false)
+
+  useEffect(() => {
+    checkKeepaAccess()
+    loadNextRun()
+    loadSchedulerSettings()
+  }, [])
+
+  useEffect(() => {
+    if (hasKeepaAccess) {
+      loadDailyRuns()
+    }
+  }, [hasKeepaAccess])
+
+  const checkKeepaAccess = async () => {
+    try {
+      const userInfo = await authApi.getCurrentUser()
+      setHasKeepaAccess(userInfo.has_keepa_access || false)
+      setLoading(false)
+    } catch (error) {
+      console.error('Failed to check Keepa access:', error)
+      setHasKeepaAccess(false)
+      setLoading(false)
+    }
+  }
+
+  const loadNextRun = async () => {
+    try {
+      const data = await schedulerApi.getNextRun('clk')
+      setNextRun(data)
+    } catch (err: any) {
+      console.error('Failed to load next run:', err)
+    }
+  }
+
+  const loadSchedulerSettings = async () => {
+    try {
+      const settings = await schedulerApi.getSettings('clk')
+      setSchedulerSettings(settings)
+      setSettingsForm(settings)
+    } catch (err: any) {
+      console.error('Failed to load scheduler settings:', err)
+      // Use defaults if loading fails
+      const defaults = { timezone: 'America/Chicago', hour: 6, minute: 0, enabled: true }
+      setSchedulerSettings(defaults)
+      setSettingsForm(defaults)
+    }
+  }
+
+  const handleSaveSettings = async () => {
+    try {
+      setSavingSettings(true)
+      setError('')
+      await schedulerApi.updateSettings(settingsForm, 'clk')
+      await loadSchedulerSettings()
+      await loadNextRun()
+      setShowSettingsModal(false)
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to update scheduler settings')
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  const openSettingsModal = () => {
+    if (schedulerSettings) {
+      setSettingsForm(schedulerSettings)
+    }
+    setShowSettingsModal(true)
+  }
+
+  const formatScheduledTime = () => {
+    if (!schedulerSettings) {
+      return '8:00 PM Taipei time'
+    }
+    const hour12 = schedulerSettings.hour % 12 || 12
+    const ampm = schedulerSettings.hour >= 12 ? 'PM' : 'AM'
+    const minuteStr = schedulerSettings.minute.toString().padStart(2, '0')
+    const timezoneName = schedulerSettings.timezone.split('/').pop() || schedulerSettings.timezone
+    return `${hour12}:${minuteStr} ${ampm} ${timezoneName} time`
+  }
+
+  const loadDailyRuns = async () => {
+    try {
+      setError('')
+      const allJobs = await jobsApi.listJobs(100, 0)
+      // Filter for CLK daily runs (jobs that start with "Daily CLK Orbit Report -")
+      const dailyJobs = allJobs.filter((job: any) =>
+        job.job_name && job.job_name.startsWith('Daily CLK Orbit Report -')
+      )
+      // Sort by created_at descending (most recent first)
+      dailyJobs.sort((a: any, b: any) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+      setDailyRuns(dailyJobs)
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to load daily runs')
+    }
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-100 text-green-800'
+      case 'processing':
+        return 'bg-blue-100 text-blue-800'
+      case 'failed':
+        return 'bg-red-100 text-red-800'
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short'
+    })
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    )
+  }
+
+  if (!hasKeepaAccess) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="text-4xl mb-4">🔒</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Restricted</h2>
+          <p className="text-gray-600">You don't have access to Orbit Hub features.</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">CLK Daily Run</h1>
+          <p className="mt-1 text-sm text-gray-500">Manage and view CLK Daily Email Runs</p>
+        </div>
+        <button
+          onClick={openSettingsModal}
+          className="px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors text-sm font-medium flex items-center gap-2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+          </svg>
+          Scheduler Settings
+        </button>
+      </div>
+
+      {/* Next Scheduled Run */}
+      {nextRun && (
+        <div className="card p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Next Scheduled Run</h2>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Scheduled Time:</span>
+              <span className="font-medium text-gray-900">{nextRun.scheduled_time}</span>
+            </div>
+            {nextRun.next_run_time_taipei && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Next Run:</span>
+                <span className="font-medium text-gray-900">{nextRun.next_run_time_taipei}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Timezone:</span>
+              <span className="font-medium text-gray-900">{nextRun.timezone}</span>
+            </div>
+            {nextRun.seconds_until && nextRun.seconds_until > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Time Until Next Run:</span>
+                <span className="font-medium text-[#0B1020]">
+                  {Math.floor(nextRun.seconds_until / 3600)}h {Math.floor((nextRun.seconds_until % 3600) / 60)}m
+                </span>
+              </div>
+            )}
+            {nextRun.message && (
+              <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800">{nextRun.message}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="card p-4 bg-red-50 border-red-200">
+          <div className="text-red-800">{error}</div>
+        </div>
+      )}
+
+      {/* Daily Runs List */}
+      <div>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">CLK Daily Run History</h2>
+        {dailyRuns.length === 0 ? (
+          <div className="card p-12 text-center">
+            <div className="text-gray-500 mb-4">No CLK daily runs found yet.</div>
+            <p className="text-sm text-gray-400">
+              CLK daily runs are automatically executed at {formatScheduledTime()}.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {dailyRuns.map((run) => (
+              <div key={run.id} className="card p-6 hover:shadow-md transition-shadow">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="text-lg font-semibold text-gray-900">{run.job_name}</h3>
+                      <span className={`px-2 py-1 text-xs font-medium rounded ${getStatusColor(run.status)}`}>
+                        {run.status.charAt(0).toUpperCase() + run.status.slice(1)}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-500">Created:</span>
+                        <p className="font-medium text-gray-900">{formatDate(run.created_at)}</p>
+                      </div>
+                      {run.completed_at && (
+                        <div>
+                          <span className="text-gray-500">Completed:</span>
+                          <p className="font-medium text-gray-900">{formatDate(run.completed_at)}</p>
+                        </div>
+                      )}
+                      <div>
+                        <span className="text-gray-500">Progress:</span>
+                        <p className="font-medium text-gray-900">
+                          {run.completed_batches} / {run.total_batches} batches
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Completion:</span>
+                        <p className="font-medium text-gray-900">
+                          {run.total_batches > 0 
+                            ? Math.round((run.completed_batches / run.total_batches) * 100)
+                            : 0}%
+                        </p>
+                      </div>
+                    </div>
+                    {run.error_message && (
+                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-sm text-red-800">
+                          <span className="font-medium">Error:</span> {run.error_message}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <Link
+                    to={`/jobs/${run.id}`}
+                    className="ml-4 px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors text-sm font-medium"
+                  >
+                    View Details →
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex justify-between items-start mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Scheduler Settings</h2>
+              <button
+                onClick={() => setShowSettingsModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Timezone
+                </label>
+                <select
+                  value={settingsForm.timezone}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, timezone: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B1020] focus:border-transparent"
+                >
+                  <option value="America/Chicago">America/Chicago (CST/CDT)</option>
+                  <option value="America/New_York">America/New_York (EST/EDT)</option>
+                  <option value="America/Los_Angeles">America/Los_Angeles (PST/PDT)</option>
+                  <option value="America/Denver">America/Denver (MST/MDT)</option>
+                  <option value="Asia/Taipei">Asia/Taipei</option>
+                  <option value="UTC">UTC</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Hour (0-23)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="23"
+                    value={settingsForm.hour}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, hour: parseInt(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B1020] focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Minute (0-59)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="59"
+                    value={settingsForm.minute}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, minute: parseInt(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B1020] focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>Note:</strong> This will update the CLK daily run schedule only. DNK has its own independent schedule.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowSettingsModal(false)}
+                disabled={savingSettings}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveSettings}
+                disabled={savingSettings}
+                className="px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors disabled:bg-gray-400"
+              >
+                {savingSettings ? 'Saving...' : 'Save Settings'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
