@@ -6,4 +6,5 @@ email-validator==2.0.0
 keepa==1.0.0
 supabase==2.27.2
 APScheduler==3.10.1
-python-multipart==0.0.6
+python-multipart
+
