@@ -215,10 +215,10 @@ export default function Sidebar() {
     <aside className="w-64 bg-white/80 backdrop-blur-lg border-r border-gray-200/80 shadow-lg h-screen sticky top-0 z-50">
       <div className="p-6 border-b border-gray-200/80">
         <div className="flex items-center space-x-2">
-          <img src="/orbit-logo.svg" alt="Orbit" className="w-8 h-8" />
+          <img src="/orbit-logo.svg" alt="Metro Hub" className="w-8 h-8" />
           <div>
             <h2 className="text-lg font-bold text-[#0B1020]">
-              Orbit Hub
+              Metro Hub
             </h2>
             <p className="text-xs text-gray-500">Central Workspace</p>
           </div>
@@ -242,14 +242,13 @@ export default function Sidebar() {
             </button>
             
             {isDashboardMenuOpen && (
-              <div className={`ml-4 mt-1 space-y-1 rounded-lg p-2 ${isKeepaMenuOpen ? 'bg-transparent' : 'bg-[#0B1020]'}`}>
+              <div className={`ml-4 mt-1 space-y-1 rounded-lg p-2 ${isKeepaMenuOpen ? 'bg-transparent' : 'bg-[#0B1020] dark-submenu'}`}>
                 {/* Dashboard Link */}
                 <Link
                   to="/dashboard"
                   className={`sidebar-link ${
                     isActive('/dashboard') ? 'sidebar-link-active' : 'sidebar-link-inactive'
                   }`}
-                  style={{ color: isKeepaMenuOpen ? (isActive('/dashboard') ? 'white' : 'black') : 'white' }}
                 >
                   <span className="mr-3">{Icons.dashboard}</span>
                   <span>Dashboard</span>
@@ -265,7 +264,6 @@ export default function Sidebar() {
                       className={`sidebar-link sidebar-link-inactive w-full text-left ${
                         hasActiveSubItem ? 'sidebar-link-active' : ''
                       }`}
-                      style={{ color: isKeepaMenuOpen ? (hasActiveSubItem ? 'white' : 'black') : 'white' }}
                     >
                       <span className="mr-3">{Icons.settings}</span>
                       <span className="flex-1">Keepa Alert Services</span>

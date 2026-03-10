@@ -1,0 +1,13 @@
+# Render Blueprint - deploy Metro Hub backend as a Web Service
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: metro-api
+    rootDir: backend
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    # Add all required env vars in Render Dashboard (Environment) or link as secret files.
+    # Required: KEEPA_API_KEY, KEEPA_API_URL, SUPABASE_URL, SUPABASE_KEY,
+    #   EMAIL_FROM, EMAIL_FROM_NAME, EMAIL_PASSWORD, EMAIL_TO,
+    #   CORS_ORIGINS (e.g. https://your-frontend.vercel.app)

@@ -3,10 +3,12 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.database import init_db
 from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, tasks, task_validations, task_attachments, dashboard, map, notes, notifications
 from app.scheduler import setup_scheduler, start_scheduler, shutdown_scheduler
+from app.middleware.rate_limiter import limiter, log_rate_limit_exceeded, RATE_LIMIT_ERROR_MESSAGE
 import logging
 import json
 
@@ -16,10 +18,13 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Orbit API",
-    description="API for Orbit productivity platform",
+    title="Metro API",
+    description="API for Metro Hub productivity platform",
     version="1.0.0",
 )
+
+# Attach rate limiter to app state
+app.state.limiter = limiter
 
 # Configure CORS
 app.add_middleware(
@@ -49,6 +54,22 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={"detail": errors}
+    )
+
+
+# Custom exception handler for rate limit exceeded
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    """Handle rate limit exceeded errors with user-friendly messages."""
+    # Log the rate limit violation
+    log_rate_limit_exceeded(request)
+
+    return JSONResponse(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        content=RATE_LIMIT_ERROR_MESSAGE,
+        headers={
+            "Retry-After": str(exc.retry_after) if hasattr(exc, 'retry_after') else "60"
+        }
     )
 
 
@@ -107,7 +128,7 @@ async def shutdown_event():
 @app.get("/")
 async def root():
     """Root endpoint."""
-    return {"message": "Orbit API", "version": "1.0.0"}
+    return {"message": "Metro API", "version": "1.0.0"}
 
 
 @app.get("/health")

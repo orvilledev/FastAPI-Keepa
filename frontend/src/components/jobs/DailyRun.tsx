@@ -80,9 +80,9 @@ export default function DailyRun() {
     try {
       setError('')
       const allJobs = await jobsApi.listJobs(100, 0)
-      // Filter for daily runs (jobs that start with "Daily Orbit Report -")
+      // Filter for daily runs (jobs that start with "Daily Metro Report -")
       const dailyJobs = allJobs.filter((job: any) => 
-        job.job_name && job.job_name.startsWith('Daily Orbit Report -')
+        job.job_name && job.job_name.startsWith('Daily Metro Report -')
       )
       // Sort by created_at descending (most recent first)
       dailyJobs.sort((a: any, b: any) => 
@@ -135,7 +135,7 @@ export default function DailyRun() {
         <div className="text-center">
           <div className="text-4xl mb-4">🔒</div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Restricted</h2>
-          <p className="text-gray-600">You don't have access to Orbit Hub features.</p>
+          <p className="text-gray-600">You don't have access to Metro Hub features.</p>
         </div>
       </div>
     )
@@ -145,7 +145,7 @@ export default function DailyRun() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Daily Run</h1>
-        <p className="mt-1 text-sm text-gray-500">Manage and view Orbit Hub Daily Email Runs</p>
+        <p className="mt-1 text-sm text-gray-500">Manage and view Metro Hub Daily Email Runs</p>
       </div>
 
       {/* Next Scheduled Run */}

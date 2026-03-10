@@ -1,6 +1,6 @@
-# Frontend - Orbit
+# Frontend - Metro Hub
 
-React + TypeScript frontend for the Orbit system.
+React + TypeScript frontend for the Metro Hub system.
 
 ## Setup
 

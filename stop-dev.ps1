@@ -1,7 +1,7 @@
 # Stop Development Servers
 # This script kills processes running on ports 8000 (backend) and 5173 (frontend)
 
-Write-Host "[STOP] Stopping Orbit Development Servers..." -ForegroundColor Yellow
+Write-Host "[STOP] Stopping Metro Hub Development Servers..." -ForegroundColor Yellow
 Write-Host ""
 
 # Stop Backend (Port 8000)

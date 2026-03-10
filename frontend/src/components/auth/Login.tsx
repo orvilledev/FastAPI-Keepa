@@ -66,11 +66,11 @@ export default function Login() {
       <div className="max-w-md w-full">
         <div className="card p-8 shadow-xl">
           <div className="text-center mb-8">
-            <img src="/orbit-logo.svg" alt="Orbit" className="w-16 h-16 mx-auto mb-4" />
+            <img src="/orbit-logo.svg" alt="Metro Hub" className="w-16 h-16 mx-auto mb-4" />
             <h2 className="text-3xl font-bold text-[#0B1020]">
-              Welcome to Orbit
+              Welcome to Metro Hub
             </h2>
-            <p className="mt-2 text-sm text-gray-500">Sign in to Orbit Hub</p>
+            <p className="mt-2 text-sm text-gray-500">Sign in to Metro Hub</p>
           </div>
           <form className="space-y-6" onSubmit={handleLogin}>
             {error && (

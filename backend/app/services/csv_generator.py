@@ -420,6 +420,7 @@ class CSVGenerator:
                 seller_name = seller.get("sellerName", "")
                 if "amazon" in seller_name.lower() or seller.get("isFBA", False):
                     buy_box_seller_name = seller_name
+                    buy_box_seller_id = buy_box_seller_id or seller.get("sellerId")
                     # If we still don't have buy box price, use this seller's price
                     if buy_box_price is None:
                         seller_price = seller.get("price")
@@ -436,6 +437,7 @@ class CSVGenerator:
             if not buy_box_seller_name and current_sellers:
                 first_seller = current_sellers[0]
                 buy_box_seller_name = first_seller.get("sellerName", "")
+                buy_box_seller_id = buy_box_seller_id or first_seller.get("sellerId")
                 # If we still don't have buy box price, use first seller's price
                 if buy_box_price is None:
                     seller_price = first_seller.get("price")
@@ -465,12 +467,15 @@ class CSVGenerator:
             if prices:
                 current_amazon_price = min(prices)
         
+        # Format seller ID for output (Keepa returns int or str)
+        buy_box_seller_id_display = str(buy_box_seller_id) if buy_box_seller_id is not None else ""
         return {
             "asin": product.get("asin", ""),
             "title": product.get("title", ""),
             "brand": product.get("brand", ""),
             "buy_box_price": buy_box_price,
             "buy_box_seller_name": buy_box_seller_name or "",
+            "buy_box_seller_id": buy_box_seller_id_display,
             "current_amazon_price": current_amazon_price,
         }
     
@@ -557,8 +562,8 @@ class CSVGenerator:
                 current_price_display = "N/A"
                 current_amazon_price = None
             
-            # Buy box seller name
-            buy_box_seller = product_data.get("buy_box_seller_name", "N/A")
+            # Buy box seller: use Seller ID number for identification
+            buy_box_seller = product_data.get("buy_box_seller_id") or product_data.get("buy_box_seller_name") or "N/A"
             
             # Calculate discount % (based on MSRP and Buy Box Seller Price)
             if msrp is not None and final_buy_box_price is not None and float(msrp) > 0:

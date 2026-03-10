@@ -132,7 +132,7 @@ export default function ResetPassword() {
       <div className="max-w-md w-full">
         <div className="card p-8 shadow-xl">
           <div className="text-center mb-8">
-            <img src="/orbit-logo.svg" alt="Orbit" className="w-16 h-16 mx-auto mb-4" />
+            <img src="/orbit-logo.svg" alt="Metro Hub" className="w-16 h-16 mx-auto mb-4" />
             <h2 className="text-3xl font-bold text-[#0B1020]">
               Reset Password
             </h2>

@@ -108,9 +108,9 @@ export default function CLKDailyRun() {
     try {
       setError('')
       const allJobs = await jobsApi.listJobs(100, 0)
-      // Filter for CLK daily runs (jobs that start with "Daily CLK Orbit Report -")
+      // Filter for CLK daily runs (jobs that start with "Daily CLK Metro Report -")
       const dailyJobs = allJobs.filter((job: any) =>
-        job.job_name && job.job_name.startsWith('Daily CLK Orbit Report -')
+        job.job_name && job.job_name.startsWith('Daily CLK Metro Report -')
       )
       // Sort by created_at descending (most recent first)
       dailyJobs.sort((a: any, b: any) => 
@@ -163,7 +163,7 @@ export default function CLKDailyRun() {
         <div className="text-center">
           <div className="text-4xl mb-4">🔒</div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Restricted</h2>
-          <p className="text-gray-600">You don't have access to Orbit Hub features.</p>
+          <p className="text-gray-600">You don't have access to Metro Hub features.</p>
         </div>
       </div>
     )

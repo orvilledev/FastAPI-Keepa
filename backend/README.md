@@ -1,6 +1,6 @@
-# Backend - Orbit API
+# Backend - Metro API
 
-FastAPI backend for the Orbit system.
+FastAPI backend for the Metro Hub system.
 
 ## Setup
 

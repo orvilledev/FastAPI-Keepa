@@ -7,10 +7,10 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, requireKeepaAccess = false }: ProtectedRouteProps) {
-  const { hasKeepaAccess, userInfoLoading } = useUser()
+  const { hasKeepaAccess, userInfoLoading, userInfo } = useUser()
 
-  // Show loading only briefly while user info is being fetched
-  if (userInfoLoading) {
+  // Only show loading spinner on initial load, not on background re-fetches
+  if (userInfoLoading && !userInfo) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="w-8 h-8 border-4 border-[#0B1020] border-t-transparent rounded-full animate-spin"></div>

@@ -13,4 +13,17 @@ pytz==2023.3
 openpyxl==3.1.2
 passlib[bcrypt]==1.7.4
 bcrypt==3.2.2
+slowapi==0.1.9
+
+# Security dependencies
+bleach==6.1.0
+
+# Monitoring dependencies
+sentry-sdk[fastapi]==2.19.2
+
+# Testing dependencies
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+httpx==0.24.1  # Already listed above, used for testing FastAPI
 

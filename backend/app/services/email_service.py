@@ -9,6 +9,8 @@ from typing import Optional, List
 from app.config import settings
 from app.services.csv_generator import CSVGenerator
 
+SMTP_TIMEOUT = 30  # seconds
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,7 +23,6 @@ class EmailService:
         self.email_from = settings.email_from
         self.email_from_name = settings.email_from_name
         self.email_password = settings.email_password
-        # Use configured email_to from settings
         self.email_to = settings.email_to
         self.last_error = None
     
@@ -55,9 +56,7 @@ class EmailService:
         Returns:
             True if email sent successfully, False otherwise
         """
-        # Use provided email or fall back to configured default
-        email_to = recipient_email or self.email_to
-        recipients = self._parse_recipients(email_to)
+        recipients = self._parse_recipients(self.email_to)
         
         # Validate configuration
         if not self.email_from:
@@ -75,8 +74,8 @@ class EmailService:
         try:
             # Create message
             msg = MIMEMultipart()
-            # Format: Display name only (email address used for SMTP auth but not shown)
-            msg["From"] = self.email_from_name
+            # Use proper RFC format so servers don't reject or mark as spam
+            msg["From"] = f"{self.email_from_name} <{self.email_from}>"
             # Join multiple recipients with comma for the "To" header
             msg["To"] = ", ".join(recipients)
             msg["Subject"] = f"Keepa Off Price Report - {job_name}"
@@ -112,12 +111,9 @@ class EmailService:
             
             # Send email
             logger.info(f"Attempting to send email to {recipients} via {self.smtp_host}:{self.smtp_port}")
-            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+            with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=SMTP_TIMEOUT) as server:
                 server.starttls()
-                logger.info(f"Connecting to SMTP server and authenticating...")
                 server.login(self.email_from, self.email_password)
-                logger.info(f"Authentication successful, sending message...")
-                # Send to all recipients
                 server.send_message(msg, to_addrs=recipients)
             
             logger.info(f"Email sent successfully to {', '.join(recipients)}")
@@ -172,9 +168,7 @@ class EmailService:
                 recipient_email=recipient_email
             )
         else:
-            # Send email without attachment
-            email_to = recipient_email or self.email_to
-            recipients = self._parse_recipients(email_to)
+            recipients = self._parse_recipients(self.email_to)
             
             if not recipients:
                 logger.error("No recipients configured")
@@ -182,15 +176,14 @@ class EmailService:
             
             try:
                 msg = MIMEMultipart()
-                # Format: Display name only (email address used for SMTP auth but not shown)
-                msg["From"] = self.email_from_name
+                msg["From"] = f"{self.email_from_name} <{self.email_from}>"
                 msg["To"] = ", ".join(recipients)
-                msg["Subject"] = f"Orbit Hub Job Completed - {job_name}"
+                msg["Subject"] = f"Metro Hub Job Completed - {job_name}"
                 
                 body = f"""
                 Hello,
                 
-                Your Orbit Hub batch job has completed processing.
+                Your Metro Hub batch job has completed processing.
                 
                 Job Details:
                 - Job Name: {job_name}
@@ -200,12 +193,12 @@ class EmailService:
                 You can view the full report in the dashboard.
                 
                 Best regards,
-                Orbit
+                Metro Hub
                 """
                 
                 msg.attach(MIMEText(body, "plain"))
                 
-                with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+                with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=SMTP_TIMEOUT) as server:
                     server.starttls()
                     server.login(self.email_from, self.email_password)
                     server.send_message(msg, to_addrs=recipients)
@@ -235,6 +228,7 @@ class EmailService:
             True if email sent successfully, False otherwise
         """
         try:
+            to_addrs = [to_email]
             msg = MIMEMultipart()
             msg["From"] = f"{self.email_from_name} <{self.email_from}>"
             msg["To"] = to_email
@@ -242,10 +236,10 @@ class EmailService:
             
             msg.attach(MIMEText(body, "plain"))
             
-            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+            with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=SMTP_TIMEOUT) as server:
                 server.starttls()
                 server.login(self.email_from, self.email_password)
-                server.send_message(msg, to_addrs=[to_email])
+                server.send_message(msg, to_addrs=to_addrs)
             
             logger.info(f"Email sent successfully to {to_email}")
             return True

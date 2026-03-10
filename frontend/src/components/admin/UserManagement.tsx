@@ -51,7 +51,7 @@ export default function UserManagement() {
   }
 
   const handleToggleKeepaAccess = async (userId: string, currentAccess: boolean) => {
-    if (!window.confirm(`Are you sure you want to ${currentAccess ? 'revoke' : 'grant'} Orbit Hub access for this user?`)) {
+    if (!window.confirm(`Are you sure you want to ${currentAccess ? 'revoke' : 'grant'} Metro Hub access for this user?`)) {
       return
     }
 
@@ -152,7 +152,7 @@ export default function UserManagement() {
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Orbit Hub Access
+                  Metro Hub Access
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Tools Management Access

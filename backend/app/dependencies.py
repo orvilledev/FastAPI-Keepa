@@ -101,7 +101,7 @@ async def get_keepa_access_user(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ) -> dict:
-    """Verify user has Orbit Hub access (has_keepa_access = true)."""
+    """Verify user has Metro Hub access (has_keepa_access = true)."""
     # Check user's Keepa access in profiles table
     profile_response = db.table("profiles").select("has_keepa_access, role").eq("id", current_user["id"]).execute()
     
@@ -119,7 +119,7 @@ async def get_keepa_access_user(
     if not has_keepa_access and not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Orbit Hub access required"
+            detail="Metro Hub access required"
         )
     
     return current_user

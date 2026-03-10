@@ -1,4 +1,4 @@
--- Orbit Database Schema
+-- Metro Hub Database Schema
 -- Run this in Supabase SQL Editor
 
 -- Users table (extends Supabase auth.users)

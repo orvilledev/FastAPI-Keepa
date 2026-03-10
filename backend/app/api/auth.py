@@ -186,7 +186,7 @@ async def update_display_name(
 
 
 class UserKeepaAccessUpdate(BaseModel):
-    """Model for updating user's Orbit Hub access."""
+    """Model for updating user's Metro Hub access."""
     user_id: str
     has_keepa_access: bool
 
@@ -218,7 +218,7 @@ async def update_user_keepa_access(
     current_user: dict = Depends(get_superadmin_user),
     db: Client = Depends(get_supabase)
 ):
-    """Update user's Orbit Hub access (superadmin only)."""
+    """Update user's Metro Hub access (superadmin only)."""
     try:
         from datetime import datetime
         
@@ -237,7 +237,7 @@ async def update_user_keepa_access(
         return {
             "user_id": user_id,
             "has_keepa_access": has_keepa_access,
-            "message": "Orbit Hub access updated successfully"
+            "message": "Metro Hub access updated successfully"
         }
     except HTTPException:
         raise

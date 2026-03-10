@@ -49,7 +49,7 @@ export default function Navbar() {
         <div className="flex justify-between h-16 items-center">
           <div className="flex items-center">
             <h1 className="text-xl font-bold text-[#0B1020]">
-              Orbit
+              Metro Hub
             </h1>
           </div>
           <div className="flex items-center space-x-4">

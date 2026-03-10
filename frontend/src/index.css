@@ -43,6 +43,12 @@
   .sidebar-link-active {
     @apply bg-[#0B1020] text-white shadow-md;
   }
+
+  /* Ensure parent buttons with active state (dark bg) use white text */
+  button.sidebar-link.sidebar-link-active,
+  button.sidebar-link.sidebar-link-active span {
+    color: white !important;
+  }
   
   .sidebar-link-inactive {
     @apply text-gray-700;
@@ -76,24 +82,44 @@
     color: white !important;
   }
 
-  /* 2nd level menu items in parent container - WHITE text by default */
-  .ml-4.mt-1 > .sidebar-link-inactive {
+  /* 2nd level menu items in dark parent container - WHITE text */
+  .dark-submenu .sidebar-link-inactive {
     color: white !important;
     background: transparent !important;
   }
 
-  .ml-4.mt-1 > .sidebar-link-inactive span {
+  .dark-submenu .sidebar-link-inactive span {
     color: white !important;
   }
 
-  /* 2nd level menu items hover - ORANGE text */
-  .ml-4.mt-1 > .sidebar-link:hover {
+  /* 2nd level menu items in light parent container - dark text */
+  .ml-4.mt-1:not(.dark-submenu):not(.dark-dropdown) > .sidebar-link-inactive {
+    color: #374151 !important;
+    background: transparent !important;
+  }
+
+  .ml-4.mt-1:not(.dark-submenu):not(.dark-dropdown) > .sidebar-link-inactive span {
+    color: #374151 !important;
+  }
+
+  /* 2nd level menu items hover in dark container - ORANGE text */
+  .dark-submenu .sidebar-link:hover {
     color: #F97316 !important;
     background: rgba(255, 255, 255, 0.1) !important;
   }
 
-  .ml-4.mt-1 > .sidebar-link:hover span {
+  .dark-submenu .sidebar-link:hover span {
     color: #F97316 !important;
+  }
+
+  /* 2nd level menu items hover in light container */
+  .ml-4.mt-1:not(.dark-submenu):not(.dark-dropdown) > .sidebar-link:hover {
+    color: white !important;
+    background: #0B1020 !important;
+  }
+
+  .ml-4.mt-1:not(.dark-submenu):not(.dark-dropdown) > .sidebar-link:hover span {
+    color: white !important;
   }
 
   /* Child items in dark dropdown containers (3rd level parent buttons) - WHITE text by default */

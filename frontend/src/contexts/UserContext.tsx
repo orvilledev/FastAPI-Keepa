@@ -93,8 +93,12 @@ export function UserProvider({ children }: UserProviderProps) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthUser(session?.user ?? null)
-      // Clear user info when logging out
+      const newUser = session?.user ?? null
+      setAuthUser(prev => {
+        if (!newUser) return null
+        if (prev?.id === newUser.id) return prev
+        return newUser
+      })
       if (!session?.user) {
         setUserInfo(null)
       }

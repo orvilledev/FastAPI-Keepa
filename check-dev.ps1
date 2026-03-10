@@ -1,7 +1,7 @@
 # Check Development Server Status
 # This script checks if backend and frontend servers are running
 
-Write-Host "[CHECK] Checking Orbit Development Server Status..." -ForegroundColor Cyan
+Write-Host "[CHECK] Checking Metro Hub Development Server Status..." -ForegroundColor Cyan
 Write-Host ""
 
 $backend = Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue

@@ -3,7 +3,7 @@
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "[START] Starting Orbit Development Servers..." -ForegroundColor Cyan
+Write-Host "[START] Starting Metro Hub Development Servers..." -ForegroundColor Cyan
 Write-Host ""
 
 # Get the script directory (project root)

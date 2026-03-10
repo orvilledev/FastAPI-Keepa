@@ -67,7 +67,7 @@ async def run_daily_job_for_category(category: str = 'dnk'):
 
         if upcs:
             logger.info(f"Found {len(upcs)} {category.upper()} UPCs to process")
-            job_name = f"Daily {category.upper()} Orbit Report - {current_time.strftime('%Y-%m-%d %H:%M')} ({tz_name})"
+            job_name = f"Daily {category.upper()} Metro Report - {current_time.strftime('%Y-%m-%d %H:%M')} ({tz_name})"
             job_id = await processor.create_batch_job(
                 job_name=job_name,
                 upcs=upcs,
@@ -112,7 +112,7 @@ def setup_scheduler(timezone_str: str = "America/Chicago", hour: int = 6, minute
         ),
         args=[category],
         id=job_id,
-        name=f"Daily {category.upper()} Orbit Hub Job - {config.hour:02d}:{config.minute:02d} {timezone_str}",
+        name=f"Daily {category.upper()} Metro Hub Job - {config.hour:02d}:{config.minute:02d} {timezone_str}",
         replace_existing=True,
     )
 

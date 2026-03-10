@@ -66,7 +66,7 @@ export default function JobDetail() {
       setJob(data)
       // Check if this is a daily run - check for "Daily" in job name or if it matches daily run pattern
       const isDaily = data.job_name && (
-        data.job_name.startsWith('Daily Orbit Report -') ||
+        data.job_name.startsWith('Daily Metro Report -') ||
         data.job_name.startsWith('Daily ') ||
         /Daily.*Report/i.test(data.job_name)
       )
