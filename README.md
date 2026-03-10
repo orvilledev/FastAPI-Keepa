@@ -772,5 +772,5 @@ If pages load slowly:
 - Database: Supabase
 
 ## License
-
+sample....
 MIT
