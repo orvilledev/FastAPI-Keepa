@@ -112,10 +112,12 @@ class KeepaClient:
             # Keepa API uses 'code' parameter for UPC/EAN lookups
             # Use 'asin' parameter for ASIN lookups
             params = {
-                "code": upc,  # Use 'code' parameter for UPC/EAN codes
-                "domain": "1",  # 1 = US, 2 = UK, etc.
-                "stats": "180",  # Request 180 days of stats
-                "history": "1",  # Include price history
+                "code": upc,
+                "domain": "1",
+                "stats": "180",
+                "history": "1",
+                "offers": "20",
+                "buybox": "1",
             }
             
             # Add rate limiting delay
