@@ -566,8 +566,8 @@ class CSVGenerator:
                 current_price_display = "N/A"
                 current_amazon_price = None
             
-            # Buy box seller: use Seller ID number for identification
-            buy_box_seller = product_data.get("buy_box_seller_id") or product_data.get("buy_box_seller_name") or "N/A"
+            # Buy box seller: prefer store name over seller ID
+            buy_box_seller = product_data.get("buy_box_seller_name") or product_data.get("buy_box_seller_id") or "N/A"
             
             # Calculate discount % (based on MSRP and Buy Box Seller Price)
             if msrp is not None and final_buy_box_price is not None and float(msrp) > 0:
