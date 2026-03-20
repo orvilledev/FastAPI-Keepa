@@ -554,6 +554,10 @@ class CSVGenerator:
                 off_price_listing = "Not Off Price"
                 is_off_price = False
             
+            # Skip "Not Off Price" rows - only include Off Price items in report
+            if not is_off_price:
+                continue
+            
             # Get current Amazon price (for display purposes)
             current_amazon_price = product_data.get("current_amazon_price")
             try:
