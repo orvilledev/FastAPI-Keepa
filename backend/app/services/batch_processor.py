@@ -297,16 +297,11 @@ class BatchProcessor:
                 job_name = job_data["job_name"]
                 
                 report_service = ReportService(self.db)
-                csv_bytes, filename = report_service.generate_csv_for_job(job_id, job_name)
-                
-                alerts_response = self.db.table("price_alerts").select("*").eq(
-                    "batch_job_id", str(job_id)
-                ).execute()
-                alerts = alerts_response.data
+                csv_bytes, filename, off_price_count = report_service.generate_csv_for_job(job_id, job_name)
                 
                 total_upcs = sum(batch["upc_count"] for batch in batches)
                 
-                logger.info(f"Preparing to send email for job {job_id}: {total_upcs} UPCs, {len(alerts)} alerts")
+                logger.info(f"Preparing to send email for job {job_id}: {total_upcs} UPCs, {off_price_count} off-price listings")
                 logger.info(f"Email service configuration: from={self.email_service.email_from}, to={self.email_service.email_to}, host={self.email_service.smtp_host}")
                 
                 loop = asyncio.get_event_loop()
@@ -318,7 +313,7 @@ class BatchProcessor:
                         filename=filename,
                         job_name=job_name,
                         total_upcs=total_upcs,
-                        alerts_count=len(alerts),
+                        alerts_count=off_price_count,
                     ),
                 )
                 

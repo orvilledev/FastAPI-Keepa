@@ -106,7 +106,7 @@ async def download_csv(
     """Download Excel report for a job."""
     job_id = UUID(job["id"])
     report_service = ReportService(db)
-    csv_bytes, filename = report_service.generate_csv_for_job(job_id, job["job_name"])
+    csv_bytes, filename, _ = report_service.generate_csv_for_job(job_id, job["job_name"])
     
     # Determine content type based on file extension
     if filename.endswith('.xlsx'):
@@ -132,10 +132,8 @@ async def resend_email(
     report_service = ReportService(db)
     
     # Generate CSV
-    csv_bytes, filename = report_service.generate_csv_for_job(job_id, job["job_name"])
+    csv_bytes, filename, off_price_count = report_service.generate_csv_for_job(job_id, job["job_name"])
     
-    # Get alerts and total UPCs
-    alerts = report_service.get_price_alerts_for_job(job_id)
     total_upcs = report_service.get_total_upcs_for_job(job_id)
     
     # Send email
@@ -145,7 +143,7 @@ async def resend_email(
         filename=filename,
         job_name=job["job_name"],
         total_upcs=total_upcs,
-        alerts_count=len(alerts)
+        alerts_count=off_price_count
     )
     
     if success:

@@ -25,23 +25,23 @@ class ReportService:
         """Get all price alerts for a job."""
         return self.report_repo.get_price_alerts(job_id)
     
-    def generate_csv_for_job(self, job_id: UUID, job_name: str) -> Tuple[bytes, str]:
+    def generate_csv_for_job(self, job_id: UUID, job_name: str) -> Tuple[bytes, str, int]:
         """
         Generate comprehensive CSV report for a job matching spreadsheet format.
         
         Returns:
-            Tuple of (csv_bytes, filename)
+            Tuple of (csv_bytes, filename, off_price_count)
         """
         # Get all processed UPCs with their Keepa data
         processed_items = self.report_repo.get_all_processed_upcs_for_job(job_id)
         
         if not processed_items:
             # Return empty Excel file with headers
-            csv_bytes = self.csv_generator.generate_comprehensive_report_csv(
+            csv_bytes, off_price_count = self.csv_generator.generate_comprehensive_report_csv(
                 [], {}, {}
             )
             filename = self.csv_generator.generate_csv_filename(job_name, extension="xlsx")
-            return csv_bytes, filename
+            return csv_bytes, filename, off_price_count
         
         # Get price alerts grouped by UPC
         price_alerts_by_upc = self.report_repo.get_price_alerts_by_upc(job_id)
@@ -58,22 +58,20 @@ class ReportService:
                 if map_price > 0:
                     map_prices_by_upc[upc] = map_price
             except HTTPException:
-                # MAP price not found for this UPC (404), skip it
                 pass
             except Exception as e:
-                # Other errors, log but continue
                 logger.debug(f"Error fetching MAP price for UPC {upc}: {e}")
                 pass
         
         # Generate comprehensive Excel report
-        csv_bytes = self.csv_generator.generate_comprehensive_report_csv(
+        csv_bytes, off_price_count = self.csv_generator.generate_comprehensive_report_csv(
             processed_items,
             price_alerts_by_upc,
             map_prices_by_upc
         )
         filename = self.csv_generator.generate_csv_filename(job_name, extension="xlsx")
         
-        return csv_bytes, filename
+        return csv_bytes, filename, off_price_count
     
     def get_total_upcs_for_job(self, job_id: UUID) -> int:
         """Get total UPC count for a job."""

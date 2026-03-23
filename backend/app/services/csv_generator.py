@@ -484,7 +484,7 @@ class CSVGenerator:
         processed_items: List[Dict[str, Any]],
         price_alerts_by_upc: Dict[str, List[Dict[str, Any]]],
         map_prices_by_upc: Dict[str, Decimal]
-    ) -> bytes:
+    ) -> tuple:
         """
         Generate comprehensive CSV report matching the spreadsheet format.
         
@@ -494,9 +494,10 @@ class CSVGenerator:
             map_prices_by_upc: Dict mapping UPC to MAP price
             
         Returns:
-            CSV file as bytes
+            Tuple of (Excel file as bytes, number of off-price items)
         """
         csv_data = []
+        off_price_count = 0
         
         for item in processed_items:
             upc = item.get("upc", "")
@@ -557,6 +558,8 @@ class CSVGenerator:
             # Skip "Not Off Price" rows - only include Off Price items in report
             if not is_off_price:
                 continue
+            
+            off_price_count += 1
             
             # Get current Amazon price (for display purposes)
             current_amazon_price = product_data.get("current_amazon_price")
@@ -675,5 +678,5 @@ class CSVGenerator:
         excel_bytes = excel_buffer.getvalue()
         excel_buffer.close()
         
-        return excel_bytes
+        return excel_bytes, off_price_count
 
