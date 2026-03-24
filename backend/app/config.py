@@ -14,7 +14,17 @@ class Settings(BaseSettings):
     
     # Keepa API Configuration
     keepa_api_key: str
+    keepa_api_keys: str = ""
     keepa_api_url: str = "https://api.keepa.com/"
+    
+    @property
+    def keepa_api_keys_list(self) -> List[str]:
+        """Parse comma-separated Keepa API keys. Falls back to single key."""
+        if self.keepa_api_keys:
+            keys = [k.strip() for k in self.keepa_api_keys.split(",") if k.strip()]
+            if keys:
+                return keys
+        return [self.keepa_api_key]
     
     # Supabase Configuration
     supabase_url: str

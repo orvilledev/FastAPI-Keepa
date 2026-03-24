@@ -6,7 +6,7 @@ from uuid import UUID
 from datetime import datetime
 from functools import partial
 from app.database import get_supabase
-from app.services.keepa_client import KeepaClient
+from app.services.keepa_client import KeepaClient, MultiKeyKeepaClient
 from app.services.price_analyzer import PriceAnalyzer
 from app.services.csv_generator import CSVGenerator
 from app.services.email_service import EmailService
@@ -101,9 +101,62 @@ class BatchProcessor:
         logger.info(f"Created batch job {job_id} with {total_batches} batches")
         return job_id
     
+    async def _process_single_item(self, keepa_client: KeepaClient, item: dict, batch_data: dict) -> bool:
+        """Process a single UPC item with a given Keepa client."""
+        upc = item["upc"]
+        item_id = item["id"]
+        
+        try:
+            logger.info(f"[Key {keepa_client.key_index}] Processing UPC: {upc} (item_id: {item_id})")
+            self.db.table("upc_batch_items").update({
+                "status": "processing"
+            }).eq("id", item_id).execute()
+            
+            keepa_response = await keepa_client.fetch_product_data(upc)
+            logger.info(f"[Key {keepa_client.key_index}] Keepa response for UPC {upc}: {'Success' if keepa_response else 'None/Empty'}")
+            
+            if keepa_response:
+                analysis = self.price_analyzer.analyze_product(keepa_response)
+                
+                self.db.table("upc_batch_items").update({
+                    "keepa_data": keepa_response,
+                    "status": "completed",
+                    "processed_at": datetime.utcnow().isoformat(),
+                }).eq("id", item_id).execute()
+                
+                batch_job_id = batch_data["batch_job_id"]
+                for seller in analysis.get("off_price_sellers", []):
+                    self.db.table("price_alerts").insert({
+                        "batch_job_id": batch_job_id,
+                        "upc": upc,
+                        "seller_name": seller.get("seller_name"),
+                        "current_price": float(seller.get("current_price", 0)),
+                        "historical_price": float(seller.get("historical_price", 0)),
+                        "price_change_percent": float(seller.get("price_change_percent", 0)),
+                        "keepa_data": keepa_response,
+                    }).execute()
+            else:
+                logger.warning(f"[Key {keepa_client.key_index}] No Keepa data returned for UPC {upc}")
+                self.db.table("upc_batch_items").update({
+                    "status": "completed",
+                    "error_message": "No data found in Keepa",
+                    "processed_at": datetime.utcnow().isoformat(),
+                }).eq("id", item_id).execute()
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"[Key {keepa_client.key_index}] Error processing UPC {upc}: {type(e).__name__}: {str(e)}", exc_info=True)
+            self.db.table("upc_batch_items").update({
+                "status": "failed",
+                "error_message": str(e),
+                "processed_at": datetime.utcnow().isoformat(),
+            }).eq("id", item_id).execute()
+            return True  # Count as processed (attempted)
+
     async def process_batch(self, batch_id: UUID) -> bool:
         """
-        Process a single UPC batch.
+        Process a single UPC batch using multiple API keys in parallel.
         
         Args:
             batch_id: UUID of the UPC batch
@@ -112,7 +165,6 @@ class BatchProcessor:
             True if batch processed successfully, False otherwise
         """
         try:
-            # Get batch data
             batch_response = self.db.table("upc_batches").select("*").eq("id", str(batch_id)).execute()
             if not batch_response.data:
                 logger.error(f"Batch {batch_id} not found")
@@ -120,110 +172,42 @@ class BatchProcessor:
             
             batch_data = batch_response.data[0]
             
-            # Check if batch is already cancelled
             if batch_data.get("status") == "cancelled":
                 logger.info(f"Batch {batch_id} is already cancelled, skipping processing")
                 return False
             
-            # Update batch status
             self.db.table("upc_batches").update({
                 "status": "processing"
             }).eq("id", str(batch_id)).execute()
             
-            # Get batch items
             items_response = self.db.table("upc_batch_items").select("*").eq(
                 "upc_batch_id", str(batch_id)
             ).execute()
             
             items = items_response.data
-            processed_count = 0
             
-            # Check if items exist
             if not items or len(items) == 0:
-                logger.error(f"No items found for batch {batch_id}. Batch items query returned empty.")
+                logger.error(f"No items found for batch {batch_id}.")
                 self.db.table("upc_batches").update({
                     "status": "failed",
                     "error_message": "No batch items found to process",
                 }).eq("id", str(batch_id)).execute()
                 return False
             
-            # Process each UPC with Keepa API
-            logger.info(f"Starting to process {len(items)} UPCs in batch {batch_id}")
-            async with KeepaClient() as keepa_client:
-                for item in items:
-                    # Check if batch has been cancelled
-                    batch_check = self.db.table("upc_batches").select("status").eq("id", str(batch_id)).execute()
-                    if batch_check.data and batch_check.data[0].get("status") == "cancelled":
-                        logger.info(f"Batch {batch_id} was cancelled, stopping processing")
-                        # Update processed count before stopping
-                        self.db.table("upc_batches").update({
-                            "processed_count": processed_count,
-                        }).eq("id", str(batch_id)).execute()
-                        return False
-                    
-                    upc = item["upc"]
-                    item_id = item["id"]
-                    
-                    try:
-                        logger.info(f"Processing UPC: {upc} (item_id: {item_id})")
-                        # Update item status
-                        self.db.table("upc_batch_items").update({
-                            "status": "processing"
-                        }).eq("id", item_id).execute()
-                        
-                        # Fetch Keepa data
-                        logger.info(f"Fetching Keepa data for UPC: {upc}")
-                        keepa_response = await keepa_client.fetch_product_data(upc)
-                        logger.info(f"Keepa API response for UPC {upc}: {'Success' if keepa_response else 'None/Empty'}")
-                        
-                        if keepa_response:
-                            # Analyze for off-price sellers
-                            analysis = self.price_analyzer.analyze_product(keepa_response)
-                            
-                            # Update item with Keepa data
-                            self.db.table("upc_batch_items").update({
-                                "keepa_data": keepa_response,
-                                "status": "completed",
-                                "processed_at": datetime.utcnow().isoformat(),
-                            }).eq("id", item_id).execute()
-                            
-                            # Store price alerts
-                            batch_job_id = batch_data["batch_job_id"]
-                            for seller in analysis.get("off_price_sellers", []):
-                                self.db.table("price_alerts").insert({
-                                    "batch_job_id": batch_job_id,
-                                    "upc": upc,
-                                    "seller_name": seller.get("seller_name"),
-                                    "current_price": float(seller.get("current_price", 0)),
-                                    "historical_price": float(seller.get("historical_price", 0)),
-                                    "price_change_percent": float(seller.get("price_change_percent", 0)),
-                                    "keepa_data": keepa_response,
-                                }).execute()
-                            
-                            processed_count += 1
-                            logger.info(f"Successfully processed UPC {upc}, processed_count now: {processed_count}")
-                        else:
-                            # No data found
-                            logger.warning(f"No Keepa data returned for UPC {upc}")
-                            self.db.table("upc_batch_items").update({
-                                "status": "completed",
-                                "error_message": "No data found in Keepa",
-                                "processed_at": datetime.utcnow().isoformat(),
-                            }).eq("id", item_id).execute()
-                            processed_count += 1
-                            logger.info(f"Marked UPC {upc} as completed (no data), processed_count now: {processed_count}")
-                            
-                    except Exception as e:
-                        logger.error(f"Error processing UPC {upc}: {type(e).__name__}: {str(e)}", exc_info=True)
-                        self.db.table("upc_batch_items").update({
-                            "status": "failed",
-                            "error_message": str(e),
-                            "processed_at": datetime.utcnow().isoformat(),
-                        }).eq("id", item_id).execute()
-                        processed_count += 1  # Count failed attempts too
-                        logger.info(f"Marked UPC {upc} as failed, processed_count now: {processed_count}")
+            logger.info(f"Starting to process {len(items)} UPCs in batch {batch_id} using multiple API keys")
             
-            # Update batch status
+            multi_client = MultiKeyKeepaClient()
+            
+            async def process_fn(keepa_client, item):
+                return await self._process_single_item(keepa_client, item, batch_data)
+            
+            processed_count = await multi_client.process_items_parallel(
+                items=items,
+                process_fn=process_fn,
+                batch_id=batch_id,
+                db=self.db,
+            )
+            
             self.db.table("upc_batches").update({
                 "status": "completed",
                 "processed_count": processed_count,
