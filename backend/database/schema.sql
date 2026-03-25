@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT,
   role TEXT DEFAULT 'user', -- 'admin', 'user'
+  can_run_jobs BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -112,7 +113,18 @@ CREATE POLICY "Admins can view all jobs"
 
 CREATE POLICY "Users can create their own jobs"
   ON batch_jobs FOR INSERT
-  WITH CHECK (auth.uid() = created_by);
+  WITH CHECK (
+    auth.uid() = created_by
+    AND EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+      AND (
+        profiles.role = 'admin'
+        OR profiles.can_run_jobs = TRUE
+        OR profiles.has_keepa_access = TRUE
+      )
+    )
+  );
 
 -- RLS Policies for upc_batches (follows batch_jobs access)
 CREATE POLICY "Users can view batches of their jobs"

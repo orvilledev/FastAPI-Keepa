@@ -183,6 +183,33 @@ async def get_task_assigner_or_superadmin_user(
     return current_user
 
 
+async def get_job_runner_user(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase)
+) -> dict:
+    """Verify user can run Express jobs (can_run_jobs = true, has_keepa_access = true, or admin)."""
+    profile_response = db.table("profiles").select("can_run_jobs, has_keepa_access, role").eq("id", current_user["id"]).execute()
+    
+    if not profile_response.data:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+    
+    profile = profile_response.data[0]
+    can_run_jobs = profile.get("can_run_jobs", False)
+    has_keepa_access = profile.get("has_keepa_access", False)
+    is_admin = profile.get("role") == "admin"
+    
+    if not can_run_jobs and not has_keepa_access and not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Express job access required. Contact an admin to enable this permission."
+        )
+    
+    return current_user
+
+
 async def check_is_admin(
     current_user: dict,
     db: Client

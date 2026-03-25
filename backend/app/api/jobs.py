@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from typing import List
 from uuid import UUID
-from app.dependencies import get_current_user, get_admin_user, check_is_admin, verify_job_access
+from app.dependencies import get_current_user, get_admin_user, get_job_runner_user, check_is_admin, verify_job_access
 from app.models.batch import BatchJobCreate, BatchJobUpdate, BatchJobResponse
 from app.database import get_supabase
 from app.services.batch_processor import BatchProcessor
@@ -19,10 +19,10 @@ router = APIRouter()
 async def create_job(
     job_data: BatchJobCreate,
     background_tasks: BackgroundTasks,
-    current_user: dict = Depends(get_admin_user),
+    current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase)
 ):
-    """Create a new batch job (admin only)."""
+    """Create a new batch job (admin, hub, or users with can_run_jobs)."""
     processor = BatchProcessor()
     job_id = await processor.create_batch_job(
         job_name=job_data.job_name,
@@ -113,10 +113,10 @@ async def get_job_status(
 async def trigger_job(
     job_id: UUID,
     background_tasks: BackgroundTasks,
-    current_user: dict = Depends(get_admin_user),
+    current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase)
 ):
-    """Manually trigger a job (admin only)."""
+    """Manually trigger a job (admin, hub, or users with can_run_jobs)."""
     job_repo = JobRepository(db)
     job = job_repo.get_job(job_id)
     
