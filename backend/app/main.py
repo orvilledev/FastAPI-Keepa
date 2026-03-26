@@ -88,12 +88,15 @@ async def startup_event():
         dnk_settings_response = db.table("scheduler_settings").select("*").eq("category", "dnk").execute()
         if dnk_settings_response.data:
             dnk_settings = dnk_settings_response.data[0]
-            setup_scheduler(
-                timezone_str=dnk_settings.get("timezone", "America/Chicago"),
-                hour=dnk_settings.get("hour", 6),
-                minute=dnk_settings.get("minute", 0),
-                category='dnk'
-            )
+            if dnk_settings.get("enabled", True):
+                setup_scheduler(
+                    timezone_str=dnk_settings.get("timezone", "America/Chicago"),
+                    hour=dnk_settings.get("hour", 6),
+                    minute=dnk_settings.get("minute", 0),
+                    category='dnk'
+                )
+            else:
+                logger.info("DNK scheduler is disabled, skipping setup")
         else:
             setup_scheduler(category='dnk')  # Use DNK defaults
 
@@ -101,12 +104,15 @@ async def startup_event():
         clk_settings_response = db.table("scheduler_settings").select("*").eq("category", "clk").execute()
         if clk_settings_response.data:
             clk_settings = clk_settings_response.data[0]
-            setup_scheduler(
-                timezone_str=clk_settings.get("timezone", "America/Chicago"),
-                hour=clk_settings.get("hour", 6),
-                minute=clk_settings.get("minute", 0),
-                category='clk'
-            )
+            if clk_settings.get("enabled", True):
+                setup_scheduler(
+                    timezone_str=clk_settings.get("timezone", "America/Chicago"),
+                    hour=clk_settings.get("hour", 6),
+                    minute=clk_settings.get("minute", 0),
+                    category='clk'
+                )
+            else:
+                logger.info("CLK scheduler is disabled, skipping setup")
         else:
             setup_scheduler(category='clk')  # Use CLK defaults
     except Exception as e:

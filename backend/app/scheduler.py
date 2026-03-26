@@ -121,7 +121,17 @@ def setup_scheduler(timezone_str: str = "America/Chicago", hour: int = 6, minute
     )
 
 
-def update_scheduler_settings(timezone_str: str = "America/Chicago", hour: int = 6, minute: int = 0, category: str = 'dnk'):
+def pause_scheduler(category: str = 'dnk'):
+    """Pause (remove) the scheduled job for a category."""
+    job_id = f"daily_{category}_job"
+    try:
+        scheduler.remove_job(job_id)
+        logger.info(f"{category.upper()} scheduler paused (job removed)")
+    except Exception:
+        pass
+
+
+def update_scheduler_settings(timezone_str: str = "America/Chicago", hour: int = 6, minute: int = 0, category: str = 'dnk', enabled: bool = True):
     """Update scheduler settings and reschedule the job for a specific category."""
     job_id = f"daily_{category}_job"
 
@@ -131,8 +141,10 @@ def update_scheduler_settings(timezone_str: str = "America/Chicago", hour: int =
     except Exception:
         pass  # Job might not exist
 
-    # Setup with new settings
-    setup_scheduler(timezone_str, hour, minute, category)
+    if enabled:
+        setup_scheduler(timezone_str, hour, minute, category)
+    else:
+        logger.info(f"{category.upper()} scheduler is disabled, job not scheduled")
 
 
 def start_scheduler():

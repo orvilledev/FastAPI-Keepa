@@ -23,6 +23,7 @@ export default function DNKDailyRun() {
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [settingsForm, setSettingsForm] = useState({ timezone: 'America/Chicago', hour: 6, minute: 0 })
   const [savingSettings, setSavingSettings] = useState(false)
+  const [togglingEnabled, setTogglingEnabled] = useState(false)
 
   useEffect(() => {
     checkKeepaAccess()
@@ -91,6 +92,22 @@ export default function DNKDailyRun() {
       setSettingsForm(schedulerSettings)
     }
     setShowSettingsModal(true)
+  }
+
+  const handleToggleEnabled = async () => {
+    if (!schedulerSettings) return
+    const newEnabled = !schedulerSettings.enabled
+    try {
+      setTogglingEnabled(true)
+      setError('')
+      await schedulerApi.updateSettings({ enabled: newEnabled }, 'dnk')
+      await loadSchedulerSettings()
+      await loadNextRun()
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to toggle scheduler')
+    } finally {
+      setTogglingEnabled(false)
+    }
   }
 
   const formatScheduledTime = () => {
@@ -176,22 +193,70 @@ export default function DNKDailyRun() {
           <h1 className="text-3xl font-bold text-gray-900">DNK Daily Run</h1>
           <p className="mt-1 text-sm text-gray-500">Manage and view DNK Daily Email Runs</p>
         </div>
-        <button
-          onClick={openSettingsModal}
-          className="px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors text-sm font-medium flex items-center gap-2"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-          </svg>
-          Scheduler Settings
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleToggleEnabled}
+            disabled={togglingEnabled || !schedulerSettings}
+            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50 ${
+              schedulerSettings?.enabled !== false
+                ? 'bg-red-600 text-white hover:bg-red-700'
+                : 'bg-green-600 text-white hover:bg-green-700'
+            }`}
+          >
+            {togglingEnabled ? (
+              'Updating...'
+            ) : schedulerSettings?.enabled !== false ? (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
+                </svg>
+                Stop Daily Run
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                </svg>
+                Start Daily Run
+              </>
+            )}
+          </button>
+          <button
+            onClick={openSettingsModal}
+            className="px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors text-sm font-medium flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+            </svg>
+            Scheduler Settings
+          </button>
+        </div>
       </div>
 
+      {/* Disabled Banner */}
+      {schedulerSettings?.enabled === false && (
+        <div className="card p-4 bg-yellow-50 border-yellow-300">
+          <div className="flex items-center gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-600 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <div>
+              <p className="font-semibold text-yellow-800">Daily Run is Stopped</p>
+              <p className="text-sm text-yellow-700">The DNK daily scheduler is currently disabled. Click "Start Daily Run" to resume.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Next Scheduled Run */}
-      {nextRun && (
+      {nextRun && schedulerSettings?.enabled !== false && (
         <div className="card p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Next Scheduled Run</h2>
           <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Status:</span>
+              <span className="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-800">Active</span>
+            </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-600">Scheduled Time:</span>
               <span className="font-medium text-gray-900">{nextRun.scheduled_time}</span>

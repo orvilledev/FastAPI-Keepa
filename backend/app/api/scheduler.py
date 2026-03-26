@@ -1,7 +1,7 @@
 """Scheduler API endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, Query
 from app.dependencies import get_current_user, get_admin_user, check_is_admin
-from app.scheduler import scheduler, update_scheduler_settings
+from app.scheduler import scheduler, update_scheduler_settings, pause_scheduler
 from app.database import get_supabase
 from app.utils.error_handler import handle_api_errors
 from datetime import datetime, timedelta
@@ -193,11 +193,13 @@ async def update_scheduler_settings_endpoint(
 
     # Update the actual scheduler
     try:
+        is_enabled = updated_settings.get("enabled", True)
         update_scheduler_settings(
             timezone_str=updated_settings.get("timezone", "America/Chicago"),
             hour=updated_settings.get("hour", 6),
             minute=updated_settings.get("minute", 0),
-            category=category
+            category=category,
+            enabled=is_enabled,
         )
     except Exception as e:
         logger.error(f"Failed to update {category.upper()} scheduler: {e}")
