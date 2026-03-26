@@ -11,6 +11,7 @@ export default function DNKSchedulerCountdown() {
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [enabled, setEnabled] = useState<boolean>(true)
 
   const loadStatus = useCallback(async () => {
     try {
@@ -22,13 +23,17 @@ export default function DNKSchedulerCountdown() {
         setTimeout(() => reject(new Error('Request timeout')), 10000)
       )
       
-      const data = await Promise.race([
-        schedulerApi.getNextRun('dnk'),
-        timeoutPromise
-      ]) as SchedulerStatus
+      const [data, settings] = await Promise.all([
+        Promise.race([
+          schedulerApi.getNextRun('dnk'),
+          timeoutPromise
+        ]) as Promise<SchedulerStatus>,
+        schedulerApi.getSettings('dnk').catch(() => ({ enabled: true })),
+      ])
       
       console.log('DNK Scheduler status loaded:', data)
       setStatus(data)
+      setEnabled(settings.enabled !== false)
       
       if (data.seconds_until !== null && data.seconds_until > 0) {
         setTimeLeft({
@@ -43,7 +48,6 @@ export default function DNKSchedulerCountdown() {
       console.error('Failed to load DNK scheduler status:', error)
       const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to load scheduler status'
       setError(errorMessage)
-      // Set a default status so it doesn't stay in loading state
       setStatus({
         next_run_time: null,
         next_run_time_taipei: null,
@@ -102,6 +106,24 @@ export default function DNKSchedulerCountdown() {
         <div className="text-center">
           <div className="text-red-600 font-medium mb-2">Error loading DNK scheduler status</div>
           <div className="text-sm text-gray-500">{error}</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!enabled) {
+    return (
+      <div className="bg-gray-100 rounded-xl shadow p-6 border border-gray-300">
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold mb-2 text-gray-900">DNK Keepa Off Price Daily Run</h3>
+            <p className="text-gray-500 text-sm">Daily run is currently stopped.</p>
+          </div>
+          <div className="text-right ml-6">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+              Stopped
+            </span>
+          </div>
         </div>
       </div>
     )
