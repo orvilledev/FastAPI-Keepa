@@ -26,6 +26,7 @@ async def add_upcs(
 
     Accepts a list of UPC strings and a category ('dnk' or 'clk').
     Duplicate UPCs (both within the request and in the database) are rejected with error messages.
+    Uses bulk operations for fast processing of large UPC lists.
     """
     upcs = request.upcs
     category = request.category
@@ -42,7 +43,6 @@ async def add_upcs(
     for upc in upcs:
         upc_clean = upc.strip()
         if upc_clean:
-            # Basic validation (adjust as needed)
             if upc_clean.isdigit() and len(upc_clean) >= 8:
                 valid_upcs.append(upc_clean)
             else:
@@ -51,7 +51,7 @@ async def add_upcs(
     if not valid_upcs:
         raise HTTPException(status_code=400, detail="No valid UPCs provided")
     
-    # Check for duplicates within the same request
+    # Deduplicate within the request
     seen_in_request = set()
     request_duplicates = []
     unique_valid_upcs = []
@@ -63,45 +63,33 @@ async def add_upcs(
             seen_in_request.add(upc)
             unique_valid_upcs.append(upc)
     
-    # Insert UPCs using repository
+    # Bulk insert using repository
     upc_repo = UPCRepository(db)
-    added_count = 0
-    db_duplicate_count = 0
+    result = upc_repo.bulk_add_upcs(unique_valid_upcs, category=category)
+    
+    added_count = result["added"]
+    db_duplicates = result["duplicates"]
+    bulk_errors = result["errors"]
+    
+    all_duplicates = request_duplicates + db_duplicates
+    total_duplicates = len(all_duplicates)
+    
     errors = []
-    duplicate_upcs = []
-    
-    # Add request duplicates to error list
     for upc in request_duplicates:
-        duplicate_upcs.append(upc)
         errors.append(f"UPC {upc}: Duplicate entry in the same request")
-    
-    # Process unique UPCs from request
-    for upc in unique_valid_upcs:
-        try:
-            upc_repo.add_upc(upc, category=category)
-            added_count += 1
-        except HTTPException as e:
-            if "already exists" in str(e.detail).lower():
-                db_duplicate_count += 1
-                duplicate_upcs.append(upc)
-                errors.append(f"UPC {upc}: Already exists in the database")
-            else:
-                errors.append(f"UPC {upc}: {str(e.detail)}")
-        except Exception as e:
-            errors.append(f"UPC {upc}: {str(e)}")
-
-    total_duplicates = len(request_duplicates) + db_duplicate_count
+    for upc in db_duplicates:
+        errors.append(f"UPC {upc}: Already exists in the database")
+    errors.extend(bulk_errors)
 
     if total_duplicates > 0 or invalid_upcs:
         logger.warning(
             f"UPC processing completed with issues: {added_count} added, "
-            f"{total_duplicates} duplicates ({len(request_duplicates)} in request, {db_duplicate_count} in database), "
+            f"{total_duplicates} duplicates ({len(request_duplicates)} in request, {len(db_duplicates)} in database), "
             f"{len(invalid_upcs)} invalid"
         )
     else:
         logger.info(f"Successfully added {added_count} UPCs")
     
-    # Build response with clear error messages
     response = {
         "message": "UPCs processed successfully" if total_duplicates == 0 else f"UPCs processed with {total_duplicates} duplicate(s) rejected",
         "added": added_count,
@@ -111,16 +99,15 @@ async def add_upcs(
         "invalid_upcs": invalid_upcs if invalid_upcs else None
     }
     
-    if duplicate_upcs:
-        response["duplicate_upcs"] = duplicate_upcs
+    if all_duplicates:
+        response["duplicate_upcs"] = all_duplicates
     
-    # If there are duplicates, raise an error to make it clear
     if total_duplicates > 0:
         error_message = f"Duplicate UPC entries detected: {total_duplicates} duplicate(s) rejected. "
         if len(request_duplicates) > 0:
             error_message += f"{len(request_duplicates)} duplicate(s) found in the same request. "
-        if db_duplicate_count > 0:
-            error_message += f"{db_duplicate_count} duplicate(s) already exist in the database."
+        if len(db_duplicates) > 0:
+            error_message += f"{len(db_duplicates)} duplicate(s) already exist in the database."
         response["error_message"] = error_message.strip()
     
     return response

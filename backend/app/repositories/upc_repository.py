@@ -1,7 +1,10 @@
 """Repository for UPC database operations."""
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 from supabase import Client
 from fastapi import HTTPException
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class UPCRepository:
@@ -84,6 +87,54 @@ class UPCRepository:
                 )
             raise
     
+    def bulk_add_upcs(self, upcs: List[str], category: str = "dnk") -> Dict:
+        """
+        Add multiple UPCs in bulk using batch operations.
+        
+        Returns dict with 'added', 'duplicates', and 'errors' counts.
+        """
+        if not upcs:
+            return {"added": 0, "duplicates": [], "errors": []}
+
+        # Fetch all existing UPCs for this category in one query
+        # Supabase has a row limit per request, so paginate if needed
+        existing_upcs = set()
+        batch_size = 1000
+        for i in range(0, len(upcs), batch_size):
+            chunk = upcs[i:i + batch_size]
+            response = (
+                self.db.table(self.table)
+                .select("upc")
+                .eq("category", category)
+                .in_("upc", chunk)
+                .execute()
+            )
+            for row in response.data:
+                existing_upcs.add(row["upc"])
+
+        duplicate_upcs = [upc for upc in upcs if upc in existing_upcs]
+        new_upcs = [upc for upc in upcs if upc not in existing_upcs]
+
+        if not new_upcs:
+            return {"added": 0, "duplicates": duplicate_upcs, "errors": []}
+
+        # Bulk insert in chunks (Supabase recommends <=1000 rows per insert)
+        added = 0
+        errors = []
+        insert_batch_size = 500
+        for i in range(0, len(new_upcs), insert_batch_size):
+            chunk = new_upcs[i:i + insert_batch_size]
+            rows = [{"upc": upc, "category": category} for upc in chunk]
+            try:
+                result = self.db.table(self.table).insert(rows).execute()
+                added += len(result.data) if result.data else 0
+            except Exception as e:
+                logger.error(f"Bulk insert error for chunk starting at index {i}: {e}")
+                errors.append(str(e))
+
+        logger.info(f"Bulk add complete: {added} added, {len(duplicate_upcs)} duplicates, {len(errors)} errors")
+        return {"added": added, "duplicates": duplicate_upcs, "errors": errors}
+
     def delete_upc(self, upc: str, category: Optional[str] = None) -> bool:
         """Delete a UPC, optionally filtered by category."""
         query = self.db.table(self.table).delete().eq("upc", upc)
