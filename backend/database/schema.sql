@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS batch_jobs (
   created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   completed_at TIMESTAMPTZ,
-  error_message TEXT
+  error_message TEXT,
+  email_recipients TEXT
 );
 
 -- UPC batches (119 UPCs per batch)

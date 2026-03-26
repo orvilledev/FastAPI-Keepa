@@ -623,9 +623,9 @@ class CSVGenerator:
             "Buy Box Seller Price", "Buy Box Seller", "Discount %", "Amazon URL"
         ]
         
-        for col in required_columns:
+        for col in required_columns + ["_is_off_price"]:
             if col not in df.columns:
-                df[col] = ""
+                df[col] = "" if col != "_is_off_price" else False
         
         # Reorder columns (exclude internal _is_off_price column)
         df = df[required_columns + ["_is_off_price"]]
