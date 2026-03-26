@@ -45,7 +45,8 @@ class BatchProcessor:
         self,
         job_name: str,
         upcs: List[str],
-        created_by: UUID
+        created_by: UUID,
+        email_recipients: str = None,
     ) -> UUID:
         """
         Create a new batch job and split UPCs into batches.
@@ -54,6 +55,7 @@ class BatchProcessor:
             job_name: Name of the job
             upcs: List of UPCs to process
             created_by: User ID who created the job
+            email_recipients: Optional comma-separated email addresses for this job
             
         Returns:
             Batch job ID
@@ -63,13 +65,17 @@ class BatchProcessor:
         total_batches = len(batches)
         
         # Create batch job
-        job_response = self.db.table("batch_jobs").insert({
+        insert_data = {
             "job_name": job_name,
             "status": "pending",
             "total_batches": total_batches,
             "completed_batches": 0,
             "created_by": str(created_by),
-        }).execute()
+        }
+        if email_recipients:
+            insert_data["email_recipients"] = email_recipients
+        
+        job_response = self.db.table("batch_jobs").insert(insert_data).execute()
         
         job_id = UUID(job_response.data[0]["id"])
         
@@ -279,14 +285,16 @@ class BatchProcessor:
                 job_response = self.db.table("batch_jobs").select("*").eq("id", str(job_id)).execute()
                 job_data = job_response.data[0]
                 job_name = job_data["job_name"]
+                custom_recipients = job_data.get("email_recipients")
                 
                 report_service = ReportService(self.db)
                 csv_bytes, filename, off_price_count = report_service.generate_csv_for_job(job_id, job_name)
                 
                 total_upcs = sum(batch["upc_count"] for batch in batches)
                 
+                send_to = custom_recipients or self.email_service.email_to
                 logger.info(f"Preparing to send email for job {job_id}: {total_upcs} UPCs, {off_price_count} off-price listings")
-                logger.info(f"Email service configuration: from={self.email_service.email_from}, to={self.email_service.email_to}, host={self.email_service.smtp_host}")
+                logger.info(f"Email recipients: {send_to} (custom={bool(custom_recipients)})")
                 
                 loop = asyncio.get_event_loop()
                 email_sent = await loop.run_in_executor(
@@ -298,11 +306,12 @@ class BatchProcessor:
                         job_name=job_name,
                         total_upcs=total_upcs,
                         alerts_count=off_price_count,
+                        recipient_email=custom_recipients,
                     ),
                 )
                 
                 if email_sent:
-                    logger.info(f"Email sent successfully for job {job_id} to {self.email_service.email_to}")
+                    logger.info(f"Email sent successfully for job {job_id} to {send_to}")
                 else:
                     logger.error(f"Failed to send email for job {job_id}.")
                     if getattr(self.email_service, "last_error", None):

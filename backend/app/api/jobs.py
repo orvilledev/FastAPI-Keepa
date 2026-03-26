@@ -27,7 +27,8 @@ async def create_job(
     job_id = await processor.create_batch_job(
         job_name=job_data.job_name,
         upcs=job_data.upcs,
-        created_by=UUID(current_user["id"])
+        created_by=UUID(current_user["id"]),
+        email_recipients=job_data.email_recipients,
     )
     
     # Start processing in background

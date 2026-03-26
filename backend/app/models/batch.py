@@ -9,6 +9,7 @@ class BatchJobCreate(BaseModel):
     """Model for creating a batch job."""
     job_name: str
     upcs: list[str]  # List of UPCs to process
+    email_recipients: Optional[str] = None
 
 
 class BatchJobUpdate(BaseModel):

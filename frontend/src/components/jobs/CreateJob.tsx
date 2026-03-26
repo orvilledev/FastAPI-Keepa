@@ -5,6 +5,7 @@ import { jobsApi } from '../../services/api'
 export default function CreateJob() {
   const [jobName, setJobName] = useState('')
   const [upcs, setUpcs] = useState('')
+  const [emailRecipients, setEmailRecipients] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
@@ -33,10 +34,15 @@ export default function CreateJob() {
         return
       }
 
-      const job = await jobsApi.createJob({
+      const jobPayload: { job_name: string; upcs: string[]; email_recipients?: string } = {
         job_name: jobName || `Job ${new Date().toLocaleString()}`,
         upcs: upcList,
-      })
+      }
+      if (emailRecipients.trim()) {
+        jobPayload.email_recipients = emailRecipients.trim()
+      }
+
+      const job = await jobsApi.createJob(jobPayload)
 
       navigate(`/jobs/${job.id}`)
     } catch (err: any) {
@@ -91,6 +97,23 @@ export default function CreateJob() {
           />
           <p className="mt-2 text-sm text-gray-500">
             <span className="font-semibold text-gray-700">{upcs.split('\n').filter((line) => line.trim().length > 0).length}</span> UPCs entered
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="emailRecipients" className="block text-sm font-medium text-gray-700 mb-2">
+            Email Recipients <span className="text-gray-500 font-normal">(optional, comma-separated)</span>
+          </label>
+          <input
+            type="text"
+            id="emailRecipients"
+            value={emailRecipients}
+            onChange={(e) => setEmailRecipients(e.target.value)}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+            placeholder="email1@example.com, email2@example.com"
+          />
+          <p className="mt-2 text-sm text-gray-500">
+            Leave blank to send to all default recipients. Enter specific emails to only send to those addresses.
           </p>
         </div>
 

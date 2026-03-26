@@ -56,7 +56,7 @@ class EmailService:
         Returns:
             True if email sent successfully, False otherwise
         """
-        recipients = self._parse_recipients(self.email_to)
+        recipients = self._parse_recipients(recipient_email or self.email_to)
         
         # Validate configuration
         if not self.email_from:
