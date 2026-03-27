@@ -82,151 +82,133 @@ class MAPRepository:
                 )
             raise
     
+    def _fetch_existing_upcs(self, upcs: List[str]) -> set:
+        """
+        Fetch all UPCs that already exist in the database using batch queries.
+        Returns a set of existing UPC strings.
+        """
+        existing = set()
+        batch_size = 1000
+        for i in range(0, len(upcs), batch_size):
+            chunk = upcs[i:i + batch_size]
+            response = (
+                self.db.table(self.table)
+                .select("upc")
+                .in_("upc", chunk)
+                .execute()
+            )
+            for row in response.data:
+                existing.add(row["upc"])
+        return existing
+
     def check_duplicates(self, maps: List[dict]) -> List[str]:
         """
         Check which UPCs in the provided list already exist in the database.
-        
-        Args:
-            maps: List of dicts with 'upc' and 'map_price' keys
-            
-        Returns:
-            List of UPCs that already exist
+        Uses a single batch query instead of per-UPC lookups.
         """
         if not maps:
             return []
-        
-        duplicate_upcs = []
-        for map_entry in maps:
-            upc = map_entry.get('upc', '').strip()
-            if upc and self.map_exists(upc):
-                duplicate_upcs.append(upc)
-        
-        return duplicate_upcs
+
+        upcs = [m.get("upc", "").strip() for m in maps if m.get("upc", "").strip()]
+        if not upcs:
+            return []
+
+        existing = self._fetch_existing_upcs(upcs)
+        return [upc for upc in upcs if upc in existing]
     
     def add_maps_bulk(self, maps: List[dict], replace_duplicates: bool = False) -> dict:
         """
-        Add multiple MAP entries in bulk, rejecting duplicates.
-        
-        Args:
-            maps: List of dicts with 'upc' and 'map_price' keys
-            
-        Returns:
-            Dict with counts of added, rejected (duplicates), and invalid entries
+        Add multiple MAP entries in bulk using batch operations.
+        Uses a single query to check all duplicates instead of per-UPC lookups.
         """
         if not maps:
             return {"added": 0, "rejected": 0, "invalid": 0, "errors": None, "duplicate_upcs": None}
-        
-        # Prepare data and check for duplicates
+
         valid_entries = []
         invalid_count = 0
-        duplicate_upcs = []
-        errors = []
-        
+
         for map_entry in maps:
             try:
-                upc = map_entry.get('upc', '').strip()
-                map_price = map_entry.get('map_price')
-                
+                upc = map_entry.get("upc", "").strip()
+                map_price = map_entry.get("map_price")
                 if not upc:
                     invalid_count += 1
                     continue
-                
                 try:
                     price = Decimal(str(map_price))
                     if price < 0:
                         invalid_count += 1
                         continue
-                    
-                    # Check if UPC already exists
-                    if self.map_exists(upc):
-                        if replace_duplicates:
-                            # Allow replacement - add to valid entries and track as duplicate
-                            duplicate_upcs.append(upc)
-                        else:
-                            # Reject duplicate
-                            duplicate_upcs.append(upc)
-                            errors.append(f"UPC {upc}: MAP entry already exists in the database")
-                            continue
-                    
-                    valid_entries.append({
-                        "upc": upc,
-                        "map_price": float(price)
-                    })
+                    valid_entries.append({"upc": upc, "map_price": float(price)})
                 except (ValueError, TypeError):
                     invalid_count += 1
-            except Exception as e:
+            except Exception:
                 invalid_count += 1
-        
+
         if not valid_entries:
+            return {"added": 0, "rejected": 0, "invalid": invalid_count, "errors": None, "duplicate_upcs": None}
+
+        all_upcs = [e["upc"] for e in valid_entries]
+        existing_upcs = self._fetch_existing_upcs(all_upcs)
+
+        duplicate_upcs = [upc for upc in all_upcs if upc in existing_upcs]
+        errors = []
+
+        if replace_duplicates:
+            entries_to_write = valid_entries
+        else:
+            entries_to_write = [e for e in valid_entries if e["upc"] not in existing_upcs]
+            if duplicate_upcs:
+                errors = [f"UPC {upc}: MAP entry already exists" for upc in duplicate_upcs]
+
+        if not entries_to_write:
             return {
                 "added": 0,
                 "rejected": len(duplicate_upcs),
                 "invalid": invalid_count,
                 "errors": errors if errors else None,
-                "duplicate_upcs": duplicate_upcs if duplicate_upcs else None
+                "duplicate_upcs": duplicate_upcs if duplicate_upcs else None,
             }
-        
-        # Process in batches of 500 for optimal performance
-        batch_size = 500
+
         total_added = 0
         batch_errors = []
-        
-        for i in range(0, len(valid_entries), batch_size):
-            batch = valid_entries[i:i + batch_size]
+        batch_size = 500
+
+        for i in range(0, len(entries_to_write), batch_size):
+            batch = entries_to_write[i:i + batch_size]
             try:
                 if replace_duplicates:
-                    # Use upsert to replace duplicates
-                    result = self.db.table(self.table).upsert(batch).execute()
-                    total_added += len(batch)
-                    self.logger.info(f"Processed batch of {len(batch)} MAP entries (with replacement)")
+                    self.db.table(self.table).upsert(batch).execute()
                 else:
-                    # Insert batch (not upsert, to reject duplicates)
-                    result = self.db.table(self.table).insert(batch).execute()
-                    total_added += len(batch)
-                    self.logger.info(f"Processed batch of {len(batch)} MAP entries")
+                    self.db.table(self.table).insert(batch).execute()
+                total_added += len(batch)
+                self.logger.info(f"Processed batch of {len(batch)} MAP entries")
             except Exception as e:
-                # Fallback: process batch individually if bulk fails
-                self.logger.warning(f"Bulk insert failed for batch, processing individually: {str(e)}")
+                self.logger.warning(f"Bulk insert failed for batch, processing individually: {e}")
                 for entry in batch:
                     try:
                         if replace_duplicates:
-                            # Use upsert to replace
                             self.db.table(self.table).upsert([entry]).execute()
-                            total_added += 1
                         else:
-                            # Double-check existence before inserting (race condition protection)
-                            if self.map_exists(entry['upc']):
-                                duplicate_upcs.append(entry['upc'])
-                                batch_errors.append(f"UPC {entry['upc']}: MAP entry already exists in the database")
-                                continue
-                            
                             self.db.table(self.table).insert([entry]).execute()
-                            total_added += 1
+                        total_added += 1
                     except Exception as entry_error:
                         error_str = str(entry_error)
                         if "duplicate" in error_str.lower() or "unique" in error_str.lower():
-                            if not replace_duplicates:
-                                duplicate_upcs.append(entry.get('upc', 'unknown'))
-                                batch_errors.append(f"UPC {entry.get('upc', 'unknown')}: MAP entry already exists in the database")
-                            else:
-                                # Try upsert if replace is enabled
-                                try:
-                                    self.db.table(self.table).upsert([entry]).execute()
-                                    total_added += 1
-                                except:
-                                    batch_errors.append(f"UPC {entry.get('upc', 'unknown')}: {str(entry_error)}")
+                            duplicate_upcs.append(entry.get("upc", "unknown"))
+                            batch_errors.append(f"UPC {entry.get('upc', 'unknown')}: already exists")
                         else:
-                            batch_errors.append(f"UPC {entry.get('upc', 'unknown')}: {str(entry_error)}")
-        
-        # Combine all errors
+                            batch_errors.append(f"UPC {entry.get('upc', 'unknown')}: {error_str}")
+
         all_errors = errors + batch_errors if batch_errors else errors
-        
+
+        self.logger.info(f"Bulk MAP add complete: {total_added} added, {len(duplicate_upcs)} duplicates, {invalid_count} invalid")
         return {
             "added": total_added,
             "rejected": len(duplicate_upcs),
             "invalid": invalid_count,
             "errors": all_errors if all_errors else None,
-            "duplicate_upcs": duplicate_upcs if duplicate_upcs else None
+            "duplicate_upcs": duplicate_upcs if duplicate_upcs else None,
         }
     
     def delete_map(self, upc: str) -> bool:
