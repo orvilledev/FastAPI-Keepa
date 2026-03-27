@@ -45,7 +45,34 @@ class UPCRepository:
         
         response = query.limit(0).execute()
         return response.count if hasattr(response, 'count') else len(response.data)
-    
+
+    def get_all_upc_codes(self, category: str) -> List[str]:
+        """
+        Fetch every UPC for a category. Paginates in chunks because PostgREST
+        (Supabase) caps each response at ~1000 rows by default.
+        """
+        page_size = 1000
+        offset = 0
+        codes: List[str] = []
+        while True:
+            response = (
+                self.db.table(self.table)
+                .select("upc")
+                .eq("category", category)
+                .order("id")
+                .range(offset, offset + page_size - 1)
+                .execute()
+            )
+            rows = response.data or []
+            if not rows:
+                break
+            codes.extend(row["upc"] for row in rows if row.get("upc"))
+            if len(rows) < page_size:
+                break
+            offset += page_size
+        logger.info(f"Loaded {len(codes)} UPCs for category {category} (paginated)")
+        return codes
+
     def upc_exists(self, upc: str, category: str) -> bool:
         """Check if a UPC already exists in the database for the given category."""
         response = self.db.table(self.table).select("id").eq("upc", upc).eq("category", category).limit(1).execute()

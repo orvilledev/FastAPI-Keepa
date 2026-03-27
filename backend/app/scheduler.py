@@ -5,6 +5,7 @@ import logging
 from pytz import timezone
 from app.config import settings
 from app.database import get_supabase
+from app.repositories.upc_repository import UPCRepository
 from app.services.batch_processor import BatchProcessor
 from typing import List
 from dataclasses import dataclass
@@ -61,9 +62,9 @@ async def run_daily_job_for_category(category: str = 'dnk'):
         from uuid import UUID
         admin_uuid = UUID(admin_id)
 
-        # Process UPCs for the specified category
-        upcs_response = db.table("upcs").select("upc").eq("category", category).execute()
-        upcs = [upc["upc"] for upc in upcs_response.data]
+        # Process UPCs for the specified category (paginate past PostgREST 1000-row default)
+        upc_repo = UPCRepository(db)
+        upcs = upc_repo.get_all_upc_codes(category)
 
         if upcs:
             logger.info(f"Found {len(upcs)} {category.upper()} UPCs to process")
