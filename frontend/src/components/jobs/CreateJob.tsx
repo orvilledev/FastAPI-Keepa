@@ -28,12 +28,6 @@ export default function CreateJob() {
         return
       }
 
-      if (upcList.length > 2500) {
-        setError('Maximum 2500 UPCs allowed')
-        setLoading(false)
-        return
-      }
-
       const jobPayload: { job_name: string; upcs: string[]; email_recipients?: string } = {
         job_name: jobName || `Job ${new Date().toLocaleString()}`,
         upcs: upcList,
@@ -57,7 +51,7 @@ export default function CreateJob() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Create New Job</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Enter UPCs to process (one per line, up to 2500 UPCs)
+          Enter UPCs to process (one per line)
         </p>
       </div>
 
