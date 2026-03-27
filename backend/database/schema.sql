@@ -70,6 +70,15 @@ CREATE TABLE IF NOT EXISTS price_alerts (
   detected_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Seller name lookup table (maps Keepa seller IDs to display names)
+CREATE TABLE IF NOT EXISTS seller_names (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  seller_id TEXT UNIQUE NOT NULL,
+  seller_name TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_batch_jobs_status ON batch_jobs(status);
 CREATE INDEX IF NOT EXISTS idx_batch_jobs_created_by ON batch_jobs(created_by);
@@ -79,6 +88,7 @@ CREATE INDEX IF NOT EXISTS idx_upc_batch_items_batch_id ON upc_batch_items(upc_b
 CREATE INDEX IF NOT EXISTS idx_upc_batch_items_upc ON upc_batch_items(upc);
 CREATE INDEX IF NOT EXISTS idx_price_alerts_batch_job_id ON price_alerts(batch_job_id);
 CREATE INDEX IF NOT EXISTS idx_price_alerts_upc ON price_alerts(upc);
+CREATE INDEX IF NOT EXISTS idx_seller_names_seller_id ON seller_names(seller_id);
 
 -- Enable Row Level Security
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
@@ -87,6 +97,7 @@ ALTER TABLE batch_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE upc_batches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE upc_batch_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE price_alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE seller_names ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for profiles
 CREATE POLICY "Users can view their own profile"
@@ -183,6 +194,21 @@ CREATE POLICY "Users can view alerts of their jobs"
 
 CREATE POLICY "Admins can view all alerts"
   ON price_alerts FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.role = 'admin'
+    )
+  );
+
+-- RLS Policies for seller_names
+CREATE POLICY "Authenticated users can view seller names"
+  ON seller_names FOR SELECT
+  USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can manage seller names"
+  ON seller_names FOR ALL
   USING (
     EXISTS (
       SELECT 1 FROM profiles

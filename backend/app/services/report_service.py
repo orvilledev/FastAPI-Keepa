@@ -4,6 +4,7 @@ from uuid import UUID
 from decimal import Decimal
 from app.repositories.report_repository import ReportRepository
 from app.repositories.map_repository import MAPRepository
+from app.repositories.seller_name_repository import SellerNameRepository
 from app.services.csv_generator import CSVGenerator
 from supabase import Client
 from fastapi import HTTPException
@@ -18,6 +19,7 @@ class ReportService:
     def __init__(self, db: Client):
         self.report_repo = ReportRepository(db)
         self.map_repo = MAPRepository(db)
+        self.seller_name_repo = SellerNameRepository(db)
         self.csv_generator = CSVGenerator()
         self.db = db
     
@@ -63,11 +65,20 @@ class ReportService:
                 logger.debug(f"Error fetching MAP price for UPC {upc}: {e}")
                 pass
         
+        # Load seller name lookup map from database
+        try:
+            seller_name_map = self.seller_name_repo.get_seller_name_map()
+            logger.info(f"Loaded {len(seller_name_map)} seller name mappings for report")
+        except Exception as e:
+            logger.warning(f"Could not load seller names, will use raw IDs: {e}")
+            seller_name_map = {}
+
         # Generate comprehensive Excel report
         csv_bytes, off_price_count = self.csv_generator.generate_comprehensive_report_csv(
             processed_items,
             price_alerts_by_upc,
-            map_prices_by_upc
+            map_prices_by_upc,
+            seller_name_map=seller_name_map
         )
         filename = self.csv_generator.generate_csv_filename(job_name, extension="xlsx")
         

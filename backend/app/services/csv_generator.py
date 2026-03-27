@@ -483,7 +483,8 @@ class CSVGenerator:
     def generate_comprehensive_report_csv(
         processed_items: List[Dict[str, Any]],
         price_alerts_by_upc: Dict[str, List[Dict[str, Any]]],
-        map_prices_by_upc: Dict[str, Decimal]
+        map_prices_by_upc: Dict[str, Decimal],
+        seller_name_map: Optional[Dict[str, str]] = None
     ) -> tuple:
         """
         Generate comprehensive CSV report matching the spreadsheet format.
@@ -492,6 +493,7 @@ class CSVGenerator:
             processed_items: List of upc_batch_items with keepa_data
             price_alerts_by_upc: Dict mapping UPC to list of price alerts
             map_prices_by_upc: Dict mapping UPC to MAP price
+            seller_name_map: Optional dict mapping seller_id to seller_name for display
             
         Returns:
             Tuple of (Excel file as bytes, number of off-price items)
@@ -569,8 +571,17 @@ class CSVGenerator:
                 current_price_display = "N/A"
                 current_amazon_price = None
             
-            # Buy box seller: prefer store name over seller ID
-            buy_box_seller = product_data.get("buy_box_seller_name") or product_data.get("buy_box_seller_id") or "N/A"
+            # Buy box seller: prefer Keepa name, then DB lookup by ID, then raw ID
+            buy_box_seller_name = product_data.get("buy_box_seller_name", "")
+            buy_box_seller_id = product_data.get("buy_box_seller_id", "")
+            if buy_box_seller_name:
+                buy_box_seller = buy_box_seller_name
+            elif buy_box_seller_id and seller_name_map:
+                buy_box_seller = seller_name_map.get(buy_box_seller_id, buy_box_seller_id)
+            elif buy_box_seller_id:
+                buy_box_seller = buy_box_seller_id
+            else:
+                buy_box_seller = "N/A"
             
             # Calculate discount % (based on MSRP and Buy Box Seller Price)
             if msrp is not None and final_buy_box_price is not None and float(msrp) > 0:
