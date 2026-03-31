@@ -1,11 +1,14 @@
 """Batch processing service for UPCs."""
 import asyncio
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from uuid import UUID
 from datetime import datetime
+from decimal import Decimal
 from functools import partial
+from fastapi import HTTPException
 from app.database import get_supabase
+from app.repositories.map_repository import MAPRepository
 from app.services.keepa_client import KeepaClient, MultiKeyKeepaClient
 from app.services.price_analyzer import PriceAnalyzer
 from app.services.csv_generator import CSVGenerator
@@ -19,6 +22,7 @@ class BatchProcessor:
     
     def __init__(self):
         self.db = get_supabase()
+        self.map_repo = MAPRepository(self.db)
         self.price_analyzer = PriceAnalyzer()
         self.csv_generator = CSVGenerator()
         self.email_service = EmailService()
@@ -122,8 +126,19 @@ class BatchProcessor:
             logger.info(f"[Key {keepa_client.key_index}] Keepa response for UPC {upc}: {'Success' if keepa_response else 'None/Empty'}")
             
             if keepa_response:
-                analysis = self.price_analyzer.analyze_product(keepa_response)
-                
+                map_price: Optional[Decimal] = None
+                try:
+                    map_row = self.map_repo.get_map_by_upc(upc)
+                    mp = Decimal(str(map_row.get("map_price", 0)))
+                    if mp > 0:
+                        map_price = mp
+                except HTTPException:
+                    pass
+                except Exception as e:
+                    logger.debug(f"No MAP for UPC {upc}: {e}")
+
+                analysis = self.price_analyzer.analyze_product(keepa_response, map_price=map_price)
+
                 self.db.table("upc_batch_items").update({
                     "keepa_data": keepa_response,
                     "status": "completed",
