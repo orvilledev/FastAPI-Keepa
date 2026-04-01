@@ -4,7 +4,7 @@ import io
 import logging
 import re
 import httpx
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 from decimal import Decimal
 from openpyxl import Workbook
@@ -478,7 +478,45 @@ class CSVGenerator:
             "buy_box_seller_id": buy_box_seller_id_display,
             "current_amazon_price": current_amazon_price,
         }
-    
+
+    @staticmethod
+    def _lowest_seller_offer(keepa_data: Dict[str, Any]) -> Tuple[Optional[float], Optional[str], str]:
+        """
+        Lowest offer among current_sellers (dollars). Keepa list prices are in cents.
+
+        Returns:
+            (price_dollars, seller_name, seller_id) or (None, None, "") if none.
+        """
+        if not keepa_data or not isinstance(keepa_data, dict):
+            return None, None, ""
+        products = keepa_data.get("products", [])
+        if not products:
+            return None, None, ""
+        current_sellers = products[0].get("current_sellers", [])
+        best_price: Optional[float] = None
+        best_name: Optional[str] = None
+        best_id = ""
+        for seller in current_sellers:
+            raw = seller.get("price")
+            if raw is None:
+                continue
+            try:
+                cents = float(raw)
+                if cents <= 0:
+                    continue
+                dollars = cents / 100.0
+                if best_price is None or dollars < best_price:
+                    best_price = dollars
+                    sn = (seller.get("sellerName") or "").strip()
+                    best_name = sn if sn else None
+                    sid = seller.get("sellerId")
+                    best_id = str(sid) if sid is not None else ""
+            except (TypeError, ValueError):
+                continue
+        if best_price is None:
+            return None, None, ""
+        return best_price, best_name, best_id
+
     @staticmethod
     def generate_comprehensive_report_csv(
         processed_items: List[Dict[str, Any]],
@@ -519,20 +557,29 @@ class CSVGenerator:
             asin = product_data.get("asin", "")
             amazon_url = f"https://www.amazon.com/dp/{asin}" if asin else "N/A"
             
-            # Use Keepa's buy box price as the Buy Box Seller Price (PRIMARY source)
-            # Keepa provides reliable buy box price data from their records
-            final_buy_box_price = product_data.get("buy_box_price")
-            
-            if final_buy_box_price is not None:
-                logger.debug(f"Using buy box price ${final_buy_box_price:.2f} from Keepa data for UPC {upc}")
+            # Off-price rule: any seller below MAP — use lowest current_seller offer vs MSRP;
+            # if no seller rows, fall back to buy box price from stats.
+            lowest_price, lowest_name, lowest_id = CSVGenerator._lowest_seller_offer(keepa_data)
+            buy_box_only = product_data.get("buy_box_price")
+            if lowest_price is not None:
+                reference_price = lowest_price
+                logger.debug(
+                    f"Using lowest seller offer ${reference_price:.2f} from Keepa for UPC {upc}"
+                )
+            elif buy_box_only is not None:
+                reference_price = buy_box_only
+                logger.debug(
+                    f"No seller offers; using buy box ${reference_price:.2f} for UPC {upc}"
+                )
             else:
-                logger.warning(f"No buy box price found in Keepa data for UPC {upc}")
+                reference_price = None
+                logger.warning(f"No seller or buy box price found in Keepa data for UPC {upc}")
             
-            # Calculate Price Difference: MSRP - Buy Box Seller Price
+            # Calculate Price Difference: MSRP - reference offer price
             price_difference = None
-            if msrp is not None and final_buy_box_price is not None:
+            if msrp is not None and reference_price is not None:
                 try:
-                    price_difference = float(msrp) - float(final_buy_box_price)
+                    price_difference = float(msrp) - float(reference_price)
                     price_difference_display = f"${price_difference:.2f}"
                 except (TypeError, ValueError):
                     price_difference_display = "$0.00"
@@ -541,10 +588,10 @@ class CSVGenerator:
                 price_difference_display = "$0.00"
                 price_difference = 0.0
             
-            # Determine Off Price Listing: "Off Price" if MSRP > Buy Box Seller Price, otherwise "Not Off Price"
-            if msrp is not None and final_buy_box_price is not None:
+            # Off Price if MAP > lowest offer (any seller below MAP when sellers exist)
+            if msrp is not None and reference_price is not None:
                 try:
-                    if float(msrp) > float(final_buy_box_price):
+                    if float(msrp) > float(reference_price):
                         off_price_listing = "Off Price"
                         is_off_price = True
                     else:
@@ -571,31 +618,42 @@ class CSVGenerator:
                 current_price_display = "N/A"
                 current_amazon_price = None
             
-            # Buy box seller: prefer Keepa name, then DB lookup by ID, then raw ID
-            buy_box_seller_name = product_data.get("buy_box_seller_name", "")
-            buy_box_seller_id = product_data.get("buy_box_seller_id", "")
-            if buy_box_seller_name:
-                buy_box_seller = buy_box_seller_name
-            elif buy_box_seller_id and seller_name_map:
-                buy_box_seller = seller_name_map.get(buy_box_seller_id, buy_box_seller_id)
-            elif buy_box_seller_id:
-                buy_box_seller = buy_box_seller_id
+            # Seller shown: lowest-offer seller when used; otherwise buy box seller
+            if lowest_price is not None:
+                if lowest_name:
+                    buy_box_seller = lowest_name
+                elif lowest_id and seller_name_map:
+                    buy_box_seller = seller_name_map.get(lowest_id, lowest_id)
+                elif lowest_id:
+                    buy_box_seller = lowest_id
+                else:
+                    buy_box_seller = "N/A"
             else:
-                buy_box_seller = "N/A"
+                buy_box_seller_name = product_data.get("buy_box_seller_name", "")
+                buy_box_seller_id = product_data.get("buy_box_seller_id", "")
+                if buy_box_seller_name:
+                    buy_box_seller = buy_box_seller_name
+                elif buy_box_seller_id and seller_name_map:
+                    buy_box_seller = seller_name_map.get(buy_box_seller_id, buy_box_seller_id)
+                elif buy_box_seller_id:
+                    buy_box_seller = buy_box_seller_id
+                else:
+                    buy_box_seller = "N/A"
             
-            # Calculate discount % (based on MSRP and Buy Box Seller Price)
-            if msrp is not None and final_buy_box_price is not None and float(msrp) > 0:
+            # Discount % (MSRP vs reference offer used for off-price)
+            if msrp is not None and reference_price is not None and float(msrp) > 0:
                 try:
-                    discount_percent = ((float(msrp) - float(final_buy_box_price)) / float(msrp)) * 100
+                    discount_percent = ((float(msrp) - float(reference_price)) / float(msrp)) * 100
                     discount_display = f"{discount_percent:.2f}%"
                 except (TypeError, ValueError, ZeroDivisionError):
                     discount_display = "N/A"
             else:
                 discount_display = "N/A"
             
-            # Format the buy box price for display
             try:
-                buy_box_price_display = f"${float(final_buy_box_price):.2f}" if final_buy_box_price is not None else "N/A"
+                buy_box_price_display = (
+                    f"${float(reference_price):.2f}" if reference_price is not None else "N/A"
+                )
             except (TypeError, ValueError):
                 buy_box_price_display = "N/A"
             
