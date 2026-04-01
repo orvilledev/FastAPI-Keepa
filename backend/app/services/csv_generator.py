@@ -4,7 +4,7 @@ import io
 import logging
 import re
 import httpx
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 from decimal import Decimal
 from openpyxl import Workbook
@@ -480,23 +480,20 @@ class CSVGenerator:
         }
 
     @staticmethod
-    def _lowest_seller_offer(keepa_data: Dict[str, Any]) -> Tuple[Optional[float], Optional[str], str]:
+    def _seller_offers_from_keepa(keepa_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Lowest offer among current_sellers (dollars). Keepa list prices are in cents.
+        All seller offers from current_sellers. Keepa prices are in cents.
 
-        Returns:
-            (price_dollars, seller_name, seller_id) or (None, None, "") if none.
+        One entry per row in Keepa's list (duplicate sellerIds can appear — each becomes a row).
+        Each dict: price (float dollars), seller_name (str), seller_id (str).
         """
+        offers: List[Dict[str, Any]] = []
         if not keepa_data or not isinstance(keepa_data, dict):
-            return None, None, ""
+            return offers
         products = keepa_data.get("products", [])
         if not products:
-            return None, None, ""
-        current_sellers = products[0].get("current_sellers", [])
-        best_price: Optional[float] = None
-        best_name: Optional[str] = None
-        best_id = ""
-        for seller in current_sellers:
+            return offers
+        for seller in products[0].get("current_sellers", []):
             raw = seller.get("price")
             if raw is None:
                 continue
@@ -505,17 +502,16 @@ class CSVGenerator:
                 if cents <= 0:
                     continue
                 dollars = cents / 100.0
-                if best_price is None or dollars < best_price:
-                    best_price = dollars
-                    sn = (seller.get("sellerName") or "").strip()
-                    best_name = sn if sn else None
-                    sid = seller.get("sellerId")
-                    best_id = str(sid) if sid is not None else ""
+                sn = (seller.get("sellerName") or "").strip()
+                sid = seller.get("sellerId")
+                offers.append({
+                    "price": dollars,
+                    "seller_name": sn,
+                    "seller_id": str(sid) if sid is not None else "",
+                })
             except (TypeError, ValueError):
                 continue
-        if best_price is None:
-            return None, None, ""
-        return best_price, best_name, best_id
+        return offers
 
     @staticmethod
     def generate_comprehensive_report_csv(
@@ -534,154 +530,128 @@ class CSVGenerator:
             seller_name_map: Optional dict mapping seller_id to seller_name for display
             
         Returns:
-            Tuple of (Excel file as bytes, number of off-price items)
+            Tuple of (Excel file as bytes, number of off-price rows — one per seller below MAP)
         """
         csv_data = []
         off_price_count = 0
-        
+        seller_name_map = seller_name_map or {}
+
         for item in processed_items:
             upc = item.get("upc", "")
             keepa_data = item.get("keepa_data", {})
-            
-            # Extract product data from Keepa
+
             product_data = CSVGenerator.extract_keepa_product_data(keepa_data)
-            
-            # Get MAP price (MSRP)
+
             map_price = map_prices_by_upc.get(upc)
             try:
                 msrp = float(map_price) if map_price else None
             except (TypeError, ValueError):
                 msrp = None
-            
-            # Build Amazon URL
+
             asin = product_data.get("asin", "")
             amazon_url = f"https://www.amazon.com/dp/{asin}" if asin else "N/A"
-            
-            # Off-price rule: any seller below MAP — use lowest current_seller offer vs MSRP;
-            # if no seller rows, fall back to buy box price from stats.
-            lowest_price, lowest_name, lowest_id = CSVGenerator._lowest_seller_offer(keepa_data)
-            buy_box_only = product_data.get("buy_box_price")
-            if lowest_price is not None:
-                reference_price = lowest_price
-                logger.debug(
-                    f"Using lowest seller offer ${reference_price:.2f} from Keepa for UPC {upc}"
-                )
-            elif buy_box_only is not None:
-                reference_price = buy_box_only
-                logger.debug(
-                    f"No seller offers; using buy box ${reference_price:.2f} for UPC {upc}"
-                )
-            else:
-                reference_price = None
-                logger.warning(f"No seller or buy box price found in Keepa data for UPC {upc}")
-            
-            # Calculate Price Difference: MSRP - reference offer price
-            price_difference = None
-            if msrp is not None and reference_price is not None:
-                try:
-                    price_difference = float(msrp) - float(reference_price)
-                    price_difference_display = f"${price_difference:.2f}"
-                except (TypeError, ValueError):
-                    price_difference_display = "$0.00"
-                    price_difference = 0.0
-            else:
-                price_difference_display = "$0.00"
-                price_difference = 0.0
-            
-            # Off Price if MAP > lowest offer (any seller below MAP when sellers exist)
-            if msrp is not None and reference_price is not None:
-                try:
-                    if float(msrp) > float(reference_price):
-                        off_price_listing = "Off Price"
-                        is_off_price = True
-                    else:
-                        off_price_listing = "Not Off Price"
-                        is_off_price = False
-                except (TypeError, ValueError):
-                    off_price_listing = "Not Off Price"
-                    is_off_price = False
-            else:
-                off_price_listing = "Not Off Price"
-                is_off_price = False
-            
-            # Skip "Not Off Price" rows - only include Off Price items in report
-            if not is_off_price:
-                continue
-            
-            off_price_count += 1
-            
-            # Get current Amazon price (for display purposes)
-            current_amazon_price = product_data.get("current_amazon_price")
-            try:
-                current_price_display = f"${float(current_amazon_price):.2f}" if current_amazon_price is not None else "N/A"
-            except (TypeError, ValueError):
-                current_price_display = "N/A"
-                current_amazon_price = None
-            
-            # Seller shown: lowest-offer seller when used; otherwise buy box seller
-            if lowest_price is not None:
-                if lowest_name:
-                    buy_box_seller = lowest_name
-                elif lowest_id and seller_name_map:
-                    buy_box_seller = seller_name_map.get(lowest_id, lowest_id)
-                elif lowest_id:
-                    buy_box_seller = lowest_id
-                else:
-                    buy_box_seller = "N/A"
-            else:
-                buy_box_seller_name = product_data.get("buy_box_seller_name", "")
-                buy_box_seller_id = product_data.get("buy_box_seller_id", "")
-                if buy_box_seller_name:
-                    buy_box_seller = buy_box_seller_name
-                elif buy_box_seller_id and seller_name_map:
-                    buy_box_seller = seller_name_map.get(buy_box_seller_id, buy_box_seller_id)
-                elif buy_box_seller_id:
-                    buy_box_seller = buy_box_seller_id
-                else:
-                    buy_box_seller = "N/A"
-            
-            # Discount % (MSRP vs reference offer used for off-price)
-            if msrp is not None and reference_price is not None and float(msrp) > 0:
-                try:
-                    discount_percent = ((float(msrp) - float(reference_price)) / float(msrp)) * 100
-                    discount_display = f"{discount_percent:.2f}%"
-                except (TypeError, ValueError, ZeroDivisionError):
-                    discount_display = "N/A"
-            else:
-                discount_display = "N/A"
-            
-            try:
-                buy_box_price_display = (
-                    f"${float(reference_price):.2f}" if reference_price is not None else "N/A"
-                )
-            except (TypeError, ValueError):
-                buy_box_price_display = "N/A"
-            
+
             # Format UPC (handle scientific notation)
             upc_display = upc
             try:
-                # If UPC is a number in scientific notation, convert it
-                if 'E+' in str(upc) or 'e+' in str(upc):
+                if "E+" in str(upc) or "e+" in str(upc):
                     upc_display = f"{float(upc):.0f}"
-            except:
+            except Exception:
                 pass
-            
-            csv_data.append({
-                "UPC": upc_display,
-                "ASIN": product_data.get("asin", ""),
-                "Product Title": product_data.get("title", ""),
-                "Brand": product_data.get("brand", ""),
-                "Off Price Listing": off_price_listing,
-                "MSRP": f"${msrp:.2f}" if msrp else "N/A",
-                "Current Amazon Price": current_price_display,
-                "Price Difference": price_difference_display,
-                "Buy Box Seller Price": buy_box_price_display,
-                "Buy Box Seller": buy_box_seller,
-                "Discount %": discount_display,
-                "Amazon URL": amazon_url,
-                "_is_off_price": is_off_price,  # Internal flag for formatting
-            })
-        
+
+            base_title = product_data.get("title", "")
+            base_brand = product_data.get("brand", "")
+
+            def append_row(
+                reference_price: float,
+                seller_display: str,
+            ) -> None:
+                nonlocal off_price_count
+                off_price_count += 1
+                try:
+                    pdiff = float(msrp) - float(reference_price)
+                    price_difference_display = f"${pdiff:.2f}"
+                except (TypeError, ValueError):
+                    price_difference_display = "$0.00"
+                if msrp is not None and float(msrp) > 0:
+                    try:
+                        discount_percent = (
+                            (float(msrp) - float(reference_price)) / float(msrp)
+                        ) * 100
+                        discount_display = f"{discount_percent:.2f}%"
+                    except (TypeError, ValueError, ZeroDivisionError):
+                        discount_display = "N/A"
+                else:
+                    discount_display = "N/A"
+                try:
+                    cur_disp = (
+                        f"${float(reference_price):.2f}"
+                        if reference_price is not None
+                        else "N/A"
+                    )
+                except (TypeError, ValueError):
+                    cur_disp = "N/A"
+                try:
+                    seller_price_disp = f"${float(reference_price):.2f}"
+                except (TypeError, ValueError):
+                    seller_price_disp = "N/A"
+                csv_data.append({
+                    "UPC": upc_display,
+                    "ASIN": asin,
+                    "Product Title": base_title,
+                    "Brand": base_brand,
+                    "Off Price Listing": "Off Price",
+                    "MSRP": f"${msrp:.2f}" if msrp else "N/A",
+                    "Current Amazon Price": cur_disp,
+                    "Price Difference": price_difference_display,
+                    "Seller Offer Price": seller_price_disp,
+                    "Seller": seller_display,
+                    "Discount %": discount_display,
+                    "Amazon URL": amazon_url,
+                    "_is_off_price": True,
+                })
+
+            if msrp is None:
+                continue
+
+            offers = CSVGenerator._seller_offers_from_keepa(keepa_data)
+
+            for off in offers:
+                ref = off["price"]
+                if not (float(msrp) > float(ref)):
+                    continue
+                sid = off.get("seller_id") or ""
+                sname = off.get("seller_name") or ""
+                if sname:
+                    seller_disp = sname
+                elif sid and seller_name_map:
+                    seller_disp = seller_name_map.get(sid, sid)
+                elif sid:
+                    seller_disp = sid
+                else:
+                    seller_disp = "N/A"
+                append_row(ref, seller_disp)
+
+            # No seller rows in Keepa: fallback to buy box vs MAP (single row)
+            if not offers:
+                buy_box_only = product_data.get("buy_box_price")
+                if buy_box_only is not None and float(msrp) > float(buy_box_only):
+                    bb_name = product_data.get("buy_box_seller_name", "")
+                    bb_id = product_data.get("buy_box_seller_id", "")
+                    if bb_name:
+                        seller_disp = bb_name
+                    elif bb_id and seller_name_map:
+                        seller_disp = seller_name_map.get(bb_id, bb_id)
+                    elif bb_id:
+                        seller_disp = bb_id
+                    else:
+                        seller_disp = "N/A"
+                    append_row(float(buy_box_only), seller_disp)
+                elif buy_box_only is None:
+                    logger.warning(
+                        f"No seller or buy box price found in Keepa data for UPC {upc}"
+                    )
+
         # Create DataFrame with all columns
         df = pd.DataFrame(csv_data)
         
@@ -689,7 +659,7 @@ class CSVGenerator:
         required_columns = [
             "UPC", "ASIN", "Product Title", "Brand", "Off Price Listing",
             "MSRP", "Current Amazon Price", "Price Difference",
-            "Buy Box Seller Price", "Buy Box Seller", "Discount %", "Amazon URL"
+            "Seller Offer Price", "Seller", "Discount %", "Amazon URL"
         ]
         
         for col in required_columns + ["_is_off_price"]:
