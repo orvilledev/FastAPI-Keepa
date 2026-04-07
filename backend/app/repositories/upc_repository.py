@@ -48,28 +48,32 @@ class UPCRepository:
 
     def get_all_upc_codes(self, category: str) -> List[str]:
         """
-        Fetch every UPC for a category. Paginates in chunks because PostgREST
-        (Supabase) caps each response at ~1000 rows by default.
+        Fetch every UPC for a category. Keyset pagination on id avoids PostgREST's
+        ~1000 row cap per request and large OFFSET behavior.
         """
         page_size = 1000
-        offset = 0
         codes: List[str] = []
+        last_id: Optional[str] = None
         while True:
-            response = (
+            q = (
                 self.db.table(self.table)
-                .select("upc")
+                .select("id, upc")
                 .eq("category", category)
                 .order("id")
-                .range(offset, offset + page_size - 1)
-                .execute()
+                .limit(page_size)
             )
+            if last_id is not None:
+                q = q.gt("id", str(last_id))
+            response = q.execute()
             rows = response.data or []
             if not rows:
                 break
-            codes.extend(row["upc"] for row in rows if row.get("upc"))
+            for row in rows:
+                if row.get("upc"):
+                    codes.append(row["upc"])
             if len(rows) < page_size:
                 break
-            offset += page_size
+            last_id = rows[-1]["id"]
         logger.info(f"Loaded {len(codes)} UPCs for category {category} (paginated)")
         return codes
 

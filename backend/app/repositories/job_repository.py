@@ -5,6 +5,8 @@ from supabase import Client
 from fastapi import HTTPException
 from datetime import datetime
 
+from app.repositories.supabase_read_all import read_all_paginated
+
 
 class JobRepository:
     """Repository for batch_jobs table operations."""
@@ -94,10 +96,14 @@ class JobRepository:
     
     def get_job_batches(self, job_id: UUID) -> List[dict]:
         """Get all batches for a job."""
-        response = self.db.table("upc_batches").select(
-            "id, batch_number, status, processed_count, upc_count"
-        ).eq("batch_job_id", str(job_id)).order("batch_number").execute()
-        return response.data
+        return read_all_paginated(
+            lambda start, end: self.db.table("upc_batches")
+            .select("id, batch_number, status, processed_count, upc_count")
+            .eq("batch_job_id", str(job_id))
+            .order("batch_number")
+            .range(start, end)
+            .execute()
+        )
     
     def delete_job(self, job_id: UUID) -> None:
         """Delete a job and all related data (cascades to batches, items, alerts)."""

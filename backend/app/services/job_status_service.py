@@ -4,6 +4,8 @@ from datetime import datetime
 from supabase import Client
 import logging
 
+from app.repositories.supabase_read_all import read_all_paginated
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,12 +22,14 @@ class JobStatusService:
             db: Supabase client
         """
         try:
-            # Get all batches for this job
-            batches_response = db.table("upc_batches").select("status").eq(
-                "batch_job_id", str(job_id)
-            ).execute()
-            
-            batches = batches_response.data
+            batches = read_all_paginated(
+                lambda start, end: db.table("upc_batches")
+                .select("status")
+                .eq("batch_job_id", str(job_id))
+                .order("batch_number")
+                .range(start, end)
+                .execute()
+            )
             
             if not batches:
                 return

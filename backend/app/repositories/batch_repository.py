@@ -5,6 +5,8 @@ from supabase import Client
 from fastapi import HTTPException
 from datetime import datetime
 
+from app.repositories.supabase_read_all import read_all_paginated
+
 
 class BatchRepository:
     """Repository for upc_batches table operations."""
@@ -22,17 +24,29 @@ class BatchRepository:
     
     def get_batch_items(self, batch_id: UUID) -> List[dict]:
         """Get all items for a batch."""
-        response = self.db.table("upc_batch_items").select("*").eq(
-            "upc_batch_id", str(batch_id)
-        ).order("upc").execute()
-        return response.data
+        bid = str(batch_id)
+        rows = read_all_paginated(
+            lambda start, end, b=bid: self.db.table("upc_batch_items")
+            .select("*")
+            .eq("upc_batch_id", b)
+            .order("id")
+            .range(start, end)
+            .execute()
+        )
+        rows.sort(key=lambda x: x.get("upc") or "")
+        return rows
     
     def get_batches_by_job(self, job_id: UUID) -> List[dict]:
         """Get all batches for a job."""
-        response = self.db.table(self.table).select("status").eq(
-            "batch_job_id", str(job_id)
-        ).execute()
-        return response.data
+        jid = str(job_id)
+        return read_all_paginated(
+            lambda start, end, j=jid: self.db.table(self.table)
+            .select("status")
+            .eq("batch_job_id", j)
+            .order("batch_number")
+            .range(start, end)
+            .execute()
+        )
     
     def create_batch(
         self, 

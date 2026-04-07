@@ -9,6 +9,7 @@ from functools import partial
 from fastapi import HTTPException
 from app.database import get_supabase
 from app.repositories.map_repository import MAPRepository
+from app.repositories.supabase_read_all import read_all_paginated
 from app.services.keepa_client import KeepaClient, MultiKeyKeepaClient
 from app.services.price_analyzer import PriceAnalyzer
 from app.services.csv_generator import CSVGenerator
@@ -262,12 +263,15 @@ class BatchProcessor:
                 "status": "processing"
             }).eq("id", str(job_id)).execute()
             
-            # Get all batches for this job
-            batches_response = self.db.table("upc_batches").select("id, upc_count").eq(
-                "batch_job_id", str(job_id)
-            ).order("batch_number").execute()
-            
-            batches = batches_response.data
+            # Get all batches (paginate past PostgREST ~1000 row default)
+            batches = read_all_paginated(
+                lambda start, end: self.db.table("upc_batches")
+                .select("id, upc_count")
+                .eq("batch_job_id", str(job_id))
+                .order("batch_number")
+                .range(start, end)
+                .execute()
+            )
             completed_batches = 0
             
             # Process batches sequentially with rate limiting
