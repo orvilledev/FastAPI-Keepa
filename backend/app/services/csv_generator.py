@@ -11,6 +11,8 @@ from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font
 from openpyxl.utils.dataframe import dataframe_to_rows
 
+from app.services.keepa_sellers import build_unified_seller_list
+
 logger = logging.getLogger(__name__)
 
 
@@ -482,18 +484,15 @@ class CSVGenerator:
     @staticmethod
     def _seller_offers_from_keepa(keepa_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        All seller offers from current_sellers. Keepa prices are in cents.
+        All seller offers from unified Keepa sources (current_sellers + live offers).
 
-        One entry per row in Keepa's list (duplicate sellerIds can appear — each becomes a row).
+        One entry per row (duplicate sellerIds at different prices each become a row).
         Each dict: price (float dollars), seller_name (str), seller_id (str).
         """
         offers: List[Dict[str, Any]] = []
         if not keepa_data or not isinstance(keepa_data, dict):
             return offers
-        products = keepa_data.get("products", [])
-        if not products:
-            return offers
-        for seller in products[0].get("current_sellers", []):
+        for seller in build_unified_seller_list(keepa_data):
             raw = seller.get("price")
             if raw is None:
                 continue

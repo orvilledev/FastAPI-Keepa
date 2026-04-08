@@ -3,6 +3,8 @@ import logging
 from typing import List, Dict, Any, Optional
 from decimal import Decimal
 
+from app.services.keepa_sellers import build_unified_seller_list
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,6 +51,7 @@ class PriceAnalyzer:
             "current_sellers": product.get("current_sellers", []),
             "stats": product.get("stats", {}),
             "csv": product.get("csv", []),
+            "unified_sellers": build_unified_seller_list(keepa_response),
         }
 
         return parsed_data
@@ -65,7 +68,12 @@ class PriceAnalyzer:
             List of current seller prices
         """
         current_prices = []
-        sellers = keepa_data.get("current_sellers", [])
+        if keepa_data.get("unified_sellers") is not None:
+            sellers = keepa_data["unified_sellers"]
+        elif keepa_data.get("products"):
+            sellers = build_unified_seller_list(keepa_data)
+        else:
+            sellers = keepa_data.get("current_sellers", [])
 
         for seller in sellers:
             try:

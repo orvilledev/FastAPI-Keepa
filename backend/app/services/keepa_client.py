@@ -106,7 +106,7 @@ class KeepaClient:
                 "domain": "1",
                 "stats": "180",
                 "history": "1",
-                "offers": "20",
+                "offers": "50",
                 "buybox": "1",
             }
             
