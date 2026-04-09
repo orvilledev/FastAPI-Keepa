@@ -1,4 +1,5 @@
 """Repository for batch job database operations."""
+import logging
 from typing import List, Optional
 from uuid import UUID
 from supabase import Client
@@ -6,6 +7,11 @@ from fastapi import HTTPException
 from datetime import datetime
 
 from app.repositories.supabase_read_all import read_all_paginated
+
+logger = logging.getLogger(__name__)
+
+# Large JSONB rows (keepa_data) can exceed Postgres statement_timeout if deleted in one CASCADE.
+_DELETE_CHUNK_SIZE = 150
 
 
 class JobRepository:
@@ -104,12 +110,67 @@ class JobRepository:
             .range(start, end)
             .execute()
         )
-    
+
+    def _delete_in_chunks_by_eq(
+        self, table: str, filter_column: str, filter_value: str
+    ) -> int:
+        """
+        Delete rows where filter_column = filter_value, in small batches.
+        Returns number of rows removed.
+        """
+        removed = 0
+        chunk = _DELETE_CHUNK_SIZE
+        while True:
+            resp = (
+                self.db.table(table)
+                .select("id")
+                .eq(filter_column, filter_value)
+                .order("id")
+                .range(0, chunk - 1)
+                .execute()
+            )
+            rows = resp.data or []
+            if not rows:
+                break
+            ids = [str(r["id"]) for r in rows]
+            self.db.table(table).delete().in_("id", ids).execute()
+            removed += len(ids)
+            if len(rows) < chunk:
+                break
+        return removed
+
     def delete_job(self, job_id: UUID) -> None:
-        """Delete a job and all related data (cascades to batches, items, alerts)."""
-        # Check if job exists (get_job will raise 404 if not found)
+        """
+        Delete a job and all related data.
+
+        Uses chunked deletes so Postgres does not hit statement_timeout on
+        huge CASCADE (JSONB on price_alerts / upc_batch_items).
+        """
         self.get_job(job_id)
-        
-        # Delete job (cascade will handle related records)
-        self.db.table(self.table).delete().eq("id", str(job_id)).execute()
+        jid = str(job_id)
+
+        n_alerts = self._delete_in_chunks_by_eq("price_alerts", "batch_job_id", jid)
+        if n_alerts:
+            logger.info("Deleted %s price_alerts rows for job %s", n_alerts, jid)
+
+        batch_rows = read_all_paginated(
+            lambda start, end: self.db.table("upc_batches")
+            .select("id")
+            .eq("batch_job_id", jid)
+            .order("id")
+            .range(start, end)
+            .execute()
+        )
+        n_items = 0
+        for batch in batch_rows:
+            bid = str(batch["id"])
+            n_items += self._delete_in_chunks_by_eq("upc_batch_items", "upc_batch_id", bid)
+        if n_items:
+            logger.info("Deleted %s upc_batch_items rows for job %s", n_items, jid)
+
+        n_batches = self._delete_in_chunks_by_eq("upc_batches", "batch_job_id", jid)
+        if n_batches:
+            logger.info("Deleted %s upc_batches rows for job %s", n_batches, jid)
+
+        self.db.table(self.table).delete().eq("id", jid).execute()
 

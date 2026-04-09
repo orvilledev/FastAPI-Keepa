@@ -179,7 +179,7 @@ async def delete_job(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
-    """Delete a job and all related data (admin only, or job owner)."""
+    """Delete a job and all related data in chunks (admin only, or job owner)."""
     job_id = UUID(job["id"])
     job_repo = JobRepository(db)
     
@@ -198,7 +198,7 @@ async def delete_job(
             detail="Cannot delete a job that is currently processing. Please wait for it to complete or stop it first."
         )
     
-    # Delete the job (cascade will handle related records)
+    # Chunked delete avoids Postgres statement_timeout on large JSONB rows
     job_repo.delete_job(job_id)
     
     return {"message": "Job deleted successfully", "job_id": str(job_id)}
