@@ -82,7 +82,7 @@ class PriceAnalyzer:
                 )
                 seller_info = {
                     "seller_id": seller.get("sellerId"),
-                    "seller_name": seller.get("sellerName", "Unknown"),
+                    "seller_name": (seller.get("sellerName") or "").strip() or None,
                     "price": price_dollars,
                     "is_fba": seller.get("isFBA", False),
                     "condition": seller.get("condition", "New"),

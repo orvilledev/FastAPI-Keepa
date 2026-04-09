@@ -45,11 +45,12 @@ def _offer_to_seller_row(offer: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if sid is None:
         sid = offer.get("seller_id")
 
+    # Leave empty when Keepa omits name so report code can resolve via seller_name_map.
     name = offer.get("sellerName") or offer.get("seller_name") or ""
     if isinstance(name, str):
-        name = name.strip() or "Unknown"
+        name = name.strip()
     else:
-        name = str(name) if name else "Unknown"
+        name = str(name).strip() if name else ""
 
     is_fba = offer.get("isFBA", offer.get("is_fba", False))
     if isinstance(is_fba, (int, str)):

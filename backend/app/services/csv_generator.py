@@ -513,6 +513,25 @@ class CSVGenerator:
         return offers
 
     @staticmethod
+    def _resolve_seller_display(
+        seller_name: str,
+        seller_id: str,
+        seller_name_map: Dict[str, str],
+    ) -> str:
+        """Prefer Keepa name; treat missing/'Unknown' as empty so seller_name_map can resolve by ID."""
+        raw = (seller_name or "").strip()
+        if raw.lower() == "unknown":
+            raw = ""
+        if raw:
+            return raw
+        sid = (seller_id or "").strip()
+        if sid and seller_name_map:
+            return seller_name_map.get(sid, sid)
+        if sid:
+            return sid
+        return "N/A"
+
+    @staticmethod
     def generate_comprehensive_report_csv(
         processed_items: List[Dict[str, Any]],
         map_prices_by_upc: Dict[str, Decimal],
@@ -617,32 +636,22 @@ class CSVGenerator:
                 ref = off["price"]
                 if not (float(msrp) > float(ref)):
                     continue
-                sid = off.get("seller_id") or ""
-                sname = off.get("seller_name") or ""
-                if sname:
-                    seller_disp = sname
-                elif sid and seller_name_map:
-                    seller_disp = seller_name_map.get(sid, sid)
-                elif sid:
-                    seller_disp = sid
-                else:
-                    seller_disp = "N/A"
+                seller_disp = CSVGenerator._resolve_seller_display(
+                    off.get("seller_name") or "",
+                    off.get("seller_id") or "",
+                    seller_name_map,
+                )
                 append_row(ref, seller_disp)
 
             # No seller rows in Keepa: fallback to buy box vs MAP (single row)
             if not offers:
                 buy_box_only = product_data.get("buy_box_price")
                 if buy_box_only is not None and float(msrp) > float(buy_box_only):
-                    bb_name = product_data.get("buy_box_seller_name", "")
-                    bb_id = product_data.get("buy_box_seller_id", "")
-                    if bb_name:
-                        seller_disp = bb_name
-                    elif bb_id and seller_name_map:
-                        seller_disp = seller_name_map.get(bb_id, bb_id)
-                    elif bb_id:
-                        seller_disp = bb_id
-                    else:
-                        seller_disp = "N/A"
+                    seller_disp = CSVGenerator._resolve_seller_display(
+                        product_data.get("buy_box_seller_name") or "",
+                        product_data.get("buy_box_seller_id") or "",
+                        seller_name_map,
+                    )
                     append_row(float(buy_box_only), seller_disp)
                 elif buy_box_only is None:
                     logger.warning(

@@ -72,3 +72,23 @@ def test_build_unified_dedupes_same_seller_same_price():
     }
     rows = build_unified_seller_list(resp)
     assert len(rows) == 1
+
+
+@pytest.mark.unit
+def test_offer_without_seller_name_uses_empty_string_not_unknown():
+    """Offers often omit sellerName; empty string lets reports resolve via seller_name_map."""
+    resp = {
+        "products": [
+            {
+                "current_sellers": [],
+                "offers": [
+                    {"offerCSV": [1, 2500, 0], "sellerId": "MERCHANT123"},
+                ],
+                "liveOffersOrder": [0],
+            }
+        ]
+    }
+    rows = build_unified_seller_list(resp)
+    assert len(rows) == 1
+    assert rows[0]["sellerName"] == ""
+    assert rows[0]["sellerId"] == "MERCHANT123"
