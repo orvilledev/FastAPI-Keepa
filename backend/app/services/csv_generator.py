@@ -515,16 +515,14 @@ class CSVGenerator:
     @staticmethod
     def generate_comprehensive_report_csv(
         processed_items: List[Dict[str, Any]],
-        price_alerts_by_upc: Dict[str, List[Dict[str, Any]]],
         map_prices_by_upc: Dict[str, Decimal],
-        seller_name_map: Optional[Dict[str, str]] = None
+        seller_name_map: Optional[Dict[str, str]] = None,
     ) -> tuple:
         """
         Generate comprehensive CSV report matching the spreadsheet format.
         
         Args:
             processed_items: List of upc_batch_items with keepa_data
-            price_alerts_by_upc: Dict mapping UPC to list of price alerts
             map_prices_by_upc: Dict mapping UPC to MAP price
             seller_name_map: Optional dict mapping seller_id to seller_name for display
             

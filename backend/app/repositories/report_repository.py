@@ -13,11 +13,17 @@ class ReportRepository:
         self.db = db
         self.table = "price_alerts"
     
+    # Omit keepa_data — large JSON per row causes slow reads and ReadTimeout.
+    _PRICE_ALERT_COLUMNS = (
+        "id, batch_job_id, upc, seller_name, current_price, "
+        "historical_price, price_change_percent, detected_at"
+    )
+
     def get_price_alerts(self, job_id: UUID, order_desc: bool = True) -> List[dict]:
-        """Get all price alerts for a job."""
+        """Get all price alerts for a job (without embedded keepa payloads)."""
         rows = read_all_paginated(
             lambda start, end: self.db.table(self.table)
-            .select("*")
+            .select(self._PRICE_ALERT_COLUMNS)
             .eq("batch_job_id", str(job_id))
             .order("id")
             .range(start, end)

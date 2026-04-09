@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     # Supabase Configuration
     supabase_url: str
     supabase_key: str
+    # PostgREST read timeout (seconds); large reports need more than the library default (5s).
+    supabase_postgrest_timeout_seconds: int = 180
     
     # Email Configuration
     email_smtp_host: str = "smtp.gmail.com"

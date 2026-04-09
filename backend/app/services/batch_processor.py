@@ -297,46 +297,59 @@ class BatchProcessor:
             
             logger.info(f"Job {job_id} completed successfully")
             
-            # Generate CSV report and send email (non-blocking)
+            # Generate report and send email (failures logged separately)
+            from app.services.report_service import ReportService
+
+            job_response = self.db.table("batch_jobs").select("*").eq("id", str(job_id)).execute()
+            job_data = job_response.data[0]
+            job_name = job_data["job_name"]
+            custom_recipients = job_data.get("email_recipients")
+            total_upcs = sum(batch["upc_count"] for batch in batches)
+
             try:
-                from app.services.report_service import ReportService
-                
-                job_response = self.db.table("batch_jobs").select("*").eq("id", str(job_id)).execute()
-                job_data = job_response.data[0]
-                job_name = job_data["job_name"]
-                custom_recipients = job_data.get("email_recipients")
-                
                 report_service = ReportService(self.db)
-                csv_bytes, filename, off_price_count = report_service.generate_csv_for_job(job_id, job_name)
-                
-                total_upcs = sum(batch["upc_count"] for batch in batches)
-                
-                send_to = custom_recipients or self.email_service.email_to
-                logger.info(f"Preparing to send email for job {job_id}: {total_upcs} UPCs, {off_price_count} off-price listings")
-                logger.info(f"Email recipients: {send_to} (custom={bool(custom_recipients)})")
-                
-                loop = asyncio.get_event_loop()
-                email_sent = await loop.run_in_executor(
-                    None,
-                    partial(
-                        self.email_service.send_csv_report,
-                        csv_bytes=csv_bytes,
-                        filename=filename,
-                        job_name=job_name,
-                        total_upcs=total_upcs,
-                        alerts_count=off_price_count,
-                        recipient_email=custom_recipients,
-                    ),
+                csv_bytes, filename, off_price_count = report_service.generate_csv_for_job(
+                    job_id, job_name
                 )
-                
-                if email_sent:
-                    logger.info(f"Email sent successfully for job {job_id} to {send_to}")
+            except Exception as report_err:
+                logger.error(
+                    f"Report generation failed for job {job_id}: {report_err}",
+                    exc_info=True,
+                )
+            else:
+                send_to = custom_recipients or self.email_service.email_to
+                logger.info(
+                    f"Preparing to send email for job {job_id}: {total_upcs} UPCs, "
+                    f"{off_price_count} off-price listings"
+                )
+                logger.info(f"Email recipients: {send_to} (custom={bool(custom_recipients)})")
+
+                try:
+                    loop = asyncio.get_event_loop()
+                    email_sent = await loop.run_in_executor(
+                        None,
+                        partial(
+                            self.email_service.send_csv_report,
+                            csv_bytes=csv_bytes,
+                            filename=filename,
+                            job_name=job_name,
+                            total_upcs=total_upcs,
+                            alerts_count=off_price_count,
+                            recipient_email=custom_recipients,
+                        ),
+                    )
+                except Exception as email_err:
+                    logger.error(
+                        f"Email sending failed for job {job_id}: {email_err}",
+                        exc_info=True,
+                    )
                 else:
-                    logger.error(f"Failed to send email for job {job_id}.")
-                    if getattr(self.email_service, "last_error", None):
-                        logger.error(f"Email error: {self.email_service.last_error}")
-            except Exception as email_err:
-                logger.error(f"Email sending failed for job {job_id}: {email_err}", exc_info=True)
+                    if email_sent:
+                        logger.info(f"Email sent successfully for job {job_id} to {send_to}")
+                    else:
+                        logger.error(f"Failed to send email for job {job_id}.")
+                        if getattr(self.email_service, "last_error", None):
+                            logger.error(f"Email error: {self.email_service.last_error}")
             
             return True
             

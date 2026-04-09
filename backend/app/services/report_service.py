@@ -1,13 +1,11 @@
 """Service for report generation and operations."""
-from typing import List, Tuple, Dict
+from typing import List, Tuple
 from uuid import UUID
-from decimal import Decimal
 from app.repositories.report_repository import ReportRepository
 from app.repositories.map_repository import MAPRepository
 from app.repositories.seller_name_repository import SellerNameRepository
 from app.services.csv_generator import CSVGenerator
 from supabase import Client
-from fastapi import HTTPException
 import logging
 
 logger = logging.getLogger(__name__)
@@ -40,30 +38,13 @@ class ReportService:
         if not processed_items:
             # Return empty Excel file with headers
             csv_bytes, off_price_count = self.csv_generator.generate_comprehensive_report_csv(
-                [], {}, {}
+                [], {}
             )
             filename = self.csv_generator.generate_csv_filename(job_name, extension="xlsx")
             return csv_bytes, filename, off_price_count
-        
-        # Get price alerts grouped by UPC
-        price_alerts_by_upc = self.report_repo.get_price_alerts_by_upc(job_id)
-        
-        # Get MAP prices for all UPCs
-        map_prices_by_upc = {}
+
         upcs = [item.get("upc") for item in processed_items if item.get("upc")]
-        
-        # Fetch MAP prices (handle cases where MAP doesn't exist)
-        for upc in upcs:
-            try:
-                map_entry = self.map_repo.get_map_by_upc(upc)
-                map_price = Decimal(str(map_entry.get("map_price", 0)))
-                if map_price > 0:
-                    map_prices_by_upc[upc] = map_price
-            except HTTPException:
-                pass
-            except Exception as e:
-                logger.debug(f"Error fetching MAP price for UPC {upc}: {e}")
-                pass
+        map_prices_by_upc = self.map_repo.get_map_prices_by_upcs(upcs)
         
         # Load seller name lookup map from database
         try:
@@ -76,9 +57,8 @@ class ReportService:
         # Generate comprehensive Excel report
         csv_bytes, off_price_count = self.csv_generator.generate_comprehensive_report_csv(
             processed_items,
-            price_alerts_by_upc,
             map_prices_by_upc,
-            seller_name_map=seller_name_map
+            seller_name_map=seller_name_map,
         )
         filename = self.csv_generator.generate_csv_filename(job_name, extension="xlsx")
         

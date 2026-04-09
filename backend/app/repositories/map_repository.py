@@ -1,5 +1,5 @@
 """Repository for MAP database operations."""
-from typing import List
+from typing import Dict, List
 from decimal import Decimal
 from supabase import Client
 from fastapi import HTTPException
@@ -46,6 +46,35 @@ class MAPRepository:
         if not response.data:
             raise HTTPException(status_code=404, detail="MAP entry not found")
         return response.data[0]
+
+    def get_map_prices_by_upcs(self, upcs: List[str]) -> Dict[str, Decimal]:
+        """
+        Batch-fetch MAP prices for the given UPCs.
+        UPCs with no row or non-positive map_price are omitted.
+        """
+        if not upcs:
+            return {}
+        result: Dict[str, Decimal] = {}
+        batch_size = 1000
+        for i in range(0, len(upcs), batch_size):
+            chunk = upcs[i : i + batch_size]
+            response = (
+                self.db.table(self.table)
+                .select("upc, map_price")
+                .in_("upc", chunk)
+                .execute()
+            )
+            for row in response.data or []:
+                upc = row.get("upc")
+                if not upc:
+                    continue
+                try:
+                    mp = Decimal(str(row.get("map_price", 0)))
+                    if mp > 0:
+                        result[upc] = mp
+                except Exception:
+                    continue
+        return result
     
     def map_exists(self, upc: str) -> bool:
         """Check if a MAP entry already exists for the given UPC."""

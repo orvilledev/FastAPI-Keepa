@@ -15,7 +15,7 @@ class PriceAlertResponse(BaseModel):
     current_price: Optional[Decimal]
     historical_price: Optional[Decimal]
     price_change_percent: Optional[Decimal]
-    keepa_data: Optional[dict]
+    keepa_data: Optional[dict] = None
     detected_at: datetime
 
     class Config:
