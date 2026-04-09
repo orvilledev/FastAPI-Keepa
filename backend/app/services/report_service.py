@@ -5,6 +5,7 @@ from app.repositories.report_repository import ReportRepository
 from app.repositories.map_repository import MAPRepository
 from app.repositories.seller_name_repository import SellerNameRepository
 from app.services.csv_generator import CSVGenerator
+from app.config import settings
 from supabase import Client
 import logging
 
@@ -35,10 +36,12 @@ class ReportService:
         # Get all processed UPCs with their Keepa data
         processed_items = self.report_repo.get_all_processed_upcs_for_job(job_id)
         
+        excluded = settings.report_excluded_seller_pattern_list
         if not processed_items:
             # Return empty Excel file with headers
             csv_bytes, off_price_count = self.csv_generator.generate_comprehensive_report_csv(
-                [], {}
+                [], {},
+                excluded_seller_substrings=excluded,
             )
             filename = self.csv_generator.generate_csv_filename(job_name, extension="xlsx")
             return csv_bytes, filename, off_price_count
@@ -59,6 +62,7 @@ class ReportService:
             processed_items,
             map_prices_by_upc,
             seller_name_map=seller_name_map,
+            excluded_seller_substrings=excluded,
         )
         filename = self.csv_generator.generate_csv_filename(job_name, extension="xlsx")
         

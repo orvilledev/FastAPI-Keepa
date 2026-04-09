@@ -50,11 +50,25 @@ class Settings(BaseSettings):
     # Scheduler Configuration
     scheduler_hour: int = 2  # Default: 2 AM
     scheduler_minute: int = 0
+
+    # Report: comma-separated substrings matched case-insensitively (after removing
+    # spaces/punctuation) against resolved seller display text. Rows for matching
+    # sellers are omitted from off-price Excel/CSV. Default drops MetroShoe variants.
+    # Set empty to disable: REPORT_EXCLUDED_SELLER_SUBSTRINGS=
+    report_excluded_seller_substrings: str = "metroshoe"
     
     @property
     def cors_origins_list(self) -> List[str]:
         """Convert CORS origins string to list."""
         return [origin.strip() for origin in self.cors_origins.split(",")]
+
+    @property
+    def report_excluded_seller_pattern_list(self) -> List[str]:
+        """Non-empty substring patterns for seller exclusion in reports."""
+        raw = (self.report_excluded_seller_substrings or "").strip()
+        if not raw:
+            return []
+        return [p.strip() for p in raw.split(",") if p.strip()]
     
     class Config:
         # Use absolute path to .env file relative to backend directory

@@ -263,16 +263,21 @@ class CSVGenerator:
         return None
     
     @staticmethod
-    def generate_price_alerts_csv(price_alerts: List[Dict[str, Any]]) -> bytes:
+    def generate_price_alerts_csv(
+        price_alerts: List[Dict[str, Any]],
+        excluded_seller_substrings: Optional[List[str]] = None,
+    ) -> bytes:
         """
         Generate CSV file from price alerts data.
         
         Args:
             price_alerts: List of price alert dictionaries
+            excluded_seller_substrings: Optional patterns; alerts whose seller_name matches are omitted
             
         Returns:
             CSV file as bytes
         """
+        excluded = excluded_seller_substrings or []
         if not price_alerts:
             # Return empty CSV with headers
             df = pd.DataFrame(columns=[
@@ -287,9 +292,12 @@ class CSVGenerator:
             # Prepare data for DataFrame
             csv_data = []
             for alert in price_alerts:
+                sname = alert.get("seller_name") or ""
+                if CSVGenerator.seller_display_excluded(sname, excluded):
+                    continue
                 csv_data.append({
                     "UPC": alert.get("upc", ""),
-                    "Seller Name": alert.get("seller_name", ""),
+                    "Seller Name": sname,
                     "Current Price": float(alert.get("current_price", 0)) if alert.get("current_price") else "",
                     "Historical Price": float(alert.get("historical_price", 0)) if alert.get("historical_price") else "",
                     "Price Change %": float(alert.get("price_change_percent", 0)) if alert.get("price_change_percent") else "",
@@ -532,10 +540,34 @@ class CSVGenerator:
         return "N/A"
 
     @staticmethod
+    def _normalize_seller_for_exclusion(text: str) -> str:
+        """Lowercase alphanumerics only — 'MetroShoe Warehouse' -> 'metroshoewarehouse'."""
+        return re.sub(r"[^a-z0-9]", "", (text or "").lower())
+
+    @staticmethod
+    def seller_display_excluded(
+        seller_display: str, excluded_substrings: Optional[List[str]]
+    ) -> bool:
+        """
+        True if resolved seller text contains any configured pattern (after normalization).
+        """
+        if not excluded_substrings:
+            return False
+        norm_display = CSVGenerator._normalize_seller_for_exclusion(seller_display)
+        if not norm_display:
+            return False
+        for pattern in excluded_substrings:
+            pn = CSVGenerator._normalize_seller_for_exclusion(pattern)
+            if pn and pn in norm_display:
+                return True
+        return False
+
+    @staticmethod
     def generate_comprehensive_report_csv(
         processed_items: List[Dict[str, Any]],
         map_prices_by_upc: Dict[str, Decimal],
         seller_name_map: Optional[Dict[str, str]] = None,
+        excluded_seller_substrings: Optional[List[str]] = None,
     ) -> tuple:
         """
         Generate comprehensive CSV report matching the spreadsheet format.
@@ -544,13 +576,15 @@ class CSVGenerator:
             processed_items: List of upc_batch_items with keepa_data
             map_prices_by_upc: Dict mapping UPC to MAP price
             seller_name_map: Optional dict mapping seller_id to seller_name for display
-            
+            excluded_seller_substrings: Substrings matched against resolved seller (normalized); matching rows skipped
+        
         Returns:
             Tuple of (Excel file as bytes, number of off-price rows — one per seller below MAP)
         """
         csv_data = []
         off_price_count = 0
         seller_name_map = seller_name_map or {}
+        excluded = excluded_seller_substrings or []
 
         for item in processed_items:
             upc = item.get("upc", "")
@@ -641,6 +675,8 @@ class CSVGenerator:
                     off.get("seller_id") or "",
                     seller_name_map,
                 )
+                if CSVGenerator.seller_display_excluded(seller_disp, excluded):
+                    continue
                 append_row(ref, seller_disp)
 
             # No seller rows in Keepa: fallback to buy box vs MAP (single row)
@@ -652,7 +688,8 @@ class CSVGenerator:
                         product_data.get("buy_box_seller_id") or "",
                         seller_name_map,
                     )
-                    append_row(float(buy_box_only), seller_disp)
+                    if not CSVGenerator.seller_display_excluded(seller_disp, excluded):
+                        append_row(float(buy_box_only), seller_disp)
                 elif buy_box_only is None:
                     logger.warning(
                         f"No seller or buy box price found in Keepa data for UPC {upc}"
