@@ -4,7 +4,7 @@ import io
 import logging
 import re
 import httpx
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 from decimal import Decimal
 from openpyxl import Workbook
@@ -521,6 +521,69 @@ class CSVGenerator:
         return offers
 
     @staticmethod
+    def _normalize_seller_id(sid: Any) -> str:
+        if sid is None:
+            return ""
+        return str(sid).strip()
+
+    @staticmethod
+    def _pick_off_price_representative(
+        offers: List[Dict[str, Any]],
+        msrp: float,
+        product_data: Dict[str, Any],
+        seller_name_map: Dict[str, str],
+        excluded_substrings: List[str],
+    ) -> Optional[Tuple[float, str]]:
+        """
+        One row per UPC: prefer buy-box seller when their offer is below MAP (and not excluded);
+        otherwise lowest-priced non-excluded seller below MAP.
+        """
+        candidates: List[Dict[str, Any]] = []
+        for off in offers:
+            ref = off["price"]
+            if not (float(msrp) > float(ref)):
+                continue
+            seller_disp = CSVGenerator._resolve_seller_display(
+                off.get("seller_name") or "",
+                off.get("seller_id") or "",
+                seller_name_map,
+            )
+            if CSVGenerator.seller_display_excluded(seller_disp, excluded_substrings):
+                continue
+            candidates.append(
+                {
+                    "price": float(ref),
+                    "seller_display": seller_disp,
+                    "seller_id": CSVGenerator._normalize_seller_id(off.get("seller_id")),
+                }
+            )
+
+        if not candidates:
+            return None
+
+        bb_id = CSVGenerator._normalize_seller_id(product_data.get("buy_box_seller_id"))
+        bb_price = product_data.get("buy_box_price")
+        if bb_id:
+            bb_matches = [c for c in candidates if c["seller_id"] == bb_id]
+            if bb_matches:
+                if bb_price is not None:
+                    try:
+                        bbp = float(bb_price)
+
+                        def _dist(c: Dict[str, Any]) -> float:
+                            return abs(c["price"] - bbp)
+
+                        best = min(bb_matches, key=_dist)
+                    except (TypeError, ValueError):
+                        best = min(bb_matches, key=lambda c: c["price"])
+                else:
+                    best = min(bb_matches, key=lambda c: c["price"])
+                return (best["price"], best["seller_display"])
+
+        best = min(candidates, key=lambda c: c["price"])
+        return (best["price"], best["seller_display"])
+
+    @staticmethod
     def _resolve_seller_display(
         seller_name: str,
         seller_id: str,
@@ -579,12 +642,17 @@ class CSVGenerator:
             excluded_seller_substrings: Substrings matched against resolved seller (normalized); matching rows skipped
         
         Returns:
-            Tuple of (Excel file as bytes, number of off-price rows — one per seller below MAP)
+            Tuple of (Excel file as bytes, number of off-price rows — one per UPC below MAP)
         """
         csv_data = []
         off_price_count = 0
         seller_name_map = seller_name_map or {}
         excluded = excluded_seller_substrings or []
+
+        _by_upc: Dict[str, Dict[str, Any]] = {}
+        for item in processed_items:
+            _by_upc[str(item.get("upc", ""))] = item
+        processed_items = list(_by_upc.values())
 
         for item in processed_items:
             upc = item.get("upc", "")
@@ -666,21 +734,17 @@ class CSVGenerator:
 
             offers = CSVGenerator._seller_offers_from_keepa(keepa_data)
 
-            for off in offers:
-                ref = off["price"]
-                if not (float(msrp) > float(ref)):
-                    continue
-                seller_disp = CSVGenerator._resolve_seller_display(
-                    off.get("seller_name") or "",
-                    off.get("seller_id") or "",
-                    seller_name_map,
-                )
-                if CSVGenerator.seller_display_excluded(seller_disp, excluded):
-                    continue
+            picked = CSVGenerator._pick_off_price_representative(
+                offers,
+                float(msrp),
+                product_data,
+                seller_name_map,
+                excluded,
+            )
+            if picked is not None:
+                ref, seller_disp = picked
                 append_row(ref, seller_disp)
-
-            # No seller rows in Keepa: fallback to buy box vs MAP (single row)
-            if not offers:
+            elif not offers:
                 buy_box_only = product_data.get("buy_box_price")
                 if buy_box_only is not None and float(msrp) > float(buy_box_only):
                     seller_disp = CSVGenerator._resolve_seller_display(
