@@ -6,7 +6,8 @@ INSERT INTO seller_names (seller_id, seller_name) VALUES
   ('A1675HUVWUMF0H', 'Space Laser Industries'),
   ('A1HQOHOLTUK58E', 'Buy DBDeals'),
   ('AB9U0R56IWRKV', 'greenlinegear LLC'),
-  ('A20YSPW1I1I0OV', 'OnlineSellingPartner')
+  ('A20YSPW1I1I0OV', 'OnlineSellingPartner'),
+  ('A3J5TAWN23UZJY', 'Heavenly Soles')
 ON CONFLICT (seller_id) DO UPDATE SET
   seller_name = EXCLUDED.seller_name,
   updated_at = NOW();
