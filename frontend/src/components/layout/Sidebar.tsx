@@ -89,7 +89,6 @@ export default function Sidebar() {
   const [isDailyRunsMenuOpen, setIsDailyRunsMenuOpen] = useState(false)
   const [isManageUPCsMenuOpen, setIsManageUPCsMenuOpen] = useState(false)
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false)
-  const [isMySpaceMenuOpen, setIsMySpaceMenuOpen] = useState(false)
   /** Only one sidebar row shows “highlight” while hovering; route highlight defers to hover target. */
   const [hoveredNav, setHoveredNav] = useState<string | null>(null)
 
@@ -152,18 +151,12 @@ export default function Sidebar() {
     { path: '/tools/job-aids', label: 'Job Aids', icon: 'wrench' as const },
   ]
 
-  const mySpaceMenuItems = [
-    { path: '/my-space/notes', label: 'My Notes', icon: 'notes' as const },
-    { path: '/tools/my-toolbox', label: 'My Toolbox', icon: 'toolbox' as const },
-  ]
-
   const hasActiveDailyRunsSubItem = dailyRunsMenuItems.some(item => isActive(item.path))
   const hasActiveManageUPCsSubItem = manageUPCsMenuItems.some(item => isActive(item.path))
   const hasActiveSubItem = keepaMenuItems.some(item =>
     item.path ? isActive(item.path) : (item.children && item.children.some(child => isActive(child.path)))
   )
   const hasActiveToolsSubItem = toolsMenuItems.some(item => isActive(item.path))
-  const hasActiveMySpaceSubItem = mySpaceMenuItems.some(item => isActive(item.path))
 
   // Auto-open Keepa submenu / flyouts when a child route is active
   useEffect(() => {
@@ -183,12 +176,6 @@ export default function Sidebar() {
       setIsToolsMenuOpen(true)
     }
   }, [hasActiveToolsSubItem])
-
-  useEffect(() => {
-    if (hasActiveMySpaceSubItem) {
-      setIsMySpaceMenuOpen(true)
-    }
-  }, [hasActiveMySpaceSubItem])
 
   return (
     <aside className="w-64 bg-white/80 backdrop-blur-lg border-r border-gray-200/80 shadow-lg h-screen sticky top-0 z-50">
@@ -366,52 +353,6 @@ export default function Sidebar() {
               )}
             </div>
           )}
-
-          {/* My Space Dropdown */}
-          <div>
-            <button
-              onClick={() => {
-                setIsMySpaceMenuOpen(!isMySpaceMenuOpen)
-              }}
-              onMouseEnter={() => setHoveredNav('myspace')}
-              className={`sidebar-link w-full text-left text-black ${
-                navHighlighted('myspace', false) ? 'sidebar-link-active' : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="mr-3">{Icons.user}</span>
-              <span className="flex-1">My Space</span>
-              <span>
-                {isMySpaceMenuOpen ? Icons.chevronDown : Icons.chevronRight}
-              </span>
-            </button>
-            
-            {isMySpaceMenuOpen && (
-              <div className="ml-4 mt-1 space-y-1 bg-[#0B1020] rounded-lg p-2 dark-dropdown">
-                {mySpaceMenuItems.length > 0 ? (
-                  mySpaceMenuItems.map((item) => {
-                    const mySpaceItemId = `myspace-${item.path}`
-                    return (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      onMouseEnter={() => setHoveredNav(mySpaceItemId)}
-                      className={`sidebar-link ${
-                        navHighlighted(mySpaceItemId, isActive(item.path))
-                          ? 'sidebar-link-active'
-                          : 'sidebar-link-inactive'
-                      }`}
-                    >
-                      <span className="mr-3">{Icons[item.icon]}</span>
-                      <span>{item.label}</span>
-                    </Link>
-                    )
-                  })
-                ) : (
-                  <div className="text-xs text-gray-400 px-3 py-2">No items yet</div>
-                )}
-              </div>
-            )}
-          </div>
 
           {/* Resources Dropdown */}
           <div>

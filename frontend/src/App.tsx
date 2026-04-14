@@ -20,9 +20,7 @@ const ReportView = lazy(() => import('./components/reports/ReportView'))
 const UPCManagement = lazy(() => import('./components/upcs/UPCManagement'))
 const MAPManagement = lazy(() => import('./components/map/MAPManagement'))
 const PublicTools = lazy(() => import('./components/tools/PublicTools'))
-const MyToolbox = lazy(() => import('./components/tools/MyToolbox'))
 const JobAids = lazy(() => import('./components/tools/JobAids'))
-const MyNotes = lazy(() => import('./components/notes/MyNotes'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
 
@@ -77,10 +75,10 @@ function AppRoutes() {
           <Route path="daily-run/clk" element={<ProtectedRoute requireKeepaAccess={true}><CLKDailyRun /></ProtectedRoute>} />
 
           {/* General authenticated routes */}
-          <Route path="my-space/notes" element={<MyNotes />} />
+          <Route path="my-space/notes" element={<Navigate to="/dashboard" replace />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="tools/public" element={<PublicTools />} />
-          <Route path="tools/my-toolbox" element={<MyToolbox />} />
+          <Route path="tools/my-toolbox" element={<Navigate to="/dashboard" replace />} />
           <Route path="tools/job-aids" element={<JobAids />} />
           <Route path="admin/users" element={<UserManagement />} />
         </Route>
