@@ -8,6 +8,7 @@ interface DailyRunJob {
   status: string
   total_batches: number
   completed_batches: number
+  initiated_by?: string
   created_at: string
   completed_at?: string
   error_message?: string
@@ -316,10 +317,14 @@ export default function CLKDailyRun() {
                         {run.status.charAt(0).toUpperCase() + run.status.slice(1)}
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                       <div>
                         <span className="text-gray-500">Created:</span>
                         <p className="font-medium text-gray-900">{formatDate(run.created_at)}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Initiated By:</span>
+                        <p className="font-medium text-gray-900">{run.initiated_by || 'Daily Run'}</p>
                       </div>
                       {run.completed_at && (
                         <div>

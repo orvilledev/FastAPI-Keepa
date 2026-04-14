@@ -27,6 +27,7 @@ class BatchJobResponse(BaseModel):
     total_batches: int
     completed_batches: int
     created_by: Optional[UUID]
+    initiated_by: Optional[str] = None
     created_at: datetime
     completed_at: Optional[datetime]
     error_message: Optional[str]

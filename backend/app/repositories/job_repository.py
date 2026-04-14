@@ -43,6 +43,66 @@ class JobRepository:
         
         response = query.range(offset, offset + limit - 1).execute()
         return response.data
+
+    @staticmethod
+    def _is_daily_run_job(job_name: Optional[str]) -> bool:
+        """Return True when job name indicates a scheduled daily run."""
+        if not job_name:
+            return False
+        normalized = job_name.lower()
+        return normalized.startswith("daily ") and "metro report" in normalized
+
+    def enrich_jobs_with_initiated_by(self, jobs: List[dict]) -> List[dict]:
+        """
+        Add initiated_by to each job.
+
+        - Daily runs are always labeled as "Daily Run"
+        - Manual jobs use display_name, then email, then created_by
+        """
+        if not jobs:
+            return jobs
+
+        creator_ids = sorted({
+            str(job.get("created_by"))
+            for job in jobs
+            if job.get("created_by")
+        })
+
+        creator_lookup = {}
+        if creator_ids:
+            try:
+                profile_response = (
+                    self.db.table("profiles")
+                    .select("id, display_name, email")
+                    .in_("id", creator_ids)
+                    .execute()
+                )
+                for profile in profile_response.data or []:
+                    creator_lookup[str(profile.get("id"))] = (
+                        profile.get("display_name")
+                        or profile.get("email")
+                        or str(profile.get("id"))
+                    )
+            except Exception:
+                # Fallback to created_by IDs if profile lookup fails.
+                logger.exception("Failed to enrich jobs with profile initiator metadata")
+
+        enriched_jobs: List[dict] = []
+        for job in jobs:
+            job_copy = dict(job)
+            if self._is_daily_run_job(job_copy.get("job_name")):
+                job_copy["initiated_by"] = "Daily Run"
+            else:
+                created_by = job_copy.get("created_by")
+                created_by_str = str(created_by) if created_by else None
+                job_copy["initiated_by"] = (
+                    creator_lookup.get(created_by_str)
+                    if created_by_str
+                    else "Unknown"
+                )
+            enriched_jobs.append(job_copy)
+
+        return enriched_jobs
     
     def create_job(
         self, 

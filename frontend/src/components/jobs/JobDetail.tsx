@@ -294,7 +294,7 @@ export default function JobDetail() {
 
       {/* Job Info */}
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div>
             <div className="text-sm font-medium text-gray-500">Status</div>
             <div className="mt-1">
@@ -317,6 +317,12 @@ export default function JobDetail() {
             <div className="text-sm font-medium text-gray-500">Created</div>
             <div className="mt-1 text-sm text-gray-900">
               {new Date(job.created_at).toLocaleString()}
+            </div>
+          </div>
+          <div>
+            <div className="text-sm font-medium text-gray-500">Initiated By</div>
+            <div className="mt-1 text-sm text-gray-900">
+              {job.initiated_by || 'Unknown'}
             </div>
           </div>
           <div>

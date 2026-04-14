@@ -200,7 +200,7 @@ async def check_is_admin(
 
 async def verify_job_access(
     job_id: UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase)
 ) -> dict:
     """
@@ -223,12 +223,6 @@ async def verify_job_access(
         raise HTTPException(status_code=404, detail="Job not found")
     
     job = job_response.data[0]
-    
-    # Check permissions
-    is_admin = await check_is_admin(current_user, db)
-    
-    if not is_admin and job["created_by"] != current_user["id"]:
-        raise HTTPException(status_code=403, detail="Not authorized to access this job")
     
     return job
 

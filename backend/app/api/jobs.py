@@ -45,33 +45,36 @@ async def create_job(
 async def list_jobs(
     limit: int = 15,
     offset: int = 0,
-    current_user: dict = Depends(get_current_user),
+    _current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase)
 ):
-    """List batch jobs with pagination (users see their own, admins see all).
+    """List batch jobs with pagination for all MSW Overwatch users.
     
     Args:
         limit: Maximum number of jobs to return (default: 15)
         offset: Number of jobs to skip (default: 0)
     """
-    is_admin = await check_is_admin(current_user, db)
     job_repo = JobRepository(db)
     jobs = job_repo.list_jobs(
         limit=limit,
         offset=offset,
-        user_id=current_user["id"] if not is_admin else None,
-        is_admin=is_admin
+        user_id=None,
+        is_admin=True
     )
+    jobs = job_repo.enrich_jobs_with_initiated_by(jobs)
     return [BatchJobResponse(**job) for job in jobs]
 
 
 @router.get("/jobs/{job_id}", response_model=BatchJobResponse)
 @handle_api_errors("get job")
 async def get_job(
-    job: dict = Depends(verify_job_access)
+    job: dict = Depends(verify_job_access),
+    db: Client = Depends(get_supabase)
 ):
     """Get batch job details."""
-    return BatchJobResponse(**job)
+    job_repo = JobRepository(db)
+    enriched_jobs = job_repo.enrich_jobs_with_initiated_by([job])
+    return BatchJobResponse(**enriched_jobs[0])
 
 
 @router.get("/jobs/{job_id}/status", response_model=dict)

@@ -72,6 +72,7 @@ export interface BatchJob {
   total_batches: number
   completed_batches: number
   created_by?: string
+  initiated_by?: string
   created_at: string
   completed_at?: string
   error_message?: string
