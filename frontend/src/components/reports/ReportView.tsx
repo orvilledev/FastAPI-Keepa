@@ -3,6 +3,12 @@ import { useParams, Link } from 'react-router-dom'
 import { reportsApi } from '../../services/api'
 import type { PriceAlert } from '../../types'
 
+const toNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 export default function ReportView() {
   const { jobId } = useParams<{ jobId: string }>()
   const [alerts, setAlerts] = useState<PriceAlert[]>([])
@@ -61,6 +67,16 @@ export default function ReportView() {
     } finally {
       setSending(false)
     }
+  }
+
+  const formatCurrency = (value: unknown) => {
+    const numericValue = toNumber(value)
+    return numericValue === null ? '-' : `$${numericValue.toFixed(2)}`
+  }
+
+  const formatPercent = (value: unknown) => {
+    const numericValue = toNumber(value)
+    return numericValue === null ? '-' : `${numericValue.toFixed(2)}%`
   }
 
   if (loading) {
@@ -140,25 +156,21 @@ export default function ReportView() {
                       {alert.seller_name || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {alert.current_price
-                        ? `$${alert.current_price.toFixed(2)}`
-                        : '-'}
+                      {formatCurrency(alert.current_price)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {alert.historical_price
-                        ? `$${alert.historical_price.toFixed(2)}`
-                        : '-'}
+                      {formatCurrency(alert.historical_price)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      {alert.price_change_percent !== undefined ? (
+                      {toNumber(alert.price_change_percent) !== null ? (
                         <span
                           className={
-                            alert.price_change_percent < 0
+                            Number(alert.price_change_percent) < 0
                               ? 'text-red-600 font-semibold'
                               : 'text-gray-900'
                           }
                         >
-                          {alert.price_change_percent.toFixed(2)}%
+                          {formatPercent(alert.price_change_percent)}
                         </span>
                       ) : (
                         '-'
