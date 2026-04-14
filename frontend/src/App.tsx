@@ -6,6 +6,7 @@ import ProtectedRoute from './components/common/ProtectedRoute'
 
 // Lazy load all page components for code splitting
 const Landing = lazy(() => import('./components/Landing'))
+const About = lazy(() => import('./components/About'))
 const Login = lazy(() => import('./components/auth/Login'))
 const Signup = lazy(() => import('./components/auth/Signup'))
 const ResetPassword = lazy(() => import('./components/auth/ResetPassword'))
@@ -61,6 +62,7 @@ function AppRoutes() {
           element={user ? <Layout /> : <Navigate to="/" replace />}
         >
           <Route path="dashboard" element={<Dashboard />} />
+          <Route path="about" element={<About />} />
 
           {/* Keepa-access required routes */}
           <Route path="jobs" element={<ProtectedRoute requireKeepaAccess={true}><JobList /></ProtectedRoute>} />
