@@ -4,11 +4,6 @@ import { useUser } from '../../contexts/UserContext'
 
 // SVG Icon components that inherit text color via currentColor
 const Icons = {
-  home: (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-    </svg>
-  ),
   dashboard: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
@@ -90,7 +85,6 @@ const Icons = {
 export default function Sidebar() {
   const location = useLocation()
   const { hasKeepaAccess, isSuperadmin } = useUser()
-  const [isDashboardMenuOpen, setIsDashboardMenuOpen] = useState(true)
   const [isKeepaMenuOpen, setIsKeepaMenuOpen] = useState(true)
   const [isDailyRunsMenuOpen, setIsDailyRunsMenuOpen] = useState(false)
   const [isManageUPCsMenuOpen, setIsManageUPCsMenuOpen] = useState(false)
@@ -158,15 +152,6 @@ export default function Sidebar() {
     { path: '/tools/my-toolbox', label: 'My Toolbox', icon: 'toolbox' as const },
   ]
 
-  const dashboardMenuItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: 'dashboard' as const },
-    { 
-      label: 'Keepa Alert Services', 
-      icon: 'settings' as const,
-      children: keepaMenuItems
-    },
-  ]
-
   // Check if any sub-item is active to keep menu open
   const hasActiveDailyRunsSubItem = dailyRunsMenuItems.some(item => isActive(item.path))
   const hasActiveManageUPCsSubItem = manageUPCsMenuItems.some(item => isActive(item.path))
@@ -175,15 +160,11 @@ export default function Sidebar() {
   )
   const hasActiveToolsSubItem = toolsMenuItems.some(item => isActive(item.path))
   const hasActiveMySpaceSubItem = mySpaceMenuItems.some(item => isActive(item.path))
-  const hasActiveDashboardSubItem = isActive('/dashboard') || hasActiveSubItem || hasActiveDailyRunsSubItem || hasActiveManageUPCsSubItem
 
-  // Auto-open menu if a sub-item is active
+  // Auto-open Keepa submenu / flyouts when a child route is active
   useEffect(() => {
-    if (hasActiveDashboardSubItem) {
-      setIsDashboardMenuOpen(true)
-      if (hasActiveSubItem || hasActiveDailyRunsSubItem || hasActiveManageUPCsSubItem) {
-        setIsKeepaMenuOpen(true)
-      }
+    if (hasActiveSubItem || hasActiveDailyRunsSubItem || hasActiveManageUPCsSubItem) {
+      setIsKeepaMenuOpen(true)
       if (hasActiveDailyRunsSubItem) {
         setIsDailyRunsMenuOpen(true)
       }
@@ -191,7 +172,7 @@ export default function Sidebar() {
         setIsManageUPCsMenuOpen(true)
       }
     }
-  }, [hasActiveDashboardSubItem, hasActiveSubItem, hasActiveDailyRunsSubItem, hasActiveManageUPCsSubItem])
+  }, [hasActiveSubItem, hasActiveDailyRunsSubItem, hasActiveManageUPCsSubItem])
 
   useEffect(() => {
     if (hasActiveToolsSubItem) {
@@ -220,160 +201,139 @@ export default function Sidebar() {
       </div>
       <nav className="mt-6 px-4">
         <div className="space-y-1">
-          {/* Home Dropdown */}
-          <div>
-            <button
-              onClick={() => {
-                setIsDashboardMenuOpen(!isDashboardMenuOpen)
-              }}
-              className="sidebar-link sidebar-link-inactive w-full text-left text-black"
-            >
-              <span className="mr-3">{Icons.home}</span>
-              <span className="flex-1">Home</span>
-              <span>
-                {isDashboardMenuOpen ? Icons.chevronDown : Icons.chevronRight}
-              </span>
-            </button>
-            
-            {isDashboardMenuOpen && (
-              <div className={`ml-4 mt-1 space-y-1 rounded-lg p-2 ${isKeepaMenuOpen ? 'bg-transparent' : 'bg-[#0B1020] dark-submenu'}`}>
-                {/* Dashboard Link */}
-                <Link
-                  to="/dashboard"
-                  className={`sidebar-link ${
-                    isActive('/dashboard') ? 'sidebar-link-active' : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="mr-3">{Icons.dashboard}</span>
-                  <span>Dashboard</span>
-                </Link>
-                
-                {/* Keepa Alert Services Nested Dropdown - Only show if user has access */}
-                {hasKeepaAccess && (
-                  <div>
-                    <button
-                      onClick={() => {
-                        setIsKeepaMenuOpen(!isKeepaMenuOpen)
-                      }}
-                      className={`sidebar-link sidebar-link-inactive w-full text-left ${
-                        hasActiveSubItem ? 'sidebar-link-active' : ''
-                      }`}
-                    >
-                      <span className="mr-3">{Icons.settings}</span>
-                      <span className="flex-1">Keepa Alert Services</span>
-                      <span>
-                        {isKeepaMenuOpen ? Icons.chevronDown : Icons.chevronRight}
-                      </span>
-                    </button>
-                    
-                    {isKeepaMenuOpen && (
-                      <div className="ml-4 mt-1 space-y-1 bg-[#0B1020] rounded-lg p-2 dark-dropdown">
-                        {keepaMenuItems.map((item) => {
-                          // If item has children, render as nested dropdown with flyout
-                          if (item.children) {
-                            const isOpen = (item.label === 'Daily Runs' && isDailyRunsMenuOpen) ||
-                                          (item.label === 'Manage UPCs' && isManageUPCsMenuOpen)
-                            const hasActiveChild = (item.label === 'Daily Runs' && hasActiveDailyRunsSubItem) ||
-                                                  (item.label === 'Manage UPCs' && hasActiveManageUPCsSubItem)
-                            const buttonRef = item.label === 'Daily Runs' ? dailyRunsButtonRef : manageUPCsButtonRef
-                            const timeoutRef = item.label === 'Daily Runs' ? dailyRunsTimeoutRef : manageUPCsTimeoutRef
+          {/* Dashboard - top level */}
+          <Link
+            to="/dashboard"
+            className={`sidebar-link ${
+              isActive('/dashboard') ? 'sidebar-link-active' : 'sidebar-link-inactive'
+            }`}
+          >
+            <span className="mr-3">{Icons.dashboard}</span>
+            <span>Dashboard</span>
+          </Link>
 
-                            const handleMouseEnter = () => {
-                              // Clear any pending close timeout
-                              if (timeoutRef.current) {
-                                clearTimeout(timeoutRef.current)
-                                timeoutRef.current = null
-                              }
-                              if (item.label === 'Daily Runs') {
-                                setIsDailyRunsMenuOpen(true)
-                              } else if (item.label === 'Manage UPCs') {
-                                setIsManageUPCsMenuOpen(true)
-                              }
-                            }
+          {/* Keepa Alert Services - top level (requires Keepa / pricing access) */}
+          {hasKeepaAccess && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setIsKeepaMenuOpen(!isKeepaMenuOpen)}
+                className={`sidebar-link sidebar-link-inactive w-full text-left text-black ${
+                  hasActiveSubItem ? 'sidebar-link-active' : ''
+                }`}
+              >
+                <span className="mr-3">{Icons.settings}</span>
+                <span className="flex-1">Keepa Alert Services</span>
+                <span>
+                  {isKeepaMenuOpen ? Icons.chevronDown : Icons.chevronRight}
+                </span>
+              </button>
 
-                            const handleMouseLeave = () => {
-                              // Add a delay before closing to allow moving to flyout
-                              timeoutRef.current = setTimeout(() => {
-                                if (item.label === 'Daily Runs') {
-                                  setIsDailyRunsMenuOpen(false)
-                                } else if (item.label === 'Manage UPCs') {
-                                  setIsManageUPCsMenuOpen(false)
-                                }
-                              }, 200)
-                            }
+              {isKeepaMenuOpen && (
+                <div className="ml-4 mt-1 space-y-1 bg-[#0B1020] rounded-lg p-2 dark-dropdown">
+                  {keepaMenuItems.map((item) => {
+                    if (item.children) {
+                      const isOpen =
+                        (item.label === 'Daily Runs' && isDailyRunsMenuOpen) ||
+                        (item.label === 'Manage UPCs' && isManageUPCsMenuOpen)
+                      const hasActiveChild =
+                        (item.label === 'Daily Runs' && hasActiveDailyRunsSubItem) ||
+                        (item.label === 'Manage UPCs' && hasActiveManageUPCsSubItem)
+                      const buttonRef =
+                        item.label === 'Daily Runs' ? dailyRunsButtonRef : manageUPCsButtonRef
+                      const timeoutRef =
+                        item.label === 'Daily Runs' ? dailyRunsTimeoutRef : manageUPCsTimeoutRef
 
-                            return (
-                              <div key={item.label} className="relative group">
-                                <button
-                                  ref={buttonRef}
-                                  onMouseEnter={handleMouseEnter}
-                                  onMouseLeave={handleMouseLeave}
-                                  className={`sidebar-link sidebar-link-inactive w-full text-left ${
-                                    hasActiveChild ? 'sidebar-link-active' : ''
-                                  }`}
-                                >
-                                  <span className="mr-3">{Icons[item.icon]}</span>
-                                  <span className="flex-1">{item.label}</span>
-                                  <span>
-                                    {Icons.chevronRight}
-                                  </span>
-                                </button>
+                      const handleMouseEnter = () => {
+                        if (timeoutRef.current) {
+                          clearTimeout(timeoutRef.current)
+                          timeoutRef.current = null
+                        }
+                        if (item.label === 'Daily Runs') {
+                          setIsDailyRunsMenuOpen(true)
+                        } else if (item.label === 'Manage UPCs') {
+                          setIsManageUPCsMenuOpen(true)
+                        }
+                      }
 
-                                {/* Flyout menu on the right */}
-                                {isOpen && (
-                                  <div
-                                    className="flyout-menu absolute left-full top-0 ml-2 bg-[#1a2235] rounded-lg shadow-2xl border border-white/20 min-w-[200px] z-[9999]"
-                                    onMouseEnter={handleMouseEnter}
-                                    onMouseLeave={handleMouseLeave}
-                                  >
-                                    <div className="p-2 space-y-1">
-                                      {item.children.map((childItem) => (
-                                        <Link
-                                          key={childItem.path}
-                                          to={childItem.path}
-                                          className={`sidebar-link ${
-                                            isActive(childItem.path) ? 'sidebar-link-active' : 'sidebar-link-inactive'
-                                          }`}
-                                          onClick={() => {
-                                            if (item.label === 'Daily Runs') {
-                                              setIsDailyRunsMenuOpen(false)
-                                            } else if (item.label === 'Manage UPCs') {
-                                              setIsManageUPCsMenuOpen(false)
-                                            }
-                                          }}
-                                        >
-                                          <span className="mr-3">{Icons[childItem.icon]}</span>
-                                          <span>{childItem.label}</span>
-                                        </Link>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )
+                      const handleMouseLeave = () => {
+                        timeoutRef.current = setTimeout(() => {
+                          if (item.label === 'Daily Runs') {
+                            setIsDailyRunsMenuOpen(false)
+                          } else if (item.label === 'Manage UPCs') {
+                            setIsManageUPCsMenuOpen(false)
                           }
+                        }, 200)
+                      }
 
-                          // Regular menu item without children
-                          return (
-                            <Link
-                              key={item.path}
-                              to={item.path!}
-                              className={`sidebar-link ${
-                                isActive(item.path!) ? 'sidebar-link-active' : 'sidebar-link-inactive'
-                              }`}
+                      return (
+                        <div key={item.label} className="relative group">
+                          <button
+                            ref={buttonRef}
+                            type="button"
+                            onMouseEnter={handleMouseEnter}
+                            onMouseLeave={handleMouseLeave}
+                            className={`sidebar-link sidebar-link-inactive w-full text-left ${
+                              hasActiveChild ? 'sidebar-link-active' : ''
+                            }`}
+                          >
+                            <span className="mr-3">{Icons[item.icon]}</span>
+                            <span className="flex-1">{item.label}</span>
+                            <span>{Icons.chevronRight}</span>
+                          </button>
+
+                          {isOpen && (
+                            <div
+                              className="flyout-menu absolute left-full top-0 ml-2 bg-[#1a2235] rounded-lg shadow-2xl border border-white/20 min-w-[200px] z-[9999]"
+                              onMouseEnter={handleMouseEnter}
+                              onMouseLeave={handleMouseLeave}
                             >
-                              <span className="mr-3">{Icons[item.icon]}</span>
-                              <span>{item.label}</span>
-                            </Link>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+                              <div className="p-2 space-y-1">
+                                {item.children.map((childItem) => (
+                                  <Link
+                                    key={childItem.path}
+                                    to={childItem.path}
+                                    className={`sidebar-link ${
+                                      isActive(childItem.path)
+                                        ? 'sidebar-link-active'
+                                        : 'sidebar-link-inactive'
+                                    }`}
+                                    onClick={() => {
+                                      if (item.label === 'Daily Runs') {
+                                        setIsDailyRunsMenuOpen(false)
+                                      } else if (item.label === 'Manage UPCs') {
+                                        setIsManageUPCsMenuOpen(false)
+                                      }
+                                    }}
+                                  >
+                                    <span className="mr-3">{Icons[childItem.icon]}</span>
+                                    <span>{childItem.label}</span>
+                                  </Link>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path!}
+                        className={`sidebar-link ${
+                          isActive(item.path!) ? 'sidebar-link-active' : 'sidebar-link-inactive'
+                        }`}
+                      >
+                        <span className="mr-3">{Icons[item.icon]}</span>
+                        <span>{item.label}</span>
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* My Space Dropdown */}
           <div>
