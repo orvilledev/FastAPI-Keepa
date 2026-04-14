@@ -104,6 +104,21 @@ export interface PriceAlert {
   detected_at: string
 }
 
+export interface ComprehensiveReportRow {
+  UPC: string
+  ASIN: string
+  'Product Title': string
+  Brand: string
+  'Off Price Listing': string
+  MSRP: string
+  'Current Amazon Price': string
+  'Price Difference': string
+  'Seller Offer Price': string
+  Seller: string
+  'Discount %': string
+  'Amazon URL': string
+}
+
 export interface JobStatus {
   job_id: string
   status: string

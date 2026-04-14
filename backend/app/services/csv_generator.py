@@ -644,120 +644,12 @@ class CSVGenerator:
         Returns:
             Tuple of (Excel file as bytes, number of off-price rows — one per UPC below MAP)
         """
-        csv_data = []
-        off_price_count = 0
-        seller_name_map = seller_name_map or {}
-        excluded = excluded_seller_substrings or []
-
-        _by_upc: Dict[str, Dict[str, Any]] = {}
-        for item in processed_items:
-            _by_upc[str(item.get("upc", ""))] = item
-        processed_items = list(_by_upc.values())
-
-        for item in processed_items:
-            upc = item.get("upc", "")
-            keepa_data = item.get("keepa_data", {})
-
-            product_data = CSVGenerator.extract_keepa_product_data(keepa_data)
-
-            map_price = map_prices_by_upc.get(upc)
-            try:
-                msrp = float(map_price) if map_price else None
-            except (TypeError, ValueError):
-                msrp = None
-
-            asin = product_data.get("asin", "")
-            amazon_url = f"https://www.amazon.com/dp/{asin}" if asin else "N/A"
-
-            # Format UPC (handle scientific notation)
-            upc_display = upc
-            try:
-                if "E+" in str(upc) or "e+" in str(upc):
-                    upc_display = f"{float(upc):.0f}"
-            except Exception:
-                pass
-
-            base_title = product_data.get("title", "")
-            base_brand = product_data.get("brand", "")
-
-            def append_row(
-                reference_price: float,
-                seller_display: str,
-            ) -> None:
-                nonlocal off_price_count
-                off_price_count += 1
-                try:
-                    pdiff = float(msrp) - float(reference_price)
-                    price_difference_display = f"${pdiff:.2f}"
-                except (TypeError, ValueError):
-                    price_difference_display = "$0.00"
-                if msrp is not None and float(msrp) > 0:
-                    try:
-                        discount_percent = (
-                            (float(msrp) - float(reference_price)) / float(msrp)
-                        ) * 100
-                        discount_display = f"{discount_percent:.2f}%"
-                    except (TypeError, ValueError, ZeroDivisionError):
-                        discount_display = "N/A"
-                else:
-                    discount_display = "N/A"
-                try:
-                    cur_disp = (
-                        f"${float(reference_price):.2f}"
-                        if reference_price is not None
-                        else "N/A"
-                    )
-                except (TypeError, ValueError):
-                    cur_disp = "N/A"
-                try:
-                    seller_price_disp = f"${float(reference_price):.2f}"
-                except (TypeError, ValueError):
-                    seller_price_disp = "N/A"
-                csv_data.append({
-                    "UPC": upc_display,
-                    "ASIN": asin,
-                    "Product Title": base_title,
-                    "Brand": base_brand,
-                    "Off Price Listing": "Off Price",
-                    "MSRP": f"${msrp:.2f}" if msrp else "N/A",
-                    "Current Amazon Price": cur_disp,
-                    "Price Difference": price_difference_display,
-                    "Seller Offer Price": seller_price_disp,
-                    "Seller": seller_display,
-                    "Discount %": discount_display,
-                    "Amazon URL": amazon_url,
-                    "_is_off_price": True,
-                })
-
-            if msrp is None:
-                continue
-
-            offers = CSVGenerator._seller_offers_from_keepa(keepa_data)
-
-            picked = CSVGenerator._pick_off_price_representative(
-                offers,
-                float(msrp),
-                product_data,
-                seller_name_map,
-                excluded,
-            )
-            if picked is not None:
-                ref, seller_disp = picked
-                append_row(ref, seller_disp)
-            elif not offers:
-                buy_box_only = product_data.get("buy_box_price")
-                if buy_box_only is not None and float(msrp) > float(buy_box_only):
-                    seller_disp = CSVGenerator._resolve_seller_display(
-                        product_data.get("buy_box_seller_name") or "",
-                        product_data.get("buy_box_seller_id") or "",
-                        seller_name_map,
-                    )
-                    if not CSVGenerator.seller_display_excluded(seller_disp, excluded):
-                        append_row(float(buy_box_only), seller_disp)
-                elif buy_box_only is None:
-                    logger.warning(
-                        f"No seller or buy box price found in Keepa data for UPC {upc}"
-                    )
+        csv_data, off_price_count = CSVGenerator.build_comprehensive_report_rows(
+            processed_items=processed_items,
+            map_prices_by_upc=map_prices_by_upc,
+            seller_name_map=seller_name_map,
+            excluded_seller_substrings=excluded_seller_substrings,
+        )
 
         # Create DataFrame with all columns
         df = pd.DataFrame(csv_data)
@@ -825,4 +717,127 @@ class CSVGenerator:
         excel_buffer.close()
         
         return excel_bytes, off_price_count
+
+    @staticmethod
+    def build_comprehensive_report_rows(
+        processed_items: List[Dict[str, Any]],
+        map_prices_by_upc: Dict[str, Decimal],
+        seller_name_map: Optional[Dict[str, str]] = None,
+        excluded_seller_substrings: Optional[List[str]] = None,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """Build comprehensive report rows used by UI and Excel export."""
+        csv_data: List[Dict[str, Any]] = []
+        off_price_count = 0
+        seller_name_map = seller_name_map or {}
+        excluded = excluded_seller_substrings or []
+
+        _by_upc: Dict[str, Dict[str, Any]] = {}
+        for item in processed_items:
+            _by_upc[str(item.get("upc", ""))] = item
+        processed_items = list(_by_upc.values())
+
+        for item in processed_items:
+            upc = item.get("upc", "")
+            keepa_data = item.get("keepa_data", {})
+
+            product_data = CSVGenerator.extract_keepa_product_data(keepa_data)
+
+            map_price = map_prices_by_upc.get(upc)
+            try:
+                msrp = float(map_price) if map_price else None
+            except (TypeError, ValueError):
+                msrp = None
+
+            asin = product_data.get("asin", "")
+            amazon_url = f"https://www.amazon.com/dp/{asin}" if asin else "N/A"
+
+            upc_display = upc
+            try:
+                if "E+" in str(upc) or "e+" in str(upc):
+                    upc_display = f"{float(upc):.0f}"
+            except Exception:
+                pass
+
+            base_title = product_data.get("title", "")
+            base_brand = product_data.get("brand", "")
+
+            def append_row(reference_price: float, seller_display: str) -> None:
+                nonlocal off_price_count
+                off_price_count += 1
+                try:
+                    pdiff = float(msrp) - float(reference_price)
+                    price_difference_display = f"${pdiff:.2f}"
+                except (TypeError, ValueError):
+                    price_difference_display = "$0.00"
+
+                if msrp is not None and float(msrp) > 0:
+                    try:
+                        discount_percent = (
+                            (float(msrp) - float(reference_price)) / float(msrp)
+                        ) * 100
+                        discount_display = f"{discount_percent:.2f}%"
+                    except (TypeError, ValueError, ZeroDivisionError):
+                        discount_display = "N/A"
+                else:
+                    discount_display = "N/A"
+
+                try:
+                    cur_disp = (
+                        f"${float(reference_price):.2f}"
+                        if reference_price is not None
+                        else "N/A"
+                    )
+                except (TypeError, ValueError):
+                    cur_disp = "N/A"
+                try:
+                    seller_price_disp = f"${float(reference_price):.2f}"
+                except (TypeError, ValueError):
+                    seller_price_disp = "N/A"
+
+                csv_data.append({
+                    "UPC": upc_display,
+                    "ASIN": asin,
+                    "Product Title": base_title,
+                    "Brand": base_brand,
+                    "Off Price Listing": "Off Price",
+                    "MSRP": f"${msrp:.2f}" if msrp else "N/A",
+                    "Current Amazon Price": cur_disp,
+                    "Price Difference": price_difference_display,
+                    "Seller Offer Price": seller_price_disp,
+                    "Seller": seller_display,
+                    "Discount %": discount_display,
+                    "Amazon URL": amazon_url,
+                    "_is_off_price": True,
+                })
+
+            if msrp is None:
+                continue
+
+            offers = CSVGenerator._seller_offers_from_keepa(keepa_data)
+            picked = CSVGenerator._pick_off_price_representative(
+                offers,
+                float(msrp),
+                product_data,
+                seller_name_map,
+                excluded,
+            )
+            if picked is not None:
+                ref, seller_disp = picked
+                append_row(ref, seller_disp)
+            elif not offers:
+                buy_box_only = product_data.get("buy_box_price")
+                if buy_box_only is not None and float(msrp) > float(buy_box_only):
+                    seller_disp = CSVGenerator._resolve_seller_display(
+                        product_data.get("buy_box_seller_name") or "",
+                        product_data.get("buy_box_seller_id") or "",
+                        seller_name_map,
+                    )
+                    if not CSVGenerator.seller_display_excluded(seller_disp, excluded):
+                        append_row(float(buy_box_only), seller_disp)
+                elif buy_box_only is None:
+                    logger.warning(
+                        f"No seller or buy box price found in Keepa data for UPC {upc}"
+                    )
+
+        return csv_data, off_price_count
 

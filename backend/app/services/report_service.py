@@ -25,6 +25,31 @@ class ReportService:
     def get_price_alerts_for_job(self, job_id: UUID) -> List[dict]:
         """Get all price alerts for a job."""
         return self.report_repo.get_price_alerts(job_id)
+
+    def get_comprehensive_report_rows_for_job(self, job_id: UUID) -> List[dict]:
+        """Get report rows using the same logic as Excel/email export."""
+        processed_items = self.report_repo.get_all_processed_upcs_for_job(job_id)
+        excluded = settings.report_excluded_seller_pattern_list
+        if not processed_items:
+            return []
+
+        upcs = [item.get("upc") for item in processed_items if item.get("upc")]
+        map_prices_by_upc = self.map_repo.get_map_prices_by_upcs(upcs)
+
+        try:
+            seller_name_map = self.seller_name_repo.get_seller_name_map()
+            logger.info(f"Loaded {len(seller_name_map)} seller name mappings for report rows")
+        except Exception as e:
+            logger.warning(f"Could not load seller names for report rows, using raw IDs: {e}")
+            seller_name_map = {}
+
+        rows, _ = self.csv_generator.build_comprehensive_report_rows(
+            processed_items=processed_items,
+            map_prices_by_upc=map_prices_by_upc,
+            seller_name_map=seller_name_map,
+            excluded_seller_substrings=excluded,
+        )
+        return rows
     
     def generate_csv_for_job(self, job_id: UUID, job_name: str) -> Tuple[bytes, str, int]:
         """

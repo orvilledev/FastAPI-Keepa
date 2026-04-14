@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
-import type { BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, PublicTool, QuickAccessLink, DashboardWidget, UserTool, Note, JobAid, Notification } from '../types'
+import type { BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, PublicTool, QuickAccessLink, DashboardWidget, UserTool, Note, JobAid, Notification, ComprehensiveReportRow } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -189,7 +189,7 @@ export const batchesApi = {
 // Reports API
 export const reportsApi = {
   getPriceAlerts: async (jobId: string) => {
-    const response = await api.get<PriceAlert[]>(`/api/v1/reports/${jobId}`)
+    const response = await api.get<ComprehensiveReportRow[]>(`/api/v1/reports/${jobId}`)
     return response.data
   },
   

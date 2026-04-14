@@ -7,7 +7,6 @@ import io
 import logging
 from datetime import datetime
 from app.dependencies import get_current_user, verify_job_access
-from app.models.price_alert import PriceAlertResponse
 from app.database import get_supabase
 from app.services.csv_generator import CSVGenerator
 from app.services.email_service import EmailService
@@ -84,17 +83,16 @@ async def test_email(
         raise HTTPException(status_code=500, detail=f"Error testing email: {str(e)}")
 
 
-@router.get("/reports/{job_id}", response_model=List[PriceAlertResponse])
+@router.get("/reports/{job_id}", response_model=List[dict])
 @handle_api_errors("get price alerts")
 async def get_price_alerts(
     job: dict = Depends(verify_job_access),
     db: Client = Depends(get_supabase)
 ):
-    """Get price alerts for a job."""
+    """Get report rows using the same logic as CSV/email output."""
     job_id = UUID(job["id"])
     report_service = ReportService(db)
-    alerts = report_service.get_price_alerts_for_job(job_id)
-    return [PriceAlertResponse(**alert) for alert in alerts]
+    return report_service.get_comprehensive_report_rows_for_job(job_id)
 
 
 @router.get("/reports/{job_id}/csv")

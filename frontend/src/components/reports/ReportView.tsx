@@ -1,17 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { reportsApi } from '../../services/api'
-import type { PriceAlert } from '../../types'
-
-const toNumber = (value: unknown): number | null => {
-  if (value === null || value === undefined || value === '') return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
+import type { ComprehensiveReportRow } from '../../types'
 
 export default function ReportView() {
   const { jobId } = useParams<{ jobId: string }>()
-  const [alerts, setAlerts] = useState<PriceAlert[]>([])
+  const [rows, setRows] = useState<ComprehensiveReportRow[]>([])
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [sending, setSending] = useState(false)
@@ -26,7 +20,7 @@ export default function ReportView() {
     if (!jobId) return
     try {
       const data = await reportsApi.getPriceAlerts(jobId)
-      setAlerts(data)
+      setRows(data)
     } catch (error) {
       console.error('Failed to load alerts:', error)
     } finally {
@@ -69,16 +63,6 @@ export default function ReportView() {
     }
   }
 
-  const formatCurrency = (value: unknown) => {
-    const numericValue = toNumber(value)
-    return numericValue === null ? '-' : `$${numericValue.toFixed(2)}`
-  }
-
-  const formatPercent = (value: unknown) => {
-    const numericValue = toNumber(value)
-    return numericValue === null ? '-' : `${numericValue.toFixed(2)}%`
-  }
-
   if (loading) {
     return <div className="text-center py-8">Loading...</div>
   }
@@ -95,7 +79,7 @@ export default function ReportView() {
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">Price Alerts Report</h1>
           <p className="mt-2 text-sm text-gray-600">
-            {alerts.length} price alert{alerts.length !== 1 ? 's' : ''} found
+            {rows.length} off-price row{rows.length !== 1 ? 's' : ''} found
           </p>
         </div>
         <div className="flex space-x-3">
@@ -116,9 +100,9 @@ export default function ReportView() {
         </div>
       </div>
 
-      {alerts.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-12 text-center">
-          <p className="text-gray-500 text-lg">No price alerts found for this job</p>
+          <p className="text-gray-500 text-lg">No off-price rows found for this job</p>
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -130,54 +114,83 @@ export default function ReportView() {
                     UPC
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Seller Name
+                    ASIN
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Current Price
+                    Product Title
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    MAP
+                    Brand
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Price Change %
+                    MSRP
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Detected At
+                    Current Amazon Price
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Price Difference
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Seller Offer Price
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Seller
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Discount %
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Amazon URL
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {alerts.map((alert) => (
-                  <tr key={alert.id}>
+                {rows.map((row, index) => (
+                  <tr key={`${row.UPC}-${row.ASIN}-${index}`}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {alert.upc}
+                      {row.UPC}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {alert.seller_name || '-'}
+                      {row.ASIN || '-'}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 max-w-[360px] truncate" title={row['Product Title']}>
+                      {row['Product Title'] || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatCurrency(alert.current_price)}
+                      {row.Brand || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatCurrency(alert.historical_price)}
+                      {row.MSRP || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {row['Current Amazon Price'] || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {row['Price Difference'] || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {row['Seller Offer Price'] || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {row.Seller || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      {toNumber(alert.price_change_percent) !== null ? (
-                        <span
-                          className={
-                            Number(alert.price_change_percent) < 0
-                              ? 'text-red-600 font-semibold'
-                              : 'text-gray-900'
-                          }
-                        >
-                          {formatPercent(alert.price_change_percent)}
-                        </span>
-                      ) : (
-                        '-'
-                      )}
+                      <span className="text-red-600 font-semibold">{row['Discount %'] || '-'}</span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(alert.detected_at).toLocaleString()}
+                    <td className="px-6 py-4 text-sm">
+                      {row['Amazon URL'] && row['Amazon URL'] !== 'N/A' ? (
+                        <a
+                          href={row['Amazon URL']}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#0B1020] hover:text-[#1a2235] hover:underline"
+                        >
+                          View
+                        </a>
+                      ) : (
+                        <span className="text-gray-500">-</span>
+                      )}
                     </td>
                   </tr>
                 ))}
