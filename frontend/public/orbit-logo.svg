@@ -1,10 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <!-- Main circle (planet) -->
-  <circle cx="50" cy="50" r="28" fill="#0B1020"/>
-  
-  <!-- Orbital ring -->
-  <ellipse cx="50" cy="50" rx="45" ry="18" stroke="#0B1020" stroke-width="4" fill="none" transform="rotate(-20 50 50)"/>
-  
-  <!-- Small satellite/moon on orbit -->
-  <circle cx="88" cy="38" r="6" fill="#0B1020"/>
+  <!-- Tripod -->
+  <path
+    d="M50 58v34M50 58L32 94M50 58L68 94"
+    stroke="#0B1020"
+    stroke-width="5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <!-- Mount -->
+  <circle cx="50" cy="58" r="10" fill="#0B1020"/>
+  <!-- Telescope tube -->
+  <path
+    fill="#0B1020"
+    d="M24 40 58 14 70 28 36 54z"
+  />
+  <!-- Objective / lens housing -->
+  <ellipse
+    cx="65"
+    cy="22"
+    rx="12"
+    ry="16"
+    fill="#0B1020"
+    transform="rotate(38 65 22)"
+  />
 </svg>
