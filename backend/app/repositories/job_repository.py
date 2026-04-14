@@ -52,6 +52,32 @@ class JobRepository:
         normalized = job_name.lower()
         return normalized.startswith("daily ") and "metro report" in normalized
 
+    @staticmethod
+    def _format_initiator_name(display_name: Optional[str], email: Optional[str], created_by: Optional[str]) -> str:
+        """
+        Return a readable initiator name.
+
+        Priority:
+        1) profile display_name
+        2) email local-part (before @), title-cased
+        3) created_by UUID
+        """
+        if display_name:
+            normalized_display_name = display_name.strip()
+            if normalized_display_name:
+                return normalized_display_name
+
+        if email:
+            local_part = email.split("@", 1)[0].strip()
+            if local_part:
+                # Convert separators to spaces so "john_doe" -> "John Doe"
+                local_part = local_part.replace(".", " ").replace("_", " ").replace("-", " ")
+                local_part = " ".join(local_part.split())
+                if local_part:
+                    return local_part.title()
+
+        return created_by or "Unknown"
+
     def enrich_jobs_with_initiated_by(self, jobs: List[dict]) -> List[dict]:
         """
         Add initiated_by to each job.
@@ -78,10 +104,11 @@ class JobRepository:
                     .execute()
                 )
                 for profile in profile_response.data or []:
-                    creator_lookup[str(profile.get("id"))] = (
-                        profile.get("display_name")
-                        or profile.get("email")
-                        or str(profile.get("id"))
+                    profile_id = str(profile.get("id"))
+                    creator_lookup[profile_id] = self._format_initiator_name(
+                        display_name=profile.get("display_name"),
+                        email=profile.get("email"),
+                        created_by=profile_id,
                     )
             except Exception:
                 # Fallback to created_by IDs if profile lookup fails.
