@@ -22,7 +22,6 @@ const MAPManagement = lazy(() => import('./components/map/MAPManagement'))
 const PublicTools = lazy(() => import('./components/tools/PublicTools'))
 const MyToolbox = lazy(() => import('./components/tools/MyToolbox'))
 const JobAids = lazy(() => import('./components/tools/JobAids'))
-const TeamTasks = lazy(() => import('./components/tasks/TeamTasks'))
 const MyNotes = lazy(() => import('./components/notes/MyNotes'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
@@ -78,7 +77,6 @@ function AppRoutes() {
           <Route path="daily-run/clk" element={<ProtectedRoute requireKeepaAccess={true}><CLKDailyRun /></ProtectedRoute>} />
 
           {/* General authenticated routes */}
-          <Route path="team-tasks" element={<TeamTasks />} />
           <Route path="my-space/notes" element={<MyNotes />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="tools/public" element={<PublicTools />} />

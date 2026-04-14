@@ -153,36 +153,6 @@ async def get_tools_manager_user(
     return current_user
 
 
-async def get_task_assigner_or_superadmin_user(
-    current_user: dict = Depends(get_current_user),
-    db: Client = Depends(get_supabase)
-) -> dict:
-    """Verify user is superadmin OR has can_assign_tasks permission."""
-    # Check if user is superadmin
-    user_email = current_user.get("email", "").lower()
-    if user_email == "orvillebarba@gmail.com":
-        return current_user
-    
-    # Check user's task assignment permission in profiles table
-    profile_response = db.table("profiles").select("can_assign_tasks").eq("id", current_user["id"]).execute()
-    
-    if not profile_response.data:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
-        )
-    
-    can_assign_tasks = profile_response.data[0].get("can_assign_tasks", False)
-    
-    if not can_assign_tasks:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Task assignment permission required"
-        )
-    
-    return current_user
-
-
 async def get_job_runner_user(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)

@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
-import type { BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, PublicTool, QuickAccessLink, Task, Subtask, DashboardWidget, UserTool, Note, JobAid, TaskValidation, TaskAttachment, Notification } from '../types'
+import type { BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, PublicTool, QuickAccessLink, DashboardWidget, UserTool, Note, JobAid, Notification } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -115,7 +115,7 @@ export const authApi = {
     return response.data
   },
   getAllUsers: async () => {
-    const response = await api.get<{ users: Array<{ id: string; email: string; role: string; display_name?: string; has_keepa_access: boolean; can_manage_tools: boolean; can_assign_tasks: boolean; created_at: string }> }>('/api/v1/auth/users')
+    const response = await api.get<{ users: Array<{ id: string; email: string; role: string; display_name?: string; has_keepa_access: boolean; can_manage_tools: boolean; created_at: string }> }>('/api/v1/auth/users')
     return response.data
   },
   updateUserKeepaAccess: async (userId: string, hasKeepaAccess: boolean) => {
@@ -124,10 +124,6 @@ export const authApi = {
   },
   updateUserToolsAccess: async (userId: string, canManageTools: boolean) => {
     const response = await api.put<{ user_id: string; can_manage_tools: boolean; message: string }>(`/api/v1/auth/users/${userId}/tools-access`, { can_manage_tools: canManageTools })
-    return response.data
-  },
-  updateUserTasksAccess: async (userId: string, canAssignTasks: boolean) => {
-    const response = await api.put<{ user_id: string; can_assign_tasks: boolean; message: string }>(`/api/v1/auth/users/${userId}/tasks-access`, { can_assign_tasks: canAssignTasks })
     return response.data
   },
   updateProfile: async (profileData: any) => {
@@ -480,126 +476,6 @@ export const quickAccessApi = {
   },
   deleteLink: async (linkId: string) => {
     const response = await api.delete(`/api/v1/quick-access/${linkId}`)
-    return response.data
-  },
-}
-
-// Tasks API
-export const tasksApi = {
-  getTasks: async (status?: string, priority?: string) => {
-    const params = new URLSearchParams()
-    if (status) params.append('status', status)
-    if (priority) params.append('priority', priority)
-    const queryString = params.toString()
-    const url = `/api/v1/tasks${queryString ? `?${queryString}` : ''}`
-    const response = await api.get<Task[]>(url)
-    return response.data
-  },
-  createTask: async (taskData: {
-    title: string
-    description?: string
-    status?: string
-    priority?: string
-    due_date?: string
-    assigned_to?: string
-    assignment_purpose?: string
-  }) => {
-    const response = await api.post<Task>('/api/v1/tasks', taskData)
-    return response.data
-  },
-  updateTask: async (taskId: string, taskData: {
-    title?: string
-    description?: string
-    status?: string
-    priority?: string
-    due_date?: string
-    assigned_to?: string
-    assignment_purpose?: string
-  }) => {
-    const response = await api.put<Task>(`/api/v1/tasks/${taskId}`, taskData)
-    return response.data
-  },
-  deleteTask: async (taskId: string) => {
-    const response = await api.delete(`/api/v1/tasks/${taskId}`)
-    return response.data
-  },
-  // Subtasks
-  getSubtasks: async (taskId: string) => {
-    const response = await api.get<Subtask[]>(`/api/v1/tasks/${taskId}/subtasks`)
-    return response.data
-  },
-  createSubtask: async (taskId: string, subtaskData: {
-    title: string
-    description?: string
-    status?: string
-    display_order?: number
-  }) => {
-    const response = await api.post<Subtask>(`/api/v1/tasks/${taskId}/subtasks`, subtaskData)
-    return response.data
-  },
-  updateSubtask: async (taskId: string, subtaskId: string, subtaskData: {
-    title?: string
-    description?: string
-    status?: string
-    display_order?: number
-  }) => {
-    const response = await api.put<Subtask>(`/api/v1/tasks/${taskId}/subtasks/${subtaskId}`, subtaskData)
-    return response.data
-  },
-  deleteSubtask: async (taskId: string, subtaskId: string) => {
-    const response = await api.delete(`/api/v1/tasks/${taskId}/subtasks/${subtaskId}`)
-    return response.data
-  },
-  // Task Validations
-  getTaskValidations: async (taskId: string) => {
-    const response = await api.get<TaskValidation[]>(`/api/v1/tasks/${taskId}/validations`)
-    return response.data
-  },
-  uploadFileValidation: async (taskId: string, file: File) => {
-    const formData = new FormData()
-    formData.append('file', file)
-    const response = await api.post<TaskValidation>(`/api/v1/tasks/${taskId}/validations/file`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    })
-    return response.data
-  },
-  submitTextValidation: async (taskId: string, textContent: string) => {
-    const formData = new FormData()
-    formData.append('text_content', textContent)
-    const response = await api.post<TaskValidation>(`/api/v1/tasks/${taskId}/validations/text`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    })
-    return response.data
-  },
-  reviewValidation: async (validationId: string, status: 'approved' | 'rejected', reviewNotes?: string) => {
-    const response = await api.put<TaskValidation>(`/api/v1/task-validations/${validationId}/review`, {
-      status,
-      review_notes: reviewNotes,
-    })
-    return response.data
-  },
-  deleteValidation: async (validationId: string) => {
-    const response = await api.delete(`/api/v1/task-validations/${validationId}`)
-    return response.data
-  },
-  // Task Attachments
-  getTaskAttachments: async (taskId: string) => {
-    const response = await api.get<TaskAttachment[]>(`/api/v1/tasks/${taskId}/attachments`)
-    return response.data
-  },
-  uploadTaskAttachment: async (taskId: string, file: File) => {
-    const formData = new FormData()
-    formData.append('file', file)
-    // Don't set Content-Type header - let browser set it with boundary for multipart/form-data
-    const response = await api.post<TaskAttachment>(`/api/v1/tasks/${taskId}/attachments`, formData)
-    return response.data
-  },
-  deleteTaskAttachment: async (attachmentId: string) => {
-    const response = await api.delete(`/api/v1/task-attachments/${attachmentId}`)
     return response.data
   },
 }

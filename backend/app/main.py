@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.database import init_db
-from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, tasks, task_validations, task_attachments, dashboard, map, notes, notifications, sellers
+from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notes, notifications, sellers
 from app.scheduler import setup_scheduler, start_scheduler, shutdown_scheduler
 from app.middleware.rate_limiter import limiter, log_rate_limit_exceeded, RATE_LIMIT_ERROR_MESSAGE
 import logging
@@ -153,9 +153,6 @@ app.include_router(map.router, prefix=settings.api_v1_str, tags=["map"])
 app.include_router(scheduler.router, prefix=settings.api_v1_str, tags=["scheduler"])
 app.include_router(tools.router, prefix=settings.api_v1_str, tags=["tools"])
 app.include_router(quick_access.router, prefix=settings.api_v1_str, tags=["quick-access"])
-app.include_router(tasks.router, prefix=settings.api_v1_str, tags=["tasks"])
-app.include_router(task_validations.router, prefix=settings.api_v1_str, tags=["task-validations"])
-app.include_router(task_attachments.router, prefix=settings.api_v1_str, tags=["task-attachments"])
 app.include_router(dashboard.router, prefix=settings.api_v1_str, tags=["dashboard"])
 app.include_router(notes.router, prefix=settings.api_v1_str, tags=["notes"])
 app.include_router(notifications.router, prefix=settings.api_v1_str, tags=["notifications"])

@@ -1,6 +1,6 @@
 """Authentication API endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, status, Body
-from app.dependencies import get_current_user, get_superadmin_user, get_task_assigner_or_superadmin_user
+from app.dependencies import get_current_user, get_superadmin_user
 from app.database import get_supabase
 from app.models.user import ProfileUpdate, ProfileResponse
 from app.utils.error_handler import handle_api_errors

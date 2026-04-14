@@ -105,7 +105,7 @@ export default function Notifications() {
 
   const getNotificationLink = (notification: Notification) => {
     if (notification.related_type === 'task' && notification.related_id) {
-      return `/team-tasks`
+      return `/dashboard`
     }
     return null
   }

@@ -8,7 +8,6 @@ interface User {
   display_name?: string
   has_keepa_access: boolean
   can_manage_tools: boolean
-  can_assign_tasks: boolean
   created_at: string
 }
 
@@ -88,25 +87,6 @@ export default function UserManagement() {
     }
   }
 
-  const handleToggleTasksAccess = async (userId: string, currentAccess: boolean) => {
-    if (!window.confirm(`Are you sure you want to ${currentAccess ? 'revoke' : 'grant'} Task Assignment access for this user?`)) {
-      return
-    }
-
-    try {
-      setUpdating(userId)
-      await authApi.updateUserTasksAccess(userId, !currentAccess)
-      // Reload users to get updated data
-      await loadUsers()
-    } catch (err: any) {
-      const errorMessage = err?.response?.data?.detail || err?.message || 'Failed to update user access'
-      alert(`Error: ${errorMessage}`)
-      console.error('Failed to update user access:', err)
-    } finally {
-      setUpdating(null)
-    }
-  }
-
   if (!isSuperadmin) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -158,9 +138,6 @@ export default function UserManagement() {
                   Tools Management Access
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Task Assignment Access
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -168,7 +145,7 @@ export default function UserManagement() {
             <tbody className="bg-white divide-y divide-gray-200">
               {users.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
                     No users found
                   </td>
                 </tr>
@@ -217,15 +194,6 @@ export default function UserManagement() {
                         {user.can_manage_tools ? '✓ Granted' : '✗ Not Granted'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded ${
-                        user.can_assign_tasks 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {user.can_assign_tasks ? '✓ Granted' : '✗ Not Granted'}
-                      </span>
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex flex-col gap-2">
                         <button
@@ -258,22 +226,6 @@ export default function UserManagement() {
                             : user.can_manage_tools 
                               ? 'Revoke Tools' 
                               : 'Grant Tools'
-                          }
-                        </button>
-                        <button
-                          onClick={() => handleToggleTasksAccess(user.id, user.can_assign_tasks)}
-                          disabled={updating === user.id}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                            user.can_assign_tasks
-                              ? 'bg-red-600 hover:bg-red-700 text-white'
-                              : 'bg-green-600 hover:bg-green-700 text-white'
-                          } disabled:opacity-50 disabled:cursor-not-allowed`}
-                        >
-                          {updating === user.id 
-                            ? 'Updating...' 
-                            : user.can_assign_tasks 
-                              ? 'Revoke Tasks' 
-                              : 'Grant Tasks'
                           }
                         </button>
                       </div>

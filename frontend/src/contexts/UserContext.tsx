@@ -10,7 +10,6 @@ export interface UserInfo {
   display_name?: string
   has_keepa_access: boolean
   can_manage_tools: boolean
-  can_assign_tasks: boolean
   created_at?: string
 }
 
@@ -26,7 +25,6 @@ interface UserContextType {
   isAuthenticated: boolean
   hasKeepaAccess: boolean
   canManageTools: boolean
-  canAssignTasks: boolean
   isSuperadmin: boolean
   displayName: string
   // Actions
@@ -63,7 +61,6 @@ export function UserProvider({ children }: UserProviderProps) {
         display_name: data.display_name,
         has_keepa_access: data.has_keepa_access || false,
         can_manage_tools: data.can_manage_tools || false,
-        can_assign_tasks: data.can_assign_tasks || false,
         created_at: data.created_at,
       })
     } catch (error) {
@@ -74,7 +71,6 @@ export function UserProvider({ children }: UserProviderProps) {
         email: authUser.email,
         has_keepa_access: false,
         can_manage_tools: false,
-        can_assign_tasks: false,
       })
     } finally {
       setUserInfoLoading(false)
@@ -123,7 +119,6 @@ export function UserProvider({ children }: UserProviderProps) {
   const isAuthenticated = !!authUser
   const hasKeepaAccess = userInfo?.has_keepa_access || false
   const canManageTools = userInfo?.can_manage_tools || false
-  const canAssignTasks = userInfo?.can_assign_tasks || false
   const isSuperadmin = userInfo?.email?.toLowerCase() === 'orvillebarba@gmail.com'
   const displayName = userInfo?.display_name || userInfo?.email?.split('@')[0] || 'User'
 
@@ -135,7 +130,6 @@ export function UserProvider({ children }: UserProviderProps) {
     isAuthenticated,
     hasKeepaAccess,
     canManageTools,
-    canAssignTasks,
     isSuperadmin,
     displayName,
     refetchUserInfo: fetchUserInfo,
