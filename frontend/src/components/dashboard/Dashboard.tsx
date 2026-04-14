@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import DNKSchedulerCountdown from './DNKSchedulerCountdown'
 import CLKSchedulerCountdown from './CLKSchedulerCountdown'
-import QuickAccess from './QuickAccess'
 import UPCMAPStats from './UPCMAPStats'
 import { dashboardApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
@@ -19,25 +18,7 @@ export default function Dashboard() {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
 
-  // Define available widgets - use useMemo to prevent recreation on each render
-  // Only include Keepa-related widgets if user has access
-  const availableWidgets = useMemo(() => {
-    const widgets: Record<string, React.ReactNode> = {
-      quickAccess: <QuickAccess />,
-    }
-    
-    // Only add Keepa-related widgets if user has access
-    if (hasKeepaAccess) {
-      widgets.dnkSchedulerCountdown = <DNKSchedulerCountdown />
-      widgets.clkSchedulerCountdown = <CLKSchedulerCountdown />
-      widgets.upcMapStats = <UPCMAPStats />
-    }
-    
-    return widgets
-  }, [hasKeepaAccess])
-  
   // Create widget components separately to avoid dependency issues
-  const quickAccessWidget = useMemo(() => <QuickAccess />, [])
   const dnkSchedulerCountdownWidget = useMemo(() => <DNKSchedulerCountdown />, [])
   const clkSchedulerCountdownWidget = useMemo(() => <CLKSchedulerCountdown />, [])
   const upcMapStatsWidget = useMemo(() => <UPCMAPStats />, [])
@@ -64,9 +45,7 @@ export default function Dashboard() {
             .sort((a, b) => a.display_order - b.display_order)
             .map(w => {
               let component: React.ReactNode | undefined
-              if (w.widget_id === 'quickAccess') {
-                component = quickAccessWidget
-              } else if (w.widget_id === 'dnkSchedulerCountdown' && hasKeepaAccess) {
+              if (w.widget_id === 'dnkSchedulerCountdown' && hasKeepaAccess) {
                 component = dnkSchedulerCountdownWidget
               } else if (w.widget_id === 'clkSchedulerCountdown' && hasKeepaAccess) {
                 component = clkSchedulerCountdownWidget
@@ -79,10 +58,7 @@ export default function Dashboard() {
 
           // If no saved order, use default and save it
           if (widgetOrder.length === 0) {
-            const defaultWidgets = [
-              { id: 'quickAccess', component: quickAccessWidget },
-            ]
-            // Only add Keepa widgets if user has access
+            const defaultWidgets: WidgetItem[] = []
             if (hasKeepaAccess) {
               defaultWidgets.push({ id: 'dnkSchedulerCountdown', component: dnkSchedulerCountdownWidget })
               defaultWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
@@ -104,9 +80,7 @@ export default function Dashboard() {
           } else {
             // Ensure all available widgets are included
             const savedWidgetIds = new Set(widgetOrder.map(w => w.id))
-            const allAvailableWidgets: Array<{ id: string; component: React.ReactNode }> = [
-              { id: 'quickAccess', component: quickAccessWidget },
-            ]
+            const allAvailableWidgets: Array<{ id: string; component: React.ReactNode }> = []
             if (hasKeepaAccess) {
               allAvailableWidgets.push({ id: 'dnkSchedulerCountdown', component: dnkSchedulerCountdownWidget })
               allAvailableWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
@@ -150,10 +124,7 @@ export default function Dashboard() {
           }
           
           // Use default order if loading fails
-          const defaultWidgets = [
-            { id: 'quickAccess', component: quickAccessWidget },
-          ]
-          // Only add Keepa widgets if user has access
+          const defaultWidgets: WidgetItem[] = []
           if (hasKeepaAccess) {
             defaultWidgets.push({ id: 'dnkSchedulerCountdown', component: dnkSchedulerCountdownWidget })
             defaultWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
@@ -180,10 +151,7 @@ export default function Dashboard() {
         }
       } catch (err) {
         console.error('Failed to load widgets:', err)
-        // Use default widget order (only QuickAccess for non-Keepa users)
-        const defaultWidgets = [
-          { id: 'quickAccess', component: quickAccessWidget },
-        ]
+        const defaultWidgets: WidgetItem[] = []
         if (hasKeepaAccess) {
           defaultWidgets.push({ id: 'dnkSchedulerCountdown', component: dnkSchedulerCountdownWidget })
           defaultWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
@@ -196,7 +164,7 @@ export default function Dashboard() {
     }
 
     loadData()
-  }, [hasKeepaAccess, userInfoLoading, quickAccessWidget, dnkSchedulerCountdownWidget, clkSchedulerCountdownWidget, upcMapStatsWidget])
+  }, [hasKeepaAccess, userInfoLoading, dnkSchedulerCountdownWidget, clkSchedulerCountdownWidget, upcMapStatsWidget])
 
   const handleDragStart = (index: number) => {
     setDraggedIndex(index)
