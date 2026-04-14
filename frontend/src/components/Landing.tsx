@@ -50,8 +50,9 @@ export default function Landing() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
         </svg>
       ),
-      title: 'Central Workspace',
-      description: 'Your unified hub for all productivity tools and resources in one place',
+      title: 'Keepa Alert Services',
+      description:
+        'Express batch jobs, DNK and CLK daily runs, off-price CSV reports, and email alerts—when your account includes Keepa access',
     },
     {
       icon: (
@@ -59,35 +60,48 @@ export default function Landing() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
         </svg>
       ),
-      title: 'Notes & Documentation',
-      description: 'Keep your ideas organized with rich-text notes and documentation',
+      title: 'UPC & MAP management',
+      description:
+        'Manage DNK and CLK UPC catalogs and MAP programs from the sidebar, tied into reporting and dashboard stats',
     },
     {
       icon: (
         <svg className="w-10 h-10 text-[#8B5CF6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6" />
         </svg>
       ),
-      title: 'Custom Tools',
-      description: 'Access shared tools, job aids, and build your personal toolbox',
+      title: 'Dashboard widgets',
+      description:
+        'Reorderable, drag-and-drop widgets: scheduler countdowns and UPC/MAP stats for eligible users—saved to your account',
     },
     {
       icon: (
         <svg className="w-10 h-10 text-[#EC4899]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z" />
         </svg>
       ),
-      title: 'Dashboard Widgets',
-      description: 'Personalize your dashboard with drag-and-drop widgets',
+      title: 'My Notes',
+      description: 'Rich-text notes under My Space for documentation and quick reference',
     },
     {
       icon: (
         <svg className="w-10 h-10 text-[#6366F1]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
         </svg>
       ),
-      title: 'Team Collaboration',
-      description: 'Work together with your team on shared resources and workflows',
+      title: 'Tools & resources',
+      description:
+        'Resources: public tools and job aids; My Toolbox for links and utilities you save for yourself',
+    },
+    {
+      icon: (
+        <svg className="w-10 h-10 text-[#0D9488]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+      ),
+      title: 'Notifications',
+      description: 'In-app notifications for activity that matters to your account',
     },
   ]
 
@@ -129,8 +143,10 @@ export default function Landing() {
             </span>
           </h1>
           <p className="text-xl text-gray-600 mb-4 max-w-2xl mx-auto">
-            MSW Overwatch brings together all your productivity tools in one place.
-            Organize notes, access resources, monitor alerts, and collaborate with your team.
+            MSW Overwatch is your MetroShoe Warehouse workspace: a customizable dashboard, My Notes,
+            shared tools and job aids, and in-app notifications. With Keepa access on your account,
+            run express jobs and daily runs, manage DNK/CLK UPCs and MAP, and get off-price CSV
+            reports and alert emails—without leaving one app.
           </p>
           <div className="mb-8 max-w-2xl mx-auto">
             <p className="text-lg font-semibold text-gray-800 mb-2">
@@ -193,19 +209,19 @@ export default function Landing() {
                 <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Full access to MSW Overwatch</span>
+                <span className="text-gray-700">Dashboard, My Notes, Resources, and notifications</span>
               </li>
               <li className="flex items-start">
                 <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Unlimited tasks & notes</span>
+                <span className="text-gray-700">Keepa jobs, UPC/MAP, daily runs, and reports when enabled on your account</span>
               </li>
               <li className="flex items-start">
                 <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Priority support</span>
+                <span className="text-gray-700">Drag-and-drop dashboard widgets (schedulers &amp; stats for eligible users)</span>
               </li>
             </ul>
             <button
@@ -241,19 +257,19 @@ export default function Landing() {
                 <svg className="w-5 h-5 text-[#0B1020] mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Full access to MSW Overwatch</span>
+                <span className="text-gray-700">Same product areas: dashboard, notes, tools, notifications</span>
               </li>
               <li className="flex items-start">
                 <svg className="w-5 h-5 text-[#0B1020] mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Unlimited tasks & notes</span>
+                <span className="text-gray-700">Keepa Alert Services per your organization&apos;s entitlements</span>
               </li>
               <li className="flex items-start">
                 <svg className="w-5 h-5 text-[#0B1020] mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Dedicated account manager</span>
+                <span className="text-gray-700">Onboarding and billing handled with your team (contact sales)</span>
               </li>
             </ul>
             <button
@@ -269,8 +285,9 @@ export default function Landing() {
         </div>
         <div className="mt-8 text-center">
           <p className="text-sm text-gray-600">
-            <strong>Note:</strong> MetroShoe Warehouse employees receive free access to MSW Overwatch. 
-            All other users are subject to the monthly subscription fee.
+            <strong>Note:</strong> MetroShoe Warehouse employees receive free access. Keepa Alert
+            features (jobs, UPCs, MAP, daily runs, reports) depend on your account entitlements.
+            External organizations should use Contact Sales for the premium plan.
           </p>
         </div>
       </section>
@@ -279,10 +296,10 @@ export default function Landing() {
       <section className="container mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="text-center mb-16">
           <h2 className="text-4xl font-bold text-gray-900 mb-4">
-            Everything You Need
+            What&apos;s in MSW Overwatch
           </h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            All the tools you need to stay productive and collaborate with your team
+            What you can do in the app today—from Keepa monitoring to notes and resources
           </p>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -316,7 +333,7 @@ export default function Landing() {
                 Join MSW Overwatch
               </h2>
               <p className="mt-2 text-sm text-gray-500">
-                Get started with your central workspace
+                Sign in after signup to open your dashboard and sidebar tools
               </p>
             </div>
             <form className="space-y-6" onSubmit={handleSignup}>
