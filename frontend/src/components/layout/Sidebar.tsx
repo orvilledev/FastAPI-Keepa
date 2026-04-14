@@ -90,6 +90,8 @@ export default function Sidebar() {
   const [isManageUPCsMenuOpen, setIsManageUPCsMenuOpen] = useState(false)
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false)
   const [isMySpaceMenuOpen, setIsMySpaceMenuOpen] = useState(false)
+  /** Only one sidebar row shows “highlight” while hovering; route highlight defers to hover target. */
+  const [hoveredNav, setHoveredNav] = useState<string | null>(null)
 
   const dailyRunsButtonRef = useRef<HTMLButtonElement>(null)
   const manageUPCsButtonRef = useRef<HTMLButtonElement>(null)
@@ -116,6 +118,9 @@ export default function Sidebar() {
     // This ensures Dashboard is only active when on /dashboard, not on other pages
     return false
   }
+
+  const navHighlighted = (id: string, routeActive: boolean) =>
+    (hoveredNav === null && routeActive) || hoveredNav === id
 
   const dailyRunsMenuItems = [
     { path: '/daily-run/dnk', label: 'DNK Daily Run', icon: 'refresh' as const },
@@ -152,7 +157,6 @@ export default function Sidebar() {
     { path: '/tools/my-toolbox', label: 'My Toolbox', icon: 'toolbox' as const },
   ]
 
-  // Check if any sub-item is active to keep menu open
   const hasActiveDailyRunsSubItem = dailyRunsMenuItems.some(item => isActive(item.path))
   const hasActiveManageUPCsSubItem = manageUPCsMenuItems.some(item => isActive(item.path))
   const hasActiveSubItem = keepaMenuItems.some(item =>
@@ -199,13 +203,19 @@ export default function Sidebar() {
           </div>
         </div>
       </div>
-      <nav className="mt-6 px-4">
+      <nav
+        className="mt-6 px-4"
+        onMouseLeave={() => setHoveredNav(null)}
+      >
         <div className="space-y-1">
           {/* Dashboard - top level */}
           <Link
             to="/dashboard"
+            onMouseEnter={() => setHoveredNav('dashboard')}
             className={`sidebar-link ${
-              isActive('/dashboard') ? 'sidebar-link-active' : 'sidebar-link-inactive'
+              navHighlighted('dashboard', isActive('/dashboard'))
+                ? 'sidebar-link-active'
+                : 'sidebar-link-inactive'
             }`}
           >
             <span className="mr-3">{Icons.dashboard}</span>
@@ -218,8 +228,11 @@ export default function Sidebar() {
               <button
                 type="button"
                 onClick={() => setIsKeepaMenuOpen(!isKeepaMenuOpen)}
-                className={`sidebar-link sidebar-link-inactive w-full text-left text-black ${
-                  hasActiveSubItem ? 'sidebar-link-active' : ''
+                onMouseEnter={() => setHoveredNav('keepa-root')}
+                className={`sidebar-link w-full text-left text-black ${
+                  navHighlighted('keepa-root', hasActiveSubItem)
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
                 }`}
               >
                 <span className="mr-3">{Icons.settings}</span>
@@ -244,7 +257,11 @@ export default function Sidebar() {
                       const timeoutRef =
                         item.label === 'Daily Runs' ? dailyRunsTimeoutRef : manageUPCsTimeoutRef
 
+                      const flyoutParentId =
+                        item.label === 'Daily Runs' ? 'keepa-daily' : 'keepa-upcs'
+
                       const handleMouseEnter = () => {
+                        setHoveredNav(flyoutParentId)
                         if (timeoutRef.current) {
                           clearTimeout(timeoutRef.current)
                           timeoutRef.current = null
@@ -273,8 +290,10 @@ export default function Sidebar() {
                             type="button"
                             onMouseEnter={handleMouseEnter}
                             onMouseLeave={handleMouseLeave}
-                            className={`sidebar-link sidebar-link-inactive w-full text-left ${
-                              hasActiveChild ? 'sidebar-link-active' : ''
+                            className={`sidebar-link w-full text-left ${
+                              navHighlighted(flyoutParentId, hasActiveChild)
+                                ? 'sidebar-link-active'
+                                : 'sidebar-link-inactive'
                             }`}
                           >
                             <span className="mr-3">{Icons[item.icon]}</span>
@@ -293,8 +312,16 @@ export default function Sidebar() {
                                   <Link
                                     key={childItem.path}
                                     to={childItem.path}
+                                    onMouseEnter={() =>
+                                      setHoveredNav(
+                                        `${item.label === 'Daily Runs' ? 'flyout-daily' : 'flyout-upcs'}-${childItem.path}`
+                                      )
+                                    }
                                     className={`sidebar-link ${
-                                      isActive(childItem.path)
+                                      navHighlighted(
+                                        `${item.label === 'Daily Runs' ? 'flyout-daily' : 'flyout-upcs'}-${childItem.path}`,
+                                        isActive(childItem.path)
+                                      )
                                         ? 'sidebar-link-active'
                                         : 'sidebar-link-inactive'
                                     }`}
@@ -317,12 +344,17 @@ export default function Sidebar() {
                       )
                     }
 
+                    const keepaLinkId = item.path === '/jobs' ? 'keepa-jobs' : 'keepa-map'
+
                     return (
                       <Link
                         key={item.path}
                         to={item.path!}
+                        onMouseEnter={() => setHoveredNav(keepaLinkId)}
                         className={`sidebar-link ${
-                          isActive(item.path!) ? 'sidebar-link-active' : 'sidebar-link-inactive'
+                          navHighlighted(keepaLinkId, isActive(item.path!))
+                            ? 'sidebar-link-active'
+                            : 'sidebar-link-inactive'
                         }`}
                       >
                         <span className="mr-3">{Icons[item.icon]}</span>
@@ -341,7 +373,10 @@ export default function Sidebar() {
               onClick={() => {
                 setIsMySpaceMenuOpen(!isMySpaceMenuOpen)
               }}
-              className="sidebar-link sidebar-link-inactive w-full text-left text-black"
+              onMouseEnter={() => setHoveredNav('myspace')}
+              className={`sidebar-link w-full text-left text-black ${
+                navHighlighted('myspace', false) ? 'sidebar-link-active' : 'sidebar-link-inactive'
+              }`}
             >
               <span className="mr-3">{Icons.user}</span>
               <span className="flex-1">My Space</span>
@@ -353,18 +388,24 @@ export default function Sidebar() {
             {isMySpaceMenuOpen && (
               <div className="ml-4 mt-1 space-y-1 bg-[#0B1020] rounded-lg p-2 dark-dropdown">
                 {mySpaceMenuItems.length > 0 ? (
-                  mySpaceMenuItems.map((item) => (
+                  mySpaceMenuItems.map((item) => {
+                    const mySpaceItemId = `myspace-${item.path}`
+                    return (
                     <Link
                       key={item.path}
                       to={item.path}
+                      onMouseEnter={() => setHoveredNav(mySpaceItemId)}
                       className={`sidebar-link ${
-                        isActive(item.path) ? 'sidebar-link-active' : 'sidebar-link-inactive'
+                        navHighlighted(mySpaceItemId, isActive(item.path))
+                          ? 'sidebar-link-active'
+                          : 'sidebar-link-inactive'
                       }`}
                     >
                       <span className="mr-3">{Icons[item.icon]}</span>
                       <span>{item.label}</span>
                     </Link>
-                  ))
+                    )
+                  })
                 ) : (
                   <div className="text-xs text-gray-400 px-3 py-2">No items yet</div>
                 )}
@@ -378,7 +419,10 @@ export default function Sidebar() {
               onClick={() => {
                 setIsToolsMenuOpen(!isToolsMenuOpen)
               }}
-              className="sidebar-link sidebar-link-inactive w-full text-left text-black"
+              onMouseEnter={() => setHoveredNav('resources')}
+              className={`sidebar-link w-full text-left text-black ${
+                navHighlighted('resources', false) ? 'sidebar-link-active' : 'sidebar-link-inactive'
+              }`}
             >
               <span className="mr-3">{Icons.resources}</span>
               <span className="flex-1">Resources</span>
@@ -389,18 +433,24 @@ export default function Sidebar() {
             
             {isToolsMenuOpen && (
               <div className="ml-4 mt-1 space-y-1 bg-[#0B1020] rounded-lg p-2 dark-dropdown">
-                {toolsMenuItems.map((item) => (
+                {toolsMenuItems.map((item) => {
+                  const toolsItemId = `tools-${item.path}`
+                  return (
                   <Link
                     key={item.path}
                     to={item.path}
+                    onMouseEnter={() => setHoveredNav(toolsItemId)}
                     className={`sidebar-link ${
-                      isActive(item.path) ? 'sidebar-link-active' : 'sidebar-link-inactive'
+                      navHighlighted(toolsItemId, isActive(item.path))
+                        ? 'sidebar-link-active'
+                        : 'sidebar-link-inactive'
                     }`}
                   >
                     <span className="mr-3">{Icons[item.icon]}</span>
                     <span>{item.label}</span>
                   </Link>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -409,8 +459,11 @@ export default function Sidebar() {
           {isSuperadmin && (
             <Link
               to="/admin/users"
+              onMouseEnter={() => setHoveredNav('admin-users')}
               className={`sidebar-link ${
-                isActive('/admin/users') ? 'sidebar-link-active' : 'sidebar-link-inactive'
+                navHighlighted('admin-users', isActive('/admin/users'))
+                  ? 'sidebar-link-active'
+                  : 'sidebar-link-inactive'
               }`}
             >
               <span className="mr-3">{Icons.users}</span>
