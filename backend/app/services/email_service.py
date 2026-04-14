@@ -178,12 +178,12 @@ class EmailService:
                 msg = MIMEMultipart()
                 msg["From"] = f"{self.email_from_name} <{self.email_from}>"
                 msg["To"] = ", ".join(recipients)
-                msg["Subject"] = f"Metro Hub Job Completed - {job_name}"
+                msg["Subject"] = f"MSW Overwatch Job Completed - {job_name}"
                 
                 body = f"""
                 Hello,
                 
-                Your Metro Hub batch job has completed processing.
+                Your MSW Overwatch batch job has completed processing.
                 
                 Job Details:
                 - Job Name: {job_name}
@@ -193,7 +193,7 @@ class EmailService:
                 You can view the full report in the dashboard.
                 
                 Best regards,
-                Metro Hub
+                MSW Overwatch
                 """
                 
                 msg.attach(MIMEText(body, "plain"))

@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Metro API",
-    description="API for Metro Hub productivity platform",
+    title="MSW Overwatch API",
+    description="API for MSW Overwatch productivity platform",
     version="1.0.0",
 )
 
@@ -134,7 +134,7 @@ async def shutdown_event():
 @app.get("/")
 async def root():
     """Root endpoint."""
-    return {"message": "Metro API", "version": "1.0.0"}
+    return {"message": "MSW Overwatch API", "version": "1.0.0"}
 
 
 @app.get("/health")

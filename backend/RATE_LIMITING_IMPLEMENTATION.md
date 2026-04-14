@@ -1,6 +1,6 @@
 # Rate Limiting Implementation Guide
 
-This document provides instructions for applying rate limits to all API endpoints in the Metro Hub application.
+This document provides instructions for applying rate limits to all API endpoints in the MSW Overwatch application.
 
 ## Overview
 

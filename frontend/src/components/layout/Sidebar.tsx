@@ -209,10 +209,10 @@ export default function Sidebar() {
     <aside className="w-64 bg-white/80 backdrop-blur-lg border-r border-gray-200/80 shadow-lg h-screen sticky top-0 z-50">
       <div className="p-6 border-b border-gray-200/80">
         <div className="flex items-center space-x-2">
-          <img src="/orbit-logo.svg" alt="Metro Hub" className="w-8 h-8" />
+          <img src="/orbit-logo.svg" alt="MSW Overwatch" className="w-8 h-8" />
           <div>
             <h2 className="text-lg font-bold text-[#0B1020]">
-              Metro Hub
+              MSW Overwatch
             </h2>
             <p className="text-xs text-gray-500">Central Workspace</p>
           </div>

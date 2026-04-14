@@ -1,1 +1,1 @@
-"""Test package for Metro Hub backend."""
+"""Test package for MSW Overwatch backend."""

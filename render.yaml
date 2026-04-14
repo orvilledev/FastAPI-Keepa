@@ -1,4 +1,4 @@
-# Render Blueprint - deploy Metro Hub backend as a Web Service
+# Render Blueprint - deploy MSW Overwatch backend as a Web Service
 # https://render.com/docs/blueprint-spec
 services:
   - type: web

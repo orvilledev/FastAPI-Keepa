@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sentry has been configured for comprehensive error tracking and performance monitoring in Metro Hub. This guide covers setup, configuration, and usage.
+Sentry has been configured for comprehensive error tracking and performance monitoring in MSW Overwatch. This guide covers setup, configuration, and usage.
 
 ## What is Sentry?
 
@@ -63,8 +63,8 @@ init_sentry()
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Metro API",
-    description="API for Metro Hub productivity platform",
+    title="MSW Overwatch API",
+    description="API for MSW Overwatch productivity platform",
     version="1.0.0",
 )
 
@@ -285,7 +285,7 @@ Track which version caused errors:
 
 ```bash
 # In CI/CD pipeline
-export SENTRY_RELEASE="metro-hub@$(git rev-parse --short HEAD)"
+export SENTRY_RELEASE="msw-overwatch@$(git rev-parse --short HEAD)"
 ```
 
 ## Testing Sentry Integration

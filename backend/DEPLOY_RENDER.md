@@ -1,4 +1,4 @@
-# Deploy Metro Hub Backend to Render
+# Deploy MSW Overwatch Backend to Render
 
 ## 1. Prerequisites
 
@@ -32,7 +32,7 @@
 | `SUPABASE_URL` | Supabase project URL | `https://xxxx.supabase.co` |
 | `SUPABASE_KEY` | Supabase anon/service key | (from Supabase dashboard) |
 | `EMAIL_FROM` | Sender email address | `noreply@yourdomain.com` |
-| `EMAIL_FROM_NAME` | Sender display name | `Metro Hub` |
+| `EMAIL_FROM_NAME` | Sender display name | `MSW Overwatch` |
 | `EMAIL_PASSWORD` | SMTP password (e.g. Gmail App Password) | (secret) |
 | `EMAIL_TO` | Default recipient(s), comma-separated | `user@example.com` |
 | `CORS_ORIGINS` | Allowed frontend origins, comma-separated | `https://your-app.vercel.app,https://www.yourdomain.com` |

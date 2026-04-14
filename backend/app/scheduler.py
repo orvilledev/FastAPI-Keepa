@@ -113,7 +113,7 @@ def setup_scheduler(timezone_str: str = "America/Chicago", hour: int = 6, minute
         ),
         args=[category],
         id=job_id,
-        name=f"Daily {category.upper()} Metro Hub Job - {config.hour:02d}:{config.minute:02d} {timezone_str}",
+        name=f"Daily {category.upper()} MSW Overwatch Job - {config.hour:02d}:{config.minute:02d} {timezone_str}",
         replace_existing=True,
     )
 

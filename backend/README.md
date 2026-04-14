@@ -1,6 +1,6 @@
-# Backend - Metro API
+# Backend - MSW Overwatch API
 
-FastAPI backend for the Metro Hub system.
+FastAPI backend for the MSW Overwatch system.
 
 ## Setup
 

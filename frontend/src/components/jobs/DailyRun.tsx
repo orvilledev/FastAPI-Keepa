@@ -135,7 +135,7 @@ export default function DailyRun() {
         <div className="text-center">
           <div className="text-4xl mb-4">🔒</div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Restricted</h2>
-          <p className="text-gray-600">You don't have access to Metro Hub features.</p>
+          <p className="text-gray-600">You don't have access to MSW Overwatch features.</p>
         </div>
       </div>
     )
@@ -145,7 +145,7 @@ export default function DailyRun() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Daily Run</h1>
-        <p className="mt-1 text-sm text-gray-500">Manage and view Metro Hub Daily Email Runs</p>
+        <p className="mt-1 text-sm text-gray-500">Manage and view MSW Overwatch Daily Email Runs</p>
       </div>
 
       {/* Next Scheduled Run */}

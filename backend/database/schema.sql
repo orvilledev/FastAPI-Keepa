@@ -1,4 +1,4 @@
--- Metro Hub Database Schema
+-- MSW Overwatch Database Schema
 -- Run this in Supabase SQL Editor
 
 -- Users table (extends Supabase auth.users)

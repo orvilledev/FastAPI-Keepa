@@ -180,7 +180,7 @@ export default function DNKDailyRun() {
         <div className="text-center">
           <div className="text-4xl mb-4">🔒</div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Restricted</h2>
-          <p className="text-gray-600">You don't have access to Metro Hub features.</p>
+          <p className="text-gray-600">You don't have access to MSW Overwatch features.</p>
         </div>
       </div>
     )

@@ -1,4 +1,4 @@
-"""Rate limiting configuration for the Metro Hub API.
+"""Rate limiting configuration for the MSW Overwatch API.
 
 This module configures rate limiting using SlowAPI to protect against:
 - Brute force attacks on authentication endpoints

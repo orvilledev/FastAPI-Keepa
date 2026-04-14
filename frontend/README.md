@@ -1,6 +1,6 @@
-# Frontend - Metro Hub
+# Frontend - MSW Overwatch
 
-React + TypeScript frontend for the Metro Hub system.
+React + TypeScript frontend for the MSW Overwatch system.
 
 ## Setup
 

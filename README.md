@@ -1,16 +1,16 @@
-# Metro Hub
+# MSW Overwatch
 
-A comprehensive full-stack productivity platform built with FastAPI and React. Features task management, note-taking with rich text editor, team collaboration, and integrated Keepa price monitoring services.
+A comprehensive full-stack productivity platform built with FastAPI and React. Features note-taking with rich text editor, team collaboration, and integrated Keepa price monitoring services.
 
 ## 🚀 What's New
 
 ### v2.0 - Major Update
 
 #### Branding & UI
-- **Metro Hub** - App name with Metro Hub as the central workspace
+- **MSW Overwatch** - App name with MSW Overwatch as the central workspace
 - **New Color Scheme** - Modern dark navy theme (`#0B1020`) throughout the app
 - **Custom SVG Icons** - All sidebar icons now use SVG icons that inherit text color
-- **Logo** - Custom Metro Hub logo
+- **Logo** - Custom MSW Overwatch logo
 - **Improved Sidebar** - Dynamic icon colors that change with hover/active states
 
 #### Performance Optimizations
@@ -110,7 +110,7 @@ A comprehensive full-stack productivity platform built with FastAPI and React. F
 - **Developer Attribution** - Track tool developers
 
 ### Access Control
-- **Metro Hub Access** - Restricted access to chosen accounts only
+- **MSW Overwatch Access** - Restricted access to chosen accounts only
 - **User Data Isolation** - Users can only see their own data (Dashboard, Tasks, Tools, Notes)
 - **Row Level Security (RLS)** - Database-level security policies
 - **Protected Routes** - Frontend route protection for sensitive features
@@ -334,12 +334,12 @@ Run these additional migration files in your Supabase SQL Editor (in order):
     - Creates `notifications` table for user notifications
     - Supports task assignments, completions, and other notification types
 
-### Granting Metro Hub Access
+### Granting MSW Overwatch Access
 
 To grant access to specific users:
 
 ```sql
--- Grant Metro Hub access to a specific user by email
+-- Grant MSW Overwatch access to a specific user by email
 UPDATE profiles 
 SET has_keepa_access = true 
 WHERE email = 'user@example.com';
@@ -370,11 +370,11 @@ WHERE role = 'admin';
 - `PUT /api/v1/auth/profile` - Update user profile
 - `PATCH /api/v1/auth/me/display-name` - Update display name
 - `GET /api/v1/auth/users` - Get all users (superadmin only)
-- `PUT /api/v1/auth/users/{user_id}/keepa-access` - Update user's Metro Hub access
+- `PUT /api/v1/auth/users/{user_id}/keepa-access` - Update user's MSW Overwatch access
 - `PUT /api/v1/auth/users/{user_id}/tools-access` - Update user's tools management access
 - `PUT /api/v1/auth/users/{user_id}/tasks-access` - Update user's task assignment access
 
-### Jobs (Requires Metro Hub Access)
+### Jobs (Requires MSW Overwatch Access)
 - `POST /api/v1/jobs` - Create new job (admin only)
 - `GET /api/v1/jobs` - List all jobs (users see their own, admins see all)
 - `GET /api/v1/jobs/{job_id}` - Get job details
@@ -382,24 +382,24 @@ WHERE role = 'admin';
 - `POST /api/v1/jobs/{job_id}/trigger` - Trigger job (admin)
 - `DELETE /api/v1/jobs/{job_id}` - Delete job and all related data
 
-### Batches (Requires Metro Hub Access)
+### Batches (Requires MSW Overwatch Access)
 - `GET /api/v1/batches/{batch_id}` - Get batch details
 - `GET /api/v1/batches/{batch_id}/items` - Get batch items
 - `POST /api/v1/batches/{batch_id}/stop` - Stop/cancel a batch (pending or processing status, admin only)
 
-### Reports (Requires Metro Hub Access)
+### Reports (Requires MSW Overwatch Access)
 - `GET /api/v1/reports/{job_id}` - Get price alerts
 - `GET /api/v1/reports/{job_id}/csv` - Download CSV
 - `POST /api/v1/reports/{job_id}/email` - Resend email
 - `POST /api/v1/reports/test-email` - Test email configuration (sends test email)
 
-### UPCs (Requires Metro Hub Access)
+### UPCs (Requires MSW Overwatch Access)
 - `GET /api/v1/upcs` - Get all UPCs with pagination
 - `GET /api/v1/upcs/count` - Get total UPC count
 - `POST /api/v1/upcs` - Add new UPC
 - `DELETE /api/v1/upcs/{upc_id}` - Delete UPC
 
-### MAP (Requires Metro Hub Access)
+### MAP (Requires MSW Overwatch Access)
 - `GET /api/v1/map` - Get all MAP prices with pagination
 - `GET /api/v1/map/count` - Get total MAP count
 - `POST /api/v1/map` - Add new MAP price
@@ -568,7 +568,7 @@ WHERE role = 'admin';
 5. **Organize with categories** - Add categories for easy filtering
 6. **Search notes** - Use the search bar to find notes by title or content
 
-### Metro Hub Services (Requires Access)
+### MSW Overwatch Services (Requires Access)
 1. **Request access** - Contact admin to grant `has_keepa_access` permission
 2. **Create a new job** with UPCs (one per line, up to 2500)
 3. **Monitor job progress** in real-time
@@ -630,7 +630,7 @@ To change the schedule time, update `SCHEDULER_HOUR` and `SCHEDULER_MINUTE` in y
 2. **Generate App Password:**
    - Go to https://myaccount.google.com/apppasswords
    - Select "Mail" and "Other (Custom name)"
-   - Enter name: "Metro Hub"
+   - Enter name: "MSW Overwatch"
    - Click "Generate"
    - Copy the 16-character password
 
@@ -705,13 +705,13 @@ If you see errors like "Could not find the table 'public.xxx' in the schema cach
 
 ### Access Control Issues
 
-1. **Metro Hub Not Visible:**
+1. **MSW Overwatch Not Visible:**
    - Check if user has `has_keepa_access = true` in profiles table
    - Grant access using SQL: `UPDATE profiles SET has_keepa_access = true WHERE email = 'user@example.com'`
 
 2. **Cannot Access Routes:**
    - Verify user is authenticated
-   - Check if route requires Metro Hub access
+   - Check if route requires MSW Overwatch access
    - Ensure `has_keepa_access` is set correctly
 
 ### Widget Order Not Persisting
