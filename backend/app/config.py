@@ -35,8 +35,8 @@ class Settings(BaseSettings):
     # Email Configuration
     email_smtp_host: str = "smtp.gmail.com"
     email_smtp_port: int = 587
-    email_from: str
-    email_from_name: str = "Keepa Alert Service"  # Display name for emails
+    email_from: str  # Bare mailbox only, e.g. user@gmail.com (not "Name <addr>")
+    email_from_name: str = "Keepa Alert Service"  # Display name shown in the From header
     email_password: str
     email_to: str  # Can be comma-separated for multiple recipients
     

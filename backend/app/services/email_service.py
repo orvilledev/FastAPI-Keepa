@@ -5,6 +5,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
+from email.utils import formataddr, parseaddr
 from typing import Optional, List
 from app.config import settings
 from app.services.csv_generator import CSVGenerator
@@ -25,6 +26,18 @@ class EmailService:
         self.email_password = settings.email_password
         self.email_to = settings.email_to
         self.last_error = None
+
+    def _bare_from_address(self) -> str:
+        """Mailbox only (for SMTP login and From addr-spec). Strips accidental Name <addr> in EMAIL_FROM."""
+        _, addr = parseaddr(self.email_from)
+        if addr:
+            return addr
+        return (self.email_from or "").strip()
+
+    def _from_header(self) -> str:
+        """RFC 5322 From field: quoted display name + mailbox. Recipients still see the mailbox per their client."""
+        display = (self.email_from_name or "Keepa Alert Service").strip()
+        return formataddr((display, self._bare_from_address()))
     
     def _parse_recipients(self, recipients: str) -> List[str]:
         """Parse comma-separated email addresses into a list."""
@@ -59,7 +72,7 @@ class EmailService:
         recipients = self._parse_recipients(recipient_email or self.email_to)
         
         # Validate configuration
-        if not self.email_from:
+        if not self._bare_from_address():
             logger.error("EMAIL_FROM is not configured in .env file")
             return False
         if not self.email_password:
@@ -69,13 +82,14 @@ class EmailService:
             logger.error("No recipients configured")
             return False
         
-        logger.info(f"Email configuration validated: from={self.email_from}, to={recipients}, host={self.smtp_host}:{self.smtp_port}")
+        logger.info(
+            f"Email configuration validated: from={self._bare_from_address()}, to={recipients}, host={self.smtp_host}:{self.smtp_port}"
+        )
         
         try:
             # Create message
             msg = MIMEMultipart()
-            # Use proper RFC format so servers don't reject or mark as spam
-            msg["From"] = f"{self.email_from_name} <{self.email_from}>"
+            msg["From"] = self._from_header()
             # Join multiple recipients with comma for the "To" header
             msg["To"] = ", ".join(recipients)
             msg["Subject"] = f"Keepa Off Price Report - {job_name}"
@@ -113,7 +127,7 @@ class EmailService:
             logger.info(f"Attempting to send email to {recipients} via {self.smtp_host}:{self.smtp_port}")
             with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=SMTP_TIMEOUT) as server:
                 server.starttls()
-                server.login(self.email_from, self.email_password)
+                server.login(self._bare_from_address(), self.email_password)
                 server.send_message(msg, to_addrs=recipients)
             
             logger.info(f"Email sent successfully to {', '.join(recipients)}")
@@ -176,7 +190,7 @@ class EmailService:
             
             try:
                 msg = MIMEMultipart()
-                msg["From"] = f"{self.email_from_name} <{self.email_from}>"
+                msg["From"] = self._from_header()
                 msg["To"] = ", ".join(recipients)
                 msg["Subject"] = f"MSW Overwatch Job Completed - {job_name}"
                 
@@ -200,7 +214,7 @@ class EmailService:
                 
                 with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=SMTP_TIMEOUT) as server:
                     server.starttls()
-                    server.login(self.email_from, self.email_password)
+                    server.login(self._bare_from_address(), self.email_password)
                     server.send_message(msg, to_addrs=recipients)
                 
                 logger.info(f"Job completion email sent to {', '.join(recipients)}")
@@ -230,7 +244,7 @@ class EmailService:
         try:
             to_addrs = [to_email]
             msg = MIMEMultipart()
-            msg["From"] = f"{self.email_from_name} <{self.email_from}>"
+            msg["From"] = self._from_header()
             msg["To"] = to_email
             msg["Subject"] = subject
             
@@ -238,7 +252,7 @@ class EmailService:
             
             with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=SMTP_TIMEOUT) as server:
                 server.starttls()
-                server.login(self.email_from, self.email_password)
+                server.login(self._bare_from_address(), self.email_password)
                 server.send_message(msg, to_addrs=to_addrs)
             
             logger.info(f"Email sent successfully to {to_email}")

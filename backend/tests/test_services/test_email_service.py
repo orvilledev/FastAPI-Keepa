@@ -28,7 +28,7 @@ class TestEmailService:
         # Assertions
         assert result is True
         mock_server.starttls.assert_called_once()
-        mock_server.login.assert_called_once_with(service.email_from, service.email_password)
+        mock_server.login.assert_called_once_with(service._bare_from_address(), service.email_password)
         mock_server.send_message.assert_called_once()
 
     @pytest.mark.unit
