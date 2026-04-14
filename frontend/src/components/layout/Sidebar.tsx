@@ -214,19 +214,6 @@ export default function Sidebar() {
             <span>Dashboard</span>
           </Link>
 
-          <Link
-            to="/about"
-            onMouseEnter={() => setHoveredNav('about')}
-            className={`sidebar-link ${
-              navHighlighted('about', isActive('/about'))
-                ? 'sidebar-link-active'
-                : 'sidebar-link-inactive'
-            }`}
-          >
-            <span className="mr-3">{Icons.info}</span>
-            <span>About</span>
-          </Link>
-
           {/* Keepa Alert Services - top level (requires Keepa / pricing access) */}
           {hasKeepaAccess && (
             <div>
@@ -413,6 +400,19 @@ export default function Sidebar() {
               </div>
             )}
           </div>
+
+          <Link
+            to="/about"
+            onMouseEnter={() => setHoveredNav('about')}
+            className={`sidebar-link ${
+              navHighlighted('about', isActive('/about'))
+                ? 'sidebar-link-active'
+                : 'sidebar-link-inactive'
+            }`}
+          >
+            <span className="mr-3">{Icons.info}</span>
+            <span>About</span>
+          </Link>
 
           {/* User Management (Superadmin only) */}
           {isSuperadmin && (
