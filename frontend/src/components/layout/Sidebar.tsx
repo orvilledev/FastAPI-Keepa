@@ -85,7 +85,7 @@ const Icons = {
 export default function Sidebar() {
   const location = useLocation()
   const { hasKeepaAccess, isSuperadmin } = useUser()
-  const [isKeepaMenuOpen, setIsKeepaMenuOpen] = useState(true)
+  const [isKeepaMenuOpen, setIsKeepaMenuOpen] = useState(false)
   const [isDailyRunsMenuOpen, setIsDailyRunsMenuOpen] = useState(false)
   const [isManageUPCsMenuOpen, setIsManageUPCsMenuOpen] = useState(false)
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false)
