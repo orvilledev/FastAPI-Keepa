@@ -148,9 +148,22 @@ export interface SchedulerStatus {
   next_run_time_taipei: string | null
   scheduled_time: string
   timezone: string
+  run_mode?: 'daily' | 'every_other_day' | 'custom_days'
+  custom_days?: string[]
   seconds_until: number | null
   is_running: boolean
   message?: string
+}
+
+export interface SchedulerSettings {
+  timezone: string
+  hour: number
+  minute: number
+  enabled: boolean
+  run_mode: 'daily' | 'every_other_day' | 'custom_days'
+  custom_days: string[]
+  anchor_date?: string | null
+  category: string
 }
 
 export interface QuickAccessLink {

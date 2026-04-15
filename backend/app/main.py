@@ -93,7 +93,10 @@ async def startup_event():
                     timezone_str=dnk_settings.get("timezone", "America/Chicago"),
                     hour=dnk_settings.get("hour", 6),
                     minute=dnk_settings.get("minute", 0),
-                    category='dnk'
+                    category='dnk',
+                    run_mode=dnk_settings.get("run_mode", "daily"),
+                    custom_days=dnk_settings.get("custom_days", []),
+                    anchor_date=dnk_settings.get("anchor_date")
                 )
             else:
                 logger.info("DNK scheduler is disabled, skipping setup")
@@ -109,7 +112,10 @@ async def startup_event():
                     timezone_str=clk_settings.get("timezone", "America/Chicago"),
                     hour=clk_settings.get("hour", 6),
                     minute=clk_settings.get("minute", 0),
-                    category='clk'
+                    category='clk',
+                    run_mode=clk_settings.get("run_mode", "daily"),
+                    custom_days=clk_settings.get("custom_days", []),
+                    anchor_date=clk_settings.get("anchor_date")
                 )
             else:
                 logger.info("CLK scheduler is disabled, skipping setup")

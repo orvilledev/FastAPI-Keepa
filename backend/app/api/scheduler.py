@@ -6,7 +6,7 @@ from app.database import get_supabase
 from app.utils.error_handler import handle_api_errors
 from datetime import datetime, timedelta
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from supabase import Client
 import logging
 
@@ -21,6 +21,13 @@ class SchedulerSettingsUpdate(BaseModel):
     hour: Optional[int] = None
     minute: Optional[int] = None
     enabled: Optional[bool] = None
+    run_mode: Optional[str] = None
+    custom_days: Optional[List[str]] = None
+    anchor_date: Optional[str] = None
+
+
+VALID_RUN_MODES = {"daily", "every_other_day", "custom_days"}
+VALID_WEEKDAYS = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
 
 
 @router.get("/scheduler/next-run")
@@ -39,14 +46,20 @@ async def get_next_scheduled_run(
                 tz_str = settings.get("timezone", "America/Chicago")
                 hour = settings.get("hour", 6)
                 minute = settings.get("minute", 0)
+                run_mode = settings.get("run_mode", "daily")
+                custom_days = settings.get("custom_days", [])
             else:
                 tz_str = "America/Chicago"
                 hour = 6
                 minute = 0
+                run_mode = "daily"
+                custom_days = []
         except Exception:
             tz_str = "America/Chicago"
             hour = 6
             minute = 0
+            run_mode = "daily"
+            custom_days = []
 
         from pytz import timezone as pytz_timezone
         current_tz = pytz_timezone(tz_str)
@@ -64,7 +77,12 @@ async def get_next_scheduled_run(
         except Exception:
             job = None
         
-        scheduled_time_str = f"{hour:02d}:{minute:02d} {tz_str}"
+        schedule_label = {
+            "daily": "Daily",
+            "every_other_day": "Every other day",
+            "custom_days": f"Custom days ({', '.join(custom_days)})" if custom_days else "Custom days",
+        }.get(run_mode, "Daily")
+        scheduled_time_str = f"{hour:02d}:{minute:02d} {tz_str} - {schedule_label}"
         
         if not job or not job.next_run_time:
             return {
@@ -72,6 +90,8 @@ async def get_next_scheduled_run(
                 "next_run_time_taipei": None,
                 "scheduled_time": scheduled_time_str,
                 "timezone": tz_str,
+                "run_mode": run_mode,
+                "custom_days": custom_days,
                 "message": "Scheduler not configured",
                 "seconds_until": None,
                 "is_running": is_running
@@ -95,6 +115,8 @@ async def get_next_scheduled_run(
             "next_run_time_taipei": next_run.strftime("%Y-%m-%d %H:%M:%S %Z"),
             "scheduled_time": scheduled_time_str,
             "timezone": tz_str,
+            "run_mode": run_mode,
+            "custom_days": custom_days,
             "seconds_until": int(time_diff.total_seconds()),
             "is_running": is_running
         }
@@ -105,6 +127,8 @@ async def get_next_scheduled_run(
             "next_run_time_taipei": None,
             "scheduled_time": "20:00 Asia/Taipei",
             "timezone": "Asia/Taipei",
+            "run_mode": "daily",
+            "custom_days": [],
             "message": f"Scheduler error: {str(e)}",
             "seconds_until": None,
             "is_running": False
@@ -128,6 +152,9 @@ async def get_scheduler_settings(
                 "hour": 6,
                 "minute": 0,
                 "enabled": True,
+                "run_mode": "daily",
+                "custom_days": [],
+                "anchor_date": None,
                 "category": category
             }
         settings = response.data[0]
@@ -136,6 +163,9 @@ async def get_scheduler_settings(
             "hour": settings.get("hour", 6),
             "minute": settings.get("minute", 0),
             "enabled": settings.get("enabled", True),
+            "run_mode": settings.get("run_mode", "daily"),
+            "custom_days": settings.get("custom_days", []),
+            "anchor_date": settings.get("anchor_date"),
             "category": settings.get("category", category)
         }
     except Exception as e:
@@ -145,6 +175,9 @@ async def get_scheduler_settings(
             "hour": 6,
             "minute": 0,
             "enabled": True,
+            "run_mode": "daily",
+            "custom_days": [],
+            "anchor_date": None,
             "category": category
         }
 
@@ -174,9 +207,44 @@ async def update_scheduler_settings_endpoint(
         update_data["minute"] = settings_data.minute
     if settings_data.enabled is not None:
         update_data["enabled"] = settings_data.enabled
+    if settings_data.run_mode is not None:
+        if settings_data.run_mode not in VALID_RUN_MODES:
+            raise HTTPException(status_code=400, detail="Invalid run_mode. Use daily, every_other_day, or custom_days")
+        update_data["run_mode"] = settings_data.run_mode
+    if settings_data.custom_days is not None:
+        normalized_days = [day.lower().strip() for day in settings_data.custom_days if isinstance(day, str)]
+        invalid_days = [day for day in normalized_days if day not in VALID_WEEKDAYS]
+        if invalid_days:
+            raise HTTPException(status_code=400, detail=f"Invalid custom_days values: {', '.join(invalid_days)}")
+        # Keep stable order for cron readability.
+        ordered_days = [d for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] if d in normalized_days]
+        update_data["custom_days"] = ordered_days
+    if settings_data.anchor_date is not None:
+        if settings_data.anchor_date:
+            try:
+                datetime.strptime(settings_data.anchor_date, "%Y-%m-%d")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="anchor_date must be YYYY-MM-DD")
+        update_data["anchor_date"] = settings_data.anchor_date
     
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
+
+    # Validate mode-dependent required fields using pending values + current settings fallback.
+    pending_run_mode = update_data.get("run_mode")
+    if pending_run_mode is None and current_response.data:
+        pending_run_mode = current_response.data[0].get("run_mode", "daily")
+    if pending_run_mode is None:
+        pending_run_mode = "daily"
+
+    pending_custom_days = update_data.get("custom_days")
+    if pending_custom_days is None and current_response.data:
+        pending_custom_days = current_response.data[0].get("custom_days", [])
+    if pending_custom_days is None:
+        pending_custom_days = []
+
+    if pending_run_mode == "custom_days" and len(pending_custom_days) == 0:
+        raise HTTPException(status_code=400, detail="custom_days must contain at least one weekday when run_mode is custom_days")
     
     update_data["updated_by"] = current_user["id"]
     update_data["updated_at"] = "now()"
@@ -200,6 +268,9 @@ async def update_scheduler_settings_endpoint(
             minute=updated_settings.get("minute", 0),
             category=category,
             enabled=is_enabled,
+            run_mode=updated_settings.get("run_mode", "daily"),
+            custom_days=updated_settings.get("custom_days", []),
+            anchor_date=updated_settings.get("anchor_date"),
         )
     except Exception as e:
         logger.error(f"Failed to update {category.upper()} scheduler: {e}")
@@ -210,6 +281,9 @@ async def update_scheduler_settings_endpoint(
         "hour": updated_settings.get("hour", 6),
         "minute": updated_settings.get("minute", 0),
         "enabled": updated_settings.get("enabled", True),
+        "run_mode": updated_settings.get("run_mode", "daily"),
+        "custom_days": updated_settings.get("custom_days", []),
+        "anchor_date": updated_settings.get("anchor_date"),
         "category": category,
         "message": f"{category.upper()} scheduler settings updated successfully"
     }

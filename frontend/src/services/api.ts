@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
-import type { BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, PublicTool, QuickAccessLink, DashboardWidget, UserTool, Note, JobAid, Notification, ComprehensiveReportRow } from '../types'
+import type { BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, Note, JobAid, Notification, ComprehensiveReportRow } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -306,11 +306,22 @@ export const schedulerApi = {
     return response.data
   },
   getSettings: async (category: 'dnk' | 'clk' = 'dnk') => {
-    const response = await api.get<{ timezone: string; hour: number; minute: number; enabled: boolean; category: string }>(`/api/v1/scheduler/settings?category=${category}`)
+    const response = await api.get<SchedulerSettings>(`/api/v1/scheduler/settings?category=${category}`)
     return response.data
   },
-  updateSettings: async (settings: { timezone?: string; hour?: number; minute?: number; enabled?: boolean }, category: 'dnk' | 'clk' = 'dnk') => {
-    const response = await api.put<{ timezone: string; hour: number; minute: number; enabled: boolean; category: string; message: string }>(`/api/v1/scheduler/settings?category=${category}`, settings)
+  updateSettings: async (
+    settings: {
+      timezone?: string
+      hour?: number
+      minute?: number
+      enabled?: boolean
+      run_mode?: 'daily' | 'every_other_day' | 'custom_days'
+      custom_days?: string[]
+      anchor_date?: string | null
+    },
+    category: 'dnk' | 'clk' = 'dnk'
+  ) => {
+    const response = await api.put<SchedulerSettings & { message: string }>(`/api/v1/scheduler/settings?category=${category}`, settings)
     return response.data
   },
 }

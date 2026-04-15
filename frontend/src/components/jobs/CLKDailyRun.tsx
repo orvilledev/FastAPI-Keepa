@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { jobsApi, authApi, schedulerApi } from '../../services/api'
+import type { SchedulerSettings } from '../../types'
 
 interface DailyRunJob {
   id: string
@@ -14,15 +15,33 @@ interface DailyRunJob {
   error_message?: string
 }
 
+const WEEKDAYS = [
+  { value: 'mon', label: 'Mon' },
+  { value: 'tue', label: 'Tue' },
+  { value: 'wed', label: 'Wed' },
+  { value: 'thu', label: 'Thu' },
+  { value: 'fri', label: 'Fri' },
+  { value: 'sat', label: 'Sat' },
+  { value: 'sun', label: 'Sun' },
+]
+
 export default function CLKDailyRun() {
   const [loading, setLoading] = useState(true)
   const [hasKeepaAccess, setHasKeepaAccess] = useState(false)
   const [dailyRuns, setDailyRuns] = useState<DailyRunJob[]>([])
   const [nextRun, setNextRun] = useState<any>(null)
-  const [schedulerSettings, setSchedulerSettings] = useState<any>(null)
+  const [schedulerSettings, setSchedulerSettings] = useState<SchedulerSettings | null>(null)
   const [error, setError] = useState('')
   const [showSettingsModal, setShowSettingsModal] = useState(false)
-  const [settingsForm, setSettingsForm] = useState({ timezone: 'America/Chicago', hour: 6, minute: 0 })
+  const [settingsForm, setSettingsForm] = useState({
+    timezone: 'America/Chicago',
+    hour: 6,
+    minute: 0,
+    enabled: true,
+    run_mode: 'daily' as 'daily' | 'every_other_day' | 'custom_days',
+    custom_days: [] as string[],
+    anchor_date: null as string | null,
+  })
   const [savingSettings, setSavingSettings] = useState(false)
   const [togglingEnabled, setTogglingEnabled] = useState(false)
 
@@ -62,12 +81,26 @@ export default function CLKDailyRun() {
   const loadSchedulerSettings = async () => {
     try {
       const settings = await schedulerApi.getSettings('clk')
-      setSchedulerSettings(settings)
-      setSettingsForm(settings)
+      const normalizedSettings = {
+        ...settings,
+        run_mode: settings.run_mode || 'daily',
+        custom_days: settings.custom_days || [],
+        anchor_date: settings.anchor_date || null,
+      }
+      setSchedulerSettings(normalizedSettings)
+      setSettingsForm(normalizedSettings)
     } catch (err: any) {
       console.error('Failed to load scheduler settings:', err)
       // Use defaults if loading fails
-      const defaults = { timezone: 'America/Chicago', hour: 6, minute: 0, enabled: true }
+      const defaults = {
+        timezone: 'America/Chicago',
+        hour: 6,
+        minute: 0,
+        enabled: true,
+        run_mode: 'daily' as const,
+        custom_days: [],
+        anchor_date: null,
+      }
       setSchedulerSettings(defaults)
       setSettingsForm(defaults)
     }
@@ -111,6 +144,14 @@ export default function CLKDailyRun() {
     }
   }
 
+  const toggleCustomDay = (day: string) => {
+    const current = settingsForm.custom_days
+    const next = current.includes(day)
+      ? current.filter((d) => d !== day)
+      : [...current, day]
+    setSettingsForm({ ...settingsForm, custom_days: next })
+  }
+
   const formatScheduledTime = () => {
     if (!schedulerSettings) {
       return '8:00 PM Taipei time'
@@ -119,7 +160,13 @@ export default function CLKDailyRun() {
     const ampm = schedulerSettings.hour >= 12 ? 'PM' : 'AM'
     const minuteStr = schedulerSettings.minute.toString().padStart(2, '0')
     const timezoneName = schedulerSettings.timezone.split('/').pop() || schedulerSettings.timezone
-    return `${hour12}:${minuteStr} ${ampm} ${timezoneName} time`
+    const frequencyLabel =
+      schedulerSettings.run_mode === 'every_other_day'
+        ? 'every other day'
+        : schedulerSettings.run_mode === 'custom_days'
+          ? `on ${schedulerSettings.custom_days.join(', ') || 'selected days'}`
+          : 'daily'
+    return `${hour12}:${minuteStr} ${ampm} ${timezoneName} time (${frequencyLabel})`
   }
 
   const loadDailyRuns = async () => {
@@ -431,6 +478,56 @@ export default function CLKDailyRun() {
                   />
                 </div>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Frequency
+                </label>
+                <select
+                  value={settingsForm.run_mode}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, run_mode: e.target.value as 'daily' | 'every_other_day' | 'custom_days' })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B1020] focus:border-transparent"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="every_other_day">Every other day</option>
+                  <option value="custom_days">Custom days</option>
+                </select>
+              </div>
+
+              {settingsForm.run_mode === 'every_other_day' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={settingsForm.anchor_date || ''}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, anchor_date: e.target.value || null })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B1020] focus:border-transparent"
+                  />
+                </div>
+              )}
+
+              {settingsForm.run_mode === 'custom_days' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Run Days
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {WEEKDAYS.map((day) => (
+                      <label key={day.value} className="inline-flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={settingsForm.custom_days.includes(day.value)}
+                          onChange={() => toggleCustomDay(day.value)}
+                          className="rounded border-gray-300"
+                        />
+                        {day.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800">
