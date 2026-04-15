@@ -196,12 +196,17 @@ export interface OffPriceSellerCategoryStats {
     seller_name: string
     count: number
   }>
+  sellers: Array<{
+    seller_name: string
+    count: number
+  }>
 }
 
 export interface OffPriceSellerStats {
   dnk: OffPriceSellerCategoryStats
   clk: OffPriceSellerCategoryStats
   total_distinct_sellers: number
+  combined_seller_names: string[]
 }
 
 export interface Note {

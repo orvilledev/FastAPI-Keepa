@@ -155,7 +155,8 @@ async def get_off_price_seller_stats(
                 "run_at": None,
                 "distinct_seller_count": 0,
                 "top_sellers": [],
-                "_seller_keys": [],
+                "sellers": [],
+                "_key_to_name": {},
             }
 
         rows = report_service.get_comprehensive_report_rows_for_job(UUID(str(job["id"])))
@@ -169,34 +170,43 @@ async def get_off_price_seller_stats(
             seller_key_to_name.setdefault(key, seller_name)
             seller_counts[key] = seller_counts.get(key, 0) + 1
 
-        top_sellers = sorted(
+        sellers_sorted = sorted(
             [
                 {"seller_name": seller_key_to_name[key], "count": count}
                 for key, count in seller_counts.items()
             ],
             key=lambda item: item["count"],
             reverse=True,
-        )[:5]
+        )
 
         return {
             "job_id": str(job["id"]),
             "job_name": job.get("job_name"),
             "run_at": job.get("completed_at") or job.get("created_at"),
             "distinct_seller_count": len(seller_counts),
-            "top_sellers": top_sellers,
-            "_seller_keys": list(seller_counts.keys()),
+            "top_sellers": sellers_sorted[:5],
+            "sellers": sellers_sorted,
+            "_key_to_name": seller_key_to_name,
         }
 
     dnk_stats = build_category_stats(latest_by_category["dnk"])
     clk_stats = build_category_stats(latest_by_category["clk"])
 
-    combined_sellers = set(dnk_stats.get("_seller_keys", [])) | set(clk_stats.get("_seller_keys", []))
-    dnk_stats.pop("_seller_keys", None)
-    clk_stats.pop("_seller_keys", None)
+    dnk_map = dnk_stats.pop("_key_to_name", {}) or {}
+    clk_map = clk_stats.pop("_key_to_name", {}) or {}
+    combined_keys = set(dnk_map) | set(clk_map)
+    combined_seller_names = sorted(
+        {
+            dnk_map.get(k) or clk_map.get(k)
+            for k in combined_keys
+        },
+        key=str.casefold,
+    )
 
     return {
         "dnk": dnk_stats,
         "clk": clk_stats,
-        "total_distinct_sellers": len(combined_sellers),
+        "total_distinct_sellers": len(combined_keys),
+        "combined_seller_names": combined_seller_names,
     }
 
