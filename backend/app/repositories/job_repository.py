@@ -50,7 +50,10 @@ class JobRepository:
         if not job_name:
             return False
         normalized = job_name.lower()
-        return normalized.startswith("daily ") and "metro report" in normalized
+        return (
+            normalized.startswith("daily ")
+            and ("metro report" in normalized or "off price report" in normalized)
+        )
 
     @staticmethod
     def _format_initiator_name(display_name: Optional[str], email: Optional[str], created_by: Optional[str]) -> str:

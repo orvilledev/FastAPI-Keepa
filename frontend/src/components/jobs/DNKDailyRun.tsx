@@ -174,9 +174,12 @@ export default function DNKDailyRun() {
     try {
       setError('')
       const allJobs = await jobsApi.listJobs(100, 0)
-      // Filter for DNK daily runs (jobs that start with "Daily DNK Metro Report -")
+      // Filter for DNK daily runs (support legacy Metro and current Off Price naming)
       const dailyJobs = allJobs.filter((job: any) => 
-        job.job_name && job.job_name.startsWith('Daily DNK Metro Report -')
+        job.job_name && (
+          job.job_name.startsWith('Daily DNK Off Price Report -') ||
+          job.job_name.startsWith('Daily DNK Metro Report -')
+        )
       )
       // Sort by created_at descending (most recent first)
       dailyJobs.sort((a: any, b: any) => 

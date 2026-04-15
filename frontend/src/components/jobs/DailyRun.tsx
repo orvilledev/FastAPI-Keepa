@@ -80,9 +80,12 @@ export default function DailyRun() {
     try {
       setError('')
       const allJobs = await jobsApi.listJobs(100, 0)
-      // Filter for daily runs (jobs that start with "Daily Metro Report -")
+      // Filter for daily runs (support legacy Metro and current Off Price naming)
       const dailyJobs = allJobs.filter((job: any) => 
-        job.job_name && job.job_name.startsWith('Daily Metro Report -')
+        job.job_name && (
+          /^Daily [A-Z0-9_-]+ Off Price Report -/i.test(job.job_name) ||
+          /^Daily [A-Z0-9_-]+ Metro Report -/i.test(job.job_name)
+        )
       )
       // Sort by created_at descending (most recent first)
       dailyJobs.sort((a: any, b: any) => 
