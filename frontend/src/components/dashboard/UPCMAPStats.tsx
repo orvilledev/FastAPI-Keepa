@@ -6,14 +6,19 @@ export default function UPCMAPStats() {
   const [dnkUpcCount, setDnkUpcCount] = useState<number | null>(null)
   const [clkUpcCount, setClkUpcCount] = useState<number | null>(null)
   const [mapCount, setMapCount] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const loadCounts = async () => {
+    const loadCounts = async (isInitialLoad: boolean = false) => {
       try {
         setError(null)
-        setLoading(true)
+        if (isInitialLoad) {
+          setInitialLoading(true)
+        } else {
+          setRefreshing(true)
+        }
 
         // Load all counts in parallel
         const [dnkUpcData, clkUpcData, mapData] = await Promise.all([
@@ -29,17 +34,21 @@ export default function UPCMAPStats() {
         console.error('Failed to load UPC/MAP counts:', err)
         setError(err?.response?.data?.detail || err?.message || 'Failed to load counts')
       } finally {
-        setLoading(false)
+        if (isInitialLoad) {
+          setInitialLoading(false)
+        } else {
+          setRefreshing(false)
+        }
       }
     }
 
-    loadCounts()
+    loadCounts(true)
     // Refresh every 30 seconds
     const interval = setInterval(loadCounts, 30000)
     return () => clearInterval(interval)
   }, [])
 
-  if (loading) {
+  if (initialLoading && dnkUpcCount === null && clkUpcCount === null && mapCount === null) {
     return (
       <div className="card p-4">
         <div className="text-center text-gray-500 text-sm">Loading stats...</div>
@@ -47,20 +56,19 @@ export default function UPCMAPStats() {
     )
   }
 
-  if (error) {
-    return (
-      <div className="card p-4">
-        <div className="text-center">
-          <div className="text-red-600 text-xs font-medium mb-1">Error loading stats</div>
-          <div className="text-xs text-gray-500">{error}</div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="card p-4">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3">Data Statistics</h3>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-gray-700">Data Statistics</h3>
+        {refreshing && (
+          <span className="text-xs text-gray-400">Updating...</span>
+        )}
+      </div>
+      {error && (
+        <div className="mb-3 text-xs text-red-600">
+          Error refreshing stats: {error}
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-3">
         {/* DNK UPC Count */}
         <Link
