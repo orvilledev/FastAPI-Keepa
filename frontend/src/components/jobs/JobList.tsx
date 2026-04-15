@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { jobsApi } from '../../services/api'
 import type { BatchJob } from '../../types'
 import { getStatusColor } from '../../utils/statusColors'
+import { formatRunDuration } from '../../utils/timeUtils'
 
 const JOBS_PER_PAGE = 15
 
@@ -168,6 +169,9 @@ export default function JobList() {
                 Completed
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                Duration
+              </th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -200,6 +204,9 @@ export default function JobList() {
                   {job.completed_at
                     ? new Date(job.completed_at).toLocaleDateString()
                     : '-'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                  {formatRunDuration(job.created_at, job.completed_at)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex items-center gap-3">

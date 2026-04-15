@@ -4,6 +4,7 @@ import { jobsApi, batchesApi, schedulerApi, authApi } from '../../services/api'
 import type { BatchJob, JobStatus } from '../../types'
 import BatchStatus from '../dashboard/BatchStatus'
 import { getStatusColor } from '../../utils/statusColors'
+import { formatRunDuration } from '../../utils/timeUtils'
 
 export default function JobDetail() {
   const { jobId } = useParams<{ jobId: string }>()
@@ -294,7 +295,7 @@ export default function JobDetail() {
 
       {/* Job Info */}
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
           <div>
             <div className="text-sm font-medium text-gray-500">Status</div>
             <div className="mt-1">
@@ -331,6 +332,12 @@ export default function JobDetail() {
               {job.completed_at
                 ? new Date(job.completed_at).toLocaleString()
                 : '-'}
+            </div>
+          </div>
+          <div>
+            <div className="text-sm font-medium text-gray-500">Run Duration</div>
+            <div className="mt-1 text-sm text-gray-900">
+              {formatRunDuration(job.created_at, job.completed_at)}
             </div>
           </div>
         </div>

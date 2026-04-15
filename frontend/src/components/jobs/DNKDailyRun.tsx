@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { jobsApi, authApi, schedulerApi } from '../../services/api'
 import type { SchedulerSettings } from '../../types'
+import { formatRunDuration } from '../../utils/timeUtils'
 
 interface DailyRunJob {
   id: string
@@ -364,7 +365,7 @@ export default function DNKDailyRun() {
                         {run.status.charAt(0).toUpperCase() + run.status.slice(1)}
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
                       <div>
                         <span className="text-gray-500">Created:</span>
                         <p className="font-medium text-gray-900">{formatDate(run.created_at)}</p>
@@ -379,6 +380,12 @@ export default function DNKDailyRun() {
                           <p className="font-medium text-gray-900">{formatDate(run.completed_at)}</p>
                         </div>
                       )}
+                      <div>
+                        <span className="text-gray-500">Run Duration:</span>
+                        <p className="font-medium text-gray-900">
+                          {formatRunDuration(run.created_at, run.completed_at)}
+                        </p>
+                      </div>
                       <div>
                         <span className="text-gray-500">Progress:</span>
                         <p className="font-medium text-gray-900">
