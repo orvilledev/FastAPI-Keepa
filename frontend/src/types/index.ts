@@ -187,6 +187,23 @@ export interface DashboardWidget {
   updated_at: string
 }
 
+export interface OffPriceSellerCategoryStats {
+  job_id: string | null
+  job_name: string | null
+  run_at: string | null
+  distinct_seller_count: number
+  top_sellers: Array<{
+    seller_name: string
+    count: number
+  }>
+}
+
+export interface OffPriceSellerStats {
+  dnk: OffPriceSellerCategoryStats
+  clk: OffPriceSellerCategoryStats
+  total_distinct_sellers: number
+}
+
 export interface Note {
   id: string
   user_id: string
