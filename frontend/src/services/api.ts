@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
-import type { BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, OffPriceSellerStats, UserTool, Note, JobAid, Notification, ComprehensiveReportRow } from '../types'
+import type { BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, Note, JobAid, Notification, ComprehensiveReportRow } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -495,10 +495,6 @@ export const quickAccessApi = {
 export const dashboardApi = {
   getWidgets: async () => {
     const response = await api.get<DashboardWidget[]>('/api/v1/dashboard/widgets')
-    return response.data
-  },
-  getOffPriceSellerStats: async () => {
-    const response = await api.get<OffPriceSellerStats>('/api/v1/dashboard/off-price-seller-stats')
     return response.data
   },
   updateWidgetOrder: async (widgets: { widget_id: string; display_order: number }[]) => {

@@ -2,7 +2,6 @@ import { useEffect, useState, useMemo } from 'react'
 import DNKSchedulerCountdown from './DNKSchedulerCountdown'
 import CLKSchedulerCountdown from './CLKSchedulerCountdown'
 import UPCMAPStats from './UPCMAPStats'
-import OffPriceSellerStats from './OffPriceSellerStats'
 import { dashboardApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
 
@@ -23,7 +22,6 @@ export default function Dashboard() {
   const dnkSchedulerCountdownWidget = useMemo(() => <DNKSchedulerCountdown />, [])
   const clkSchedulerCountdownWidget = useMemo(() => <CLKSchedulerCountdown />, [])
   const upcMapStatsWidget = useMemo(() => <UPCMAPStats />, [])
-  const offPriceSellerStatsWidget = useMemo(() => <OffPriceSellerStats />, [])
 
   // Set greeting from context
   useEffect(() => {
@@ -53,8 +51,6 @@ export default function Dashboard() {
                 component = clkSchedulerCountdownWidget
               } else if (w.widget_id === 'upcMapStats' && hasKeepaAccess) {
                 component = upcMapStatsWidget
-              } else if (w.widget_id === 'offPriceSellerStats' && hasKeepaAccess) {
-                component = offPriceSellerStatsWidget
               }
               return { id: w.widget_id, component }
             })
@@ -67,7 +63,6 @@ export default function Dashboard() {
               defaultWidgets.push({ id: 'dnkSchedulerCountdown', component: dnkSchedulerCountdownWidget })
               defaultWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
               defaultWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
-              defaultWidgets.push({ id: 'offPriceSellerStats', component: offPriceSellerStatsWidget })
             }
             setWidgets(defaultWidgets)
             
@@ -90,7 +85,6 @@ export default function Dashboard() {
               allAvailableWidgets.push({ id: 'dnkSchedulerCountdown', component: dnkSchedulerCountdownWidget })
               allAvailableWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
               allAvailableWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
-              allAvailableWidgets.push({ id: 'offPriceSellerStats', component: offPriceSellerStatsWidget })
             }
             const missingWidgets = allAvailableWidgets.filter(w => !savedWidgetIds.has(w.id))
             
@@ -135,7 +129,6 @@ export default function Dashboard() {
             defaultWidgets.push({ id: 'dnkSchedulerCountdown', component: dnkSchedulerCountdownWidget })
             defaultWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
             defaultWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
-            defaultWidgets.push({ id: 'offPriceSellerStats', component: offPriceSellerStatsWidget })
           }
           setWidgets(defaultWidgets)
           
@@ -163,7 +156,6 @@ export default function Dashboard() {
           defaultWidgets.push({ id: 'dnkSchedulerCountdown', component: dnkSchedulerCountdownWidget })
           defaultWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
           defaultWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
-          defaultWidgets.push({ id: 'offPriceSellerStats', component: offPriceSellerStatsWidget })
         }
         setWidgets(defaultWidgets)
       } finally {
@@ -172,7 +164,7 @@ export default function Dashboard() {
     }
 
     loadData()
-  }, [hasKeepaAccess, userInfoLoading, dnkSchedulerCountdownWidget, clkSchedulerCountdownWidget, upcMapStatsWidget, offPriceSellerStatsWidget])
+  }, [hasKeepaAccess, userInfoLoading, dnkSchedulerCountdownWidget, clkSchedulerCountdownWidget, upcMapStatsWidget])
 
   const handleDragStart = (index: number) => {
     setDraggedIndex(index)
