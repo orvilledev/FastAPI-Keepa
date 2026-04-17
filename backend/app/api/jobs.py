@@ -37,6 +37,7 @@ async def create_job(
     # Return job data
     job_repo = JobRepository(db)
     job = job_repo.get_job(job_id)
+    job = job_repo.enrich_jobs_with_total_upcs([job])[0]
     return BatchJobResponse(**job)
 
 
@@ -62,6 +63,7 @@ async def list_jobs(
         is_admin=True
     )
     jobs = job_repo.enrich_jobs_with_initiated_by(jobs)
+    jobs = job_repo.enrich_jobs_with_total_upcs(jobs)
     return [BatchJobResponse(**job) for job in jobs]
 
 
@@ -74,6 +76,7 @@ async def get_job(
     """Get batch job details."""
     job_repo = JobRepository(db)
     enriched_jobs = job_repo.enrich_jobs_with_initiated_by([job])
+    enriched_jobs = job_repo.enrich_jobs_with_total_upcs(enriched_jobs)
     return BatchJobResponse(**enriched_jobs[0])
 
 
@@ -171,7 +174,7 @@ async def update_job(
         description=job_data.description,
         email_recipients=job_data.email_recipients
     )
-    
+    updated_job = job_repo.enrich_jobs_with_total_upcs([updated_job])[0]
     return BatchJobResponse(**updated_job)
 
 

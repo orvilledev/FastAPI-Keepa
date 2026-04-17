@@ -160,7 +160,7 @@ export default function JobList() {
                 Progress
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Created
+                Total UPCs
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                 Initiated By
@@ -195,7 +195,7 @@ export default function JobList() {
                   {job.completed_batches} / {job.total_batches} batches
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                  {new Date(job.created_at).toLocaleDateString()}
+                  {job.total_upcs.toLocaleString()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                   {job.initiated_by || 'Unknown'}

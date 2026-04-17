@@ -133,6 +133,36 @@ class JobRepository:
             enriched_jobs.append(job_copy)
 
         return enriched_jobs
+
+    def enrich_jobs_with_total_upcs(self, jobs: List[dict]) -> List[dict]:
+        """Add total_upcs (sum of upc_batches.upc_count) to each job."""
+        if not jobs:
+            return jobs
+
+        job_ids = [str(j["id"]) for j in jobs]
+        totals: dict[str, int] = {jid: 0 for jid in job_ids}
+
+        rows = read_all_paginated(
+            lambda start, end: self.db.table("upc_batches")
+            .select("batch_job_id, upc_count")
+            .in_("batch_job_id", job_ids)
+            .order("batch_job_id")
+            .range(start, end)
+            .execute()
+        )
+        for row in rows:
+            jid = str(row["batch_job_id"])
+            uc = row.get("upc_count")
+            if uc is None:
+                continue
+            totals[jid] = totals.get(jid, 0) + int(uc)
+
+        enriched: List[dict] = []
+        for job in jobs:
+            jc = dict(job)
+            jc["total_upcs"] = totals.get(str(jc["id"]), 0)
+            enriched.append(jc)
+        return enriched
     
     def create_job(
         self, 

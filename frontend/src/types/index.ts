@@ -71,6 +71,7 @@ export interface BatchJob {
   status: 'pending' | 'processing' | 'completed' | 'failed'
   total_batches: number
   completed_batches: number
+  total_upcs: number
   created_by?: string
   initiated_by?: string
   created_at: string

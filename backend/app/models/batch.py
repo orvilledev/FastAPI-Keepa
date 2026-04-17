@@ -26,6 +26,7 @@ class BatchJobResponse(BaseModel):
     status: str
     total_batches: int
     completed_batches: int
+    total_upcs: int = 0
     created_by: Optional[UUID]
     initiated_by: Optional[str] = None
     created_at: datetime
