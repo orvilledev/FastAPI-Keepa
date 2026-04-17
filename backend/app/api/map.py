@@ -2,8 +2,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from decimal import Decimal
-from app.dependencies import get_current_user, get_admin_user
-from app.models.map import MAPResponse, MAPCreate, MAPUpdate
+from app.dependencies import get_current_user, get_keepa_access_user
+from app.models.map import MAPResponse
 from app.database import get_supabase
 from app.repositories.map_repository import MAPRepository
 from app.utils.error_handler import handle_api_errors
@@ -19,11 +19,11 @@ router = APIRouter()
 @handle_api_errors("check MAP duplicates")
 async def check_map_duplicates(
     maps: List[dict],
-    current_user: dict = Depends(get_admin_user),
+    current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase)
 ):
     """
-    Check which MAP entries already exist in the database (admin only).
+    Check which MAP entries already exist (MSW Overwatch access or admin).
     
     Accepts a list of dicts with 'upc' and 'map_price' keys.
     Returns list of duplicate UPCs.
@@ -76,11 +76,11 @@ async def check_map_duplicates(
 async def add_maps(
     maps: List[dict],
     replace_duplicates: bool = False,
-    current_user: dict = Depends(get_admin_user),
+    current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase)
 ):
     """
-    Add MAP entries to the database (admin only).
+    Add MAP entries to the database (MSW Overwatch access or admin).
     
     Accepts a list of dicts with 'upc' and 'map_price' keys.
     Format: [{"upc": "123456789", "map_price": 29.99}, ...]
@@ -206,10 +206,10 @@ async def get_map_by_upc(
 @handle_api_errors("delete MAP entry")
 async def delete_map(
     upc: str,
-    current_user: dict = Depends(get_admin_user),
+    current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase)
 ):
-    """Delete a MAP entry from the database (admin only)."""
+    """Delete a MAP entry (MSW Overwatch access or admin)."""
     map_repo = MAPRepository(db)
     map_repo.delete_map(upc)
     return {"message": f"MAP entry for UPC {upc} deleted successfully"}
@@ -218,10 +218,10 @@ async def delete_map(
 @router.delete("/map", response_model=dict)
 @handle_api_errors("delete all MAP entries")
 async def delete_all_maps(
-    current_user: dict = Depends(get_admin_user),
+    current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase)
 ):
-    """Delete all MAP entries from the database (admin only)."""
+    """Delete all MAP entries (MSW Overwatch access or admin)."""
     map_repo = MAPRepository(db)
     map_repo.delete_all_maps()
     return {"message": "All MAP entries deleted successfully"}

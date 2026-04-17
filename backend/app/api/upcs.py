@@ -1,7 +1,7 @@
 """UPC management API endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
-from app.dependencies import get_current_user, get_admin_user
+from app.dependencies import get_current_user, get_keepa_access_user
 from app.models.upc import UPCResponse, UPCsCreateRequest
 from app.database import get_supabase
 from app.repositories.upc_repository import UPCRepository
@@ -18,11 +18,11 @@ router = APIRouter()
 @handle_api_errors("add UPCs")
 async def add_upcs(
     request: UPCsCreateRequest,
-    current_user: dict = Depends(get_admin_user),
+    current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase)
 ):
     """
-    Add UPCs to the database for daily scheduler processing (admin only).
+    Add UPCs to the database for daily scheduler processing (MSW Overwatch access or admin).
 
     Accepts a list of UPC strings and a category ('dnk' or 'clk').
     Duplicate UPCs (both within the request and in the database) are rejected with error messages.
@@ -176,10 +176,10 @@ async def get_upc_count(
 async def delete_upc(
     upc: str,
     category: Optional[str] = Query(None, description="Filter by category: 'dnk' or 'clk'"),
-    current_user: dict = Depends(get_admin_user),
+    current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase)
 ):
-    """Delete a UPC from the database, optionally filtered by category (admin only)."""
+    """Delete a UPC, optionally filtered by category (MSW Overwatch access or admin)."""
     if category and category not in ["dnk", "clk"]:
         raise HTTPException(status_code=400, detail="Category must be 'dnk' or 'clk'")
     
@@ -192,10 +192,10 @@ async def delete_upc(
 @handle_api_errors("delete all UPCs")
 async def delete_all_upcs(
     category: Optional[str] = Query(None, description="Filter by category: 'dnk' or 'clk'"),
-    current_user: dict = Depends(get_admin_user),
+    current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase)
 ):
-    """Delete all UPCs from the database, optionally filtered by category (admin only)."""
+    """Delete all UPCs, optionally filtered by category (MSW Overwatch access or admin)."""
     if category and category not in ["dnk", "clk"]:
         raise HTTPException(status_code=400, detail="Category must be 'dnk' or 'clk'")
     
