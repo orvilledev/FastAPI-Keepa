@@ -316,12 +316,13 @@ export default function MAPManagement() {
             Manage Minimum Advertised Prices for UPCs. Total: {totalCount} entries
           </p>
         </div>
-        {totalCount > 0 && (
+        {!vendorFilter && totalCount > 0 && (
           <button
+            type="button"
             onClick={handleDeleteAll}
             className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
           >
-            {vendorFilter ? `Delete all ${vendorFilter.toUpperCase()} MAPs` : 'Delete all MAPs'}
+            Delete all MAPs
           </button>
         )}
       </div>
@@ -412,8 +413,8 @@ export default function MAPManagement() {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 mb-2">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 mb-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <label htmlFor="vendor-filter" className="text-sm text-gray-600 whitespace-nowrap">
                 Vendor
               </label>
@@ -424,9 +425,18 @@ export default function MAPManagement() {
                 className="rounded-md border-gray-300 shadow-sm text-sm border px-2 py-1.5 min-w-[140px]"
               >
                 <option value="">All vendors</option>
-                <option value="dnk">DNK only</option>
-                <option value="clk">CLK only</option>
+                <option value="dnk">DNK</option>
+                <option value="clk">CLK</option>
               </select>
+              {vendorFilter && totalCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleDeleteAll}
+                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-md text-sm font-medium"
+                >
+                  Delete all {vendorFilter.toUpperCase()}
+                </button>
+              )}
             </div>
           </div>
 
