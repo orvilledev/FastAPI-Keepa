@@ -3,6 +3,7 @@ from typing import List, Tuple
 from uuid import UUID
 from app.repositories.report_repository import ReportRepository
 from app.repositories.map_repository import MAPRepository
+from app.models.map import DEFAULT_MAP_VENDOR_TYPE
 from app.repositories.seller_name_repository import SellerNameRepository
 from app.services.csv_generator import CSVGenerator
 from app.config import settings
@@ -34,7 +35,7 @@ class ReportService:
             return []
 
         upcs = [item.get("upc") for item in processed_items if item.get("upc")]
-        map_prices_by_upc = self.map_repo.get_map_prices_by_upcs(upcs)
+        map_prices_by_upc = self.map_repo.get_map_prices_by_upcs(upcs, vendor_type=DEFAULT_MAP_VENDOR_TYPE)
 
         try:
             seller_name_map = self.seller_name_repo.get_seller_name_map()
@@ -72,7 +73,7 @@ class ReportService:
             return csv_bytes, filename, off_price_count
 
         upcs = [item.get("upc") for item in processed_items if item.get("upc")]
-        map_prices_by_upc = self.map_repo.get_map_prices_by_upcs(upcs)
+        map_prices_by_upc = self.map_repo.get_map_prices_by_upcs(upcs, vendor_type=DEFAULT_MAP_VENDOR_TYPE)
         
         # Load seller name lookup map from database
         try:

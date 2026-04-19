@@ -136,10 +136,13 @@ export interface UPC {
   created_at: string
 }
 
+export type MapVendorType = 'dnk' | 'clk'
+
 export interface MAP {
   id: string
   upc: string
   map_price: number
+  vendor_type: MapVendorType
   created_at: string
   updated_at: string
 }

@@ -1,15 +1,20 @@
 """Pydantic models for MAP (Minimum Advertised Price)."""
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 from uuid import UUID
 from decimal import Decimal
+
+# Aligned with job categories (dnk / clk); extend as needed
+MAP_VENDOR_TYPES = ("dnk", "clk")
+DEFAULT_MAP_VENDOR_TYPE = "dnk"
 
 
 class MAPCreate(BaseModel):
     """Model for creating MAP entry."""
     upc: str
     map_price: Decimal
+    vendor_type: str = Field(default=DEFAULT_MAP_VENDOR_TYPE, min_length=1, max_length=32)
 
 
 class MAPUpdate(BaseModel):
@@ -22,6 +27,7 @@ class MAPResponse(BaseModel):
     id: UUID
     upc: str
     map_price: Decimal
+    vendor_type: str
     created_at: datetime
     updated_at: datetime
 

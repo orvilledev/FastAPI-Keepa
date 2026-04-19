@@ -9,6 +9,7 @@ from functools import partial
 from fastapi import HTTPException
 from app.database import get_supabase
 from app.repositories.map_repository import MAPRepository
+from app.models.map import DEFAULT_MAP_VENDOR_TYPE
 from app.repositories.supabase_read_all import read_all_paginated
 from app.services.keepa_client import KeepaClient, MultiKeyKeepaClient
 from app.services.price_analyzer import PriceAnalyzer
@@ -129,7 +130,7 @@ class BatchProcessor:
             if keepa_response:
                 map_price: Optional[Decimal] = None
                 try:
-                    map_row = self.map_repo.get_map_by_upc(upc)
+                    map_row = self.map_repo.get_map_by_upc(upc, vendor_type=DEFAULT_MAP_VENDOR_TYPE)
                     mp = Decimal(str(map_row.get("map_price", 0)))
                     if mp > 0:
                         map_price = mp

@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { mapApi } from '../../services/api'
-import type { MAP } from '../../types'
+import type { MAP, MapVendorType } from '../../types'
+
+function normalizeVendorToken(raw: string): MapVendorType | null {
+  const v = raw.trim().toLowerCase()
+  if (v === 'dnk' || v === 'clk') return v
+  return null
+}
 
 export default function MAPManagement() {
   const [maps, setMaps] = useState<MAP[]>([])
@@ -9,25 +15,33 @@ export default function MAPManagement() {
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
   const [mapInput, setMapInput] = useState('')
+  const [batchVendor, setBatchVendor] = useState<MapVendorType>('dnk')
   const [searchTerm, setSearchTerm] = useState('')
+  const [vendorFilter, setVendorFilter] = useState<'' | MapVendorType>('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [currentPage, setCurrentPage] = useState(0)
   const [limit] = useState(100)
   const abortControllerRef = useRef<AbortController | null>(null)
 
-  // Reload when page or search term changes
+  const vendorForApi = vendorFilter || undefined
+
+  // Reload when page, search, or vendor filter changes
   useEffect(() => {
     loadMAPCount()
     loadMAPs()
-  }, [currentPage, searchTerm])
+  }, [currentPage, searchTerm, vendorFilter])
 
-  // Reset to first page when search term changes
+  // Reset to first page when search or vendor filter changes
   useEffect(() => {
     if (searchTerm.trim()) {
       setCurrentPage(0)
     }
   }, [searchTerm])
+
+  useEffect(() => {
+    setCurrentPage(0)
+  }, [vendorFilter])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -40,7 +54,7 @@ export default function MAPManagement() {
 
   const loadMAPCount = async () => {
     try {
-      const data = await mapApi.getMAPCount(searchTerm.trim() || undefined)
+      const data = await mapApi.getMAPCount(searchTerm.trim() || undefined, vendorForApi)
       setTotalCount(data.count)
     } catch (error) {
       console.error('Failed to load MAP count:', error)
@@ -52,12 +66,13 @@ export default function MAPManagement() {
       setLoading(true)
       setError('') // Clear previous errors
       const searchQuery = searchTerm.trim() || undefined
-      const data = await mapApi.listMAPs(limit, currentPage * limit, searchQuery)
+      const data = await mapApi.listMAPs(limit, currentPage * limit, searchQuery, vendorForApi)
       if (Array.isArray(data)) {
         // Ensure map_price is a number for all entries
         const normalizedData = data.map((map) => ({
           ...map,
-          map_price: typeof map.map_price === 'string' ? parseFloat(map.map_price) : map.map_price
+          map_price: typeof map.map_price === 'string' ? parseFloat(map.map_price) : map.map_price,
+          vendor_type: (map.vendor_type === 'clk' ? 'clk' : 'dnk') as MapVendorType,
         }))
         setAllMaps(normalizedData)
         setMaps(normalizedData)
@@ -98,7 +113,7 @@ export default function MAPManagement() {
     abortControllerRef.current = new AbortController()
 
     try {
-      // Parse MAP entries from textarea (format: UPC,PRICE or UPC PRICE)
+      // Parse MAP entries: UPC,PRICE,VENDOR or UPC PRICE VENDOR; two-field lines use "Vendor for 2-column lines"
       const lines = mapInput
         .split('\n')
         .map((line) => line.trim())
@@ -110,43 +125,50 @@ export default function MAPManagement() {
         return
       }
 
-      const mapEntries: Array<{ upc: string; map_price: number }> = []
-      const invalidLines: string[] = []
+      const mapEntries: Array<{ upc: string; map_price: number; vendor_type: MapVendorType }> = []
 
       for (const line of lines) {
-        // Check if operation was cancelled
         if (abortControllerRef.current?.signal.aborted) {
           return
         }
 
-        // Try comma-separated format: UPC,PRICE
         let upc = ''
-        let price = 0
+        let price = NaN
+        let vendor: MapVendorType | null = null
 
         if (line.includes(',')) {
           const parts = line.split(',').map((p) => p.trim())
-          if (parts.length === 2) {
+          if (parts.length === 3) {
             upc = parts[0]
             price = parseFloat(parts[1])
+            vendor = normalizeVendorToken(parts[2])
+          } else if (parts.length === 2) {
+            upc = parts[0]
+            price = parseFloat(parts[1])
+            vendor = batchVendor
           }
         } else {
-          // Try space-separated format: UPC PRICE
-          const parts = line.split(/\s+/)
-          if (parts.length >= 2) {
+          const parts = line.split(/\s+/).filter(Boolean)
+          if (parts.length === 3) {
             upc = parts[0]
-            price = parseFloat(parts[parts.length - 1])
+            price = parseFloat(parts[1])
+            vendor = normalizeVendorToken(parts[2])
+          } else if (parts.length === 2) {
+            upc = parts[0]
+            price = parseFloat(parts[1])
+            vendor = batchVendor
           }
         }
 
-        if (upc && !isNaN(price) && price > 0) {
-          mapEntries.push({ upc, map_price: price })
-        } else {
-          invalidLines.push(line)
+        if (upc && !isNaN(price) && price > 0 && vendor) {
+          mapEntries.push({ upc, map_price: price, vendor_type: vendor })
         }
       }
 
       if (mapEntries.length === 0) {
-        setError('No valid MAP entries found. Format: UPC,PRICE or UPC PRICE (one per line)')
+        setError(
+          'No valid MAP entries found. Each line needs UPC, price, and vendor (dnk or clk). Use three fields per line, or two fields plus the vendor selector below.'
+        )
         setAdding(false)
         return
       }
@@ -172,12 +194,12 @@ export default function MAPManagement() {
           ? ` and ${duplicateCheck.duplicate_upcs.length - 10} more` 
           : ''
         
-        const message = `The following UPC(s) already exist in the system:\n\n${duplicateList}${moreText}\n\nDo you want to replace the existing MAP entries with the new ones?`
+        const message = `The following MAP entries (UPC + vendor) already exist:\n\n${duplicateList}${moreText}\n\nReplace them with the new prices?`
         
         const confirmed = window.confirm(message)
         
         if (!confirmed) {
-          setError(`Upload cancelled. ${duplicateCheck.duplicate_count} duplicate UPC(s) were not replaced.`)
+          setError(`Upload cancelled. ${duplicateCheck.duplicate_count} duplicate MAP row(s) were not replaced.`)
           setAdding(false)
           return
         }
@@ -244,13 +266,13 @@ export default function MAPManagement() {
     }
   }
 
-  const handleDeleteMAP = async (upc: string) => {
-    if (!confirm(`Are you sure you want to delete MAP entry for UPC ${upc}?`)) {
+  const handleDeleteMAP = async (upc: string, vendorType: MapVendorType) => {
+    if (!confirm(`Delete MAP for UPC ${upc} (${vendorType.toUpperCase()})?`)) {
       return
     }
 
     try {
-      await mapApi.deleteMAP(upc)
+      await mapApi.deleteMAP(upc, vendorType)
       setSuccess(`MAP entry for UPC ${upc} deleted successfully`)
       loadMAPCount()
       loadMAPs()
@@ -260,16 +282,24 @@ export default function MAPManagement() {
   }
 
   const handleDeleteAll = async () => {
-    if (!confirm('Are you sure you want to delete ALL MAP entries? This cannot be undone.')) {
+    const scoped = vendorFilter
+    const msg = scoped
+      ? `Delete ALL MAP entries for vendor ${scoped.toUpperCase()}? This cannot be undone.`
+      : 'Delete ALL MAP entries for every vendor? This cannot be undone.'
+    if (!confirm(msg)) {
       return
     }
 
     try {
-      await mapApi.deleteAllMAPs()
-      setSuccess('All MAP entries deleted successfully')
-      setMaps([])
-      setTotalCount(0)
+      await mapApi.deleteAllMAPs(scoped || undefined)
+      setSuccess(
+        scoped
+          ? `All ${scoped.toUpperCase()} MAP entries deleted successfully`
+          : 'All MAP entries deleted successfully'
+      )
       setCurrentPage(0)
+      await loadMAPCount()
+      await loadMAPs()
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to delete all MAP entries')
     }
@@ -291,7 +321,7 @@ export default function MAPManagement() {
             onClick={handleDeleteAll}
             className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
           >
-            Delete All MAPs
+            {vendorFilter ? `Delete all ${vendorFilter.toUpperCase()} MAPs` : 'Delete all MAPs'}
           </button>
         )}
       </div>
@@ -315,8 +345,25 @@ export default function MAPManagement() {
         <form onSubmit={handleAddMAPs} className="space-y-4">
           <div>
             <label htmlFor="maps" className="block text-sm font-medium text-gray-700">
-              MAP Entries <span className="text-gray-500">(one per line: UPC,PRICE or UPC PRICE)</span>
+              MAP Entries{' '}
+              <span className="text-gray-500">
+                (one per line: UPC,PRICE,VENDOR or UPC PRICE VENDOR — vendor is dnk or clk)
+              </span>
             </label>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <label htmlFor="batch-vendor" className="text-sm text-gray-600">
+                Vendor for 2-column lines:
+              </label>
+              <select
+                id="batch-vendor"
+                value={batchVendor}
+                onChange={(e) => setBatchVendor(e.target.value as MapVendorType)}
+                className="rounded-md border-gray-300 shadow-sm text-sm border px-2 py-1"
+              >
+                <option value="dnk">DNK</option>
+                <option value="clk">CLK</option>
+              </select>
+            </div>
             <textarea
               id="maps"
               rows={10}
@@ -324,13 +371,13 @@ export default function MAPManagement() {
               onChange={(e) => setMapInput(e.target.value)}
               required
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-mono px-3 py-2 border"
-              placeholder="123456789012,29.99&#10;987654321098 39.99&#10;..."
+              placeholder={"123456789012,29.99,dnk\n987654321098 39.99 clk\n111111111111,19.00,clk"}
             />
             <p className="mt-2 text-sm text-gray-500">
-              {mapInput.split('\n').filter((line) => line.trim().length > 0).length} entries entered
+              {mapInput.split('\n').filter((line) => line.trim().length > 0).length} lines entered
             </p>
             <p className="mt-1 text-xs text-gray-400">
-              Format examples: "123456789012,29.99" or "123456789012 29.99" (one per line)
+              Three fields per line include vendor; two fields (UPC and price) use the vendor selector above.
             </p>
           </div>
 
@@ -362,6 +409,24 @@ export default function MAPManagement() {
             <h2 className="text-lg font-semibold text-gray-900">MAP Entries List</h2>
             <div className="text-sm text-gray-500">
               Showing {currentPage * limit + 1} - {Math.min((currentPage + 1) * limit, totalCount)} of {totalCount}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 mb-2">
+            <div className="flex items-center gap-2">
+              <label htmlFor="vendor-filter" className="text-sm text-gray-600 whitespace-nowrap">
+                Vendor
+              </label>
+              <select
+                id="vendor-filter"
+                value={vendorFilter}
+                onChange={(e) => setVendorFilter(e.target.value as '' | MapVendorType)}
+                className="rounded-md border-gray-300 shadow-sm text-sm border px-2 py-1.5 min-w-[140px]"
+              >
+                <option value="">All vendors</option>
+                <option value="dnk">DNK only</option>
+                <option value="clk">CLK only</option>
+              </select>
             </div>
           </div>
 
@@ -431,6 +496,9 @@ export default function MAPManagement() {
                       UPC
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Vendor
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       MAP Price
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -450,6 +518,9 @@ export default function MAPManagement() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-mono font-medium text-gray-900">
                         {map.upc}
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                        {map.vendor_type.toUpperCase()}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-[#0B1020]">
                         ${Number(map.map_price).toFixed(2)}
                       </td>
@@ -461,7 +532,8 @@ export default function MAPManagement() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <button
-                          onClick={() => handleDeleteMAP(map.upc)}
+                          type="button"
+                          onClick={() => handleDeleteMAP(map.upc, map.vendor_type)}
                           className="text-red-600 hover:text-red-900"
                         >
                           Delete
