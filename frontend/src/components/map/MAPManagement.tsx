@@ -15,7 +15,6 @@ export default function MAPManagement() {
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
   const [mapInput, setMapInput] = useState('')
-  const [batchVendor, setBatchVendor] = useState<MapVendorType>('dnk')
   const [searchTerm, setSearchTerm] = useState('')
   const [vendorFilter, setVendorFilter] = useState<'' | MapVendorType>('')
   const [error, setError] = useState('')
@@ -113,7 +112,7 @@ export default function MAPManagement() {
     abortControllerRef.current = new AbortController()
 
     try {
-      // Parse MAP entries: UPC,PRICE,VENDOR or UPC PRICE VENDOR; two-field lines use "Vendor for 2-column lines"
+      // Parse MAP entries: UPC,PRICE,VENDOR or UPC PRICE VENDOR (three fields per line)
       const lines = mapInput
         .split('\n')
         .map((line) => line.trim())
@@ -142,10 +141,6 @@ export default function MAPManagement() {
             upc = parts[0]
             price = parseFloat(parts[1])
             vendor = normalizeVendorToken(parts[2])
-          } else if (parts.length === 2) {
-            upc = parts[0]
-            price = parseFloat(parts[1])
-            vendor = batchVendor
           }
         } else {
           const parts = line.split(/\s+/).filter(Boolean)
@@ -153,10 +148,6 @@ export default function MAPManagement() {
             upc = parts[0]
             price = parseFloat(parts[1])
             vendor = normalizeVendorToken(parts[2])
-          } else if (parts.length === 2) {
-            upc = parts[0]
-            price = parseFloat(parts[1])
-            vendor = batchVendor
           }
         }
 
@@ -167,7 +158,7 @@ export default function MAPManagement() {
 
       if (mapEntries.length === 0) {
         setError(
-          'No valid MAP entries found. Each line needs UPC, price, and vendor (dnk or clk). Use three fields per line, or two fields plus the vendor selector below.'
+          'No valid MAP entries found. Each line must have three fields: UPC, price, and vendor (dnk or clk).'
         )
         setAdding(false)
         return
@@ -351,20 +342,6 @@ export default function MAPManagement() {
                 (one per line: UPC,PRICE,VENDOR or UPC PRICE VENDOR — vendor is dnk or clk)
               </span>
             </label>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <label htmlFor="batch-vendor" className="text-sm text-gray-600">
-                Vendor for 2-column lines:
-              </label>
-              <select
-                id="batch-vendor"
-                value={batchVendor}
-                onChange={(e) => setBatchVendor(e.target.value as MapVendorType)}
-                className="rounded-md border-gray-300 shadow-sm text-sm border px-2 py-1"
-              >
-                <option value="dnk">DNK</option>
-                <option value="clk">CLK</option>
-              </select>
-            </div>
             <textarea
               id="maps"
               rows={10}
@@ -378,7 +355,7 @@ export default function MAPManagement() {
               {mapInput.split('\n').filter((line) => line.trim().length > 0).length} lines entered
             </p>
             <p className="mt-1 text-xs text-gray-400">
-              Three fields per line include vendor; two fields (UPC and price) use the vendor selector above.
+              Vendor must be the third field on every line (dnk or clk; case-insensitive).
             </p>
           </div>
 
