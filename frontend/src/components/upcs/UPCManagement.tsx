@@ -44,6 +44,7 @@ export default function UPCManagement({
   const [limit] = useState(100)
   const [deleteQueue, setDeleteQueue] = useState<string[]>([])
   const [queueInput, setQueueInput] = useState('')
+  const [queueBulkText, setQueueBulkText] = useState('')
   const [bulkDeleting, setBulkDeleting] = useState(false)
 
   // Default title and description based on category
@@ -58,6 +59,7 @@ export default function UPCManagement({
   useEffect(() => {
     setDeleteQueue([])
     setQueueInput('')
+    setQueueBulkText('')
   }, [category])
 
   const loadUPCCount = async () => {
@@ -244,6 +246,22 @@ export default function UPCManagement({
     addUpcToDeleteQueue(searchTerm)
   }
 
+  const handleAddPastedLinesToDeleteQueue = () => {
+    const lines = queueBulkText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+    if (lines.length === 0) return
+    setDeleteQueue((prev) => {
+      const seen = new Set(prev)
+      const next = [...prev]
+      for (const upc of lines) {
+        if (seen.has(upc)) continue
+        seen.add(upc)
+        next.push(upc)
+      }
+      return next
+    })
+    setQueueBulkText('')
+  }
+
   const removeFromDeleteQueue = (upc: string) => {
     setDeleteQueue((prev) => prev.filter((u) => u !== upc))
   }
@@ -360,7 +378,7 @@ export default function UPCManagement({
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/80 p-4">
             <h3 className="text-sm font-semibold text-gray-900 mb-2">Delete list</h3>
             <p className="text-xs text-gray-600 mb-3">
-              Add UPCs to remove only those rows ({category.toUpperCase()} catalog). Duplicates are ignored.
+              Add UPCs one at a time, paste many below, or use search + “Add search text.” Duplicates are ignored.
             </p>
             <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
               <input
@@ -395,6 +413,33 @@ export default function UPCManagement({
                 )}
               </div>
             </div>
+
+            <div className="mt-4 border-t border-amber-200/80 pt-4">
+              <label htmlFor="queue-bulk-upcs" className="block text-sm font-medium text-gray-800 mb-1">
+                Paste many UPCs (one per line)
+              </label>
+              <textarea
+                id="queue-bulk-upcs"
+                rows={5}
+                value={queueBulkText}
+                onChange={(e) => setQueueBulkText(e.target.value)}
+                placeholder="Paste UPCs from a spreadsheet or file, one per line..."
+                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleAddPastedLinesToDeleteQueue}
+                  className="rounded-md bg-gray-800 px-3 py-2 text-sm font-medium text-white hover:bg-gray-900"
+                >
+                  Add pasted lines to list
+                </button>
+                <span className="text-xs text-gray-500">
+                  {queueBulkText.split(/\r?\n/).filter((l) => l.trim().length > 0).length} non-empty lines
+                </span>
+              </div>
+            </div>
+
             {deleteQueue.length > 0 && (
               <div className="mt-3">
                 <div className="flex flex-wrap gap-2 mb-2">

@@ -12,6 +12,26 @@ function mapQueueKey(upc: string, vendor: MapVendorType) {
   return `${upc.trim()}::${vendor}`
 }
 
+/** One line: UPC only (uses defaultVendor), or UPC,dnk / UPC,clk / UPC dnk */
+function parseMapDeleteLine(line: string, defaultVendor: MapVendorType): { upc: string; vendor_type: MapVendorType } | null {
+  const t = line.trim()
+  if (!t) return null
+  if (t.includes(',')) {
+    const parts = t.split(',').map((p) => p.trim())
+    if (parts.length >= 2 && parts[0]) {
+      const vt = normalizeVendorToken(parts[1])
+      if (vt) return { upc: parts[0], vendor_type: vt }
+      return { upc: parts[0], vendor_type: defaultVendor }
+    }
+  }
+  const sp = t.split(/\s+/).filter(Boolean)
+  if (sp.length === 2 && sp[0]) {
+    const vt = normalizeVendorToken(sp[1])
+    if (vt) return { upc: sp[0], vendor_type: vt }
+  }
+  return { upc: t, vendor_type: defaultVendor }
+}
+
 async function runChunked<T>(
   items: T[],
   worker: (item: T) => Promise<unknown>,
@@ -48,6 +68,7 @@ export default function MAPManagement() {
   /** UPCs queued for bulk delete (vendor from filter or queueVendorWhenAll) */
   const [deleteQueue, setDeleteQueue] = useState<Array<{ upc: string; vendor_type: MapVendorType }>>([])
   const [queueInput, setQueueInput] = useState('')
+  const [queueBulkText, setQueueBulkText] = useState('')
   const [queueVendorWhenAll, setQueueVendorWhenAll] = useState<MapVendorType>('dnk')
   const [bulkDeleting, setBulkDeleting] = useState(false)
 
@@ -312,6 +333,25 @@ export default function MAPManagement() {
     })
   }
 
+  const handleAddPastedLinesToDeleteQueue = () => {
+    const lines = queueBulkText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+    if (lines.length === 0) return
+    setDeleteQueue((prev) => {
+      const seen = new Set(prev.map((p) => mapQueueKey(p.upc, p.vendor_type)))
+      const next = [...prev]
+      for (const line of lines) {
+        const parsed = parseMapDeleteLine(line, effectiveQueueVendor)
+        if (!parsed) continue
+        const key = mapQueueKey(parsed.upc, parsed.vendor_type)
+        if (seen.has(key)) continue
+        seen.add(key)
+        next.push(parsed)
+      }
+      return next
+    })
+    setQueueBulkText('')
+  }
+
   const handleAddQueueFromInput = () => {
     addUpcToDeleteQueue(queueInput)
     setQueueInput('')
@@ -507,8 +547,8 @@ export default function MAPManagement() {
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/80 p-4">
             <h3 className="text-sm font-semibold text-gray-900 mb-2">Delete list</h3>
             <p className="text-xs text-gray-600 mb-3">
-              Type a UPC and add it to the list (duplicates ignored). Vendor for new items is the filter
-              above, or choose DNK/CLK when viewing all vendors. Then delete only the listed rows.
+              Add one UPC at a time, paste many below, or use the search box + “Add search text.” Duplicates
+              are ignored. Then delete only the listed rows.
             </p>
             {!vendorFilter && (
               <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -556,6 +596,37 @@ export default function MAPManagement() {
                 )}
               </div>
             </div>
+
+            <div className="mt-4 border-t border-amber-200/80 pt-4">
+              <label htmlFor="queue-bulk" className="block text-sm font-medium text-gray-800 mb-1">
+                Paste many UPCs (one per line)
+              </label>
+              <p className="text-xs text-gray-600 mb-2">
+                One UPC per line uses the vendor selected above (or per-line{' '}
+                <span className="font-mono">UPC,dnk</span> / <span className="font-mono">UPC,clk</span> to mix).
+              </p>
+              <textarea
+                id="queue-bulk"
+                rows={5}
+                value={queueBulkText}
+                onChange={(e) => setQueueBulkText(e.target.value)}
+                placeholder={'673088508890\n673088508906\n673088508913,clk'}
+                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleAddPastedLinesToDeleteQueue}
+                  className="rounded-md bg-gray-800 px-3 py-2 text-sm font-medium text-white hover:bg-gray-900"
+                >
+                  Add pasted lines to list
+                </button>
+                <span className="text-xs text-gray-500">
+                  {queueBulkText.split(/\r?\n/).filter((l) => l.trim().length > 0).length} non-empty lines
+                </span>
+              </div>
+            </div>
+
             {deleteQueue.length > 0 && (
               <div className="mt-3">
                 <div className="flex flex-wrap gap-2 mb-2">
