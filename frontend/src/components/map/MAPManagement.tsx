@@ -8,46 +8,12 @@ function normalizeVendorToken(raw: string): MapVendorType | null {
   return null
 }
 
-function mapQueueKey(upc: string, vendor: MapVendorType) {
-  return `${upc.trim()}::${vendor}`
-}
-
-/** One line: UPC only (uses defaultVendor), or UPC,dnk / UPC,clk / UPC dnk */
-function parseMapDeleteLine(line: string, defaultVendor: MapVendorType): { upc: string; vendor_type: MapVendorType } | null {
+/** One UPC per line; if the line looks like CSV, use the first column as UPC. */
+function parseUpcOnlyLine(line: string): string | null {
   const t = line.trim()
   if (!t) return null
-  if (t.includes(',')) {
-    const parts = t.split(',').map((p) => p.trim())
-    if (parts.length >= 2 && parts[0]) {
-      const vt = normalizeVendorToken(parts[1])
-      if (vt) return { upc: parts[0], vendor_type: vt }
-      return { upc: parts[0], vendor_type: defaultVendor }
-    }
-  }
-  const sp = t.split(/\s+/).filter(Boolean)
-  if (sp.length === 2 && sp[0]) {
-    const vt = normalizeVendorToken(sp[1])
-    if (vt) return { upc: sp[0], vendor_type: vt }
-  }
-  return { upc: t, vendor_type: defaultVendor }
-}
-
-async function runChunked<T>(
-  items: T[],
-  worker: (item: T) => Promise<unknown>,
-  chunkSize = 8
-): Promise<{ ok: number; failed: number }> {
-  let ok = 0
-  let failed = 0
-  for (let i = 0; i < items.length; i += chunkSize) {
-    const chunk = items.slice(i, i + chunkSize)
-    const results = await Promise.allSettled(chunk.map((item) => worker(item)))
-    for (const r of results) {
-      if (r.status === 'fulfilled') ok += 1
-      else failed += 1
-    }
-  }
-  return { ok, failed }
+  const first = t.includes(',') ? t.split(',')[0].trim() : t
+  return first || null
 }
 
 export default function MAPManagement() {
@@ -65,15 +31,13 @@ export default function MAPManagement() {
   const [limit] = useState(100)
   const abortControllerRef = useRef<AbortController | null>(null)
 
-  /** UPCs queued for bulk delete (vendor from filter or queueVendorWhenAll) */
-  const [deleteQueue, setDeleteQueue] = useState<Array<{ upc: string; vendor_type: MapVendorType }>>([])
+  /** UPCs queued for bulk delete (server removes all MAP rows for each UPC, any vendor) */
+  const [deleteQueue, setDeleteQueue] = useState<string[]>([])
   const [queueInput, setQueueInput] = useState('')
   const [queueBulkText, setQueueBulkText] = useState('')
-  const [queueVendorWhenAll, setQueueVendorWhenAll] = useState<MapVendorType>('dnk')
   const [bulkDeleting, setBulkDeleting] = useState(false)
 
   const vendorForApi = vendorFilter || undefined
-  const effectiveQueueVendor: MapVendorType = vendorFilter || queueVendorWhenAll
 
   // Reload when page, search, or vendor filter changes
   useEffect(() => {
@@ -325,44 +289,43 @@ export default function MAPManagement() {
   const addUpcToDeleteQueue = (rawUpc: string) => {
     const upc = rawUpc.trim()
     if (!upc) return
-    const v = effectiveQueueVendor
-    const key = mapQueueKey(upc, v)
-    setDeleteQueue((prev) => {
-      if (prev.some((p) => mapQueueKey(p.upc, p.vendor_type) === key)) return prev
-      return [...prev, { upc, vendor_type: v }]
-    })
+    setDeleteQueue((prev) => (prev.includes(upc) ? prev : [...prev, upc]))
   }
 
   const handleAddPastedLinesToDeleteQueue = () => {
-    const lines = queueBulkText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
-    if (lines.length === 0) return
+    const lines = queueBulkText.split(/\r?\n/)
+    const nextUpcs: string[] = []
+    for (const line of lines) {
+      const u = parseUpcOnlyLine(line)
+      if (u) nextUpcs.push(u)
+    }
+    if (nextUpcs.length === 0) return
     setDeleteQueue((prev) => {
-      const seen = new Set(prev.map((p) => mapQueueKey(p.upc, p.vendor_type)))
-      const next = [...prev]
-      for (const line of lines) {
-        const parsed = parseMapDeleteLine(line, effectiveQueueVendor)
-        if (!parsed) continue
-        const key = mapQueueKey(parsed.upc, parsed.vendor_type)
-        if (seen.has(key)) continue
-        seen.add(key)
-        next.push(parsed)
+      const seen = new Set(prev)
+      const merged = [...prev]
+      for (const u of nextUpcs) {
+        if (seen.has(u)) continue
+        seen.add(u)
+        merged.push(u)
       }
-      return next
+      return merged
     })
     setQueueBulkText('')
   }
 
   const handleAddQueueFromInput = () => {
-    addUpcToDeleteQueue(queueInput)
+    const u = parseUpcOnlyLine(queueInput)
+    if (u) addUpcToDeleteQueue(u)
     setQueueInput('')
   }
 
   const handleAddSearchTextToQueue = () => {
-    addUpcToDeleteQueue(searchTerm)
+    const u = parseUpcOnlyLine(searchTerm)
+    if (u) addUpcToDeleteQueue(u)
   }
 
-  const removeFromDeleteQueue = (upc: string, vendorType: MapVendorType) => {
-    setDeleteQueue((prev) => prev.filter((p) => !(p.upc === upc && p.vendor_type === vendorType)))
+  const removeFromDeleteQueue = (upc: string) => {
+    setDeleteQueue((prev) => prev.filter((p) => p !== upc))
   }
 
   const clearDeleteQueue = () => setDeleteQueue([])
@@ -371,7 +334,7 @@ export default function MAPManagement() {
     if (deleteQueue.length === 0) return
     if (
       !confirm(
-        `Delete ${deleteQueue.length} MAP row(s) from the list? This cannot be undone.`
+        `Delete all MAP entries for ${deleteQueue.length} UPC(s)? Any DNK and CLK rows for those UPCs will be removed. This cannot be undone.`
       )
     ) {
       return
@@ -379,16 +342,13 @@ export default function MAPManagement() {
     setBulkDeleting(true)
     setError('')
     try {
-      const { ok, failed } = await runChunked(
-        deleteQueue,
-        (item) => mapApi.deleteMAP(item.upc, item.vendor_type)
-      )
+      const r = await mapApi.deleteMAPsByUpcs(deleteQueue)
       setDeleteQueue([])
-      setSuccess(
-        failed
-          ? `Deleted ${ok} MAP row(s). ${failed} could not be deleted (missing or error).`
-          : `Deleted ${ok} MAP row(s).`
-      )
+      let msg = `Removed ${r.deleted_rows} MAP row(s) across ${r.upcs_requested} UPC(s).`
+      if (r.upcs_not_found?.length) {
+        msg += ` No MAP row for ${r.upcs_not_found.length} listed UPC(s).`
+      }
+      setSuccess(msg)
       await loadMAPCount()
       await loadMAPs()
     } catch (err: any) {
@@ -547,22 +507,10 @@ export default function MAPManagement() {
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/80 p-4">
             <h3 className="text-sm font-semibold text-gray-900 mb-2">Delete list</h3>
             <p className="text-xs text-gray-600 mb-3">
-              Add one UPC at a time, paste many below, or use the search box + “Add search text.” Duplicates
-              are ignored. Then delete only the listed rows.
+              Enter UPCs only (vendor is detected from existing rows). Add one at a time, paste many below, or
+              use the filter box + “Add search text.” Duplicates ignored. Deletes every MAP row for each UPC
+              (DNK and CLK if both exist).
             </p>
-            {!vendorFilter && (
-              <div className="flex flex-wrap items-center gap-2 mb-3">
-                <span className="text-xs text-gray-600">Vendor for added UPCs:</span>
-                <select
-                  value={queueVendorWhenAll}
-                  onChange={(e) => setQueueVendorWhenAll(e.target.value as MapVendorType)}
-                  className="rounded-md border-gray-300 text-sm border px-2 py-1"
-                >
-                  <option value="dnk">DNK</option>
-                  <option value="clk">CLK</option>
-                </select>
-              </div>
-            )}
             <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
               <input
                 type="text"
@@ -602,15 +550,14 @@ export default function MAPManagement() {
                 Paste many UPCs (one per line)
               </label>
               <p className="text-xs text-gray-600 mb-2">
-                One UPC per line uses the vendor selected above (or per-line{' '}
-                <span className="font-mono">UPC,dnk</span> / <span className="font-mono">UPC,clk</span> to mix).
+                One UPC per line. If you paste CSV, only the first column is used as the UPC.
               </p>
               <textarea
                 id="queue-bulk"
                 rows={5}
                 value={queueBulkText}
                 onChange={(e) => setQueueBulkText(e.target.value)}
-                placeholder={'673088508890\n673088508906\n673088508913,clk'}
+                placeholder={'673088508890\n673088508906\n673088508913'}
                 className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
               />
               <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -630,18 +577,17 @@ export default function MAPManagement() {
             {deleteQueue.length > 0 && (
               <div className="mt-3">
                 <div className="flex flex-wrap gap-2 mb-2">
-                  {deleteQueue.map((q) => (
+                  {deleteQueue.map((upc) => (
                     <span
-                      key={mapQueueKey(q.upc, q.vendor_type)}
+                      key={upc}
                       className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-xs font-mono border border-gray-200"
                     >
-                      {q.upc}
-                      <span className="text-gray-500">({q.vendor_type.toUpperCase()})</span>
+                      {upc}
                       <button
                         type="button"
-                        onClick={() => removeFromDeleteQueue(q.upc, q.vendor_type)}
+                        onClick={() => removeFromDeleteQueue(upc)}
                         className="ml-1 text-gray-500 hover:text-red-600"
-                        aria-label={`Remove ${q.upc}`}
+                        aria-label={`Remove ${upc}`}
                       >
                         ×
                       </button>

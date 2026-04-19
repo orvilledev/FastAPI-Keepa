@@ -1,5 +1,5 @@
 """Repository for MAP database operations."""
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from decimal import Decimal
 from supabase import Client
 from fastapi import HTTPException
@@ -328,3 +328,43 @@ class MAPRepository:
         if vendor_type and str(vendor_type).strip():
             q = q.eq("vendor_type", _validate_vendor_type(vendor_type))
         q.neq("id", "00000000-0000-0000-0000-000000000000").execute()
+
+    def delete_maps_by_upcs(self, upcs: List[str]) -> Dict[str, Any]:
+        """
+        Delete every MAP row whose UPC is in the list (all vendor_type rows per UPC).
+
+        Returns counts and UPCs that had no matching row.
+        """
+        cleaned: List[str] = []
+        seen: set = set()
+        for raw in upcs:
+            if not raw or not str(raw).strip():
+                continue
+            u = str(raw).strip()
+            if u in seen:
+                continue
+            seen.add(u)
+            cleaned.append(u)
+
+        if not cleaned:
+            return {"deleted_rows": 0, "upcs_requested": 0, "upcs_not_found": []}
+
+        deleted_upcs: set = set()
+        deleted_rows = 0
+        batch_size = 500
+
+        for i in range(0, len(cleaned), batch_size):
+            chunk = cleaned[i : i + batch_size]
+            res = self.db.table(self.table).delete().in_("upc", chunk).execute()
+            for row in res.data or []:
+                deleted_rows += 1
+                u = row.get("upc")
+                if u:
+                    deleted_upcs.add(u)
+
+        not_found = [u for u in cleaned if u not in deleted_upcs]
+        return {
+            "deleted_rows": deleted_rows,
+            "upcs_requested": len(cleaned),
+            "upcs_not_found": not_found,
+        }

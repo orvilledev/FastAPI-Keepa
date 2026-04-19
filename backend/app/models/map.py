@@ -1,6 +1,6 @@
 """Pydantic models for MAP (Minimum Advertised Price)."""
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import List, Optional
 from datetime import datetime
 from uuid import UUID
 from decimal import Decimal
@@ -33,4 +33,15 @@ class MAPResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class MAPDeleteByUPCsBody(BaseModel):
+    """Bulk delete: remove all MAP rows for each UPC (any vendor_type)."""
+    upcs: List[str]
+
+
+class MAPDeleteByUPCsResponse(BaseModel):
+    deleted_rows: int
+    upcs_requested: int
+    upcs_not_found: List[str]
 

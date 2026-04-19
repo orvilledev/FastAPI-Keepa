@@ -3,7 +3,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
 from decimal import Decimal
 from app.dependencies import get_current_user, get_keepa_access_user
-from app.models.map import DEFAULT_MAP_VENDOR_TYPE, MAPResponse
+from app.models.map import (
+    DEFAULT_MAP_VENDOR_TYPE,
+    MAPDeleteByUPCsBody,
+    MAPDeleteByUPCsResponse,
+    MAPResponse,
+)
 from app.database import get_supabase
 from app.repositories.map_repository import MAPRepository, _validate_vendor_type
 from app.utils.error_handler import handle_api_errors
@@ -142,6 +147,27 @@ async def add_maps(
             response["duplicate_upcs"] = result["duplicate_upcs"]
 
     return response
+
+
+@router.post("/map/delete-by-upcs", response_model=MAPDeleteByUPCsResponse)
+@handle_api_errors("delete MAP entries by UPC list")
+async def delete_maps_by_upcs(
+    body: MAPDeleteByUPCsBody,
+    current_user: dict = Depends(get_keepa_access_user),
+    db: Client = Depends(get_supabase),
+):
+    """
+    Delete all MAP rows for each given UPC (every vendor_type row for that UPC).
+    UPC list is deduplicated; unknown UPCs are reported in upcs_not_found.
+    """
+    if not body.upcs:
+        raise HTTPException(status_code=400, detail="No UPCs provided")
+    if len(body.upcs) > 10000:
+        raise HTTPException(status_code=400, detail="At most 10000 UPCs per request")
+
+    map_repo = MAPRepository(db)
+    result = map_repo.delete_maps_by_upcs(body.upcs)
+    return MAPDeleteByUPCsResponse(**result)
 
 
 @router.get("/map", response_model=List[MAPResponse])

@@ -323,6 +323,16 @@ export const mapApi = {
     const response = await api.delete(`/api/v1/map${qs ? `?${qs}` : ''}`)
     return response.data
   },
+
+  /** Delete all MAP rows for each UPC (DNK and CLK rows removed). */
+  deleteMAPsByUpcs: async (upcs: string[]) => {
+    const response = await api.post<{
+      deleted_rows: number
+      upcs_requested: number
+      upcs_not_found: string[]
+    }>('/api/v1/map/delete-by-upcs', { upcs })
+    return response.data
+  },
 }
 
 // Scheduler API
