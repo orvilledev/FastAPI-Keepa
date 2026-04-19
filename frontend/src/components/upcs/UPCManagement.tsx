@@ -2,6 +2,24 @@ import { useState, useEffect } from 'react'
 import { upcsApi } from '../../services/api'
 import type { UPC } from '../../types'
 
+async function runChunked<T>(
+  items: T[],
+  worker: (item: T) => Promise<unknown>,
+  chunkSize = 8
+): Promise<{ ok: number; failed: number }> {
+  let ok = 0
+  let failed = 0
+  for (let i = 0; i < items.length; i += chunkSize) {
+    const chunk = items.slice(i, i + chunkSize)
+    const results = await Promise.allSettled(chunk.map((item) => worker(item)))
+    for (const r of results) {
+      if (r.status === 'fulfilled') ok += 1
+      else failed += 1
+    }
+  }
+  return { ok, failed }
+}
+
 interface UPCManagementProps {
   category: 'dnk' | 'clk'
   title?: string
@@ -24,6 +42,9 @@ export default function UPCManagement({
   const [success, setSuccess] = useState('')
   const [currentPage, setCurrentPage] = useState(0)
   const [limit] = useState(100)
+  const [deleteQueue, setDeleteQueue] = useState<string[]>([])
+  const [queueInput, setQueueInput] = useState('')
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   // Default title and description based on category
   const displayTitle = title || `Manage ${category.toUpperCase()} UPCs`
@@ -33,6 +54,11 @@ export default function UPCManagement({
     loadUPCCount()
     loadUPCs()
   }, [currentPage, category])
+
+  useEffect(() => {
+    setDeleteQueue([])
+    setQueueInput('')
+  }, [category])
 
   const loadUPCCount = async () => {
     try {
@@ -197,8 +223,58 @@ export default function UPCManagement({
       setUpcs([])
       setTotalCount(0)
       setCurrentPage(0)
+      setDeleteQueue([])
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to delete all UPCs')
+    }
+  }
+
+  const addUpcToDeleteQueue = (raw: string) => {
+    const upc = raw.trim()
+    if (!upc) return
+    setDeleteQueue((prev) => (prev.includes(upc) ? prev : [...prev, upc]))
+  }
+
+  const handleAddQueueFromInput = () => {
+    addUpcToDeleteQueue(queueInput)
+    setQueueInput('')
+  }
+
+  const handleAddSearchTextToQueue = () => {
+    addUpcToDeleteQueue(searchTerm)
+  }
+
+  const removeFromDeleteQueue = (upc: string) => {
+    setDeleteQueue((prev) => prev.filter((u) => u !== upc))
+  }
+
+  const clearDeleteQueue = () => setDeleteQueue([])
+
+  const handleDeleteQueuedUPCs = async () => {
+    if (deleteQueue.length === 0) return
+    if (
+      !confirm(
+        `Delete ${deleteQueue.length} UPC(s) from the list for ${category.toUpperCase()}? This cannot be undone.`
+      )
+    ) {
+      return
+    }
+    setBulkDeleting(true)
+    setError('')
+    try {
+      const { ok, failed } = await runChunked(deleteQueue, (upc) => upcsApi.deleteUPC(upc, category))
+      setDeleteQueue([])
+      setSuccess(
+        failed
+          ? `Deleted ${ok} UPC(s). ${failed} could not be deleted (missing or error).`
+          : `Deleted ${ok} UPC(s).`
+      )
+      await loadUPCCount()
+      await loadUPCs()
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Bulk delete failed')
+    } finally {
+      setBulkDeleting(false)
     }
   }
 
@@ -279,7 +355,87 @@ export default function UPCManagement({
               Showing {currentPage * limit + 1} - {Math.min((currentPage + 1) * limit, totalCount)} of {totalCount}
             </div>
           </div>
-          
+
+          {/* Delete queue */}
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/80 p-4">
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">Delete list</h3>
+            <p className="text-xs text-gray-600 mb-3">
+              Add UPCs to remove only those rows ({category.toUpperCase()} catalog). Duplicates are ignored.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+              <input
+                type="text"
+                value={queueInput}
+                onChange={(e) => setQueueInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleAddQueueFromInput()
+                  }
+                }}
+                placeholder="UPC to add to delete list"
+                className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleAddQueueFromInput}
+                  className="rounded-md bg-gray-800 px-3 py-2 text-sm font-medium text-white hover:bg-gray-900"
+                >
+                  Add to list
+                </button>
+                {searchTerm.trim() && (
+                  <button
+                    type="button"
+                    onClick={handleAddSearchTextToQueue}
+                    className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Add search text to list
+                  </button>
+                )}
+              </div>
+            </div>
+            {deleteQueue.length > 0 && (
+              <div className="mt-3">
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {deleteQueue.map((upc) => (
+                    <span
+                      key={upc}
+                      className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-xs font-mono border border-gray-200"
+                    >
+                      {upc}
+                      <button
+                        type="button"
+                        onClick={() => removeFromDeleteQueue(upc)}
+                        className="ml-1 text-gray-500 hover:text-red-600"
+                        aria-label={`Remove ${upc}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={clearDeleteQueue}
+                    className="text-sm text-gray-600 underline hover:text-gray-900"
+                  >
+                    Clear list
+                  </button>
+                  <button
+                    type="button"
+                    disabled={bulkDeleting}
+                    onClick={handleDeleteQueuedUPCs}
+                    className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {bulkDeleting ? 'Deleting…' : `Delete listed UPCs (${deleteQueue.length})`}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Search Box */}
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -300,7 +456,7 @@ export default function UPCManagement({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search UPCs..."
+              placeholder="Filter visible rows by UPC (partial match)..."
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm font-mono"
             />
             {searchTerm && (

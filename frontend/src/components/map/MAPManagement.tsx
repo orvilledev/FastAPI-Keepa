@@ -8,6 +8,28 @@ function normalizeVendorToken(raw: string): MapVendorType | null {
   return null
 }
 
+function mapQueueKey(upc: string, vendor: MapVendorType) {
+  return `${upc.trim()}::${vendor}`
+}
+
+async function runChunked<T>(
+  items: T[],
+  worker: (item: T) => Promise<unknown>,
+  chunkSize = 8
+): Promise<{ ok: number; failed: number }> {
+  let ok = 0
+  let failed = 0
+  for (let i = 0; i < items.length; i += chunkSize) {
+    const chunk = items.slice(i, i + chunkSize)
+    const results = await Promise.allSettled(chunk.map((item) => worker(item)))
+    for (const r of results) {
+      if (r.status === 'fulfilled') ok += 1
+      else failed += 1
+    }
+  }
+  return { ok, failed }
+}
+
 export default function MAPManagement() {
   const [maps, setMaps] = useState<MAP[]>([])
   const [allMaps, setAllMaps] = useState<MAP[]>([]) // Store all MAPs for filtering
@@ -23,7 +45,14 @@ export default function MAPManagement() {
   const [limit] = useState(100)
   const abortControllerRef = useRef<AbortController | null>(null)
 
+  /** UPCs queued for bulk delete (vendor from filter or queueVendorWhenAll) */
+  const [deleteQueue, setDeleteQueue] = useState<Array<{ upc: string; vendor_type: MapVendorType }>>([])
+  const [queueInput, setQueueInput] = useState('')
+  const [queueVendorWhenAll, setQueueVendorWhenAll] = useState<MapVendorType>('dnk')
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+
   const vendorForApi = vendorFilter || undefined
+  const effectiveQueueVendor: MapVendorType = vendorFilter || queueVendorWhenAll
 
   // Reload when page, search, or vendor filter changes
   useEffect(() => {
@@ -272,6 +301,63 @@ export default function MAPManagement() {
     }
   }
 
+  const addUpcToDeleteQueue = (rawUpc: string) => {
+    const upc = rawUpc.trim()
+    if (!upc) return
+    const v = effectiveQueueVendor
+    const key = mapQueueKey(upc, v)
+    setDeleteQueue((prev) => {
+      if (prev.some((p) => mapQueueKey(p.upc, p.vendor_type) === key)) return prev
+      return [...prev, { upc, vendor_type: v }]
+    })
+  }
+
+  const handleAddQueueFromInput = () => {
+    addUpcToDeleteQueue(queueInput)
+    setQueueInput('')
+  }
+
+  const handleAddSearchTextToQueue = () => {
+    addUpcToDeleteQueue(searchTerm)
+  }
+
+  const removeFromDeleteQueue = (upc: string, vendorType: MapVendorType) => {
+    setDeleteQueue((prev) => prev.filter((p) => !(p.upc === upc && p.vendor_type === vendorType)))
+  }
+
+  const clearDeleteQueue = () => setDeleteQueue([])
+
+  const handleDeleteQueuedMAPs = async () => {
+    if (deleteQueue.length === 0) return
+    if (
+      !confirm(
+        `Delete ${deleteQueue.length} MAP row(s) from the list? This cannot be undone.`
+      )
+    ) {
+      return
+    }
+    setBulkDeleting(true)
+    setError('')
+    try {
+      const { ok, failed } = await runChunked(
+        deleteQueue,
+        (item) => mapApi.deleteMAP(item.upc, item.vendor_type)
+      )
+      setDeleteQueue([])
+      setSuccess(
+        failed
+          ? `Deleted ${ok} MAP row(s). ${failed} could not be deleted (missing or error).`
+          : `Deleted ${ok} MAP row(s).`
+      )
+      await loadMAPCount()
+      await loadMAPs()
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Bulk delete failed')
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
   const handleDeleteAll = async () => {
     const scoped = vendorFilter
     const msg = scoped
@@ -417,6 +503,101 @@ export default function MAPManagement() {
             </div>
           </div>
 
+          {/* Delete queue: add UPCs, then bulk delete */}
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/80 p-4">
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">Delete list</h3>
+            <p className="text-xs text-gray-600 mb-3">
+              Type a UPC and add it to the list (duplicates ignored). Vendor for new items is the filter
+              above, or choose DNK/CLK when viewing all vendors. Then delete only the listed rows.
+            </p>
+            {!vendorFilter && (
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <span className="text-xs text-gray-600">Vendor for added UPCs:</span>
+                <select
+                  value={queueVendorWhenAll}
+                  onChange={(e) => setQueueVendorWhenAll(e.target.value as MapVendorType)}
+                  className="rounded-md border-gray-300 text-sm border px-2 py-1"
+                >
+                  <option value="dnk">DNK</option>
+                  <option value="clk">CLK</option>
+                </select>
+              </div>
+            )}
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+              <input
+                type="text"
+                value={queueInput}
+                onChange={(e) => setQueueInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleAddQueueFromInput()
+                  }
+                }}
+                placeholder="UPC to add to delete list"
+                className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleAddQueueFromInput}
+                  className="rounded-md bg-gray-800 px-3 py-2 text-sm font-medium text-white hover:bg-gray-900"
+                >
+                  Add to list
+                </button>
+                {searchTerm.trim() && (
+                  <button
+                    type="button"
+                    onClick={handleAddSearchTextToQueue}
+                    className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Add search text to list
+                  </button>
+                )}
+              </div>
+            </div>
+            {deleteQueue.length > 0 && (
+              <div className="mt-3">
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {deleteQueue.map((q) => (
+                    <span
+                      key={mapQueueKey(q.upc, q.vendor_type)}
+                      className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-xs font-mono border border-gray-200"
+                    >
+                      {q.upc}
+                      <span className="text-gray-500">({q.vendor_type.toUpperCase()})</span>
+                      <button
+                        type="button"
+                        onClick={() => removeFromDeleteQueue(q.upc, q.vendor_type)}
+                        className="ml-1 text-gray-500 hover:text-red-600"
+                        aria-label={`Remove ${q.upc}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={clearDeleteQueue}
+                    className="text-sm text-gray-600 underline hover:text-gray-900"
+                  >
+                    Clear list
+                  </button>
+                  <button
+                    type="button"
+                    disabled={bulkDeleting}
+                    onClick={handleDeleteQueuedMAPs}
+                    className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {bulkDeleting ? 'Deleting…' : `Delete listed MAPs (${deleteQueue.length})`}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Search Box */}
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -437,7 +618,7 @@ export default function MAPManagement() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by UPC..."
+              placeholder="Filter table by UPC (partial match)..."
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm font-mono"
             />
             {searchTerm && (
