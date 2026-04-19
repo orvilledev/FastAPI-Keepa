@@ -132,8 +132,8 @@ export default function Sidebar() {
   ]
 
   const manageUPCsMenuItems = [
-    { path: '/upcs', label: 'Manage DNK UPCs', icon: 'barcode' as const },
-    { path: '/clk-upcs', label: 'Manage CLK UPCs', icon: 'barcode' as const },
+    { path: '/upcs', label: 'DNK', icon: 'barcode' as const },
+    { path: '/clk-upcs', label: 'CLK', icon: 'barcode' as const },
   ]
 
   const keepaMenuItems = [
