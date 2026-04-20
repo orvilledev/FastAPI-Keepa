@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import { UserProvider, useUser } from './contexts/UserContext'
 import Layout from './components/layout/Layout'
@@ -14,7 +14,6 @@ const Dashboard = lazy(() => import('./components/dashboard/Dashboard'))
 const JobList = lazy(() => import('./components/jobs/JobList'))
 const JobDetail = lazy(() => import('./components/jobs/JobDetail'))
 const CreateJob = lazy(() => import('./components/jobs/CreateJob'))
-const DailyRun = lazy(() => import('./components/jobs/DailyRun'))
 const DNKDailyRun = lazy(() => import('./components/jobs/DNKDailyRun'))
 const CLKDailyRun = lazy(() => import('./components/jobs/CLKDailyRun'))
 const ReportView = lazy(() => import('./components/reports/ReportView'))
@@ -37,34 +36,72 @@ function LoadingSpinner() {
   )
 }
 
+/** Logged-in users hitting / are sent to the dashboard; guests see the landing page. */
+function PublicHome() {
+  const { authUser } = useUser()
+  if (authUser) {
+    return <Navigate to="/dashboard" replace />
+  }
+  return <Landing />
+}
+
+/** Logged-in users are redirected away from guest-only routes (login/signup). */
+function GuestRoute({ children }: { children: React.ReactNode }) {
+  const { authUser } = useUser()
+  if (authUser) {
+    return <Navigate to="/dashboard" replace />
+  }
+  return <>{children}</>
+}
+
+/** Wraps all authenticated app pages in the main layout; sends guests to the landing page. */
+function PrivateLayout() {
+  const { authUser } = useUser()
+  if (!authUser) {
+    return <Navigate to="/" replace />
+  }
+  return (
+    <Layout>
+      <Outlet />
+    </Layout>
+  )
+}
+
 // Inner app component that uses the user context
 function AppRoutes() {
-  const { authUser, authLoading } = useUser()
+  const { authLoading } = useUser()
 
   if (authLoading) {
     return <LoadingSpinner />
   }
 
-  const user = authUser // Alias for easier migration
-
   return (
     <Suspense fallback={<LoadingSpinner />}>
       <Routes>
-        {/* Public routes */}
-        <Route path="/" element={!user ? <Landing /> : <Navigate to="/dashboard" replace />} />
-        <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" replace />} />
-        <Route path="/signup" element={!user ? <Signup /> : <Navigate to="/dashboard" replace />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        
-        {/* Protected routes - wrapped in Layout */}
+
+        <Route path="/" element={<PublicHome />} />
         <Route
-          path="/"
-          element={user ? <Layout /> : <Navigate to="/" replace />}
-        >
+          path="/login"
+          element={
+            <GuestRoute>
+              <Login />
+            </GuestRoute>
+          }
+        />
+        <Route
+          path="/signup"
+          element={
+            <GuestRoute>
+              <Signup />
+            </GuestRoute>
+          }
+        />
+
+        <Route element={<PrivateLayout />}>
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="about" element={<About />} />
 
-          {/* Keepa-access required routes */}
           <Route path="jobs" element={<ProtectedRoute requireKeepaAccess={true}><JobList /></ProtectedRoute>} />
           <Route path="jobs/new" element={<ProtectedRoute requireKeepaAccess={true}><CreateJob /></ProtectedRoute>} />
           <Route path="jobs/:jobId" element={<ProtectedRoute requireKeepaAccess={true}><JobDetail /></ProtectedRoute>} />
@@ -76,7 +113,6 @@ function AppRoutes() {
           <Route path="daily-run/dnk" element={<ProtectedRoute requireKeepaAccess={true}><DNKDailyRun /></ProtectedRoute>} />
           <Route path="daily-run/clk" element={<ProtectedRoute requireKeepaAccess={true}><CLKDailyRun /></ProtectedRoute>} />
 
-          {/* General authenticated routes */}
           <Route path="my-space/notes" element={<Navigate to="/dashboard" replace />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="tools/public" element={<PublicTools />} />
@@ -101,4 +137,3 @@ function App() {
 }
 
 export default App
-
