@@ -3,10 +3,10 @@ import { lazy, Suspense } from 'react'
 import { UserProvider, useUser } from './contexts/UserContext'
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/common/ProtectedRoute'
+import About from './components/About'
 
-// Lazy load all page components for code splitting
+// Lazy load page components for code splitting (About is eager so its chunk cannot 404 behind stale CDN/cache)
 const Landing = lazy(() => import('./components/Landing'))
-const About = lazy(() => import('./components/About'))
 const Login = lazy(() => import('./components/auth/Login'))
 const Signup = lazy(() => import('./components/auth/Signup'))
 const ResetPassword = lazy(() => import('./components/auth/ResetPassword'))
