@@ -10,8 +10,9 @@ from app.repositories.supabase_read_all import read_all_paginated
 
 logger = logging.getLogger(__name__)
 
-# Large JSONB rows (keepa_data) can exceed Postgres statement_timeout if deleted in one CASCADE.
-_DELETE_CHUNK_SIZE = 150
+# Fallback path: chunked deletes via PostgREST when RPC is missing or fails.
+# Larger chunks = fewer round trips (RPC path avoids this entirely).
+_DELETE_CHUNK_SIZE = 500
 
 
 class JobRepository:
@@ -263,11 +264,22 @@ class JobRepository:
         """
         Delete a job and all related data.
 
-        Uses chunked deletes so Postgres does not hit statement_timeout on
-        huge CASCADE (JSONB on price_alerts / upc_batch_items).
+        Prefer the Postgres function ``delete_batch_job_cascade`` (one round trip,
+        higher local statement_timeout). If it is not deployed or errors, fall
+        back to chunked deletes via PostgREST.
         """
         self.get_job(job_id)
         jid = str(job_id)
+
+        try:
+            self.db.rpc("delete_batch_job_cascade", {"p_job_id": jid}).execute()
+            logger.info("Deleted job %s via delete_batch_job_cascade RPC", jid)
+            return
+        except Exception as e:
+            logger.warning(
+                "delete_batch_job_cascade RPC unavailable or failed (%s); using chunked delete",
+                e,
+            )
 
         n_alerts = self._delete_in_chunks_by_eq("price_alerts", "batch_job_id", jid)
         if n_alerts:
