@@ -85,7 +85,7 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         <strong>Trainings</strong> (
-        <Link to="/tools/public" className="text-[#0B1020] font-medium underline">
+        <Link to="/trainings" className="text-[#0B1020] font-medium underline">
           Documentations → Trainings
         </Link>
         ) lists curated links and resources for the team. This <strong>FAQ</strong> focuses on the Keepa Alert Services

@@ -118,9 +118,11 @@ function AppRoutes() {
 
           <Route path="my-space/notes" element={<Navigate to="/dashboard" replace />} />
           <Route path="notifications" element={<Notifications />} />
-          <Route path="tools/public" element={<PublicTools />} />
+          <Route path="trainings" element={<PublicTools />} />
+          <Route path="faq" element={<JobAids />} />
+          <Route path="tools/public" element={<Navigate to="/trainings" replace />} />
+          <Route path="tools/job-aids" element={<Navigate to="/faq" replace />} />
           <Route path="tools/my-toolbox" element={<Navigate to="/dashboard" replace />} />
-          <Route path="tools/job-aids" element={<JobAids />} />
           <Route path="admin/users" element={<UserManagement />} />
         </Route>
       </Routes>

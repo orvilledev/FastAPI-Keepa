@@ -153,8 +153,8 @@ export default function Sidebar() {
   ]
 
   const toolsMenuItems = [
-    { path: '/tools/public', label: 'Trainings', icon: 'globe' as const },
-    { path: '/tools/job-aids', label: 'FAQ', icon: 'wrench' as const },
+    { path: '/trainings', label: 'Trainings', icon: 'globe' as const },
+    { path: '/faq', label: 'FAQ', icon: 'wrench' as const },
   ]
 
   const hasActiveDailyRunsSubItem = dailyRunsMenuItems.some(item => isActive(item.path))
