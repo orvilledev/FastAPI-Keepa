@@ -11,6 +11,36 @@ from typing import List, Optional
 router = APIRouter()
 
 
+def _ensure_profile_row(db: Client, current_user: dict) -> dict:
+    """Return the profiles row for this user; insert a default row if missing (e.g. new signup)."""
+    from datetime import datetime
+
+    response = db.table("profiles").select("*").eq("id", current_user["id"]).execute()
+    if response.data:
+        return response.data[0]
+
+    profile_data = {
+        "id": current_user["id"],
+        "email": current_user.get("email"),
+        "role": "user",
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+    create_response = db.table("profiles").insert(profile_data).execute()
+    if create_response.data:
+        return create_response.data[0]
+
+    # Concurrent signup: another request may have inserted first.
+    retry = db.table("profiles").select("*").eq("id", current_user["id"]).execute()
+    if retry.data:
+        return retry.data[0]
+
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Failed to create profile",
+    )
+
+
 class DisplayNameUpdate(BaseModel):
     display_name: str
 
@@ -21,21 +51,15 @@ async def get_current_user_info(
     db: Client = Depends(get_supabase)
 ):
     """Get current authenticated user information including role and Keepa access."""
-    # Get user role, display_name, has_keepa_access, can_manage_tools, and can_assign_tasks from profiles table
-    profile_response = db.table("profiles").select("role, display_name, has_keepa_access, can_manage_tools, can_assign_tasks").eq("id", current_user["id"]).execute()
-    role = profile_response.data[0].get("role", "user") if profile_response.data else "user"
-    display_name = None
-    has_keepa_access = False
-    can_manage_tools = False
-    can_assign_tasks = False
-    if profile_response.data and len(profile_response.data) > 0:
-        display_name = profile_response.data[0].get("display_name")
-        # If display_name is empty string, treat as None
-        if display_name == "":
-            display_name = None
-        has_keepa_access = profile_response.data[0].get("has_keepa_access", False) or False
-        can_manage_tools = profile_response.data[0].get("can_manage_tools", False) or False
-        can_assign_tasks = profile_response.data[0].get("can_assign_tasks", False) or False
+    # Ensure a profiles row exists so User Management and other profile-backed features see new signups.
+    row = _ensure_profile_row(db, current_user)
+    role = row.get("role", "user")
+    display_name = row.get("display_name")
+    if display_name == "":
+        display_name = None
+    has_keepa_access = row.get("has_keepa_access", False) or False
+    can_manage_tools = row.get("can_manage_tools", False) or False
+    can_assign_tasks = row.get("can_assign_tasks", False) or False
 
     is_superadmin = is_superadmin_user(current_user, db)
 
@@ -59,28 +83,7 @@ async def get_profile(
     db: Client = Depends(get_supabase)
 ):
     """Get current user's profile information. Creates profile if it doesn't exist."""
-    response = db.table("profiles").select("*").eq("id", current_user["id"]).execute()
-    
-    if not response.data:
-        # Profile doesn't exist, create a default one
-        from datetime import datetime
-        profile_data = {
-            "id": current_user["id"],
-            "email": current_user.get("email"),
-            "role": "user",
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
-        }
-        create_response = db.table("profiles").insert(profile_data).execute()
-        if not create_response.data:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create profile"
-            )
-        profile = create_response.data[0]
-    else:
-        profile = response.data[0]
-    
+    profile = _ensure_profile_row(db, current_user)
     return ProfileResponse(**profile)
 
 
