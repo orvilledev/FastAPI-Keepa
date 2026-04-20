@@ -1,6 +1,6 @@
 """Authentication API endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, status, Body
-from app.dependencies import get_current_user, get_superadmin_user
+from app.dependencies import get_current_user, get_superadmin_user, is_superadmin_user
 from app.database import get_supabase
 from app.models.user import ProfileUpdate, ProfileResponse
 from app.utils.error_handler import handle_api_errors
@@ -36,7 +36,9 @@ async def get_current_user_info(
         has_keepa_access = profile_response.data[0].get("has_keepa_access", False) or False
         can_manage_tools = profile_response.data[0].get("can_manage_tools", False) or False
         can_assign_tasks = profile_response.data[0].get("can_assign_tasks", False) or False
-    
+
+    is_superadmin = is_superadmin_user(current_user, db)
+
     return {
         "id": current_user.get("id"),
         "email": current_user.get("email"),
@@ -45,6 +47,7 @@ async def get_current_user_info(
         "has_keepa_access": has_keepa_access,
         "can_manage_tools": can_manage_tools,
         "can_assign_tasks": can_assign_tasks,
+        "is_superadmin": is_superadmin,
         "user_metadata": current_user.get("user_metadata", {}),
     }
 
@@ -199,7 +202,13 @@ async def get_all_users(
 ):
     """Get all users (any authenticated user can view users for task assignment)."""
     try:
-        response = db.table("profiles").select("id, email, role, display_name, has_keepa_access, can_manage_tools, can_assign_tasks, created_at").order("created_at", desc=True).execute()
+        response = (
+            db.table("profiles")
+            .select("id, email, role, display_name, has_keepa_access, can_manage_tools, can_assign_tasks, created_at, is_active")
+            .eq("is_active", True)
+            .order("created_at", desc=True)
+            .execute()
+        )
         return {
             "users": response.data or []
         }
@@ -284,6 +293,67 @@ async def update_user_tools_access(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update user access: {str(e)}"
         )
+
+
+@router.post("/users/{user_id}/deactivate")
+@handle_api_errors("deactivate user")
+async def deactivate_user(
+    user_id: str,
+    current_user: dict = Depends(get_superadmin_user),
+    db: Client = Depends(get_supabase),
+):
+    """Ban the user in Supabase Auth and mark their profile inactive (superadmin only)."""
+    from datetime import datetime
+
+    from gotrue.errors import AuthApiError
+
+    if user_id == current_user.get("id"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot deactivate your own account",
+        )
+
+    target = db.table("profiles").select("id, email").eq("id", user_id).execute()
+    if not target.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    target_email = (target.data[0].get("email") or "").lower()
+    if target_email == "orvillebarba@gmail.com":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account cannot be deactivated",
+        )
+
+    try:
+        db.auth.admin.update_user_by_id(user_id, {"ban_duration": "876000h"})
+    except AuthApiError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Could not deactivate login for this user: {getattr(e, 'message', str(e))}",
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Could not deactivate login for this user: {str(e)}",
+        ) from e
+
+    upd = db.table("profiles").update(
+        {
+            "is_active": False,
+            "has_keepa_access": False,
+            "can_manage_tools": False,
+            "can_assign_tasks": False,
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+    ).eq("id", user_id).execute()
+
+    if not upd.data:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Login was disabled but profile could not be updated",
+        )
+
+    return {"user_id": user_id, "message": "User account has been deactivated"}
 
 
 @router.put("/users/{user_id}/tasks-access")

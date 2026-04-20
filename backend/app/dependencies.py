@@ -81,19 +81,28 @@ async def get_admin_user(
     return current_user
 
 
+def is_superadmin_user(current_user: dict, db: Client) -> bool:
+    """True if this user may perform superadmin-only actions (legacy email or profiles.role)."""
+    user_email = (current_user.get("email") or "").lower()
+    if user_email == "orvillebarba@gmail.com":
+        return True
+    profile_response = db.table("profiles").select("role").eq("id", current_user["id"]).execute()
+    if profile_response.data and profile_response.data[0].get("role") == "superadmin":
+        return True
+    return False
+
+
 async def get_superadmin_user(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ) -> dict:
-    """Verify user is superadmin (orvillebarba@gmail.com)."""
-    # Check if user email is the superadmin email
-    user_email = current_user.get("email", "").lower()
-    if user_email != "orvillebarba@gmail.com":
+    """Verify user is superadmin (legacy email or profiles.role = superadmin)."""
+    if not is_superadmin_user(current_user, db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only superadmin can perform this action"
         )
-    
+
     return current_user
 
 

@@ -62,7 +62,7 @@ async def list_registered_emails(
     """Distinct emails for recipient pickers: profiles, default CSV recipients (EMAIL_TO), and daily-run job overrides."""
     seen: set[str] = set()
 
-    response = db.table("profiles").select("email").execute()
+    response = db.table("profiles").select("email").eq("is_active", True).execute()
     if response.data:
         for row in response.data:
             e = row.get("email")

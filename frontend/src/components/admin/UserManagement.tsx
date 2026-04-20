@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { authApi } from '../../services/api'
+import { useUser } from '../../contexts/UserContext'
 
 interface User {
   id: string
@@ -12,28 +13,12 @@ interface User {
 }
 
 export default function UserManagement() {
+  const { isSuperadmin, userInfoLoading, userInfo } = useUser()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [updating, setUpdating] = useState<string | null>(null)
-  const [currentUser, setCurrentUser] = useState<any>(null)
-  const [isSuperadmin, setIsSuperadmin] = useState(false)
-
-  useEffect(() => {
-    checkSuperadmin()
-    loadUsers()
-  }, [])
-
-  const checkSuperadmin = async () => {
-    try {
-      const userInfo = await authApi.getCurrentUser()
-      setCurrentUser(userInfo)
-      setIsSuperadmin(userInfo.email?.toLowerCase() === 'orvillebarba@gmail.com')
-    } catch (err) {
-      console.error('Failed to check superadmin status:', err)
-      setIsSuperadmin(false)
-    }
-  }
+  const [removing, setRemoving] = useState<string | null>(null)
 
   const loadUsers = async () => {
     try {
@@ -41,27 +26,43 @@ export default function UserManagement() {
       setLoading(true)
       const data = await authApi.getAllUsers()
       setUsers(data.users || [])
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Failed to load users')
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined
+      setError(typeof msg === 'string' ? msg : 'Failed to load users')
       console.error('Failed to load users:', err)
     } finally {
       setLoading(false)
     }
   }
 
+  useEffect(() => {
+    if (userInfoLoading) return
+    if (!isSuperadmin) return
+    void loadUsers()
+  }, [userInfoLoading, isSuperadmin])
+
   const handleToggleKeepaAccess = async (userId: string, currentAccess: boolean) => {
-    if (!window.confirm(`Are you sure you want to ${currentAccess ? 'revoke' : 'grant'} MSW Overwatch access for this user?`)) {
+    if (
+      !window.confirm(
+        `Are you sure you want to ${currentAccess ? 'revoke' : 'grant'} MSW Overwatch access for this user?`
+      )
+    ) {
       return
     }
 
     try {
       setUpdating(userId)
       await authApi.updateUserKeepaAccess(userId, !currentAccess)
-      // Reload users to get updated data
       await loadUsers()
-    } catch (err: any) {
-      const errorMessage = err?.response?.data?.detail || err?.message || 'Failed to update user access'
-      alert(`Error: ${errorMessage}`)
+    } catch (err: unknown) {
+      const errorMessage =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined
+      alert(`Error: ${typeof errorMessage === 'string' ? errorMessage : 'Failed to update user access'}`)
       console.error('Failed to update user access:', err)
     } finally {
       setUpdating(null)
@@ -69,22 +70,61 @@ export default function UserManagement() {
   }
 
   const handleToggleToolsAccess = async (userId: string, currentAccess: boolean) => {
-    if (!window.confirm(`Are you sure you want to ${currentAccess ? 'revoke' : 'grant'} Tools Management access for this user?`)) {
+    if (
+      !window.confirm(
+        `Are you sure you want to ${currentAccess ? 'revoke' : 'grant'} Tools Management access for this user?`
+      )
+    ) {
       return
     }
 
     try {
       setUpdating(userId)
       await authApi.updateUserToolsAccess(userId, !currentAccess)
-      // Reload users to get updated data
       await loadUsers()
-    } catch (err: any) {
-      const errorMessage = err?.response?.data?.detail || err?.message || 'Failed to update user access'
-      alert(`Error: ${errorMessage}`)
+    } catch (err: unknown) {
+      const errorMessage =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined
+      alert(`Error: ${typeof errorMessage === 'string' ? errorMessage : 'Failed to update user access'}`)
       console.error('Failed to update user access:', err)
     } finally {
       setUpdating(null)
     }
+  }
+
+  const handleDeactivateUser = async (userId: string, email: string) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to remove ${email}? Their account will be deactivated and they will no longer be able to sign in.`
+      )
+    ) {
+      return
+    }
+
+    try {
+      setRemoving(userId)
+      await authApi.deactivateUser(userId)
+      await loadUsers()
+    } catch (err: unknown) {
+      const errorMessage =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined
+      alert(`Error: ${typeof errorMessage === 'string' ? errorMessage : 'Failed to deactivate user'}`)
+      console.error('Failed to deactivate user:', err)
+    } finally {
+      setRemoving(null)
+    }
+  }
+
+  if (userInfoLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    )
   }
 
   if (!isSuperadmin) {
@@ -168,35 +208,44 @@ export default function UserManagement() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded ${
-                        user.role === 'admin' 
-                          ? 'bg-[#0B1020]/10 text-[#0B1020]' 
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {user.role === 'admin' ? 'Admin' : 'User'}
+                      <span
+                        className={`px-2 py-1 text-xs font-medium rounded ${
+                          user.role === 'admin'
+                            ? 'bg-[#0B1020]/10 text-[#0B1020]'
+                            : user.role === 'superadmin'
+                              ? 'bg-purple-100 text-purple-900'
+                              : 'bg-gray-100 text-gray-800'
+                        }`}
+                      >
+                        {user.role === 'admin'
+                          ? 'Admin'
+                          : user.role === 'superadmin'
+                            ? 'Superadmin'
+                            : 'User'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded ${
-                        user.has_keepa_access 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
+                      <span
+                        className={`px-2 py-1 text-xs font-medium rounded ${
+                          user.has_keepa_access ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}
+                      >
                         {user.has_keepa_access ? '✓ Granted' : '✗ Not Granted'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded ${
-                        user.can_manage_tools 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
+                      <span
+                        className={`px-2 py-1 text-xs font-medium rounded ${
+                          user.can_manage_tools ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}
+                      >
                         {user.can_manage_tools ? '✓ Granted' : '✗ Not Granted'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex flex-col gap-2">
                         <button
+                          type="button"
                           onClick={() => handleToggleKeepaAccess(user.id, user.has_keepa_access)}
                           disabled={updating === user.id}
                           className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
@@ -205,14 +254,14 @@ export default function UserManagement() {
                               : 'bg-green-600 hover:bg-green-700 text-white'
                           } disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
-                          {updating === user.id 
-                            ? 'Updating...' 
-                            : user.has_keepa_access 
+                          {updating === user.id
+                            ? 'Updating...'
+                            : user.has_keepa_access
                               ? 'Revoke access'
-                              : 'Grant access'
-                          }
+                              : 'Grant access'}
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleToggleToolsAccess(user.id, user.can_manage_tools)}
                           disabled={updating === user.id}
                           className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
@@ -221,12 +270,28 @@ export default function UserManagement() {
                               : 'bg-green-600 hover:bg-green-700 text-white'
                           } disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
-                          {updating === user.id 
-                            ? 'Updating...' 
-                            : user.can_manage_tools 
-                              ? 'Revoke Tools' 
-                              : 'Grant Tools'
+                          {updating === user.id
+                            ? 'Updating...'
+                            : user.can_manage_tools
+                              ? 'Revoke Tools'
+                              : 'Grant Tools'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeactivateUser(user.id, user.email)}
+                          disabled={
+                            removing === user.id ||
+                            updating === user.id ||
+                            user.id === userInfo?.id
                           }
+                          title={
+                            user.id === userInfo?.id
+                              ? 'You cannot remove your own account'
+                              : 'Deactivate account — user cannot sign in'
+                          }
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-700 hover:bg-red-800 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {removing === user.id ? 'Removing…' : 'Remove user'}
                         </button>
                       </div>
                     </td>
@@ -240,4 +305,3 @@ export default function UserManagement() {
     </div>
   )
 }
-

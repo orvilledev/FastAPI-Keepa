@@ -10,6 +10,7 @@ export interface UserInfo {
   display_name?: string
   has_keepa_access: boolean
   can_manage_tools: boolean
+  is_superadmin?: boolean
   created_at?: string
 }
 
@@ -54,6 +55,7 @@ export function UserProvider({ children }: UserProviderProps) {
     setUserInfoLoading(true)
     try {
       const data = await authApi.getCurrentUser()
+      const emailLower = (data.email || authUser.email || '').toLowerCase()
       setUserInfo({
         id: data.id || authUser.id,
         email: data.email || authUser.email,
@@ -61,6 +63,7 @@ export function UserProvider({ children }: UserProviderProps) {
         display_name: data.display_name,
         has_keepa_access: data.has_keepa_access || false,
         can_manage_tools: data.can_manage_tools || false,
+        is_superadmin: Boolean(data.is_superadmin) || emailLower === 'orvillebarba@gmail.com',
         created_at: data.created_at,
       })
     } catch (error) {
@@ -71,6 +74,7 @@ export function UserProvider({ children }: UserProviderProps) {
         email: authUser.email,
         has_keepa_access: false,
         can_manage_tools: false,
+        is_superadmin: false,
       })
     } finally {
       setUserInfoLoading(false)
@@ -132,7 +136,8 @@ export function UserProvider({ children }: UserProviderProps) {
   const isAuthenticated = !!authUser
   const hasKeepaAccess = userInfo?.has_keepa_access || false
   const canManageTools = userInfo?.can_manage_tools || false
-  const isSuperadmin = userInfo?.email?.toLowerCase() === 'orvillebarba@gmail.com'
+  const isSuperadmin =
+    Boolean(userInfo?.is_superadmin) || userInfo?.email?.toLowerCase() === 'orvillebarba@gmail.com'
   const displayName = userInfo?.display_name || userInfo?.email?.split('@')[0] || 'User'
 
   const value: UserContextType = {

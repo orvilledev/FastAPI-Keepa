@@ -119,6 +119,10 @@ export const authApi = {
     const response = await api.get<{ users: Array<{ id: string; email: string; role: string; display_name?: string; has_keepa_access: boolean; can_manage_tools: boolean; created_at: string }> }>('/api/v1/auth/users')
     return response.data
   },
+  deactivateUser: async (userId: string) => {
+    const response = await api.post<{ user_id: string; message: string }>(`/api/v1/auth/users/${userId}/deactivate`)
+    return response.data
+  },
   updateUserKeepaAccess: async (userId: string, hasKeepaAccess: boolean) => {
     const response = await api.put<{ user_id: string; has_keepa_access: boolean; message: string }>(`/api/v1/auth/users/${userId}/keepa-access`, { has_keepa_access: hasKeepaAccess })
     return response.data
