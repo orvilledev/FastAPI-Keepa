@@ -35,6 +35,11 @@ export default function MAPManagement() {
   const [deleteQueue, setDeleteQueue] = useState<string[]>([])
   const [queueBulkText, setQueueBulkText] = useState('')
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  /** Result of “Delete listed MAPs” — shown in the Delete list card only */
+  const [deleteListFeedback, setDeleteListFeedback] = useState<{
+    message: string
+    variant: 'success' | 'error'
+  } | null>(null)
 
   const vendorForApi = vendorFilter || undefined
 
@@ -288,6 +293,7 @@ export default function MAPManagement() {
   const addUpcToDeleteQueue = (rawUpc: string) => {
     const upc = rawUpc.trim()
     if (!upc) return
+    setDeleteListFeedback(null)
     setDeleteQueue((prev) => (prev.includes(upc) ? prev : [...prev, upc]))
   }
 
@@ -299,6 +305,7 @@ export default function MAPManagement() {
       if (u) nextUpcs.push(u)
     }
     if (nextUpcs.length === 0) return
+    setDeleteListFeedback(null)
     setDeleteQueue((prev) => {
       const seen = new Set(prev)
       const merged = [...prev]
@@ -318,10 +325,14 @@ export default function MAPManagement() {
   }
 
   const removeFromDeleteQueue = (upc: string) => {
+    setDeleteListFeedback(null)
     setDeleteQueue((prev) => prev.filter((p) => p !== upc))
   }
 
-  const clearDeleteQueue = () => setDeleteQueue([])
+  const clearDeleteQueue = () => {
+    setDeleteListFeedback(null)
+    setDeleteQueue([])
+  }
 
   const handleDeleteQueuedMAPs = async () => {
     if (deleteQueue.length === 0) return
@@ -334,6 +345,8 @@ export default function MAPManagement() {
     }
     setBulkDeleting(true)
     setError('')
+    setSuccess('')
+    setDeleteListFeedback(null)
     try {
       const r = await mapApi.deleteMAPsByUpcs(deleteQueue)
       setDeleteQueue([])
@@ -341,11 +354,18 @@ export default function MAPManagement() {
       if (r.upcs_not_found?.length) {
         msg += ` No MAP row for ${r.upcs_not_found.length} listed UPC(s).`
       }
-      setSuccess(msg)
+      if (r.deleted_rows === 0) {
+        setDeleteListFeedback({ message: msg, variant: 'error' })
+      } else {
+        setDeleteListFeedback({ message: msg, variant: 'success' })
+      }
       await loadMAPCount()
       await loadMAPs()
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || 'Bulk delete failed')
+      setDeleteListFeedback({
+        message: err.response?.data?.detail || err.message || 'Bulk delete failed',
+        variant: 'error',
+      })
     } finally {
       setBulkDeleting(false)
     }
@@ -499,6 +519,17 @@ export default function MAPManagement() {
           {/* Delete queue: add UPCs, then bulk delete */}
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/80 p-4">
             <h3 className="text-sm font-semibold text-gray-900 mb-2">Delete list</h3>
+            {deleteListFeedback && (
+              <div
+                className={`mb-3 rounded-md border p-3 text-sm ${
+                  deleteListFeedback.variant === 'success'
+                    ? 'border-green-200 bg-green-50 text-green-900'
+                    : 'border-red-200 bg-red-50 text-red-800'
+                }`}
+              >
+                {deleteListFeedback.message}
+              </div>
+            )}
             <p className="text-xs text-gray-600 mb-3">
               Paste UPCs below (one per line), or use the table filter + “Add search text to list.” Vendor is
               resolved from existing rows. Duplicates ignored. Deletes every MAP row for each UPC (DNK and CLK
