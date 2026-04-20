@@ -2,10 +2,17 @@ import { useState, useEffect, useRef } from 'react'
 import { mapApi } from '../../services/api'
 import type { MAP, MapVendorType } from '../../types'
 
+/** Matches backend app.utils.vendor_code (1–32 chars, lowercase alnum + _ -, starts with alnum). */
+const VENDOR_CODE_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/
+
 function normalizeVendorToken(raw: string): MapVendorType | null {
   const v = raw.trim().toLowerCase()
-  if (v === 'dnk' || v === 'clk') return v
-  return null
+  if (!v || !VENDOR_CODE_RE.test(v)) return null
+  return v
+}
+
+function sortedUniqueVendors(arr: string[]): string[] {
+  return [...new Set(arr)].sort()
 }
 
 /** One UPC per line; if the line looks like CSV, use the first column as UPC. */
@@ -24,7 +31,8 @@ export default function MAPManagement() {
   const [adding, setAdding] = useState(false)
   const [mapInput, setMapInput] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
-  const [vendorFilter, setVendorFilter] = useState<'' | MapVendorType>('')
+  const [vendorFilter, setVendorFilter] = useState<string>('')
+  const [vendorOptions, setVendorOptions] = useState<string[]>(['dnk', 'clk'])
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [currentPage, setCurrentPage] = useState(0)
@@ -42,6 +50,21 @@ export default function MAPManagement() {
   } | null>(null)
 
   const vendorForApi = vendorFilter || undefined
+
+  const loadVendorOptions = async () => {
+    try {
+      const { vendors } = await mapApi.listVendors()
+      if (vendors?.length) {
+        setVendorOptions(sortedUniqueVendors(vendors))
+      }
+    } catch (e) {
+      console.warn('Failed to load MAP vendor list', e)
+    }
+  }
+
+  useEffect(() => {
+    void loadVendorOptions()
+  }, [])
 
   // Reload when page, search, or vendor filter changes
   useEffect(() => {
@@ -89,10 +112,14 @@ export default function MAPManagement() {
         const normalizedData = data.map((map) => ({
           ...map,
           map_price: typeof map.map_price === 'string' ? parseFloat(map.map_price) : map.map_price,
-          vendor_type: (map.vendor_type === 'clk' ? 'clk' : 'dnk') as MapVendorType,
+          vendor_type: String(map.vendor_type ?? 'dnk').toLowerCase() as MapVendorType,
         }))
         setAllMaps(normalizedData)
         setMaps(normalizedData)
+        const fromRows = normalizedData.map((m) => m.vendor_type).filter(Boolean)
+        if (fromRows.length) {
+          setVendorOptions((prev) => sortedUniqueVendors([...prev, ...fromRows]))
+        }
       } else {
         setAllMaps([])
         setMaps([])
@@ -176,7 +203,7 @@ export default function MAPManagement() {
 
       if (mapEntries.length === 0) {
         setError(
-          'No valid MAP entries found. Each line must have three fields: UPC, price, and vendor (dnk or clk).'
+          'No valid MAP entries found. Each line must have three fields: UPC, price, and vendor code (lowercase letters, digits, hyphens, or underscores; 1–32 chars).'
         )
         setAdding(false)
         return
@@ -255,6 +282,7 @@ export default function MAPManagement() {
       
       // Reload data
       try {
+        await loadVendorOptions()
         await loadMAPCount()
         await loadMAPs()
       } catch (reloadError: any) {
@@ -338,7 +366,7 @@ export default function MAPManagement() {
     if (deleteQueue.length === 0) return
     if (
       !confirm(
-        `Delete all MAP entries for ${deleteQueue.length} UPC(s)? Any DNK and CLK rows for those UPCs will be removed. This cannot be undone.`
+        `Delete all MAP entries for ${deleteQueue.length} UPC(s)? All vendor rows for those UPCs will be removed. This cannot be undone.`
       )
     ) {
       return
@@ -427,7 +455,7 @@ export default function MAPManagement() {
             <label htmlFor="maps" className="block text-sm font-medium text-gray-700">
               MAP Entries{' '}
               <span className="text-gray-500">
-                (one per line: UPC,PRICE,VENDOR or UPC PRICE VENDOR — vendor is dnk or clk)
+                (one per line: UPC,PRICE,VENDOR or UPC PRICE VENDOR — vendor code, e.g. dnk, clk, or custom)
               </span>
             </label>
             <textarea
@@ -443,7 +471,7 @@ export default function MAPManagement() {
               {mapInput.split('\n').filter((line) => line.trim().length > 0).length} lines entered
             </p>
             <p className="mt-1 text-xs text-gray-400">
-              Vendor must be the third field on every line (dnk or clk; case-insensitive).
+              Vendor must be the third field on every line (1–32 lowercase letters, digits, hyphens, or underscores).
             </p>
           </div>
 
@@ -486,12 +514,15 @@ export default function MAPManagement() {
               <select
                 id="vendor-filter"
                 value={vendorFilter}
-                onChange={(e) => setVendorFilter(e.target.value as '' | MapVendorType)}
+                onChange={(e) => setVendorFilter(e.target.value)}
                 className="rounded-md border-gray-300 shadow-sm text-sm border px-2 py-1.5 min-w-[140px]"
               >
                 <option value="">All vendors</option>
-                <option value="dnk">DNK</option>
-                <option value="clk">CLK</option>
+                {sortedUniqueVendors(vendorOptions).map((v) => (
+                  <option key={v} value={v}>
+                    {v.toUpperCase()}
+                  </option>
+                ))}
               </select>
               {vendorFilter && totalCount > 0 && (
                 <button
@@ -521,8 +552,8 @@ export default function MAPManagement() {
             )}
             <p className="text-xs text-gray-600 mb-3">
               Paste UPCs below (one per line), or use the table filter + “Add search text to list.” Vendor is
-              resolved from existing rows. Duplicates ignored. Deletes every MAP row for each UPC (DNK and CLK
-              if both exist).
+              resolved from existing rows. Duplicates ignored. Deletes every MAP row for each UPC (all vendors
+              if multiple exist).
             </p>
             {searchTerm.trim() && (
               <div className="mb-3">

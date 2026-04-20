@@ -6,12 +6,20 @@ from app.models.upc import UPCResponse, UPCsCreateRequest
 from app.database import get_supabase
 from app.repositories.upc_repository import UPCRepository
 from app.utils.error_handler import handle_api_errors
+from app.utils.vendor_code import validate_vendor_code
 from supabase import Client
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _parse_optional_category(category: Optional[str]) -> Optional[str]:
+    """Validate category query param when provided."""
+    if category is None or not str(category).strip():
+        return None
+    return validate_vendor_code(category, default=None)
 
 
 @router.post("/upcs", response_model=dict, status_code=201)
@@ -24,7 +32,7 @@ async def add_upcs(
     """
     Add UPCs to the database for daily scheduler processing (MSW Overwatch access or admin).
 
-    Accepts a list of UPC strings and a category ('dnk' or 'clk').
+    Accepts a list of UPC strings and a category (vendor code, e.g. dnk, clk, or custom).
     Duplicate UPCs (both within the request and in the database) are rejected with error messages.
     Uses bulk operations for fast processing of large UPC lists.
     """
@@ -113,6 +121,19 @@ async def add_upcs(
     return response
 
 
+@router.get("/upcs/categories", response_model=dict)
+@handle_api_errors("list UPC categories")
+async def list_upc_categories(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Distinct category codes currently present in the UPC catalog (plus defaults for UI)."""
+    upc_repo = UPCRepository(db)
+    found = upc_repo.list_distinct_categories()
+    merged = sorted(set(found) | {"dnk", "clk"})
+    return {"categories": merged}
+
+
 @router.get("/upcs", response_model=List[UPCResponse])
 @handle_api_errors("list UPCs")
 async def list_upcs(
@@ -120,11 +141,10 @@ async def list_upcs(
     db: Client = Depends(get_supabase),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    category: Optional[str] = Query(None, description="Filter by category: 'dnk' or 'clk'")
+    category: Optional[str] = Query(None, description="Filter by vendor category code"),
 ):
     """List UPCs in the database, optionally filtered by category (authenticated users)."""
-    if category and category not in ["dnk", "clk"]:
-        raise HTTPException(status_code=400, detail="Category must be 'dnk' or 'clk'")
+    category = _parse_optional_category(category)
     
     try:
         upc_repo = UPCRepository(db)
@@ -160,11 +180,10 @@ async def list_upcs(
 async def get_upc_count(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
-    category: Optional[str] = Query(None, description="Filter by category: 'dnk' or 'clk'")
+    category: Optional[str] = Query(None, description="Filter by vendor category code"),
 ):
     """Get total count of UPCs in the database, optionally filtered by category."""
-    if category and category not in ["dnk", "clk"]:
-        raise HTTPException(status_code=400, detail="Category must be 'dnk' or 'clk'")
+    category = _parse_optional_category(category)
     
     upc_repo = UPCRepository(db)
     count = upc_repo.get_upc_count(category=category)
@@ -180,8 +199,7 @@ async def delete_upc(
     db: Client = Depends(get_supabase)
 ):
     """Delete a UPC, optionally filtered by category (MSW Overwatch access or admin)."""
-    if category and category not in ["dnk", "clk"]:
-        raise HTTPException(status_code=400, detail="Category must be 'dnk' or 'clk'")
+    category = _parse_optional_category(category)
     
     upc_repo = UPCRepository(db)
     upc_repo.delete_upc(upc, category=category)
@@ -196,8 +214,7 @@ async def delete_all_upcs(
     db: Client = Depends(get_supabase)
 ):
     """Delete all UPCs, optionally filtered by category (MSW Overwatch access or admin)."""
-    if category and category not in ["dnk", "clk"]:
-        raise HTTPException(status_code=400, detail="Category must be 'dnk' or 'clk'")
+    category = _parse_optional_category(category)
     
     upc_repo = UPCRepository(db)
     upc_repo.delete_all_upcs(category=category)

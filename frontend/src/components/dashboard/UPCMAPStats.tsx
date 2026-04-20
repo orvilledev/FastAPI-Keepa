@@ -72,7 +72,7 @@ export default function UPCMAPStats() {
       <div className="grid grid-cols-3 gap-3">
         {/* DNK UPC Count */}
         <Link
-          to="/upcs"
+          to="/upcs?category=dnk"
           className="group hover:bg-indigo-50 rounded-lg p-3 transition-colors border border-transparent hover:border-indigo-200"
         >
           <div>
@@ -85,7 +85,7 @@ export default function UPCMAPStats() {
 
         {/* CLK UPC Count */}
         <Link
-          to="/clk-upcs"
+          to="/upcs?category=clk"
           className="group hover:bg-blue-50 rounded-lg p-3 transition-colors border border-transparent hover:border-blue-200"
         >
           <div>

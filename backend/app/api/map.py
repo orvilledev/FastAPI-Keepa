@@ -53,7 +53,7 @@ async def check_map_duplicates(
     """
     Check which MAP entries already exist (same UPC + vendor_type).
 
-    Each item must include upc, map_price, and vendor_type (dnk or clk).
+    Each item must include upc, map_price, and vendor_type (vendor code).
     """
     if not maps:
         raise HTTPException(status_code=400, detail="No MAP entries provided")
@@ -71,7 +71,7 @@ async def check_map_duplicates(
     if not valid_maps:
         raise HTTPException(
             status_code=400,
-            detail="No valid MAP entries provided. Each entry needs upc, map_price, and vendor_type (dnk or clk).",
+            detail="No valid MAP entries provided. Each entry needs upc, map_price, and vendor_type (vendor code).",
         )
 
     map_repo = MAPRepository(db)
@@ -94,7 +94,7 @@ async def add_maps(
     db: Client = Depends(get_supabase),
 ):
     """
-    Add MAP entries. Each dict must have upc, map_price, and vendor_type (dnk or clk).
+    Add MAP entries. Each dict must have upc, map_price, and vendor_type (vendor code).
     """
     if not maps:
         raise HTTPException(status_code=400, detail="No MAP entries provided")
@@ -112,7 +112,7 @@ async def add_maps(
     if not valid_maps:
         raise HTTPException(
             status_code=400,
-            detail="No valid MAP entries provided. Each entry needs upc, map_price, and vendor_type (dnk or clk).",
+            detail="No valid MAP entries provided. Each entry needs upc, map_price, and vendor_type (vendor code).",
         )
 
     map_repo = MAPRepository(db)
@@ -178,7 +178,7 @@ async def list_maps(
     limit: int = 100,
     offset: int = 0,
     search: str = None,
-    vendor_type: Optional[str] = Query(None, description="Filter by vendor: dnk or clk"),
+    vendor_type: Optional[str] = Query(None, description="Filter by vendor code"),
 ):
     """List MAP entries with optional UPC search and vendor filter."""
     map_repo = MAPRepository(db)
@@ -203,13 +203,26 @@ async def get_map_count(
     return {"count": count}
 
 
+@router.get("/map/vendors", response_model=dict)
+@handle_api_errors("list MAP vendors")
+async def list_map_vendors(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Distinct vendor_type values currently present in MAP data (plus defaults for UI)."""
+    map_repo = MAPRepository(db)
+    found = map_repo.list_distinct_vendor_types()
+    merged = sorted(set(found) | {"dnk", "clk"})
+    return {"vendors": merged}
+
+
 @router.get("/map/{upc}", response_model=MAPResponse)
 @handle_api_errors("get MAP by UPC")
 async def get_map_by_upc(
     upc: str,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
-    vendor_type: str = Query(DEFAULT_MAP_VENDOR_TYPE, description="Vendor: dnk or clk"),
+    vendor_type: str = Query(DEFAULT_MAP_VENDOR_TYPE, description="Vendor code"),
 ):
     """Get MAP entry by UPC and vendor type."""
     map_repo = MAPRepository(db)
@@ -223,7 +236,7 @@ async def delete_map(
     upc: str,
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase),
-    vendor_type: str = Query(DEFAULT_MAP_VENDOR_TYPE, description="Vendor: dnk or clk"),
+    vendor_type: str = Query(DEFAULT_MAP_VENDOR_TYPE, description="Vendor code"),
 ):
     """Delete a MAP entry for UPC + vendor."""
     map_repo = MAPRepository(db)

@@ -5,8 +5,7 @@ from datetime import datetime
 from uuid import UUID
 from decimal import Decimal
 
-# Aligned with job categories (dnk / clk); extend as needed
-MAP_VENDOR_TYPES = ("dnk", "clk")
+# Default vendor when none is provided; any valid vendor code (see app.utils.vendor_code) may be stored.
 DEFAULT_MAP_VENDOR_TYPE = "dnk"
 
 

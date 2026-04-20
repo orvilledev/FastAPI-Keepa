@@ -1,6 +1,18 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { upcsApi } from '../../services/api'
 import type { UPC } from '../../types'
+
+const VENDOR_CODE_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/
+
+function sortedUniqueStrings(arr: string[]): string[] {
+  return [...new Set(arr)].sort()
+}
+
+function isValidVendorCode(s: string): boolean {
+  const v = s.trim().toLowerCase()
+  return v.length > 0 && VENDOR_CODE_RE.test(v)
+}
 
 async function runChunked<T>(
   items: T[],
@@ -20,17 +32,11 @@ async function runChunked<T>(
   return { ok, failed }
 }
 
-interface UPCManagementProps {
-  category: 'dnk' | 'clk'
-  title?: string
-  description?: string
-}
-
-export default function UPCManagement({
-  category,
-  title,
-  description
-}: UPCManagementProps) {
+export default function UPCManagement() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [category, setCategory] = useState<string>('dnk')
+  const [categoryOptions, setCategoryOptions] = useState<string[]>(['dnk', 'clk'])
+  const [newCategoryDraft, setNewCategoryDraft] = useState('')
   const [upcs, setUpcs] = useState<UPC[]>([])
   const [allUpcs, setAllUpcs] = useState<UPC[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -47,9 +53,34 @@ export default function UPCManagement({
   const [queueBulkText, setQueueBulkText] = useState('')
   const [bulkDeleting, setBulkDeleting] = useState(false)
 
-  // Default title and description based on category
-  const displayTitle = title || `Manage ${category.toUpperCase()} UPCs`
-  const displayDescription = description || `Manage ${category.toUpperCase()} UPCs for daily scheduler processing. Total: ${totalCount} UPCs`
+  const displayTitle = `Manage ${category.toUpperCase()} UPCs`
+  const displayDescription = `Manage UPCs for vendor "${category.toUpperCase()}" for daily scheduler processing. Total: ${totalCount} UPCs`
+
+  const loadCategoryOptions = async () => {
+    try {
+      const { categories } = await upcsApi.listCategories()
+      if (categories?.length) {
+        setCategoryOptions(sortedUniqueStrings(categories))
+      }
+    } catch (e) {
+      console.warn('Failed to load UPC categories', e)
+    }
+  }
+
+  useEffect(() => {
+    void loadCategoryOptions()
+  }, [])
+
+  useEffect(() => {
+    const fromUrl = searchParams.get('category')?.trim().toLowerCase() || ''
+    if (!fromUrl) {
+      setSearchParams({ category: 'dnk' }, { replace: true })
+      return
+    }
+    if (isValidVendorCode(fromUrl)) {
+      setCategory(fromUrl)
+    }
+  }, [searchParams, setSearchParams])
 
   useEffect(() => {
     loadUPCCount()
@@ -167,6 +198,7 @@ export default function UPCManagement({
         setUpcInput('')
       }
       
+      void loadCategoryOptions()
       loadUPCCount()
       loadUPCs()
     } catch (err: any) {
@@ -301,11 +333,59 @@ export default function UPCManagement({
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <div>
+        <div className="space-y-3">
           <h1 className="text-3xl font-bold text-gray-900">{displayTitle}</h1>
           <p className="mt-2 text-sm text-gray-600">
             {displayDescription}
           </p>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <label htmlFor="upc-category" className="text-gray-600">
+              Vendor / category
+            </label>
+            <select
+              id="upc-category"
+              value={category}
+              onChange={(e) => {
+                const v = e.target.value
+                setCategory(v)
+                setSearchParams({ category: v })
+              }}
+              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+            >
+              {sortedUniqueStrings(categoryOptions).map((c) => (
+                <option key={c} value={c}>
+                  {c.toUpperCase()}
+                </option>
+              ))}
+            </select>
+            <input
+              type="text"
+              value={newCategoryDraft}
+              onChange={(e) => setNewCategoryDraft(e.target.value)}
+              placeholder="New vendor code"
+              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm font-mono w-44"
+            />
+            <button
+              type="button"
+              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50"
+              onClick={() => {
+                const v = newCategoryDraft.trim().toLowerCase()
+                if (!isValidVendorCode(v)) {
+                  setError(
+                    'Invalid vendor code. Use 1–32 lowercase letters, digits, hyphens, or underscores; must start with a letter or digit.'
+                  )
+                  return
+                }
+                setError('')
+                setCategory(v)
+                setSearchParams({ category: v })
+                setCategoryOptions((prev) => sortedUniqueStrings([...prev, v]))
+                setNewCategoryDraft('')
+              }}
+            >
+              Use
+            </button>
+          </div>
         </div>
         {totalCount > 0 && (
           <button

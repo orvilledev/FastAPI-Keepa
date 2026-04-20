@@ -245,7 +245,12 @@ export const reportsApi = {
 
 // UPCs API
 export const upcsApi = {
-  addUPCs: async (upcs: string[], category: 'dnk' | 'clk' = 'dnk') => {
+  listCategories: async () => {
+    const response = await api.get<{ categories: string[] }>('/api/v1/upcs/categories')
+    return response.data
+  },
+
+  addUPCs: async (upcs: string[], category: string = 'dnk') => {
     const upcsArray = Array.isArray(upcs) ? upcs : [upcs]
     const requestBody = { upcs: upcsArray, category }
 
@@ -263,25 +268,25 @@ export const upcsApi = {
     }
   },
   
-  listUPCs: async (limit: number = 100, offset: number = 0, category?: 'dnk' | 'clk') => {
+  listUPCs: async (limit: number = 100, offset: number = 0, category?: string) => {
     const categoryParam = category ? `&category=${category}` : ''
     const response = await api.get<UPC[]>(`/api/v1/upcs?limit=${limit}&offset=${offset}${categoryParam}`)
     return response.data
   },
   
-  getUPCCount: async (category?: 'dnk' | 'clk') => {
+  getUPCCount: async (category?: string) => {
     const categoryParam = category ? `?category=${category}` : ''
     const response = await api.get<{ count: number }>(`/api/v1/upcs/count${categoryParam}`)
     return response.data
   },
   
-  deleteUPC: async (upc: string, category?: 'dnk' | 'clk') => {
+  deleteUPC: async (upc: string, category?: string) => {
     const categoryParam = category ? `?category=${category}` : ''
     const response = await api.delete(`/api/v1/upcs/${upc}${categoryParam}`)
     return response.data
   },
   
-  deleteAllUPCs: async (category?: 'dnk' | 'clk') => {
+  deleteAllUPCs: async (category?: string) => {
     const categoryParam = category ? `?category=${category}` : ''
     const response = await api.delete(`/api/v1/upcs${categoryParam}`)
     return response.data
@@ -290,6 +295,11 @@ export const upcsApi = {
 
 // MAP API
 export const mapApi = {
+  listVendors: async () => {
+    const response = await api.get<{ vendors: string[] }>('/api/v1/map/vendors')
+    return response.data
+  },
+
   checkMAPDuplicates: async (
     maps: Array<{ upc: string; map_price: number; vendor_type: MapVendorType }>
   ) => {

@@ -136,7 +136,8 @@ export interface UPC {
   created_at: string
 }
 
-export type MapVendorType = 'dnk' | 'clk'
+/** MAP vendor / UPC category code (lowercase; server validates 1–32 chars). */
+export type MapVendorType = string
 
 /** Row from `seller_names` — maps Keepa seller IDs to display names for reports. */
 export interface SellerName {

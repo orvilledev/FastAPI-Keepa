@@ -107,8 +107,8 @@ function AppRoutes() {
           <Route path="jobs/new" element={<ProtectedRoute requireKeepaAccess={true}><CreateJob /></ProtectedRoute>} />
           <Route path="jobs/:jobId" element={<ProtectedRoute requireKeepaAccess={true}><JobDetail /></ProtectedRoute>} />
           <Route path="reports/:jobId" element={<ProtectedRoute requireKeepaAccess={true}><ReportView /></ProtectedRoute>} />
-          <Route path="upcs" element={<ProtectedRoute requireKeepaAccess={true}><UPCManagement category="dnk" /></ProtectedRoute>} />
-          <Route path="clk-upcs" element={<ProtectedRoute requireKeepaAccess={true}><UPCManagement category="clk" /></ProtectedRoute>} />
+          <Route path="upcs" element={<ProtectedRoute requireKeepaAccess={true}><UPCManagement /></ProtectedRoute>} />
+          <Route path="clk-upcs" element={<Navigate to="/upcs?category=clk" replace />} />
           <Route path="map" element={<ProtectedRoute requireKeepaAccess={true}><MAPManagement /></ProtectedRoute>} />
           <Route path="vendor-list" element={<Navigate to="/seller-list" replace />} />
           <Route path="seller-list" element={<ProtectedRoute requireKeepaAccess={true}><SellerList /></ProtectedRoute>} />

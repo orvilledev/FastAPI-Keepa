@@ -104,7 +104,19 @@ export default function Sidebar() {
 
   const isActive = (path: string) => {
     const currentPath = location.pathname
-    
+    const currentSearch = location.search || ''
+
+    if (path.includes('?')) {
+      const [pathname, query] = path.split('?', 2)
+      if (currentPath !== pathname) return false
+      const want = new URLSearchParams(query)
+      const have = new URLSearchParams(currentSearch)
+      for (const key of want.keys()) {
+        if (want.get(key) !== have.get(key)) return false
+      }
+      return true
+    }
+
     // Exact match - always check this first
     if (currentPath === path) return true
     
@@ -132,8 +144,8 @@ export default function Sidebar() {
   ]
 
   const manageUPCsMenuItems = [
-    { path: '/upcs', label: 'DNK', icon: 'barcode' as const },
-    { path: '/clk-upcs', label: 'CLK', icon: 'barcode' as const },
+    { path: '/upcs?category=dnk', label: 'DNK', icon: 'barcode' as const },
+    { path: '/upcs?category=clk', label: 'CLK', icon: 'barcode' as const },
   ]
 
   const keepaMenuItems = [

@@ -1,5 +1,5 @@
 """Repository for UPC database operations."""
-from typing import List, Tuple, Optional, Dict
+from typing import List, Tuple, Optional, Dict, Set
 from supabase import Client
 from fastapi import HTTPException
 import logging
@@ -186,4 +186,27 @@ class UPCRepository:
         else:
             # Delete all UPCs (using neq workaround to delete all rows)
             self.db.table(self.table).delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+
+    def list_distinct_categories(self) -> List[str]:
+        """Return sorted unique category values present in upcs (paginated scan)."""
+        seen: Set[str] = set()
+        batch_size = 1000
+        offset = 0
+        while True:
+            response = (
+                self.db.table(self.table)
+                .select("category")
+                .order("id")
+                .range(offset, offset + batch_size - 1)
+                .execute()
+            )
+            rows = response.data or []
+            for row in rows:
+                c = row.get("category")
+                if isinstance(c, str) and c.strip():
+                    seen.add(c.strip().lower())
+            if len(rows) < batch_size:
+                break
+            offset += batch_size
+        return sorted(seen)
 

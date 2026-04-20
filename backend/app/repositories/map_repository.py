@@ -5,25 +5,17 @@ from supabase import Client
 from fastapi import HTTPException
 import logging
 
-from app.models.map import DEFAULT_MAP_VENDOR_TYPE, MAP_VENDOR_TYPES
+from app.models.map import DEFAULT_MAP_VENDOR_TYPE
+from app.utils.vendor_code import validate_vendor_code
 
 logger = logging.getLogger(__name__)
 
 
-def _normalize_vendor_type(raw: Optional[str]) -> str:
-    if raw is None or not str(raw).strip():
-        return DEFAULT_MAP_VENDOR_TYPE
-    return str(raw).strip().lower()
-
-
 def _validate_vendor_type(vendor_type: str) -> str:
-    v = _normalize_vendor_type(vendor_type)
-    if v not in MAP_VENDOR_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid vendor_type '{vendor_type}'. Allowed: {', '.join(MAP_VENDOR_TYPES)}",
-        )
-    return v
+    """Normalize MAP vendor_type; empty input defaults to DEFAULT_MAP_VENDOR_TYPE."""
+    if not vendor_type or not str(vendor_type).strip():
+        return validate_vendor_code(DEFAULT_MAP_VENDOR_TYPE, default=None)
+    return validate_vendor_code(vendor_type, default=None)
 
 
 class MAPRepository:
@@ -185,7 +177,7 @@ class MAPRepository:
         """
         Check which (upc, vendor) pairs in the provided list already exist.
         Returns human-readable duplicate descriptors: "UPC (vendor)".
-        Pre-validated entries only (upc + allowed vendor_type).
+        Pre-validated entries only (upc + vendor_type).
         """
         if not maps:
             return []
@@ -193,8 +185,11 @@ class MAPRepository:
         pairs = []
         for m in maps:
             upc = m.get("upc", "").strip()
-            v = _normalize_vendor_type(m.get("vendor_type"))
-            if not upc or v not in MAP_VENDOR_TYPES:
+            if not upc:
+                continue
+            try:
+                v = _validate_vendor_type(str(m.get("vendor_type", DEFAULT_MAP_VENDOR_TYPE)))
+            except HTTPException:
                 continue
             pairs.append({"upc": upc, "vendor_type": v})
 
@@ -368,3 +363,26 @@ class MAPRepository:
             "upcs_requested": len(cleaned),
             "upcs_not_found": not_found,
         }
+
+    def list_distinct_vendor_types(self) -> List[str]:
+        """Return sorted unique vendor_type values present in map_prices (paginated scan)."""
+        seen: set = set()
+        batch_size = 1000
+        offset = 0
+        while True:
+            response = (
+                self.db.table(self.table)
+                .select("vendor_type")
+                .order("id")
+                .range(offset, offset + batch_size - 1)
+                .execute()
+            )
+            rows = response.data or []
+            for row in rows:
+                vt = row.get("vendor_type")
+                if isinstance(vt, str) and vt.strip():
+                    seen.add(vt.strip().lower())
+            if len(rows) < batch_size:
+                break
+            offset += batch_size
+        return sorted(seen)
