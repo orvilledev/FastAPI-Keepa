@@ -56,7 +56,7 @@ export default function PublicTools() {
       // Load starred status after tools are loaded
       await loadStarredStatus()
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to load public tools')
+      setError(err.response?.data?.detail || 'Failed to load training materials')
     } finally {
       setLoading(false)
     }
@@ -71,11 +71,11 @@ export default function PublicTools() {
       if (editingTool) {
         // Update existing tool
         await toolsApi.updatePublicTool(editingTool.id, formData)
-        setSuccess('Tool updated successfully!')
+        setSuccess('Training material updated successfully!')
       } else {
-        // Create new tool
+        // Create new training material
         await toolsApi.createPublicTool(formData)
-        setSuccess('Tool added successfully!')
+        setSuccess('Training material added successfully!')
       }
       setFormData({ name: '', description: '', url: '', video_url: '', developer: '', category: '', icon: '' })
       setShowAddForm(false)
@@ -83,9 +83,12 @@ export default function PublicTools() {
       loadTools()
     } catch (err: any) {
       if (err.response?.status === 403) {
-        setError('Permission to manage tools required')
+        setError('Permission to manage training materials required')
       } else {
-        setError(err.response?.data?.detail || editingTool ? 'Failed to update tool' : 'Failed to add tool')
+        setError(
+          err.response?.data?.detail ||
+            (editingTool ? 'Failed to update training material' : 'Failed to add training material')
+        )
       }
     }
   }
@@ -105,19 +108,19 @@ export default function PublicTools() {
   }
 
   const handleDelete = async (toolId: string) => {
-    if (!confirm('Are you sure you want to delete this tool?')) {
+    if (!confirm('Are you sure you want to delete this training material?')) {
       return
     }
 
     try {
       await toolsApi.deletePublicTool(toolId)
-      setSuccess('Tool deleted successfully!')
+      setSuccess('Training material deleted successfully!')
       loadTools()
     } catch (err: any) {
       if (err.response?.status === 403) {
-        setError('Permission to manage tools required')
+        setError('Permission to manage training materials required')
       } else {
-        setError(err.response?.data?.detail || 'Failed to delete tool')
+        setError(err.response?.data?.detail || 'Failed to delete training material')
       }
     }
   }
@@ -138,7 +141,7 @@ export default function PublicTools() {
       } else {
         await toolsApi.starTool(toolId)
         setStarredTools(prev => new Set(prev).add(toolId))
-        setSuccess('Tool added to your toolbox!')
+        setSuccess('Training material added to your toolbox!')
       }
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to update star status')
@@ -148,7 +151,7 @@ export default function PublicTools() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-gray-500">Loading public tools...</div>
+        <div className="text-gray-500">Loading training materials...</div>
       </div>
     )
   }
@@ -158,14 +161,14 @@ export default function PublicTools() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Trainings</h1>
-          <p className="mt-1 text-sm text-gray-500">Access external tools and resources</p>
+          <p className="mt-1 text-sm text-gray-500">Self-service training, walkthroughs, and reference materials for the team</p>
         </div>
         {canManageTools && (
           <button
             onClick={() => setShowAddForm(true)}
             className="btn-primary"
           >
-            Create Tool
+            Add Training Material
           </button>
         )}
       </div>
@@ -203,7 +206,7 @@ export default function PublicTools() {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search tools by name, description, developer, or category..."
+            placeholder="Search training materials by name, description, developer, or category..."
             className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           />
           {searchTerm && (
@@ -281,7 +284,8 @@ export default function PublicTools() {
 
             {searchTerm && (
               <div className="mb-4 text-sm text-gray-600">
-                Found {filteredTools.length} tool{filteredTools.length !== 1 ? 's' : ''} matching "{searchTerm}"
+                Found {filteredTools.length} training material
+                {filteredTools.length !== 1 ? 's' : ''} matching "{searchTerm}"
                 {selectedCategory && ` in ${selectedCategory} category`}
               </div>
             )}
@@ -290,10 +294,10 @@ export default function PublicTools() {
               <div className="card p-12 text-center">
                 <div className="text-gray-500 mb-4">
                   {searchTerm 
-                    ? `No tools found matching "${searchTerm}"${selectedCategory ? ` in ${selectedCategory} category` : ''}.`
+                    ? `No training materials found matching "${searchTerm}"${selectedCategory ? ` in ${selectedCategory} category` : ''}.`
                     : selectedCategory 
-                      ? `No tools found in ${selectedCategory} category.`
-                      : 'No tools found.'}
+                      ? `No training materials found in ${selectedCategory} category.`
+                      : 'No training materials found.'}
                 </div>
               </div>
             ) : (
@@ -355,7 +359,7 @@ export default function PublicTools() {
                         rel="noopener noreferrer"
                         className="text-sm inline-block w-full text-center px-6 py-2.5 bg-[#F97316] hover:bg-[#EA580C] text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
                       >
-                        Use Tool →
+                        Learn
                       </a>
                       {tool.video_url && (
                         <a
@@ -382,7 +386,7 @@ export default function PublicTools() {
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-semibold text-gray-900">
-                  {editingTool ? 'Edit Tool' : 'Create New Tool'}
+                  {editingTool ? 'Edit Training Material' : 'Add Training Material'}
                 </h2>
                 <button
                   onClick={() => {
@@ -432,7 +436,7 @@ export default function PublicTools() {
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     rows={4}
-                    placeholder="Brief description of what this tool does..."
+                    placeholder="Brief description of this training material..."
                   />
                 </div>
                 <div>
@@ -451,7 +455,7 @@ export default function PublicTools() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tool Name *
+                      Training material name *
                     </label>
                     <input
                       type="text"
@@ -459,7 +463,7 @@ export default function PublicTools() {
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="e.g., Team Resources"
+                      placeholder="e.g., Onboarding overview"
                     />
                   </div>
                   <div>
@@ -489,7 +493,7 @@ export default function PublicTools() {
                     Cancel
                   </button>
                   <button type="submit" className="btn-primary">
-                    {editingTool ? 'Update Tool' : 'Create Tool'}
+                    {editingTool ? 'Update Training Material' : 'Add Training Material'}
                   </button>
                 </div>
               </form>
@@ -500,13 +504,13 @@ export default function PublicTools() {
 
       {tools.length === 0 && (
         <div className="card p-12 text-center">
-          <div className="text-gray-500 mb-4">No public tools available yet.</div>
+          <div className="text-gray-500 mb-4">No training materials available yet.</div>
           {canManageTools && (
             <button
               onClick={() => setShowAddForm(true)}
               className="btn-primary"
             >
-              Create First Tool
+              Add First Training Material
             </button>
           )}
         </div>

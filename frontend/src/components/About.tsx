@@ -45,7 +45,7 @@ export default function About() {
               <span className="font-semibold">Trainings:</span> Shared links and utilities for the team.
             </li>
             <li>
-              <span className="font-semibold">FAQ:</span> Reference materials and workflow guides.
+              <span className="font-semibold">FAQ:</span> Common questions about using MSW Overwatch and team workflows.
             </li>
           </ul>
           <p>
