@@ -215,9 +215,12 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
           {!loading && (
             <>
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Registered accounts</p>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Registered recipients</p>
+                <p className="text-xs text-gray-400 mb-2">
+                  MSW accounts, default CSV/report addresses, and emails used on daily-run jobs.
+                </p>
                 {allRows.filter(([, t]) => t === 'registered').length === 0 ? (
-                  <p className="text-sm text-gray-400">No profile emails found.</p>
+                  <p className="text-sm text-gray-400">No addresses in this list yet.</p>
                 ) : (
                   <ul className="space-y-2">
                     {allRows
@@ -234,7 +237,7 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
                           <label htmlFor={`er-reg-${email}`} className="text-sm text-gray-800 cursor-pointer flex-1">
                             {email}
                           </label>
-                          <span className="text-xs text-gray-400">Registered</span>
+                          <span className="text-xs text-gray-400 shrink-0">Directory</span>
                         </li>
                       ))}
                   </ul>

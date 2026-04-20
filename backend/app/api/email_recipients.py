@@ -1,4 +1,5 @@
 """Email recipient directory (registered profiles), per-user pool, and saved lists."""
+import logging
 import re
 from datetime import datetime, timezone
 from typing import List
@@ -7,6 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from supabase import Client
 
+from app.config import settings
 from app.database import get_supabase
 from app.dependencies import get_job_runner_user
 from app.models.email_recipients import (
@@ -17,7 +19,11 @@ from app.models.email_recipients import (
     EmailPoolEntryResponse,
     RegisteredEmailsResponse,
 )
+from app.repositories.job_repository import JobRepository
+from app.repositories.supabase_read_all import read_all_paginated
 from app.utils.error_handler import handle_api_errors
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -35,26 +41,65 @@ def _validate_email(email: str) -> str:
     return n
 
 
+def _parse_recipient_string(raw: str) -> List[str]:
+    """Comma-separated addresses (same idea as EmailService._parse_recipients), normalized and validated."""
+    if not raw or not str(raw).strip():
+        return []
+    out: List[str] = []
+    for part in str(raw).split(","):
+        n = _normalize_email(part)
+        if n and _EMAIL_RE.match(n):
+            out.append(n)
+    return out
+
+
 @router.get("/email-recipients/registered", response_model=RegisteredEmailsResponse)
 @handle_api_errors("list registered emails")
 async def list_registered_emails(
     _current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase),
 ):
-    """Distinct profile emails (MSW Overwatch accounts) for recipient pickers."""
+    """Distinct emails for recipient pickers: profiles, default CSV recipients (EMAIL_TO), and daily-run job overrides."""
+    seen: set[str] = set()
+
     response = db.table("profiles").select("email").execute()
-    emails: List[str] = []
     if response.data:
-        seen = set()
         for row in response.data:
             e = row.get("email")
             if not e or not isinstance(e, str):
                 continue
             n = _normalize_email(e)
-            if n and n not in seen:
+            if n and _EMAIL_RE.match(n):
                 seen.add(n)
-                emails.append(n)
-    emails.sort()
+
+    for e in _parse_recipient_string(settings.email_to):
+        seen.add(e)
+
+    try:
+
+        def fetch_jobs_with_recipients(start: int, end: int):
+            return (
+                db.table("batch_jobs")
+                .select("job_name, email_recipients")
+                .not_.is_("email_recipients", "null")
+                .range(start, end)
+                .execute()
+            )
+
+        job_rows = read_all_paginated(fetch_jobs_with_recipients)
+        for row in job_rows:
+            job_name = row.get("job_name")
+            if not JobRepository._is_daily_run_job(job_name):
+                continue
+            raw = row.get("email_recipients")
+            if not raw or not isinstance(raw, str) or not raw.strip():
+                continue
+            for e in _parse_recipient_string(raw):
+                seen.add(e)
+    except Exception as exc:
+        logger.warning("Could not merge daily-run job recipients into registered list: %s", exc)
+
+    emails = sorted(seen)
     return RegisteredEmailsResponse(emails=emails)
 
 
