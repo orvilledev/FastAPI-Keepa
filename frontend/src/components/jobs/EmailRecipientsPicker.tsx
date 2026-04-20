@@ -264,31 +264,41 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
                     {allRows
                       .filter(([, t]) => t === 'registered')
                       .map(([email]) => (
-                        <li key={email} className="flex items-center gap-2 min-w-0">
-                          <input
-                            type="checkbox"
-                            id={`er-reg-${email}`}
-                            checked={selected.has(email)}
-                            onChange={() => toggleEmail(email)}
-                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 shrink-0"
-                          />
-                          <label htmlFor={`er-reg-${email}`} className="text-sm text-gray-800 cursor-pointer flex-1 min-w-0 truncate">
-                            {email}
-                          </label>
-                          <span className="text-[10px] sm:text-xs text-gray-400 shrink-0">Directory</span>
-                          <button
-                            type="button"
-                            disabled={disabled || removingEmail === email}
-                            title={
-                              poolIdByEmail.has(email)
-                                ? 'Remove from this job and from your saved pool'
-                                : 'Remove from this job’s recipients'
-                            }
-                            onClick={() => void handleRemoveRow(email)}
-                            className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline shrink-0 disabled:opacity-50"
-                          >
-                            {removingEmail === email ? '…' : 'Remove'}
-                          </button>
+                        <li
+                          key={email}
+                          className="flex w-full flex-col gap-2 border-b border-gray-100 pb-2 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+                        >
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id={`er-reg-${email}`}
+                              checked={selected.has(email)}
+                              onChange={() => toggleEmail(email)}
+                              className="shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <label
+                              htmlFor={`er-reg-${email}`}
+                              className="min-w-0 flex-1 cursor-pointer break-all text-sm text-gray-800 sm:truncate"
+                            >
+                              {email}
+                            </label>
+                          </div>
+                          <div className="flex shrink-0 items-center justify-end gap-2 pl-7 sm:pl-0">
+                            <span className="text-[10px] text-gray-400 sm:text-xs">Directory</span>
+                            <button
+                              type="button"
+                              disabled={disabled || removingEmail === email}
+                              title={
+                                poolIdByEmail.has(email)
+                                  ? 'Remove from this job and from your saved pool'
+                                  : 'Remove from this job’s recipients'
+                              }
+                              onClick={() => void handleRemoveRow(email)}
+                              className="whitespace-nowrap rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-800 shadow-sm hover:bg-red-100 disabled:opacity-50"
+                            >
+                              {removingEmail === email ? '…' : 'Remove'}
+                            </button>
+                          </div>
                         </li>
                       ))}
                   </ul>
@@ -304,27 +314,37 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
                     {allRows
                       .filter(([, t]) => t === 'pool')
                       .map(([email]) => (
-                        <li key={email} className="flex items-center gap-2 min-w-0">
-                          <input
-                            type="checkbox"
-                            id={`er-pool-${email}`}
-                            checked={selected.has(email)}
-                            onChange={() => toggleEmail(email)}
-                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 shrink-0"
-                          />
-                          <label htmlFor={`er-pool-${email}`} className="text-sm text-gray-800 cursor-pointer flex-1 min-w-0 truncate">
-                            {email}
-                          </label>
-                          <span className="text-[10px] sm:text-xs text-gray-400 shrink-0">Pool</span>
-                          <button
-                            type="button"
-                            disabled={disabled || removingEmail === email}
-                            title="Remove from this job and from your saved pool"
-                            onClick={() => void handleRemoveRow(email)}
-                            className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline shrink-0 disabled:opacity-50"
-                          >
-                            {removingEmail === email ? '…' : 'Remove'}
-                          </button>
+                        <li
+                          key={email}
+                          className="flex w-full flex-col gap-2 border-b border-gray-100 pb-2 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+                        >
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id={`er-pool-${email}`}
+                              checked={selected.has(email)}
+                              onChange={() => toggleEmail(email)}
+                              className="shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <label
+                              htmlFor={`er-pool-${email}`}
+                              className="min-w-0 flex-1 cursor-pointer break-all text-sm text-gray-800 sm:truncate"
+                            >
+                              {email}
+                            </label>
+                          </div>
+                          <div className="flex shrink-0 items-center justify-end gap-2 pl-7 sm:pl-0">
+                            <span className="text-[10px] text-gray-400 sm:text-xs">Pool</span>
+                            <button
+                              type="button"
+                              disabled={disabled || removingEmail === email}
+                              title="Remove from this job and from your saved pool"
+                              onClick={() => void handleRemoveRow(email)}
+                              className="whitespace-nowrap rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-800 shadow-sm hover:bg-red-100 disabled:opacity-50"
+                            >
+                              {removingEmail === email ? '…' : 'Remove'}
+                            </button>
+                          </div>
                         </li>
                       ))}
                   </ul>
@@ -338,31 +358,41 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
                     {allRows
                       .filter(([, t]) => t === 'extra')
                       .map(([email]) => (
-                        <li key={email} className="flex items-center gap-2 min-w-0">
-                          <input
-                            type="checkbox"
-                            id={`er-x-${email}`}
-                            checked={selected.has(email)}
-                            onChange={() => toggleEmail(email)}
-                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 shrink-0"
-                          />
-                          <label htmlFor={`er-x-${email}`} className="text-sm text-gray-800 cursor-pointer flex-1 min-w-0 truncate">
-                            {email}
-                          </label>
-                          <span className="text-[10px] sm:text-xs text-gray-400 shrink-0">Custom</span>
-                          <button
-                            type="button"
-                            disabled={disabled || removingEmail === email}
-                            title={
-                              poolIdByEmail.has(email)
-                                ? 'Remove from this job and from your saved pool'
-                                : 'Remove from this job’s recipients'
-                            }
-                            onClick={() => void handleRemoveRow(email)}
-                            className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline shrink-0 disabled:opacity-50"
-                          >
-                            {removingEmail === email ? '…' : 'Remove'}
-                          </button>
+                        <li
+                          key={email}
+                          className="flex w-full flex-col gap-2 border-b border-gray-100 pb-2 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+                        >
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id={`er-x-${email}`}
+                              checked={selected.has(email)}
+                              onChange={() => toggleEmail(email)}
+                              className="shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <label
+                              htmlFor={`er-x-${email}`}
+                              className="min-w-0 flex-1 cursor-pointer break-all text-sm text-gray-800 sm:truncate"
+                            >
+                              {email}
+                            </label>
+                          </div>
+                          <div className="flex shrink-0 items-center justify-end gap-2 pl-7 sm:pl-0">
+                            <span className="text-[10px] text-gray-400 sm:text-xs">Custom</span>
+                            <button
+                              type="button"
+                              disabled={disabled || removingEmail === email}
+                              title={
+                                poolIdByEmail.has(email)
+                                  ? 'Remove from this job and from your saved pool'
+                                  : 'Remove from this job’s recipients'
+                              }
+                              onClick={() => void handleRemoveRow(email)}
+                              className="whitespace-nowrap rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-800 shadow-sm hover:bg-red-100 disabled:opacity-50"
+                            >
+                              {removingEmail === email ? '…' : 'Remove'}
+                            </button>
+                          </div>
                         </li>
                       ))}
                   </ul>
