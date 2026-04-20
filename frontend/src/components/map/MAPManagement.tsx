@@ -399,22 +399,11 @@ export default function MAPManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Manage MAP (Minimum Advertised Price)</h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Manage Minimum Advertised Prices for UPCs. Total: {totalCount} entries
-          </p>
-        </div>
-        {!vendorFilter && totalCount > 0 && (
-          <button
-            type="button"
-            onClick={handleDeleteAll}
-            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-          >
-            Delete all MAPs
-          </button>
-        )}
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Manage MAP (Minimum Advertised Price)</h1>
+        <p className="mt-2 text-sm text-gray-600">
+          Manage Minimum Advertised Prices for UPCs. Total: {totalCount} entries
+        </p>
       </div>
 
       {/* Add MAPs Form */}
