@@ -15,6 +15,42 @@ function sortedUniqueVendors(arr: string[]): string[] {
   return [...new Set(arr)].sort()
 }
 
+function parseMapLine(line: string): { upc: string; map_price: number; vendor_type: MapVendorType } | null {
+  const raw = line.trim()
+  if (!raw) return null
+
+  let parts: string[] = []
+  if (raw.includes(',')) {
+    // CSV: Column A=UPC, B=price, C=vendor (no header required)
+    parts = raw.split(',').map((p) => p.trim())
+  } else if (raw.includes('\t')) {
+    parts = raw.split('\t').map((p) => p.trim())
+  } else {
+    parts = raw.split(/\s+/).filter(Boolean)
+  }
+
+  if (parts.length < 3) return null
+
+  const upc = parts[0]
+  const price = parseFloat(parts[1].replace(/\$/g, ''))
+  const vendor = normalizeVendorToken(parts[2])
+  if (!upc || isNaN(price) || price <= 0 || !vendor) return null
+  return { upc, map_price: price, vendor_type: vendor }
+}
+
+function parseMapEntriesFromText(text: string): Array<{ upc: string; map_price: number; vendor_type: MapVendorType }> {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+  const out: Array<{ upc: string; map_price: number; vendor_type: MapVendorType }> = []
+  for (const line of lines) {
+    const parsed = parseMapLine(line)
+    if (parsed) out.push(parsed)
+  }
+  return out
+}
+
 /** One UPC per line; if the line looks like CSV, use the first column as UPC. */
 function parseUpcOnlyLine(line: string): string | null {
   const t = line.trim()
@@ -30,6 +66,7 @@ export default function MAPManagement() {
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
   const [mapInput, setMapInput] = useState('')
+  const [uploadedFileName, setUploadedFileName] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [vendorFilter, setVendorFilter] = useState<string>('')
   const [vendorOptions, setVendorOptions] = useState<string[]>(['dnk', 'clk'])
@@ -157,47 +194,16 @@ export default function MAPManagement() {
     abortControllerRef.current = new AbortController()
 
     try {
-      // Parse MAP entries: UPC,PRICE,VENDOR or UPC PRICE VENDOR (three fields per line)
-      const lines = mapInput
-        .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0)
-
-      if (lines.length === 0) {
+      if (!mapInput.trim()) {
         setError('Please enter at least one MAP entry')
         setAdding(false)
         return
       }
 
-      const mapEntries: Array<{ upc: string; map_price: number; vendor_type: MapVendorType }> = []
-
-      for (const line of lines) {
+      const mapEntries = parseMapEntriesFromText(mapInput)
+      for (const line of mapInput.split(/\r?\n/)) {
         if (abortControllerRef.current?.signal.aborted) {
           return
-        }
-
-        let upc = ''
-        let price = NaN
-        let vendor: MapVendorType | null = null
-
-        if (line.includes(',')) {
-          const parts = line.split(',').map((p) => p.trim())
-          if (parts.length === 3) {
-            upc = parts[0]
-            price = parseFloat(parts[1])
-            vendor = normalizeVendorToken(parts[2])
-          }
-        } else {
-          const parts = line.split(/\s+/).filter(Boolean)
-          if (parts.length === 3) {
-            upc = parts[0]
-            price = parseFloat(parts[1])
-            vendor = normalizeVendorToken(parts[2])
-          }
-        }
-
-        if (upc && !isNaN(price) && price > 0 && vendor) {
-          mapEntries.push({ upc, map_price: price, vendor_type: vendor })
         }
       }
 
@@ -279,6 +285,7 @@ export default function MAPManagement() {
       setSuccess(successMessage)
       setError('')
       setMapInput('')
+      setUploadedFileName('')
       
       // Reload data
       try {
@@ -300,6 +307,32 @@ export default function MAPManagement() {
         setAdding(false)
       }
       abortControllerRef.current = null
+    }
+  }
+
+  const handleMapFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const name = file.name.toLowerCase()
+    if (!name.endsWith('.csv') && !name.endsWith('.txt')) {
+      setError('Only .csv and .txt files are allowed for MAP upload.')
+      e.target.value = ''
+      return
+    }
+
+    try {
+      const text = await file.text()
+      setMapInput(text)
+      setUploadedFileName(file.name)
+      setSuccess(`Loaded file "${file.name}". Review and click Add MAP Entries to upload.`)
+      setError('')
+    } catch (err) {
+      console.error('Failed reading MAP upload file', err)
+      setError('Could not read the uploaded file. Please try again.')
+    } finally {
+      // Allow re-selecting the same file
+      e.target.value = ''
     }
   }
 
@@ -473,6 +506,24 @@ export default function MAPManagement() {
             <p className="mt-1 text-xs text-gray-400">
               Vendor must be the third field on every line (1–32 lowercase letters, digits, hyphens, or underscores).
             </p>
+            <div className="mt-3">
+              <label htmlFor="map-upload-file" className="block text-sm font-medium text-gray-700">
+                Upload `.csv` or `.txt` (no header)
+              </label>
+              <input
+                id="map-upload-file"
+                type="file"
+                accept=".csv,.txt,text/plain,text/csv"
+                onChange={handleMapFileUpload}
+                className="mt-1 block w-full text-sm text-gray-700 file:mr-3 file:rounded-md file:border file:border-gray-300 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-gray-50"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                CSV format: Column A = UPC, Column B = price, Column C = vendor. No header needed.
+              </p>
+              {uploadedFileName && (
+                <p className="mt-1 text-xs text-gray-500">Loaded file: {uploadedFileName}</p>
+              )}
+            </div>
           </div>
 
           <div className="flex justify-end gap-2">
