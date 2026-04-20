@@ -353,14 +353,16 @@ export default function PublicTools() {
                       )}
                     </div>
                     <div className="space-y-2">
-                      <a
-                        href={tool.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm inline-block w-full text-center px-6 py-2.5 bg-[#F97316] hover:bg-[#EA580C] text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
-                      >
-                        Learn
-                      </a>
+                      {tool.url ? (
+                        <a
+                          href={tool.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm inline-block w-full text-center px-6 py-2.5 bg-[#F97316] hover:bg-[#EA580C] text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                        >
+                          Learn
+                        </a>
+                      ) : null}
                       {tool.video_url && (
                         <a
                           href={tool.video_url}
@@ -403,11 +405,23 @@ export default function PublicTools() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Link *
+                    Training Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="e.g., Onboarding overview"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Link to Training File
                   </label>
                   <input
                     type="url"
-                    required
                     value={formData.url}
                     onChange={(e) => setFormData({ ...formData, url: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -416,7 +430,7 @@ export default function PublicTools() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Video Link (Optional)
+                    Link to Training Video
                   </label>
                   <input
                     type="url"
@@ -441,7 +455,7 @@ export default function PublicTools() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Developer Name *
+                    Trainer/Developer *
                   </label>
                   <input
                     type="text"
@@ -452,32 +466,18 @@ export default function PublicTools() {
                     placeholder="e.g., John Doe, Company Name"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Training material name *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="e.g., Onboarding overview"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Category
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="e.g., API, Documentation"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Category *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="e.g., API, Documentation"
+                  />
                 </div>
                 <div className="flex justify-end space-x-3 pt-4">
                   <button

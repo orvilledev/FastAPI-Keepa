@@ -1,5 +1,5 @@
 """Public Tool models."""
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
@@ -8,12 +8,12 @@ from datetime import datetime
 class PublicToolCreate(BaseModel):
     """Model for creating a public tool."""
     name: str
-    description: Optional[str] = None
-    url: str
+    description: str
+    url: Optional[str] = None
     video_url: Optional[str] = None
-    category: Optional[str] = None
+    category: str
     icon: Optional[str] = None
-    developer: Optional[str] = None
+    developer: str
 
 
 class PublicToolUpdate(BaseModel):

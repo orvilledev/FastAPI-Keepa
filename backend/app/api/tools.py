@@ -33,8 +33,11 @@ async def create_public_tool(
 ):
     """Create a new public tool (tools management permission required)."""
     tool_dict = tool_data.model_dump()
+    tool_dict["url"] = (tool_dict.get("url") or "").strip()
+    v = tool_dict.get("video_url")
+    tool_dict["video_url"] = (v or "").strip() or None
     tool_dict["created_by"] = current_user["id"]
-    
+
     response = db.table("public_tools").insert(tool_dict).execute()
     
     if not response.data:

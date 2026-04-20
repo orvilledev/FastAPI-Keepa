@@ -371,11 +371,11 @@ export const toolsApi = {
   
   createPublicTool: async (toolData: {
     name: string
-    description?: string
-    url: string
+    description: string
+    url?: string
     video_url?: string
-    developer?: string
-    category?: string
+    developer: string
+    category: string
     icon?: string
   }) => {
     const response = await api.post<PublicTool>('/api/v1/tools/public', toolData)
