@@ -33,7 +33,6 @@ export default function MAPManagement() {
 
   /** UPCs queued for bulk delete (server removes all MAP rows for each UPC, any vendor) */
   const [deleteQueue, setDeleteQueue] = useState<string[]>([])
-  const [queueInput, setQueueInput] = useState('')
   const [queueBulkText, setQueueBulkText] = useState('')
   const [bulkDeleting, setBulkDeleting] = useState(false)
 
@@ -313,12 +312,6 @@ export default function MAPManagement() {
     setQueueBulkText('')
   }
 
-  const handleAddQueueFromInput = () => {
-    const u = parseUpcOnlyLine(queueInput)
-    if (u) addUpcToDeleteQueue(u)
-    setQueueInput('')
-  }
-
   const handleAddSearchTextToQueue = () => {
     const u = parseUpcOnlyLine(searchTerm)
     if (u) addUpcToDeleteQueue(u)
@@ -507,45 +500,23 @@ export default function MAPManagement() {
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/80 p-4">
             <h3 className="text-sm font-semibold text-gray-900 mb-2">Delete list</h3>
             <p className="text-xs text-gray-600 mb-3">
-              Enter UPCs only (vendor is detected from existing rows). Add one at a time, paste many below, or
-              use the filter box + “Add search text.” Duplicates ignored. Deletes every MAP row for each UPC
-              (DNK and CLK if both exist).
+              Paste UPCs below (one per line), or use the table filter + “Add search text to list.” Vendor is
+              resolved from existing rows. Duplicates ignored. Deletes every MAP row for each UPC (DNK and CLK
+              if both exist).
             </p>
-            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-              <input
-                type="text"
-                value={queueInput}
-                onChange={(e) => setQueueInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    handleAddQueueFromInput()
-                  }
-                }}
-                placeholder="UPC to add to delete list"
-                className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-              <div className="flex flex-wrap gap-2">
+            {searchTerm.trim() && (
+              <div className="mb-3">
                 <button
                   type="button"
-                  onClick={handleAddQueueFromInput}
-                  className="rounded-md bg-gray-800 px-3 py-2 text-sm font-medium text-white hover:bg-gray-900"
+                  onClick={handleAddSearchTextToQueue}
+                  className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
-                  Add to list
+                  Add search text to list
                 </button>
-                {searchTerm.trim() && (
-                  <button
-                    type="button"
-                    onClick={handleAddSearchTextToQueue}
-                    className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Add search text to list
-                  </button>
-                )}
               </div>
-            </div>
+            )}
 
-            <div className="mt-4 border-t border-amber-200/80 pt-4">
+            <div className="border-t border-amber-200/80 pt-4">
               <label htmlFor="queue-bulk" className="block text-sm font-medium text-gray-800 mb-1">
                 Paste many UPCs (one per line)
               </label>
