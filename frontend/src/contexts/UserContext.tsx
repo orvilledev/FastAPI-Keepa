@@ -77,30 +77,43 @@ export function UserProvider({ children }: UserProviderProps) {
     }
   }, [authUser])
 
-  // Initialize auth state
+  // Initialize auth state: wait for INITIAL_SESSION before clearing authLoading.
+  // If we clear loading too early (e.g. getSession() before storage is ready), PrivateLayout
+  // briefly sees no user, navigates to "/", and PublicHome then sends logged-in users to /dashboard.
   useEffect(() => {
-    // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setAuthUser(session?.user ?? null)
-      setAuthLoading(false)
-    })
-
-    // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      const newUser = session?.user ?? null
-      setAuthUser(prev => {
-        if (!newUser) return null
-        if (prev?.id === newUser.id) return prev
-        return newUser
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      const nextUser = session?.user ?? null
+      setAuthUser((prev) => {
+        if (!nextUser) return null
+        if (prev?.id === nextUser.id) return prev
+        return nextUser
       })
-      if (!session?.user) {
+      if (!nextUser) {
         setUserInfo(null)
+      }
+
+      if (event === 'INITIAL_SESSION') {
+        setAuthLoading(false)
       }
     })
 
-    return () => subscription.unsubscribe()
+    const safetyTimeout = window.setTimeout(() => {
+      setAuthLoading((stillLoading) => {
+        if (!stillLoading) return stillLoading
+        void supabase.auth.getSession().then(({ data: { session } }) => {
+          setAuthUser(session?.user ?? null)
+          if (!session?.user) setUserInfo(null)
+        })
+        return false
+      })
+    }, 10_000)
+
+    return () => {
+      subscription.unsubscribe()
+      window.clearTimeout(safetyTimeout)
+    }
   }, [])
 
   // Fetch user info when auth user changes
