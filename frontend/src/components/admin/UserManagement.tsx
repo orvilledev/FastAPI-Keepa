@@ -12,6 +12,19 @@ interface User {
   created_at: string
 }
 
+/** Same resolution as UserContext.displayName + Dashboard greeting capitalization. */
+function userDisplayLabel(user: Pick<User, 'display_name' | 'email'>): string {
+  const raw = user.display_name?.trim() || user.email?.split('@')[0] || ''
+  if (!raw) return 'No name'
+  return raw.charAt(0).toUpperCase() + raw.slice(1)
+}
+
+function userInitial(user: Pick<User, 'display_name' | 'email'>): string {
+  const raw = user.display_name?.trim() || user.email?.split('@')[0] || user.email || ''
+  const c = raw.charAt(0).toUpperCase()
+  return c || '?'
+}
+
 export default function UserManagement() {
   const { isSuperadmin, userInfoLoading, userInfo } = useUser()
   const [users, setUsers] = useState<User[]>([])
@@ -196,12 +209,12 @@ export default function UserManagement() {
                       <div className="flex items-center">
                         <div className="w-10 h-10 bg-[#0B1020] rounded-full flex items-center justify-center">
                           <span className="text-white text-sm font-semibold">
-                            {user.display_name?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase()}
+                            {userInitial(user)}
                           </span>
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">
-                            {user.display_name || 'No name'}
+                            {userDisplayLabel(user)}
                           </div>
                           <div className="text-sm text-gray-500">{user.email}</div>
                         </div>
