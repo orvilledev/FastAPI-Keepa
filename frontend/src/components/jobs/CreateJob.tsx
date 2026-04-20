@@ -99,7 +99,12 @@ export default function CreateJob() {
           <label htmlFor="emailRecipients" className="block text-sm font-medium text-gray-700 mb-2">
             Email recipients <span className="text-gray-500 font-normal">(optional)</span>
           </label>
-          <EmailRecipientsPicker id="emailRecipients" value={emailRecipients} onChange={setEmailRecipients} />
+          <EmailRecipientsPicker
+            id="emailRecipients"
+            value={emailRecipients}
+            onChange={setEmailRecipients}
+            persistDismissed
+          />
         </div>
 
         <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">

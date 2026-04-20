@@ -1,5 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAuth } from '../../hooks/useAuth'
 import { emailRecipientsApi, type EmailPoolEntry, type EmailSavedList } from '../../services/api'
+
+const DISMISSED_STORAGE_PREFIX = 'keepa.emailRecipients.dismissed.'
+
+function readDismissedStorage(key: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return new Set()
+    const arr = JSON.parse(raw) as unknown
+    if (!Array.isArray(arr)) return new Set()
+    return new Set(arr.map((e) => String(e).toLowerCase()).filter(Boolean))
+  } catch {
+    return new Set()
+  }
+}
+
+function writeDismissedStorage(key: string, set: Set<string>) {
+  try {
+    localStorage.setItem(key, JSON.stringify([...set].sort()))
+  } catch {
+    // ignore quota / private mode
+  }
+}
 
 function parseEmails(value: string): string[] {
   return value
@@ -17,9 +40,21 @@ type Props = {
   value: string
   onChange: (commaSeparated: string) => void
   disabled?: boolean
+  /** Remember directory rows removed via Remove / Remove selected across refresh (Create Job). */
+  persistDismissed?: boolean
 }
 
-export default function EmailRecipientsPicker({ id, value, onChange, disabled }: Props) {
+export default function EmailRecipientsPicker({
+  id,
+  value,
+  onChange,
+  disabled,
+  persistDismissed = false,
+}: Props) {
+  const { user } = useAuth()
+  const dismissedStorageKey =
+    persistDismissed && user?.id ? `${DISMISSED_STORAGE_PREFIX}${user.id}` : null
+
   const rootRef = useRef<HTMLDivElement>(null)
   /** Avoid overwriting local selection when parent re-renders after our own onChange. */
   const skipValueSyncRef = useRef(false)
@@ -44,8 +79,24 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
   /** Emails marked in the Pick column for bulk removal */
   const [bulkMarked, setBulkMarked] = useState<Set<string>>(() => new Set())
   const [removingBulk, setRemovingBulk] = useState(false)
-  /** Hide directory/pool rows after user removes them (until panel reopens). */
+  /** Hide directory/pool rows after user removes them (until panel reopens, or persist across refresh). */
   const [dismissedEmails, setDismissedEmails] = useState<Set<string>>(() => new Set())
+
+  useEffect(() => {
+    if (!dismissedStorageKey) return
+    setDismissedEmails(readDismissedStorage(dismissedStorageKey))
+  }, [dismissedStorageKey])
+
+  const patchDismissedEmails = useCallback(
+    (recipe: (prev: Set<string>) => Set<string>) => {
+      setDismissedEmails((prev) => {
+        const next = recipe(prev)
+        if (dismissedStorageKey) writeDismissedStorage(dismissedStorageKey, next)
+        return next
+      })
+    },
+    [dismissedStorageKey]
+  )
 
   const refreshData = useCallback(async () => {
     setLoadError(null)
@@ -97,11 +148,13 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
 
   useEffect(() => {
     if (panelOpen) {
-      setDismissedEmails(new Set())
+      if (!persistDismissed) {
+        setDismissedEmails(new Set())
+      }
     } else {
       setBulkMarked(new Set())
     }
-  }, [panelOpen])
+  }, [panelOpen, persistDismissed])
 
   const poolEmails = useMemo(() => pool.map((p) => p.email.toLowerCase()), [pool])
 
@@ -167,7 +220,7 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
       const next = new Set(selected)
       next.add(trimmed)
       commitSelection(next)
-      setDismissedEmails((prev) => {
+      patchDismissedEmails((prev) => {
         const n = new Set(prev)
         n.delete(trimmed)
         return n
@@ -193,7 +246,7 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
       if (isValidEmail(e)) next.add(e.toLowerCase())
     }
     commitSelection(next)
-    setDismissedEmails((prev) => {
+    patchDismissedEmails((prev) => {
       const n = new Set(prev)
       for (const e of list.emails) {
         if (isValidEmail(e)) n.delete(e.toLowerCase())
@@ -271,7 +324,7 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
       }
       commitSelection(next)
       setBulkMarked(new Set())
-      setDismissedEmails((prev) => {
+      patchDismissedEmails((prev) => {
         const n = new Set(prev)
         for (const e of emails) n.add(e.toLowerCase())
         return n
@@ -309,7 +362,7 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
         n.delete(lower)
         return n
       })
-      setDismissedEmails((prev) => {
+      patchDismissedEmails((prev) => {
         const n = new Set(prev)
         n.add(lower)
         return n
