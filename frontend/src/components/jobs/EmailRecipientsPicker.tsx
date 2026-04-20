@@ -38,6 +38,7 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
   const [listName, setListName] = useState('')
   const [savingList, setSavingList] = useState(false)
   const [applyListId, setApplyListId] = useState('')
+  const [removingEmail, setRemovingEmail] = useState<string | null>(null)
 
   const refreshData = useCallback(async () => {
     setLoadError(null)
@@ -84,6 +85,14 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
   }, [panelOpen])
 
   const poolEmails = useMemo(() => pool.map((p) => p.email.toLowerCase()), [pool])
+
+  const poolIdByEmail = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const p of pool) {
+      m.set(p.email.toLowerCase(), p.id)
+    }
+    return m
+  }, [pool])
 
   const allRows = useMemo(() => {
     const map = new Map<string, 'registered' | 'pool' | 'extra'>()
@@ -188,6 +197,35 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
     }
   }
 
+  /** Remove from this job’s selection; if the address is in your saved pool, delete it there too. */
+  const handleRemoveRow = async (email: string) => {
+    const lower = email.toLowerCase()
+    const poolId = poolIdByEmail.get(lower)
+    if (poolId) {
+      if (
+        !window.confirm(
+          'Remove this address from your saved pool and from the recipients for this job?'
+        )
+      ) {
+        return
+      }
+    }
+    setRemovingEmail(lower)
+    try {
+      if (poolId) {
+        await emailRecipientsApi.deletePoolEntry(poolId)
+        setPool((prev) => prev.filter((p) => p.id !== poolId))
+      }
+      const next = new Set(selected)
+      next.delete(lower)
+      commitSelection(next)
+    } catch {
+      alert('Could not remove this address')
+    } finally {
+      setRemovingEmail(null)
+    }
+  }
+
   const count = selected.size
   const summary =
     count === 0 ? 'Default recipients (leave empty)' : `${count} recipient${count === 1 ? '' : 's'} selected`
@@ -226,18 +264,31 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
                     {allRows
                       .filter(([, t]) => t === 'registered')
                       .map(([email]) => (
-                        <li key={email} className="flex items-center gap-2">
+                        <li key={email} className="flex items-center gap-2 min-w-0">
                           <input
                             type="checkbox"
                             id={`er-reg-${email}`}
                             checked={selected.has(email)}
                             onChange={() => toggleEmail(email)}
-                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 shrink-0"
                           />
-                          <label htmlFor={`er-reg-${email}`} className="text-sm text-gray-800 cursor-pointer flex-1">
+                          <label htmlFor={`er-reg-${email}`} className="text-sm text-gray-800 cursor-pointer flex-1 min-w-0 truncate">
                             {email}
                           </label>
-                          <span className="text-xs text-gray-400 shrink-0">Directory</span>
+                          <span className="text-[10px] sm:text-xs text-gray-400 shrink-0">Directory</span>
+                          <button
+                            type="button"
+                            disabled={disabled || removingEmail === email}
+                            title={
+                              poolIdByEmail.has(email)
+                                ? 'Remove from this job and from your saved pool'
+                                : 'Remove from this job’s recipients'
+                            }
+                            onClick={() => void handleRemoveRow(email)}
+                            className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline shrink-0 disabled:opacity-50"
+                          >
+                            {removingEmail === email ? '…' : 'Remove'}
+                          </button>
                         </li>
                       ))}
                   </ul>
@@ -253,18 +304,27 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
                     {allRows
                       .filter(([, t]) => t === 'pool')
                       .map(([email]) => (
-                        <li key={email} className="flex items-center gap-2">
+                        <li key={email} className="flex items-center gap-2 min-w-0">
                           <input
                             type="checkbox"
                             id={`er-pool-${email}`}
                             checked={selected.has(email)}
                             onChange={() => toggleEmail(email)}
-                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 shrink-0"
                           />
-                          <label htmlFor={`er-pool-${email}`} className="text-sm text-gray-800 cursor-pointer flex-1">
+                          <label htmlFor={`er-pool-${email}`} className="text-sm text-gray-800 cursor-pointer flex-1 min-w-0 truncate">
                             {email}
                           </label>
-                          <span className="text-xs text-gray-400">Pool</span>
+                          <span className="text-[10px] sm:text-xs text-gray-400 shrink-0">Pool</span>
+                          <button
+                            type="button"
+                            disabled={disabled || removingEmail === email}
+                            title="Remove from this job and from your saved pool"
+                            onClick={() => void handleRemoveRow(email)}
+                            className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline shrink-0 disabled:opacity-50"
+                          >
+                            {removingEmail === email ? '…' : 'Remove'}
+                          </button>
                         </li>
                       ))}
                   </ul>
@@ -278,18 +338,31 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
                     {allRows
                       .filter(([, t]) => t === 'extra')
                       .map(([email]) => (
-                        <li key={email} className="flex items-center gap-2">
+                        <li key={email} className="flex items-center gap-2 min-w-0">
                           <input
                             type="checkbox"
                             id={`er-x-${email}`}
                             checked={selected.has(email)}
                             onChange={() => toggleEmail(email)}
-                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 shrink-0"
                           />
-                          <label htmlFor={`er-x-${email}`} className="text-sm text-gray-800 cursor-pointer flex-1">
+                          <label htmlFor={`er-x-${email}`} className="text-sm text-gray-800 cursor-pointer flex-1 min-w-0 truncate">
                             {email}
                           </label>
-                          <span className="text-xs text-gray-400">Custom</span>
+                          <span className="text-[10px] sm:text-xs text-gray-400 shrink-0">Custom</span>
+                          <button
+                            type="button"
+                            disabled={disabled || removingEmail === email}
+                            title={
+                              poolIdByEmail.has(email)
+                                ? 'Remove from this job and from your saved pool'
+                                : 'Remove from this job’s recipients'
+                            }
+                            onClick={() => void handleRemoveRow(email)}
+                            className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline shrink-0 disabled:opacity-50"
+                          >
+                            {removingEmail === email ? '…' : 'Remove'}
+                          </button>
                         </li>
                       ))}
                   </ul>
