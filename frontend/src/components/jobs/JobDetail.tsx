@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { jobsApi, batchesApi, schedulerApi, authApi } from '../../services/api'
 import type { BatchJob, JobStatus } from '../../types'
 import BatchStatus from '../dashboard/BatchStatus'
+import EmailRecipientsPicker from './EmailRecipientsPicker'
 import { getStatusColor } from '../../utils/statusColors'
 import { formatRunDuration } from '../../utils/timeUtils'
 
@@ -463,16 +464,9 @@ export default function JobDetail() {
                 {/* Email Recipients */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email Recipients (Optional)
+                    Email recipients (optional)
                   </label>
-                  <input
-                    type="text"
-                    value={editEmailRecipients}
-                    onChange={(e) => setEditEmailRecipients(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="email1@example.com, email2@example.com"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Comma-separated email addresses. If empty, uses default system email settings.</p>
+                  <EmailRecipientsPicker value={editEmailRecipients} onChange={setEditEmailRecipients} />
                 </div>
 
                 {/* Scheduler Settings (for daily runs) */}

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { jobsApi } from '../../services/api'
+import EmailRecipientsPicker from './EmailRecipientsPicker'
 
 export default function CreateJob() {
   const [jobName, setJobName] = useState('')
@@ -96,19 +97,9 @@ export default function CreateJob() {
 
         <div>
           <label htmlFor="emailRecipients" className="block text-sm font-medium text-gray-700 mb-2">
-            Email Recipients <span className="text-gray-500 font-normal">(optional, comma-separated)</span>
+            Email recipients <span className="text-gray-500 font-normal">(optional)</span>
           </label>
-          <input
-            type="text"
-            id="emailRecipients"
-            value={emailRecipients}
-            onChange={(e) => setEmailRecipients(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-            placeholder="email1@example.com, email2@example.com"
-          />
-          <p className="mt-2 text-sm text-gray-500">
-            Leave blank to send to all default recipients. Enter specific emails to only send to those addresses.
-          </p>
+          <EmailRecipientsPicker id="emailRecipients" value={emailRecipients} onChange={setEmailRecipients} />
         </div>
 
         <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">

@@ -179,6 +179,38 @@ export const jobsApi = {
   },
 }
 
+export type EmailPoolEntry = { id: string; email: string }
+export type EmailSavedList = { id: string; name: string; emails: string[] }
+
+export const emailRecipientsApi = {
+  getRegistered: async (): Promise<string[]> => {
+    const response = await api.get<{ emails: string[] }>('/api/v1/email-recipients/registered')
+    return response.data.emails
+  },
+  getPool: async (): Promise<EmailPoolEntry[]> => {
+    const response = await api.get<EmailPoolEntry[]>('/api/v1/email-recipients/pool')
+    return response.data
+  },
+  addToPool: async (email: string): Promise<EmailPoolEntry> => {
+    const response = await api.post<EmailPoolEntry>('/api/v1/email-recipients/pool', { email })
+    return response.data
+  },
+  deletePoolEntry: async (entryId: string): Promise<void> => {
+    await api.delete(`/api/v1/email-recipients/pool/${entryId}`)
+  },
+  getLists: async (): Promise<EmailSavedList[]> => {
+    const response = await api.get<EmailSavedList[]>('/api/v1/email-recipients/lists')
+    return response.data
+  },
+  createList: async (name: string, emails: string[]): Promise<EmailSavedList> => {
+    const response = await api.post<EmailSavedList>('/api/v1/email-recipients/lists', { name, emails })
+    return response.data
+  },
+  deleteList: async (listId: string): Promise<void> => {
+    await api.delete(`/api/v1/email-recipients/lists/${listId}`)
+  },
+}
+
 // Batches API
 export const batchesApi = {
   stopBatch: async (batchId: string) => {
