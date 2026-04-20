@@ -349,8 +349,9 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
             <>
               <div className="flex flex-col gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50/90 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-gray-600">
-                  <span className="font-semibold text-gray-800">Pick</span> — tick the left column for each address you
-                  want to drop, then use <span className="font-medium">Remove selected</span>.
+                  <span className="font-semibold text-gray-800">Pick</span> (left) — mark addresses to remove in bulk;{' '}
+                  <span className="font-semibold text-gray-800">Recipient</span> (middle) — who gets this job’s report.{' '}
+                  <span className="font-medium">Remove selected</span> uses the Pick column only.
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
@@ -372,6 +373,36 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
                   )}
                 </div>
               </div>
+
+              {selected.size > 0 && (
+                <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-3 shadow-sm">
+                  <p className="text-xs font-medium text-gray-800 mb-1">Save this recipient set</p>
+                  <p className="text-xs text-gray-600 mb-2">
+                    The <span className="font-medium">checked recipients</span> (middle column) — {selected.size} address
+                    {selected.size === 1 ? '' : 'es'} — will be saved. Use a name you’ll recognize later (Advanced also has
+                    apply/delete for saved lists).
+                  </p>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
+                    <input
+                      type="text"
+                      value={listName}
+                      onChange={(e) => setListName(e.target.value)}
+                      placeholder="e.g. Metro team weekly"
+                      disabled={disabled || savingList}
+                      className="min-w-0 flex-1 rounded-md border border-indigo-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                      aria-label="Name for saved email list"
+                    />
+                    <button
+                      type="button"
+                      disabled={disabled || savingList || !listName.trim()}
+                      onClick={() => void handleSaveList()}
+                      className="whitespace-nowrap rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      {savingList ? 'Saving…' : 'Save list'}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Registered recipients</p>
