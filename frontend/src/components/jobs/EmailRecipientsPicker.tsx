@@ -39,6 +39,9 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
   const [savingList, setSavingList] = useState(false)
   const [applyListId, setApplyListId] = useState('')
   const [removingEmail, setRemovingEmail] = useState<string | null>(null)
+  /** Emails marked in the Pick column for bulk removal */
+  const [bulkMarked, setBulkMarked] = useState<Set<string>>(() => new Set())
+  const [removingBulk, setRemovingBulk] = useState(false)
 
   const refreshData = useCallback(async () => {
     setLoadError(null)
@@ -82,6 +85,10 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
     }
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
+  }, [panelOpen])
+
+  useEffect(() => {
+    if (!panelOpen) setBulkMarked(new Set())
   }, [panelOpen])
 
   const poolEmails = useMemo(() => pool.map((p) => p.email.toLowerCase()), [pool])
@@ -198,6 +205,47 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
   }
 
   /** Remove from this job’s selection; if the address is in your saved pool, delete it there too. */
+  const toggleBulkMark = (email: string) => {
+    const lower = email.toLowerCase()
+    setBulkMarked((prev) => {
+      const next = new Set(prev)
+      if (next.has(lower)) next.delete(lower)
+      else next.add(lower)
+      return next
+    })
+  }
+
+  const handleRemoveBulk = async () => {
+    if (bulkMarked.size === 0) return
+    const emails = [...bulkMarked]
+    const anyPool = emails.some((e) => poolIdByEmail.has(e.toLowerCase()))
+    const msg = anyPool
+      ? `Remove ${emails.length} selected address(es) from this job and from your saved pool where they are saved?`
+      : `Remove ${emails.length} selected address(es) from this job’s recipients?`
+    if (!window.confirm(msg)) return
+
+    setRemovingBulk(true)
+    try {
+      const poolIds = new Set<string>()
+      for (const e of emails) {
+        const pid = poolIdByEmail.get(e.toLowerCase())
+        if (pid) poolIds.add(pid)
+      }
+      for (const pid of poolIds) {
+        await emailRecipientsApi.deletePoolEntry(pid)
+      }
+      setPool((prev) => prev.filter((p) => !poolIds.has(p.id)))
+      const next = new Set(selected)
+      for (const e of emails) next.delete(e.toLowerCase())
+      commitSelection(next)
+      setBulkMarked(new Set())
+    } catch {
+      alert('Could not remove selected addresses')
+    } finally {
+      setRemovingBulk(false)
+    }
+  }
+
   const handleRemoveRow = async (email: string) => {
     const lower = email.toLowerCase()
     const poolId = poolIdByEmail.get(lower)
@@ -219,6 +267,11 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
       const next = new Set(selected)
       next.delete(lower)
       commitSelection(next)
+      setBulkMarked((prev) => {
+        const n = new Set(prev)
+        n.delete(lower)
+        return n
+      })
     } catch {
       alert('Could not remove this address')
     } finally {
@@ -252,6 +305,32 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
 
           {!loading && (
             <>
+              <div className="flex flex-col gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50/90 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-gray-600">
+                  <span className="font-semibold text-gray-800">Pick</span> — tick the left column for each address you
+                  want to drop, then use <span className="font-medium">Remove selected</span>.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={disabled || removingBulk || bulkMarked.size === 0}
+                    onClick={() => void handleRemoveBulk()}
+                    className="whitespace-nowrap rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {removingBulk ? 'Removing…' : `Remove selected (${bulkMarked.size})`}
+                  </button>
+                  {bulkMarked.size > 0 && (
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-gray-600 underline decoration-gray-300 hover:text-gray-900"
+                      onClick={() => setBulkMarked(new Set())}
+                    >
+                      Clear picks
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Registered recipients</p>
                 <p className="text-xs text-gray-400 mb-2">
@@ -271,6 +350,15 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
                           <div className="flex min-w-0 flex-1 items-center gap-2">
                             <input
                               type="checkbox"
+                              aria-label={`Pick ${email} for bulk removal`}
+                              title="Pick for Remove selected"
+                              disabled={disabled}
+                              checked={bulkMarked.has(email)}
+                              onChange={() => toggleBulkMark(email)}
+                              className="h-4 w-4 shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50"
+                            />
+                            <input
+                              type="checkbox"
                               id={`er-reg-${email}`}
                               checked={selected.has(email)}
                               onChange={() => toggleEmail(email)}
@@ -283,7 +371,7 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
                               {email}
                             </label>
                           </div>
-                          <div className="flex shrink-0 items-center justify-end gap-2 pl-7 sm:pl-0">
+                          <div className="flex shrink-0 items-center justify-end gap-2 sm:pl-0">
                             <span className="text-[10px] text-gray-400 sm:text-xs">Directory</span>
                             <button
                               type="button"
@@ -321,6 +409,15 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
                           <div className="flex min-w-0 flex-1 items-center gap-2">
                             <input
                               type="checkbox"
+                              aria-label={`Pick ${email} for bulk removal`}
+                              title="Pick for Remove selected"
+                              disabled={disabled}
+                              checked={bulkMarked.has(email)}
+                              onChange={() => toggleBulkMark(email)}
+                              className="h-4 w-4 shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50"
+                            />
+                            <input
+                              type="checkbox"
                               id={`er-pool-${email}`}
                               checked={selected.has(email)}
                               onChange={() => toggleEmail(email)}
@@ -333,7 +430,7 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
                               {email}
                             </label>
                           </div>
-                          <div className="flex shrink-0 items-center justify-end gap-2 pl-7 sm:pl-0">
+                          <div className="flex shrink-0 items-center justify-end gap-2 sm:pl-0">
                             <span className="text-[10px] text-gray-400 sm:text-xs">Pool</span>
                             <button
                               type="button"
@@ -365,6 +462,15 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
                           <div className="flex min-w-0 flex-1 items-center gap-2">
                             <input
                               type="checkbox"
+                              aria-label={`Pick ${email} for bulk removal`}
+                              title="Pick for Remove selected"
+                              disabled={disabled}
+                              checked={bulkMarked.has(email)}
+                              onChange={() => toggleBulkMark(email)}
+                              className="h-4 w-4 shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50"
+                            />
+                            <input
+                              type="checkbox"
                               id={`er-x-${email}`}
                               checked={selected.has(email)}
                               onChange={() => toggleEmail(email)}
@@ -377,7 +483,7 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
                               {email}
                             </label>
                           </div>
-                          <div className="flex shrink-0 items-center justify-end gap-2 pl-7 sm:pl-0">
+                          <div className="flex shrink-0 items-center justify-end gap-2 sm:pl-0">
                             <span className="text-[10px] text-gray-400 sm:text-xs">Custom</span>
                             <button
                               type="button"
