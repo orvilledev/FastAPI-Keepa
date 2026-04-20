@@ -159,7 +159,7 @@ export default function SellerList() {
         next.delete(seller_id)
         return next
       })
-      setMessage({ text: 'Seller removed.', variant: 'ok' })
+      setMessage({ text: 'Seller successfully deleted.', variant: 'ok' })
       await load()
     } catch (e: unknown) {
       const msg =
@@ -183,7 +183,11 @@ export default function SellerList() {
     setMessage(null)
     try {
       const res = await sellersApi.bulkDelete(ids)
-      setMessage({ text: res.message || `Deleted ${res.count} row(s).`, variant: 'ok' })
+      const n = res.count
+      setMessage({
+        text: n === 1 ? 'Seller successfully deleted.' : `${n} sellers successfully deleted.`,
+        variant: 'ok',
+      })
       setSelected(new Set())
       await load()
     } catch (e: unknown) {
