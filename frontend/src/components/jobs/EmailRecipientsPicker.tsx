@@ -21,6 +21,8 @@ type Props = {
 
 export default function EmailRecipientsPicker({ id, value, onChange, disabled }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
+  /** Avoid overwriting local selection when parent re-renders after our own onChange. */
+  const skipValueSyncRef = useRef(false)
   const [panelOpen, setPanelOpen] = useState(false)
   const [registered, setRegistered] = useState<string[]>([])
   const [pool, setPool] = useState<EmailPoolEntry[]>([])
@@ -42,6 +44,8 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
   /** Emails marked in the Pick column for bulk removal */
   const [bulkMarked, setBulkMarked] = useState<Set<string>>(() => new Set())
   const [removingBulk, setRemovingBulk] = useState(false)
+  /** Hide directory/pool rows after user removes them (until panel reopens). */
+  const [dismissedEmails, setDismissedEmails] = useState<Set<string>>(() => new Set())
 
   const refreshData = useCallback(async () => {
     setLoadError(null)
@@ -73,6 +77,10 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
   }, [refreshData])
 
   useEffect(() => {
+    if (skipValueSyncRef.current) {
+      skipValueSyncRef.current = false
+      return
+    }
     setSelected(new Set(parseEmails(value)))
   }, [value])
 
@@ -88,7 +96,11 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
   }, [panelOpen])
 
   useEffect(() => {
-    if (!panelOpen) setBulkMarked(new Set())
+    if (panelOpen) {
+      setDismissedEmails(new Set())
+    } else {
+      setBulkMarked(new Set())
+    }
   }, [panelOpen])
 
   const poolEmails = useMemo(() => pool.map((p) => p.email.toLowerCase()), [pool])
@@ -103,20 +115,25 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
 
   const allRows = useMemo(() => {
     const map = new Map<string, 'registered' | 'pool' | 'extra'>()
-    for (const e of registered) map.set(e, 'registered')
+    for (const e of registered) {
+      if (!dismissedEmails.has(e)) map.set(e, 'registered')
+    }
     for (const e of poolEmails) {
+      if (dismissedEmails.has(e)) continue
       if (!map.has(e)) map.set(e, 'pool')
     }
     for (const e of selected) {
+      if (dismissedEmails.has(e)) continue
       if (!map.has(e)) map.set(e, 'extra')
     }
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-  }, [registered, poolEmails, selected])
+  }, [registered, poolEmails, selected, dismissedEmails])
 
   const commitSelection = useCallback(
     (next: Set<string>) => {
       setSelected(next)
       const arr = [...next].sort()
+      skipValueSyncRef.current = true
       onChange(arr.join(', '))
     },
     [onChange]
@@ -150,6 +167,11 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
       const next = new Set(selected)
       next.add(trimmed)
       commitSelection(next)
+      setDismissedEmails((prev) => {
+        const n = new Set(prev)
+        n.delete(trimmed)
+        return n
+      })
       setNewEmail('')
       setSaveNewToPool(false)
     } catch (e: unknown) {
@@ -171,6 +193,13 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
       if (isValidEmail(e)) next.add(e.toLowerCase())
     }
     commitSelection(next)
+    setDismissedEmails((prev) => {
+      const n = new Set(prev)
+      for (const e of list.emails) {
+        if (isValidEmail(e)) n.delete(e.toLowerCase())
+      }
+      return n
+    })
   }
 
   const handleSaveList = async () => {
@@ -236,9 +265,17 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
       }
       setPool((prev) => prev.filter((p) => !poolIds.has(p.id)))
       const next = new Set(selected)
-      for (const e of emails) next.delete(e.toLowerCase())
+      for (const e of emails) {
+        const el = e.toLowerCase()
+        next.delete(el)
+      }
       commitSelection(next)
       setBulkMarked(new Set())
+      setDismissedEmails((prev) => {
+        const n = new Set(prev)
+        for (const e of emails) n.add(e.toLowerCase())
+        return n
+      })
     } catch {
       alert('Could not remove selected addresses')
     } finally {
@@ -270,6 +307,11 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
       setBulkMarked((prev) => {
         const n = new Set(prev)
         n.delete(lower)
+        return n
+      })
+      setDismissedEmails((prev) => {
+        const n = new Set(prev)
+        n.add(lower)
         return n
       })
     } catch {
