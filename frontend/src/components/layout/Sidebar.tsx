@@ -144,7 +144,7 @@ export default function Sidebar() {
       children: manageUPCsMenuItems
     },
     { path: '/map', label: 'Manage MAP', icon: 'dollar' as const },
-    { path: '/vendor-list', label: 'Vendor List', icon: 'users' as const },
+    { path: '/seller-list', label: 'Seller List', icon: 'users' as const },
     {
       label: 'Daily Runs',
       icon: 'refresh' as const,
@@ -342,8 +342,8 @@ export default function Sidebar() {
                         ? 'keepa-jobs'
                         : item.path === '/map'
                           ? 'keepa-map'
-                          : item.path === '/vendor-list'
-                            ? 'keepa-vendors'
+                          : item.path === '/seller-list'
+                            ? 'keepa-sellers'
                             : 'keepa-other'
 
                     return (

@@ -122,6 +122,21 @@ class SellerNameRepository:
             raise HTTPException(status_code=404, detail=f"Seller ID {seller_id} not found")
         return True
 
+    def bulk_delete_seller_names(self, seller_ids: List[str]) -> int:
+        """Delete many seller mappings by seller_id. Returns number of rows removed."""
+        if not seller_ids:
+            return 0
+        unique = list(dict.fromkeys(s.strip() for s in seller_ids if s and str(s).strip()))
+        if not unique:
+            return 0
+        result = (
+            self.db.table(self.table)
+            .delete()
+            .in_("seller_id", unique)
+            .execute()
+        )
+        return len(result.data) if result.data else 0
+
     def get_count(self) -> int:
         """Get total count of seller name mappings."""
         response = (

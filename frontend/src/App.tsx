@@ -19,7 +19,7 @@ const CLKDailyRun = lazy(() => import('./components/jobs/CLKDailyRun'))
 const ReportView = lazy(() => import('./components/reports/ReportView'))
 const UPCManagement = lazy(() => import('./components/upcs/UPCManagement'))
 const MAPManagement = lazy(() => import('./components/map/MAPManagement'))
-const VendorList = lazy(() => import('./components/vendors/VendorList'))
+const SellerList = lazy(() => import('./components/sellers/SellerList'))
 const PublicTools = lazy(() => import('./components/tools/PublicTools'))
 const JobAids = lazy(() => import('./components/tools/JobAids'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
@@ -110,7 +110,8 @@ function AppRoutes() {
           <Route path="upcs" element={<ProtectedRoute requireKeepaAccess={true}><UPCManagement category="dnk" /></ProtectedRoute>} />
           <Route path="clk-upcs" element={<ProtectedRoute requireKeepaAccess={true}><UPCManagement category="clk" /></ProtectedRoute>} />
           <Route path="map" element={<ProtectedRoute requireKeepaAccess={true}><MAPManagement /></ProtectedRoute>} />
-          <Route path="vendor-list" element={<ProtectedRoute requireKeepaAccess={true}><VendorList /></ProtectedRoute>} />
+          <Route path="vendor-list" element={<Navigate to="/seller-list" replace />} />
+          <Route path="seller-list" element={<ProtectedRoute requireKeepaAccess={true}><SellerList /></ProtectedRoute>} />
           <Route path="daily-run" element={<Navigate to="/daily-run/dnk" replace />} />
           <Route path="daily-run/dnk" element={<ProtectedRoute requireKeepaAccess={true}><DNKDailyRun /></ProtectedRoute>} />
           <Route path="daily-run/clk" element={<ProtectedRoute requireKeepaAccess={true}><CLKDailyRun /></ProtectedRoute>} />

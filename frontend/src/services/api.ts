@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
 import type {
-  MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, Note, JobAid, Notification, ComprehensiveReportRow } from '../types'
+  MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, Note, JobAid, Notification, ComprehensiveReportRow, SellerName } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -331,6 +331,36 @@ export const mapApi = {
       upcs_requested: number
       upcs_not_found: string[]
     }>('/api/v1/map/delete-by-upcs', { upcs })
+    return response.data
+  },
+}
+
+// Seller name mappings (Keepa seller ID → display name), stored in `seller_names`
+export const sellersApi = {
+  list: async () => {
+    const response = await api.get<{ sellers: SellerName[]; total: number }>('/api/v1/sellers')
+    return response.data
+  },
+  add: async (seller_id: string, seller_name: string) => {
+    const response = await api.post('/api/v1/sellers', { seller_id, seller_name })
+    return response.data
+  },
+  bulkUpsert: async (sellers: Array<{ seller_id: string; seller_name: string }>) => {
+    const response = await api.post<{ message: string; count: number }>('/api/v1/sellers/bulk', { sellers })
+    return response.data
+  },
+  update: async (seller_id: string, seller_name: string) => {
+    const response = await api.put(`/api/v1/sellers/${encodeURIComponent(seller_id)}`, { seller_name })
+    return response.data
+  },
+  delete: async (seller_id: string) => {
+    const response = await api.delete(`/api/v1/sellers/${encodeURIComponent(seller_id)}`)
+    return response.data
+  },
+  bulkDelete: async (seller_ids: string[]) => {
+    const response = await api.post<{ message: string; count: number }>('/api/v1/sellers/bulk-delete', {
+      seller_ids,
+    })
     return response.data
   },
 }

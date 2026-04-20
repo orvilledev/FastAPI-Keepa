@@ -138,11 +138,14 @@ export interface UPC {
 
 export type MapVendorType = 'dnk' | 'clk'
 
-/** Canonical Keepa vendors (aligned with backend `MAP_VENDOR_TYPES` in `app/models/map.py`). */
-export const KEEPA_VENDORS: ReadonlyArray<{ code: MapVendorType; name: string }> = [
-  { code: 'dnk', name: 'DNK' },
-  { code: 'clk', name: 'CLK' },
-]
+/** Row from `seller_names` — maps Keepa seller IDs to display names for reports. */
+export interface SellerName {
+  id: string
+  seller_id: string
+  seller_name: string
+  created_at?: string
+  updated_at?: string
+}
 
 export interface MAP {
   id: string
