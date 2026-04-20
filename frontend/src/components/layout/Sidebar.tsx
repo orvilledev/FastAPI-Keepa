@@ -152,8 +152,8 @@ export default function Sidebar() {
   ]
 
   const toolsMenuItems = [
-    { path: '/tools/public', label: 'Public Tools', icon: 'globe' as const },
-    { path: '/tools/job-aids', label: 'Job Aids', icon: 'wrench' as const },
+    { path: '/tools/public', label: 'Trainings', icon: 'globe' as const },
+    { path: '/tools/job-aids', label: 'FAQ', icon: 'wrench' as const },
   ]
 
   const hasActiveDailyRunsSubItem = dailyRunsMenuItems.some(item => isActive(item.path))
@@ -359,7 +359,7 @@ export default function Sidebar() {
             </div>
           )}
 
-          {/* Resources Dropdown */}
+          {/* Documentations Dropdown */}
           <div>
             <button
               onClick={() => {
@@ -371,7 +371,7 @@ export default function Sidebar() {
               }`}
             >
               <span className="mr-3">{Icons.resources}</span>
-              <span className="flex-1">Resources</span>
+              <span className="flex-1">Documentations</span>
               <span>
                 {isToolsMenuOpen ? Icons.chevronDown : Icons.chevronRight}
               </span>

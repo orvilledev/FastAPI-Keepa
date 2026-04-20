@@ -296,7 +296,7 @@ export default function MyToolbox() {
         <div className="card p-12 text-center">
           <div className="text-gray-500 mb-2">Your toolbox is empty.</div>
           <p className="text-sm text-gray-400 mb-4">
-            Star tools from the Public Tools or Job Aids pages, or create your own tools.
+            Star tools from the Trainings or FAQ pages, or create your own tools.
           </p>
           <button
             onClick={() => {
@@ -311,11 +311,11 @@ export default function MyToolbox() {
         </div>
       ) : (
         <div className="space-y-8">
-          {/* Starred Job Aids Section */}
+          {/* Starred FAQ Section */}
           {starredJobAids.length > 0 && (
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <h2 className="text-2xl font-bold text-gray-900">🛠️ Job Aids</h2>
+                <h2 className="text-2xl font-bold text-gray-900">🛠️ FAQ</h2>
                 <span className="text-sm text-gray-500">({starredJobAids.length})</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -378,7 +378,7 @@ export default function MyToolbox() {
             </div>
           )}
 
-          {/* Starred Public Tools Section */}
+          {/* Starred Trainings (public tools) Section */}
           {starredTools.length > 0 && (
             <div>
               <div className="flex items-center gap-3 mb-4">

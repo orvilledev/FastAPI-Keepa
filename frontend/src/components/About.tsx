@@ -35,21 +35,21 @@ export default function About() {
       </div>
 
       <div className="card p-8">
-        <h2 className="text-2xl font-semibold text-gray-900">Secondary Focus: Resources</h2>
+        <h2 className="text-2xl font-semibold text-gray-900">Secondary Focus: Documentations</h2>
         <div className="mt-4 space-y-4 text-gray-700">
           <p>
-            The Resources area supports daily operations by keeping commonly used tools and guidance in one place.
+            The Documentations area supports daily operations by keeping commonly used tools and guidance in one place.
           </p>
           <ul className="list-disc pl-6 space-y-2">
             <li>
-              <span className="font-semibold">Public Tools:</span> Shared links and utilities for the team.
+              <span className="font-semibold">Trainings:</span> Shared links and utilities for the team.
             </li>
             <li>
-              <span className="font-semibold">Job Aids:</span> Reference materials and workflow guides.
+              <span className="font-semibold">FAQ:</span> Reference materials and workflow guides.
             </li>
           </ul>
           <p>
-            In short, Keepa Alert Services drives the monitoring and reporting outcomes, while Resources
+            In short, Keepa Alert Services drives the monitoring and reporting outcomes, while Documentations
             helps users execute work faster and more consistently.
           </p>
         </div>

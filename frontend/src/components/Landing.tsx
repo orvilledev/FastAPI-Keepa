@@ -89,9 +89,9 @@ export default function Landing() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
         </svg>
       ),
-      title: 'Tools & resources',
+      title: 'Tools & documentation',
       description:
-        'Resources: public tools and job aids; My Toolbox for links and utilities you save for yourself',
+        'Documentations: Trainings and FAQ; My Toolbox for links and utilities you save for yourself',
     },
     {
       icon: (
@@ -209,7 +209,7 @@ export default function Landing() {
                 <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Dashboard, My Notes, Resources, and notifications</span>
+                <span className="text-gray-700">Dashboard, My Notes, Documentations, and notifications</span>
               </li>
               <li className="flex items-start">
                 <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">

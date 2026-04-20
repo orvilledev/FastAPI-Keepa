@@ -158,7 +158,7 @@ export default function JobAids() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Job Aids</h1>
+          <h1 className="text-3xl font-bold text-gray-900">FAQ</h1>
           <p className="mt-1 text-sm text-gray-500">Access job-related tools and resources</p>
         </div>
         {canManageTools && (
