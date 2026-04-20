@@ -55,7 +55,6 @@ export default function SellerList() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    setMessage(null)
     try {
       const data = await sellersApi.list()
       setSellers(data.sellers || [])
@@ -113,7 +112,13 @@ export default function SellerList() {
     setMessage(null)
     try {
       await sellersApi.bulkUpsert(rows)
-      setMessage({ text: `Added ${rows.length} seller(s).`, variant: 'ok' })
+      setMessage({
+        text:
+          rows.length === 1
+            ? 'Seller successfully added.'
+            : `${rows.length} sellers successfully added.`,
+        variant: 'ok',
+      })
       setBulkText('')
       setSelected(new Set())
       await load()
