@@ -113,7 +113,7 @@ export default function SellerList() {
     setMessage(null)
     try {
       await sellersApi.bulkUpsert(rows)
-      setMessage({ text: `Imported ${rows.length} row(s).`, variant: 'ok' })
+      setMessage({ text: `Added ${rows.length} seller(s).`, variant: 'ok' })
       setBulkText('')
       setSelected(new Set())
       await load()
@@ -198,10 +198,10 @@ export default function SellerList() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold text-gray-900">Seller List</h1>
+      <h1 className="text-3xl font-bold text-gray-900">Add Sellers</h1>
       <p className="mt-1 text-sm text-gray-500">
-        Amazon seller IDs and display names used in reports. Format per line:{' '}
-        <span className="font-mono text-gray-700">A1HQOHOLTUK58E,Buy DBDeals</span> (comma after the seller code).
+        Amazon seller IDs and display names used in reports. One seller per line — seller code, comma, then name (e.g.{' '}
+        <span className="font-mono text-gray-700">A1HQOHOLTUK58E,Buy DBDeals</span>).
       </p>
 
       {message && (
@@ -215,26 +215,30 @@ export default function SellerList() {
       )}
 
       <div className="mt-8 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Bulk upload</h2>
-          <p className="text-sm text-gray-500">
-            Paste or upload a .csv / .txt file: one seller per line, fields separated by the first comma.
-          </p>
+        <div className="px-6 py-5 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Paste or upload your list</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Put one seller per line. After you paste, click <strong className="font-semibold text-gray-700">Add sellers</strong>{' '}
+              to save them to the system.
+            </p>
+          </div>
           <textarea
             value={bulkText}
             onChange={(e) => setBulkText(e.target.value)}
-            rows={6}
+            rows={8}
             placeholder={'A1HQOHOLTUK58E,Buy DBDeals\nA2EXAMPLE1234567,Another Store'}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono text-gray-900 focus:ring-2 focus:ring-[#0B1020]/20 focus:border-[#0B1020]"
+            aria-label="Paste seller list: seller code, comma, then name, one per line"
           />
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:items-center">
             <button
               type="button"
               disabled={importing}
               onClick={() => void onImportText()}
-              className="inline-flex items-center px-4 py-2 rounded-lg bg-[#0B1020] text-white text-sm font-medium hover:bg-[#1a2235] disabled:opacity-50"
+              className="inline-flex justify-center items-center px-6 py-3 rounded-lg bg-[#0B1020] text-white text-base font-semibold shadow-sm hover:bg-[#1a2235] disabled:opacity-50 min-w-[200px]"
             >
-              {importing ? 'Importing…' : 'Import from text'}
+              {importing ? 'Adding…' : 'Add sellers'}
             </button>
             <input
               ref={fileRef}
@@ -247,9 +251,9 @@ export default function SellerList() {
               type="button"
               disabled={importing}
               onClick={() => fileRef.current?.click()}
-              className="inline-flex items-center px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+              className="inline-flex justify-center items-center px-4 py-3 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50"
             >
-              Upload file
+              Or upload a .csv / .txt file
             </button>
           </div>
         </div>
@@ -281,7 +285,9 @@ export default function SellerList() {
           <div className="px-6 py-12 text-center text-gray-500">Loading…</div>
         ) : filtered.length === 0 ? (
           <div className="px-6 py-12 text-center text-gray-500">
-            {sellers.length === 0 ? 'No sellers yet. Add rows via bulk upload above.' : 'No matches for this search.'}
+            {sellers.length === 0
+              ? 'No sellers saved yet. Paste your list above and click Add sellers.'
+              : 'No matches for this search.'}
           </div>
         ) : (
           <div className="overflow-x-auto">
