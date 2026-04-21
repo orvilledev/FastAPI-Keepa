@@ -103,12 +103,16 @@ class KeepaClient:
         try:
             params = {
                 "code": upc,
-                "domain": "1",
-                "stats": "180",
-                "history": "1",
-                "offers": "50",
-                "buybox": "1",
+                "domain": str(settings.keepa_domain),
+                "stats": str(settings.keepa_stats_window_days),
+                "offers": str(settings.keepa_offers_limit),
             }
+
+            # Keep payload lean by default; toggle these via env when needed.
+            if settings.keepa_include_history:
+                params["history"] = "1"
+            if settings.keepa_include_buybox:
+                params["buybox"] = "1"
             
             await asyncio.sleep(self.rate_limit_delay)
             

@@ -16,15 +16,31 @@ class Settings(BaseSettings):
     keepa_api_key: str
     keepa_api_keys: str = ""
     keepa_api_url: str = "https://api.keepa.com/"
+    # Keepa request-shape tuning for performance
+    keepa_domain: str = "1"
+    keepa_stats_window_days: int = 180
+    keepa_include_history: bool = False
+    keepa_offers_limit: int = 20
+    keepa_include_buybox: bool = True
     
     @property
     def keepa_api_keys_list(self) -> List[str]:
-        """Parse comma-separated Keepa API keys. Falls back to single key."""
-        if self.keepa_api_keys:
-            keys = [k.strip() for k in self.keepa_api_keys.split(",") if k.strip()]
-            if keys:
-                return keys
-        return [self.keepa_api_key]
+        """Return deduplicated Keepa keys, always including primary key."""
+        keys: List[str] = []
+        seen = set()
+
+        for raw in (self.keepa_api_keys or "").split(","):
+            key = raw.strip()
+            if key and key not in seen:
+                seen.add(key)
+                keys.append(key)
+
+        primary = (self.keepa_api_key or "").strip()
+        if primary and primary not in seen:
+            keys.append(primary)
+
+        # Keep at least one value for downstream client construction.
+        return keys if keys else [self.keepa_api_key]
     
     # Supabase Configuration
     supabase_url: str
