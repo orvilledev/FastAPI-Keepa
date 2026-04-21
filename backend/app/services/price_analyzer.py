@@ -122,31 +122,48 @@ class PriceAnalyzer:
                 return off_price_sellers
 
             map_f = float(map_price)
+            stats = keepa_data.get("stats", {}) or {}
+            buy_box_seller_id = stats.get("buyBoxSellerId")
+            buy_box_seller_id = str(buy_box_seller_id).strip() if buy_box_seller_id is not None else ""
 
-            for seller in current_prices:
-                current_price = seller["price"]
-                if current_price is None or current_price <= 0:
-                    continue
+            # Strict rule: only the actual buy box winner can be flagged.
+            if not buy_box_seller_id:
+                return off_price_sellers
 
-                cur_f = float(current_price)
-                if cur_f < map_f:
-                    price_change = cur_f - map_f
-                    price_change_percent = (price_change / map_f) * 100 if map_f else 0.0
+            buy_box_seller = next(
+                (
+                    s
+                    for s in current_prices
+                    if str(s.get("seller_id", "")).strip() == buy_box_seller_id
+                ),
+                None,
+            )
+            if not buy_box_seller:
+                return off_price_sellers
 
-                    off_price_seller = {
-                        "seller_id": seller["seller_id"],
-                        "seller_name": seller["seller_name"],
-                        "current_price": current_price,
-                        "map_price": map_price,
-                        # Stored in price_alerts.historical_price for schema compatibility (value is MAP)
-                        "historical_price": map_price,
-                        "price_change": Decimal(str(price_change)),
-                        "price_change_percent": price_change_percent,
-                        "is_fba": seller["is_fba"],
-                        "condition": seller["condition"],
-                    }
+            current_price = buy_box_seller.get("price")
+            if current_price is None or current_price <= 0:
+                return off_price_sellers
 
-                    off_price_sellers.append(off_price_seller)
+            cur_f = float(current_price)
+            if cur_f < map_f:
+                price_change = cur_f - map_f
+                price_change_percent = (price_change / map_f) * 100 if map_f else 0.0
+
+                off_price_seller = {
+                    "seller_id": buy_box_seller["seller_id"],
+                    "seller_name": buy_box_seller["seller_name"],
+                    "current_price": current_price,
+                    "map_price": map_price,
+                    # Stored in price_alerts.historical_price for schema compatibility (value is MAP)
+                    "historical_price": map_price,
+                    "price_change": Decimal(str(price_change)),
+                    "price_change_percent": price_change_percent,
+                    "is_fba": buy_box_seller["is_fba"],
+                    "condition": buy_box_seller["condition"],
+                }
+
+                off_price_sellers.append(off_price_seller)
 
         except Exception as e:
             logger.error(f"Error detecting off-price sellers: {e}")

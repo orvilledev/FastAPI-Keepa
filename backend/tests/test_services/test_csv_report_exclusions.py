@@ -67,6 +67,10 @@ def test_comprehensive_report_keeps_non_excluded_seller():
                 "asin": "B00TEST",
                 "title": "T",
                 "brand": "B",
+                "stats": {
+                    "buyBoxSellerId": "X1",
+                    "buyBoxPrice": 1000,
+                },
                 "current_sellers": [
                     {
                         "sellerId": "X1",
@@ -141,6 +145,49 @@ def test_comprehensive_report_one_row_per_upc_prefers_buy_box():
 
 
 @pytest.mark.unit
+def test_comprehensive_report_does_not_flag_non_buy_box_seller():
+    """Even if another seller is below MAP, no row is added unless buy-box winner is below MAP."""
+    keepa = {
+        "products": [
+            {
+                "asin": "B00TEST",
+                "title": "T",
+                "brand": "B",
+                "stats": {
+                    "buyBoxSellerId": "WINNER",
+                    "buyBoxPrice": 5500,
+                },
+                "current_sellers": [
+                    {
+                        "sellerId": "WINNER",
+                        "sellerName": "Winner Co",
+                        "price": 5500,
+                        "isFBA": False,
+                        "condition": "New",
+                    },
+                    {
+                        "sellerId": "CHEAP",
+                        "sellerName": "Cheapo",
+                        "price": 2000,
+                        "isFBA": False,
+                        "condition": "New",
+                    },
+                ],
+                "offers": [],
+            }
+        ]
+    }
+    items = [{"upc": "123", "keepa_data": keepa, "status": "completed"}]
+    _, count = CSVGenerator.generate_comprehensive_report_csv(
+        items,
+        {"123": Decimal("50.00")},
+        seller_name_map={},
+        excluded_seller_substrings=[],
+    )
+    assert count == 0
+
+
+@pytest.mark.unit
 def test_comprehensive_report_dedupes_duplicate_upc_last_wins():
     keepa_first = {
         "products": [
@@ -148,6 +195,10 @@ def test_comprehensive_report_dedupes_duplicate_upc_last_wins():
                 "asin": "BOLD",
                 "title": "Old",
                 "brand": "B",
+                "stats": {
+                    "buyBoxSellerId": "X1",
+                    "buyBoxPrice": 1000,
+                },
                 "current_sellers": [
                     {
                         "sellerId": "X1",
@@ -167,6 +218,10 @@ def test_comprehensive_report_dedupes_duplicate_upc_last_wins():
                 "asin": "BNEW",
                 "title": "New Title",
                 "brand": "B",
+                "stats": {
+                    "buyBoxSellerId": "Y1",
+                    "buyBoxPrice": 1000,
+                },
                 "current_sellers": [
                     {
                         "sellerId": "Y1",
