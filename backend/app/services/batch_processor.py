@@ -90,7 +90,7 @@ class BatchProcessor:
         upcs: List[str],
         created_by: UUID,
         email_recipients: str = None,
-        keepa_offers_limit: Optional[int] = None,
+        keepa_offers_limit: int = 0,
         map_vendor_type: Optional[str] = None,
     ) -> UUID:
         """
@@ -118,9 +118,8 @@ class BatchProcessor:
             "completed_batches": 0,
             "created_by": str(created_by),
             "map_vendor_type": resolve_map_vendor_type(map_vendor_type),
+            "keepa_offers_limit": max(0, min(500, int(keepa_offers_limit))),
         }
-        if keepa_offers_limit is not None:
-            insert_data["keepa_offers_limit"] = max(0, min(500, int(keepa_offers_limit)))
         if email_recipients:
             insert_data["email_recipients"] = email_recipients
         
@@ -278,7 +277,7 @@ class BatchProcessor:
             batch_data = batch_response.data[0]
 
             job_vendor = resolve_map_vendor_type(None)
-            job_offers_limit = settings.keepa_offers_limit
+            job_offers_limit: Optional[int] = None
             job_id_for_batch = batch_data.get("batch_job_id")
             if job_id_for_batch:
                 job_row = self._execute_with_retry(
@@ -294,11 +293,22 @@ class BatchProcessor:
                 if job_row.data:
                     job_vendor = resolve_map_vendor_type(job_row.data[0].get("map_vendor_type"))
                     raw_offers_limit = job_row.data[0].get("keepa_offers_limit")
-                    if raw_offers_limit is not None:
-                        try:
-                            job_offers_limit = max(0, min(500, int(raw_offers_limit)))
-                        except Exception:
-                            job_offers_limit = settings.keepa_offers_limit
+                    if raw_offers_limit is None:
+                        raise ValueError(
+                            "Missing keepa_offers_limit on batch job. "
+                            "Per-job offers limit is required and fallback is disabled."
+                        )
+                    try:
+                        job_offers_limit = max(0, min(500, int(raw_offers_limit)))
+                    except Exception as parse_err:
+                        raise ValueError(
+                            f"Invalid keepa_offers_limit value on batch job: {raw_offers_limit}"
+                        ) from parse_err
+
+            if job_offers_limit is None:
+                raise ValueError(
+                    "Could not resolve keepa_offers_limit for this batch job."
+                )
 
             if batch_data.get("status") == "cancelled":
                 logger.info(f"Batch {batch_id} is already cancelled, skipping processing")

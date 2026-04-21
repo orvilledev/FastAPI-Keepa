@@ -54,7 +54,7 @@ export default function CreateJob() {
         upcs: string[]
         email_recipients?: string
         map_vendor_type: string
-        keepa_offers_limit?: number
+        keepa_offers_limit: number
       } = {
         job_name: jobName || `Job ${new Date().toLocaleString()}`,
         upcs: upcList,

@@ -17,11 +17,10 @@ class BatchJobCreate(BaseModel):
     job_name: str
     upcs: list[str]  # List of UPCs to process
     email_recipients: Optional[str] = None
-    keepa_offers_limit: Optional[int] = Field(
-        default=None,
+    keepa_offers_limit: int = Field(
         ge=0,
         le=500,
-        description="Per-job Keepa offers limit override (0-500). Omit to use system default.",
+        description="Per-job Keepa offers limit (0-500). Required for deterministic processing.",
     )
     map_vendor_type: Optional[str] = Field(
         default=None,
