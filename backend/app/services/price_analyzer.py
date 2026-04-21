@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 class PriceAnalyzer:
     """Analyzes Keepa data to detect sellers priced below MAP."""
+    _excluded_buy_box_name_tokens = ("metroshoe",)
 
     @staticmethod
     def _seller_price_cents_to_dollars(raw: Any) -> Optional[Decimal]:
@@ -23,6 +24,13 @@ class PriceAnalyzer:
             return Decimal(str(round(cents / 100.0, 2)))
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _normalize_seller_name(raw: Optional[str]) -> str:
+        """Lowercase alphanumerics only (e.g., 'MetroShoe Warehouse' -> 'metroshoewarehouse')."""
+        if not raw:
+            return ""
+        return "".join(ch.lower() for ch in str(raw) if ch.isalnum())
 
     @staticmethod
     def parse_keepa_data(keepa_response: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -139,6 +147,13 @@ class PriceAnalyzer:
                 None,
             )
             if not buy_box_seller:
+                return off_price_sellers
+
+            # Exclude MetroShoe buy box winners from off-price listings.
+            buy_box_name_normalized = self._normalize_seller_name(
+                buy_box_seller.get("seller_name")
+            )
+            if any(token in buy_box_name_normalized for token in self._excluded_buy_box_name_tokens):
                 return off_price_sellers
 
             current_price = buy_box_seller.get("price")

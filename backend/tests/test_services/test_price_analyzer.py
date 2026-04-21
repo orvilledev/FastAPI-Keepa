@@ -50,3 +50,35 @@ def test_detect_off_price_sellers_does_not_flag_non_buy_box_offer():
     parsed = analyzer.parse_keepa_data(keepa_data)
     sellers = analyzer.detect_off_price_sellers(parsed, map_price=Decimal("30.00"))
     assert sellers == []
+
+
+@pytest.mark.unit
+def test_detect_off_price_sellers_excludes_metroshoe_buy_box_winner():
+    analyzer = PriceAnalyzer()
+    keepa_data = {
+        "products": [
+            {
+                "stats": {
+                    "buyBoxSellerId": "METRO_WINNER",
+                },
+                "current_sellers": [
+                    {
+                        "sellerId": "METRO_WINNER",
+                        "sellerName": "MetroShoe Warehouse",
+                        "price": 2500,
+                        "isFBA": False,
+                    },
+                    {
+                        "sellerId": "OTHER",
+                        "sellerName": "Other Seller",
+                        "price": 2600,
+                        "isFBA": False,
+                    },
+                ],
+            }
+        ]
+    }
+
+    parsed = analyzer.parse_keepa_data(keepa_data)
+    sellers = analyzer.detect_off_price_sellers(parsed, map_price=Decimal("30.00"))
+    assert sellers == []
