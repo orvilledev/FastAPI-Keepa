@@ -1,6 +1,7 @@
 """Batch processing service for UPCs."""
 import asyncio
 import logging
+import time
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 from datetime import datetime
@@ -30,6 +31,41 @@ class BatchProcessor:
         self.email_service = EmailService()
         self.batch_size = 119  # ~119 UPCs per batch (2500 / 21 ≈ 119)
         self.total_batches = 21
+        self.db_retry_attempts = 3
+        self.db_retry_base_delay = 1.0
+
+    @staticmethod
+    def _is_transient_db_error(error: Exception) -> bool:
+        """Return True when Supabase/PostgREST failure appears transient."""
+        message = str(error).lower()
+        transient_markers = (
+            "json could not be generated",
+            "bad gateway",
+            "502",
+            "cloudflare",
+            "gateway",
+            "timed out",
+            "timeout",
+        )
+        return any(marker in message for marker in transient_markers)
+
+    def _execute_with_retry(self, operation, operation_name: str):
+        """Execute a DB operation with retries for transient upstream errors."""
+        for attempt in range(1, self.db_retry_attempts + 1):
+            try:
+                return operation()
+            except Exception as error:
+                is_retryable = self._is_transient_db_error(error)
+                is_last_attempt = attempt >= self.db_retry_attempts
+                if not is_retryable or is_last_attempt:
+                    raise
+                delay = self.db_retry_base_delay * (2 ** (attempt - 1))
+                logger.warning(
+                    f"{operation_name} failed with transient error "
+                    f"(attempt {attempt}/{self.db_retry_attempts}): {error}. "
+                    f"Retrying in {delay:.1f}s..."
+                )
+                time.sleep(delay)
     
     def split_upcs_into_batches(self, upcs: List[str]) -> List[List[str]]:
         """
@@ -84,20 +120,26 @@ class BatchProcessor:
         if email_recipients:
             insert_data["email_recipients"] = email_recipients
         
-        job_response = self.db.table("batch_jobs").insert(insert_data).execute()
+        job_response = self._execute_with_retry(
+            lambda: self.db.table("batch_jobs").insert(insert_data).execute(),
+            "create batch job",
+        )
         
         job_id = UUID(job_response.data[0]["id"])
         
         # Create UPC batches and batch items
         for batch_num, batch_upcs in enumerate(batches, start=1):
             # Create UPC batch
-            upc_batch_response = self.db.table("upc_batches").insert({
-                "batch_job_id": str(job_id),
-                "batch_number": batch_num,
-                "status": "pending",
-                "upc_count": len(batch_upcs),
-                "processed_count": 0,
-            }).execute()
+            upc_batch_response = self._execute_with_retry(
+                lambda: self.db.table("upc_batches").insert({
+                    "batch_job_id": str(job_id),
+                    "batch_number": batch_num,
+                    "status": "pending",
+                    "upc_count": len(batch_upcs),
+                    "processed_count": 0,
+                }).execute(),
+                "create upc batch",
+            )
             
             upc_batch_id = UUID(upc_batch_response.data[0]["id"])
             
@@ -111,7 +153,10 @@ class BatchProcessor:
                 for upc in batch_upcs
             ]
             
-            self.db.table("upc_batch_items").insert(batch_items).execute()
+            self._execute_with_retry(
+                lambda: self.db.table("upc_batch_items").insert(batch_items).execute(),
+                "create upc batch items",
+            )
         
         logger.info(f"Created batch job {job_id} with {total_batches} batches")
         return job_id
@@ -129,9 +174,12 @@ class BatchProcessor:
         
         try:
             logger.info(f"[Key {keepa_client.key_index}] Processing UPC: {upc} (item_id: {item_id})")
-            self.db.table("upc_batch_items").update({
-                "status": "processing"
-            }).eq("id", item_id).execute()
+            self._execute_with_retry(
+                lambda: self.db.table("upc_batch_items").update({
+                    "status": "processing"
+                }).eq("id", item_id).execute(),
+                "mark batch item processing",
+            )
             
             keepa_response = await keepa_client.fetch_product_data(upc)
             logger.info(f"[Key {keepa_client.key_index}] Keepa response for UPC {upc}: {'Success' if keepa_response else 'None/Empty'}")
@@ -150,40 +198,52 @@ class BatchProcessor:
 
                 analysis = self.price_analyzer.analyze_product(keepa_response, map_price=map_price)
 
-                self.db.table("upc_batch_items").update({
-                    "keepa_data": keepa_response,
-                    "status": "completed",
-                    "processed_at": datetime.utcnow().isoformat(),
-                }).eq("id", item_id).execute()
+                self._execute_with_retry(
+                    lambda: self.db.table("upc_batch_items").update({
+                        "keepa_data": keepa_response,
+                        "status": "completed",
+                        "processed_at": datetime.utcnow().isoformat(),
+                    }).eq("id", item_id).execute(),
+                    "mark batch item completed",
+                )
                 
                 batch_job_id = batch_data["batch_job_id"]
                 for seller in analysis.get("off_price_sellers", []):
-                    self.db.table("price_alerts").insert({
-                        "batch_job_id": batch_job_id,
-                        "upc": upc,
-                        "seller_name": seller.get("seller_name"),
-                        "current_price": float(seller.get("current_price", 0)),
-                        "historical_price": float(seller.get("historical_price", 0)),
-                        "price_change_percent": float(seller.get("price_change_percent", 0)),
-                        "keepa_data": keepa_response,
-                    }).execute()
+                    self._execute_with_retry(
+                        lambda: self.db.table("price_alerts").insert({
+                            "batch_job_id": batch_job_id,
+                            "upc": upc,
+                            "seller_name": seller.get("seller_name"),
+                            "current_price": float(seller.get("current_price", 0)),
+                            "historical_price": float(seller.get("historical_price", 0)),
+                            "price_change_percent": float(seller.get("price_change_percent", 0)),
+                            "keepa_data": keepa_response,
+                        }).execute(),
+                        "insert price alert",
+                    )
             else:
                 logger.warning(f"[Key {keepa_client.key_index}] No Keepa data returned for UPC {upc}")
-                self.db.table("upc_batch_items").update({
-                    "status": "completed",
-                    "error_message": "No data found in Keepa",
-                    "processed_at": datetime.utcnow().isoformat(),
-                }).eq("id", item_id).execute()
+                self._execute_with_retry(
+                    lambda: self.db.table("upc_batch_items").update({
+                        "status": "completed",
+                        "error_message": "No data found in Keepa",
+                        "processed_at": datetime.utcnow().isoformat(),
+                    }).eq("id", item_id).execute(),
+                    "mark batch item no data",
+                )
             
             return True
             
         except Exception as e:
             logger.error(f"[Key {keepa_client.key_index}] Error processing UPC {upc}: {type(e).__name__}: {str(e)}", exc_info=True)
-            self.db.table("upc_batch_items").update({
-                "status": "failed",
-                "error_message": str(e),
-                "processed_at": datetime.utcnow().isoformat(),
-            }).eq("id", item_id).execute()
+            self._execute_with_retry(
+                lambda: self.db.table("upc_batch_items").update({
+                    "status": "failed",
+                    "error_message": str(e),
+                    "processed_at": datetime.utcnow().isoformat(),
+                }).eq("id", item_id).execute(),
+                "mark batch item failed",
+            )
             return True  # Count as processed (attempted)
 
     async def process_batch(self, batch_id: UUID) -> bool:
@@ -197,7 +257,10 @@ class BatchProcessor:
             True if batch processed successfully, False otherwise
         """
         try:
-            batch_response = self.db.table("upc_batches").select("*").eq("id", str(batch_id)).execute()
+            batch_response = self._execute_with_retry(
+                lambda: self.db.table("upc_batches").select("*").eq("id", str(batch_id)).execute(),
+                "load upc batch",
+            )
             if not batch_response.data:
                 logger.error(f"Batch {batch_id} not found")
                 return False
@@ -207,12 +270,15 @@ class BatchProcessor:
             job_vendor = resolve_map_vendor_type(None)
             job_id_for_batch = batch_data.get("batch_job_id")
             if job_id_for_batch:
-                job_row = (
-                    self.db.table("batch_jobs")
-                    .select("map_vendor_type")
-                    .eq("id", str(job_id_for_batch))
-                    .limit(1)
-                    .execute()
+                job_row = self._execute_with_retry(
+                    lambda: (
+                        self.db.table("batch_jobs")
+                        .select("map_vendor_type")
+                        .eq("id", str(job_id_for_batch))
+                        .limit(1)
+                        .execute()
+                    ),
+                    "load job vendor type",
                 )
                 if job_row.data:
                     job_vendor = resolve_map_vendor_type(job_row.data[0].get("map_vendor_type"))
@@ -221,22 +287,31 @@ class BatchProcessor:
                 logger.info(f"Batch {batch_id} is already cancelled, skipping processing")
                 return False
             
-            self.db.table("upc_batches").update({
-                "status": "processing"
-            }).eq("id", str(batch_id)).execute()
+            self._execute_with_retry(
+                lambda: self.db.table("upc_batches").update({
+                    "status": "processing"
+                }).eq("id", str(batch_id)).execute(),
+                "mark batch processing",
+            )
             
-            items_response = self.db.table("upc_batch_items").select("*").eq(
-                "upc_batch_id", str(batch_id)
-            ).execute()
+            items_response = self._execute_with_retry(
+                lambda: self.db.table("upc_batch_items").select("*").eq(
+                    "upc_batch_id", str(batch_id)
+                ).execute(),
+                "load batch items",
+            )
             
             items = items_response.data
             
             if not items or len(items) == 0:
                 logger.error(f"No items found for batch {batch_id}.")
-                self.db.table("upc_batches").update({
-                    "status": "failed",
-                    "error_message": "No batch items found to process",
-                }).eq("id", str(batch_id)).execute()
+                self._execute_with_retry(
+                    lambda: self.db.table("upc_batches").update({
+                        "status": "failed",
+                        "error_message": "No batch items found to process",
+                    }).eq("id", str(batch_id)).execute(),
+                    "mark batch failed no items",
+                )
                 return False
             
             logger.info(f"Starting to process {len(items)} UPCs in batch {batch_id} using multiple API keys")
@@ -253,21 +328,27 @@ class BatchProcessor:
                 db=self.db,
             )
             
-            self.db.table("upc_batches").update({
-                "status": "completed",
-                "processed_count": processed_count,
-                "completed_at": datetime.utcnow().isoformat(),
-            }).eq("id", str(batch_id)).execute()
+            self._execute_with_retry(
+                lambda: self.db.table("upc_batches").update({
+                    "status": "completed",
+                    "processed_count": processed_count,
+                    "completed_at": datetime.utcnow().isoformat(),
+                }).eq("id", str(batch_id)).execute(),
+                "mark batch completed",
+            )
             
             logger.info(f"Batch {batch_id} processed successfully ({processed_count} items)")
             return True
             
         except Exception as e:
             logger.error(f"Error processing batch {batch_id}: {e}")
-            self.db.table("upc_batches").update({
-                "status": "failed",
-                "error_message": str(e),
-            }).eq("id", str(batch_id)).execute()
+            self._execute_with_retry(
+                lambda: self.db.table("upc_batches").update({
+                    "status": "failed",
+                    "error_message": str(e),
+                }).eq("id", str(batch_id)).execute(),
+                "mark batch failed",
+            )
             return False
     
     async def process_job(self, job_id: UUID) -> bool:
@@ -282,9 +363,12 @@ class BatchProcessor:
         """
         try:
             # Update job status
-            self.db.table("batch_jobs").update({
-                "status": "processing"
-            }).eq("id", str(job_id)).execute()
+            self._execute_with_retry(
+                lambda: self.db.table("batch_jobs").update({
+                    "status": "processing"
+                }).eq("id", str(job_id)).execute(),
+                "mark job processing",
+            )
             
             # Get all batches (paginate past PostgREST ~1000 row default)
             batches = read_all_paginated(
@@ -313,17 +397,23 @@ class BatchProcessor:
                 await asyncio.sleep(1.5)
             
             # Mark job as completed immediately — email is just notification
-            self.db.table("batch_jobs").update({
-                "status": "completed",
-                "completed_at": datetime.utcnow().isoformat(),
-            }).eq("id", str(job_id)).execute()
+            self._execute_with_retry(
+                lambda: self.db.table("batch_jobs").update({
+                    "status": "completed",
+                    "completed_at": datetime.utcnow().isoformat(),
+                }).eq("id", str(job_id)).execute(),
+                "mark job completed",
+            )
             
             logger.info(f"Job {job_id} completed successfully")
             
             # Generate report and send email (failures logged separately)
             from app.services.report_service import ReportService
 
-            job_response = self.db.table("batch_jobs").select("*").eq("id", str(job_id)).execute()
+            job_response = self._execute_with_retry(
+                lambda: self.db.table("batch_jobs").select("*").eq("id", str(job_id)).execute(),
+                "load completed job metadata",
+            )
             job_data = job_response.data[0]
             job_name = job_data["job_name"]
             custom_recipients = job_data.get("email_recipients")
@@ -379,9 +469,12 @@ class BatchProcessor:
             
         except Exception as e:
             logger.error(f"Error processing job {job_id}: {e}")
-            self.db.table("batch_jobs").update({
-                "status": "failed",
-                "error_message": str(e),
-            }).eq("id", str(job_id)).execute()
+            self._execute_with_retry(
+                lambda: self.db.table("batch_jobs").update({
+                    "status": "failed",
+                    "error_message": str(e),
+                }).eq("id", str(job_id)).execute(),
+                "mark job failed",
+            )
             return False
 
