@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     keepa_include_history: bool = False
     keepa_offers_limit: int = 50
     keepa_include_buybox: bool = True
+    keepa_rate_limit_delay_seconds: float = 0.8
+    keepa_min_rate_limit_delay_seconds: float = 0.15
+    keepa_delay_offers_reference: int = 50
+    keepa_max_retries: int = 3
+    keepa_retry_delay_seconds: float = 2.0
     keepa_cancel_check_every_items: int = 10
     batch_inter_delay_seconds: float = 0.0
     

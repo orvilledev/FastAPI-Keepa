@@ -26,10 +26,43 @@ class KeepaClient:
         self.offers_limit = offers_limit
         self.api_url = settings.keepa_api_url.rstrip("/")
         self.client = httpx.AsyncClient(timeout=30.0)
-        self.rate_limit_delay = 1.0
-        self.max_retries = 3
-        self.retry_delay = 2.0
+        self.rate_limit_delay = self._compute_effective_rate_limit_delay()
+        self.max_retries = max(0, int(settings.keepa_max_retries))
+        self.retry_delay = max(0.0, float(settings.keepa_retry_delay_seconds))
         self.tokens_left: Optional[int] = None
+        logger.info(
+            "[Key %s] Keepa pacing configured: offers=%s, delay=%.3fs, retries=%s, retry_delay=%.2fs",
+            self.key_index,
+            self._resolved_offers_limit(),
+            self.rate_limit_delay,
+            self.max_retries,
+            self.retry_delay,
+        )
+
+    def _resolved_offers_limit(self) -> int:
+        """Return active offers limit for this client."""
+        try:
+            return max(
+                0,
+                int(
+                    self.offers_limit
+                    if self.offers_limit is not None
+                    else settings.keepa_offers_limit
+                ),
+            )
+        except Exception:
+            return max(0, int(settings.keepa_offers_limit))
+
+    def _compute_effective_rate_limit_delay(self) -> float:
+        """
+        Scale request pacing by offers limit so lower offers can run faster.
+        """
+        base_delay = max(0.0, float(settings.keepa_rate_limit_delay_seconds))
+        min_delay = max(0.0, float(settings.keepa_min_rate_limit_delay_seconds))
+        offers_ref = max(1, int(settings.keepa_delay_offers_reference))
+        offers = self._resolved_offers_limit()
+        scaled_delay = base_delay * (offers / offers_ref)
+        return max(min_delay, scaled_delay)
         
     async def __aenter__(self):
         return self
@@ -115,11 +148,7 @@ class KeepaClient:
                 "code": upc,
                 "domain": str(settings.keepa_domain),
                 "stats": str(settings.keepa_stats_window_days),
-                "offers": str(
-                    self.offers_limit
-                    if self.offers_limit is not None
-                    else settings.keepa_offers_limit
-                ),
+                "offers": str(self._resolved_offers_limit()),
             }
 
             # Keep payload lean by default; toggle these via env when needed.
