@@ -79,6 +79,7 @@ export interface BatchJob {
   error_message?: string
   description?: string
   email_recipients?: string
+  keepa_offers_limit?: number
   /** MAP vendor (map_prices.vendor_type) used for off-price detection for this job */
   map_vendor_type?: MapVendorType
 }

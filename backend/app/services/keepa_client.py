@@ -15,9 +15,15 @@ logger = logging.getLogger(__name__)
 class KeepaClient:
     """Client for interacting with Keepa API using a single key."""
     
-    def __init__(self, api_key: Optional[str] = None, key_index: int = 0):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        key_index: int = 0,
+        offers_limit: Optional[int] = None,
+    ):
         self.api_key = api_key or settings.keepa_api_key
         self.key_index = key_index
+        self.offers_limit = offers_limit
         self.api_url = settings.keepa_api_url.rstrip("/")
         self.client = httpx.AsyncClient(timeout=30.0)
         self.rate_limit_delay = 1.0
@@ -109,7 +115,11 @@ class KeepaClient:
                 "code": upc,
                 "domain": str(settings.keepa_domain),
                 "stats": str(settings.keepa_stats_window_days),
-                "offers": str(settings.keepa_offers_limit),
+                "offers": str(
+                    self.offers_limit
+                    if self.offers_limit is not None
+                    else settings.keepa_offers_limit
+                ),
             }
 
             # Keep payload lean by default; toggle these via env when needed.
@@ -280,6 +290,7 @@ class MultiKeyKeepaClient:
         process_fn,
         batch_id=None,
         db=None,
+        offers_limit: Optional[int] = None,
     ) -> int:
         """
         Process batch items in parallel across all API keys.
@@ -302,7 +313,11 @@ class MultiKeyKeepaClient:
             """Worker that processes its assigned items using one API key."""
             processed = 0
             check_every = max(1, int(settings.keepa_cancel_check_every_items))
-            async with KeepaClient(api_key=api_key, key_index=key_index) as client:
+            async with KeepaClient(
+                api_key=api_key,
+                key_index=key_index,
+                offers_limit=offers_limit,
+            ) as client:
                 for idx, item in enumerate(worker_items):
                     if batch_id and db and (idx % check_every == 0):
                         batch_check = db.table("upc_batches").select("status").eq("id", str(batch_id)).execute()

@@ -8,6 +8,7 @@ export default function CreateJob() {
   const [upcs, setUpcs] = useState('')
   const [emailRecipients, setEmailRecipients] = useState('')
   const [mapVendorType, setMapVendorType] = useState('dnk')
+  const [keepaOffersLimit, setKeepaOffersLimit] = useState<number>(10)
   const [vendorSuggestions, setVendorSuggestions] = useState<string[]>(['dnk', 'clk'])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -53,10 +54,12 @@ export default function CreateJob() {
         upcs: string[]
         email_recipients?: string
         map_vendor_type: string
+        keepa_offers_limit?: number
       } = {
         job_name: jobName || `Job ${new Date().toLocaleString()}`,
         upcs: upcList,
         map_vendor_type: mapVendorType.trim().toLowerCase() || 'dnk',
+        keepa_offers_limit: Math.max(0, Math.min(500, Number.isFinite(keepaOffersLimit) ? keepaOffersLimit : 10)),
       }
       if (emailRecipients.trim()) {
         jobPayload.email_recipients = emailRecipients.trim()
@@ -111,6 +114,24 @@ export default function CreateJob() {
             Off-price uses <span className="font-mono text-gray-700">map_prices</span> rows for this vendor code.
             Use <span className="font-mono">obz</span> for OBZ MAP uploads, <span className="font-mono">dnk</span> or{' '}
             <span className="font-mono">clk</span> for those vendors.
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="keepaOffersLimit" className="block text-sm font-medium text-gray-700 mb-2">
+            Keepa offers limit <span className="text-gray-500 font-normal">(0-500, per job)</span>
+          </label>
+          <input
+            type="number"
+            id="keepaOffersLimit"
+            min={0}
+            max={500}
+            value={keepaOffersLimit}
+            onChange={(e) => setKeepaOffersLimit(Number(e.target.value))}
+            className="w-full max-w-md px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm"
+          />
+          <p className="mt-2 text-sm text-gray-500">
+            Lower is faster/lighter, higher improves seller coverage but may increase rate-limit retries.
           </p>
         </div>
 

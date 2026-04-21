@@ -90,6 +90,7 @@ class BatchProcessor:
         upcs: List[str],
         created_by: UUID,
         email_recipients: str = None,
+        keepa_offers_limit: Optional[int] = None,
         map_vendor_type: Optional[str] = None,
     ) -> UUID:
         """
@@ -118,6 +119,8 @@ class BatchProcessor:
             "created_by": str(created_by),
             "map_vendor_type": resolve_map_vendor_type(map_vendor_type),
         }
+        if keepa_offers_limit is not None:
+            insert_data["keepa_offers_limit"] = max(0, min(500, int(keepa_offers_limit)))
         if email_recipients:
             insert_data["email_recipients"] = email_recipients
         
@@ -275,12 +278,13 @@ class BatchProcessor:
             batch_data = batch_response.data[0]
 
             job_vendor = resolve_map_vendor_type(None)
+            job_offers_limit = settings.keepa_offers_limit
             job_id_for_batch = batch_data.get("batch_job_id")
             if job_id_for_batch:
                 job_row = self._execute_with_retry(
                     lambda: (
                         self.db.table("batch_jobs")
-                        .select("map_vendor_type")
+                        .select("map_vendor_type, keepa_offers_limit")
                         .eq("id", str(job_id_for_batch))
                         .limit(1)
                         .execute()
@@ -289,6 +293,12 @@ class BatchProcessor:
                 )
                 if job_row.data:
                     job_vendor = resolve_map_vendor_type(job_row.data[0].get("map_vendor_type"))
+                    raw_offers_limit = job_row.data[0].get("keepa_offers_limit")
+                    if raw_offers_limit is not None:
+                        try:
+                            job_offers_limit = max(0, min(500, int(raw_offers_limit)))
+                        except Exception:
+                            job_offers_limit = settings.keepa_offers_limit
 
             if batch_data.get("status") == "cancelled":
                 logger.info(f"Batch {batch_id} is already cancelled, skipping processing")
@@ -351,6 +361,7 @@ class BatchProcessor:
                 process_fn=process_fn,
                 batch_id=batch_id,
                 db=self.db,
+                offers_limit=job_offers_limit,
             )
             
             self._execute_with_retry(

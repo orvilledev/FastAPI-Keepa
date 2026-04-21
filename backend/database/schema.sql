@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS batch_jobs (
   completed_at TIMESTAMPTZ,
   error_message TEXT,
   email_recipients TEXT,
+  keepa_offers_limit INTEGER,
   map_vendor_type TEXT NOT NULL DEFAULT 'dnk'
 );
 

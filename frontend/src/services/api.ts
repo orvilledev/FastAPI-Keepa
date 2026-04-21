@@ -150,6 +150,7 @@ export const jobsApi = {
     upcs: string[]
     email_recipients?: string
     map_vendor_type?: MapVendorType
+    keepa_offers_limit?: number
   }) => {
     const response = await api.post<BatchJob>('/api/v1/jobs', jobData)
     return response.data

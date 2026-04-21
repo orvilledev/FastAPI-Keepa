@@ -29,6 +29,7 @@ async def create_job(
         upcs=job_data.upcs,
         created_by=UUID(current_user["id"]),
         email_recipients=job_data.email_recipients,
+        keepa_offers_limit=job_data.keepa_offers_limit,
         map_vendor_type=job_data.map_vendor_type,
     )
     
