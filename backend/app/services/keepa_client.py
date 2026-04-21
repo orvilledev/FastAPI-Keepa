@@ -2,6 +2,9 @@
 import httpx
 import asyncio
 import logging
+import json
+from pathlib import Path
+from threading import Lock
 from typing import Optional, Dict, Any, List
 from app.config import settings
 
@@ -146,17 +149,57 @@ class KeepaClient:
 
 class MultiKeyKeepaClient:
     """Manages multiple Keepa API keys for parallel UPC processing."""
+    _next_start_index = 0
+    _rotation_lock = Lock()
+    _rotation_state_path = Path(__file__).resolve().parents[2] / ".keepa_rotation_state.json"
     
     def __init__(self):
         self.api_keys = settings.keepa_api_keys_list
         self.num_keys = len(self.api_keys)
         logger.info(f"MultiKeyKeepaClient initialized with {self.num_keys} API key(s)")
     
+    @classmethod
+    def _load_rotation_index(cls) -> int:
+        """Load persisted rotation index (best-effort)."""
+        try:
+            if cls._rotation_state_path.exists():
+                raw = json.loads(cls._rotation_state_path.read_text(encoding="utf-8"))
+                idx = int(raw.get("next_start_index", 0))
+                if idx >= 0:
+                    return idx
+        except Exception as e:
+            logger.debug(f"Could not read Keepa rotation state: {e}")
+        return 0
+
+    @classmethod
+    def _save_rotation_index(cls, value: int) -> None:
+        """Persist rotation index so fairness survives app restarts."""
+        try:
+            cls._rotation_state_path.write_text(
+                json.dumps({"next_start_index": int(value)}),
+                encoding="utf-8",
+            )
+        except Exception as e:
+            logger.debug(f"Could not persist Keepa rotation state: {e}")
+
     def distribute_items(self, items: list) -> List[List]:
-        """Split items evenly across available keys."""
+        """Split items evenly across available keys with rotating key priority."""
         chunks = [[] for _ in range(self.num_keys)]
+        if self.num_keys == 0:
+            return chunks
+
+        # Rotate the starting key each run so all keys contribute over time,
+        # including newly added keys at the end of the list. Persist cursor.
+        with MultiKeyKeepaClient._rotation_lock:
+            loaded_index = MultiKeyKeepaClient._load_rotation_index()
+            MultiKeyKeepaClient._next_start_index = loaded_index % self.num_keys
+            start_index = MultiKeyKeepaClient._next_start_index
+            MultiKeyKeepaClient._next_start_index = (start_index + 1) % self.num_keys
+            MultiKeyKeepaClient._save_rotation_index(MultiKeyKeepaClient._next_start_index)
+
         for i, item in enumerate(items):
-            chunks[i % self.num_keys].append(item)
+            key_index = (start_index + i) % self.num_keys
+            chunks[key_index].append(item)
         return chunks
     
     async def process_items_parallel(
