@@ -9,8 +9,8 @@ from functools import partial
 from fastapi import HTTPException
 from app.database import get_supabase
 from app.repositories.map_repository import MAPRepository
-from app.models.map import DEFAULT_MAP_VENDOR_TYPE
 from app.repositories.supabase_read_all import read_all_paginated
+from app.utils.vendor_code import resolve_map_vendor_type
 from app.services.keepa_client import KeepaClient, MultiKeyKeepaClient
 from app.services.price_analyzer import PriceAnalyzer
 from app.services.csv_generator import CSVGenerator
@@ -53,6 +53,7 @@ class BatchProcessor:
         upcs: List[str],
         created_by: UUID,
         email_recipients: str = None,
+        map_vendor_type: Optional[str] = None,
     ) -> UUID:
         """
         Create a new batch job and split UPCs into batches.
@@ -62,7 +63,8 @@ class BatchProcessor:
             upcs: List of UPCs to process
             created_by: User ID who created the job
             email_recipients: Optional comma-separated email addresses for this job
-            
+            map_vendor_type: MAP vendor code (map_prices.vendor_type), e.g. dnk, clk, obz; None uses default (dnk)
+
         Returns:
             Batch job ID
         """
@@ -77,6 +79,7 @@ class BatchProcessor:
             "total_batches": total_batches,
             "completed_batches": 0,
             "created_by": str(created_by),
+            "map_vendor_type": resolve_map_vendor_type(map_vendor_type),
         }
         if email_recipients:
             insert_data["email_recipients"] = email_recipients
@@ -113,7 +116,13 @@ class BatchProcessor:
         logger.info(f"Created batch job {job_id} with {total_batches} batches")
         return job_id
     
-    async def _process_single_item(self, keepa_client: KeepaClient, item: dict, batch_data: dict) -> bool:
+    async def _process_single_item(
+        self,
+        keepa_client: KeepaClient,
+        item: dict,
+        batch_data: dict,
+        map_vendor_type: str,
+    ) -> bool:
         """Process a single UPC item with a given Keepa client."""
         upc = item["upc"]
         item_id = item["id"]
@@ -130,7 +139,7 @@ class BatchProcessor:
             if keepa_response:
                 map_price: Optional[Decimal] = None
                 try:
-                    map_row = self.map_repo.get_map_by_upc(upc, vendor_type=DEFAULT_MAP_VENDOR_TYPE)
+                    map_row = self.map_repo.get_map_by_upc(upc, vendor_type=map_vendor_type)
                     mp = Decimal(str(map_row.get("map_price", 0)))
                     if mp > 0:
                         map_price = mp
@@ -194,7 +203,20 @@ class BatchProcessor:
                 return False
             
             batch_data = batch_response.data[0]
-            
+
+            job_vendor = resolve_map_vendor_type(None)
+            job_id_for_batch = batch_data.get("batch_job_id")
+            if job_id_for_batch:
+                job_row = (
+                    self.db.table("batch_jobs")
+                    .select("map_vendor_type")
+                    .eq("id", str(job_id_for_batch))
+                    .limit(1)
+                    .execute()
+                )
+                if job_row.data:
+                    job_vendor = resolve_map_vendor_type(job_row.data[0].get("map_vendor_type"))
+
             if batch_data.get("status") == "cancelled":
                 logger.info(f"Batch {batch_id} is already cancelled, skipping processing")
                 return False
@@ -222,7 +244,7 @@ class BatchProcessor:
             multi_client = MultiKeyKeepaClient()
             
             async def process_fn(keepa_client, item):
-                return await self._process_single_item(keepa_client, item, batch_data)
+                return await self._process_single_item(keepa_client, item, batch_data, job_vendor)
             
             processed_count = await multi_client.process_items_parallel(
                 items=items,
@@ -306,11 +328,12 @@ class BatchProcessor:
             job_name = job_data["job_name"]
             custom_recipients = job_data.get("email_recipients")
             total_upcs = sum(batch["upc_count"] for batch in batches)
+            job_map_vendor = resolve_map_vendor_type(job_data.get("map_vendor_type"))
 
             try:
                 report_service = ReportService(self.db)
                 csv_bytes, filename, off_price_count = report_service.generate_csv_for_job(
-                    job_id, job_name
+                    job_id, job_name, map_vendor_type=job_map_vendor
                 )
             except Exception as report_err:
                 logger.error(

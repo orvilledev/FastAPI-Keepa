@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS batch_jobs (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   completed_at TIMESTAMPTZ,
   error_message TEXT,
-  email_recipients TEXT
+  email_recipients TEXT,
+  map_vendor_type TEXT NOT NULL DEFAULT 'dnk'
 );
 
 -- UPC batches (119 UPCs per batch)

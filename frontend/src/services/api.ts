@@ -145,7 +145,12 @@ export const authApi = {
 
 // Jobs API
 export const jobsApi = {
-  createJob: async (jobData: { job_name: string; upcs: string[]; email_recipients?: string }) => {
+  createJob: async (jobData: {
+    job_name: string
+    upcs: string[]
+    email_recipients?: string
+    map_vendor_type?: MapVendorType
+  }) => {
     const response = await api.post<BatchJob>('/api/v1/jobs', jobData)
     return response.data
   },

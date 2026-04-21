@@ -50,3 +50,18 @@ def validate_vendor_code(raw: str, *, default: Optional[str] = None) -> str:
             ),
         )
     return v
+
+
+def resolve_map_vendor_type(raw: Optional[str]) -> str:
+    """
+    MAP vendor_type for batch jobs and reports (matches map_prices.vendor_type).
+    Blank or invalid values fall back to DEFAULT_MAP_VENDOR_TYPE from app.models.map.
+    """
+    from app.models.map import DEFAULT_MAP_VENDOR_TYPE
+
+    v = normalize_vendor_code(raw) if raw is not None else ""
+    if not v:
+        v = normalize_vendor_code(DEFAULT_MAP_VENDOR_TYPE)
+    if not is_valid_vendor_code(v):
+        v = normalize_vendor_code(DEFAULT_MAP_VENDOR_TYPE) or "dnk"
+    return v

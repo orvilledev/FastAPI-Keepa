@@ -212,7 +212,7 @@ async def list_map_vendors(
     """Distinct vendor_type values currently present in MAP data (plus defaults for UI)."""
     map_repo = MAPRepository(db)
     found = map_repo.list_distinct_vendor_types()
-    merged = sorted(set(found) | {"dnk", "clk"})
+    merged = sorted(set(found) | {"dnk", "clk", "obz"})
     return {"vendors": merged}
 
 

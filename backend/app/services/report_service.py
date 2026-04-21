@@ -1,10 +1,10 @@
 """Service for report generation and operations."""
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 from uuid import UUID
 from app.repositories.report_repository import ReportRepository
 from app.repositories.map_repository import MAPRepository
-from app.models.map import DEFAULT_MAP_VENDOR_TYPE
 from app.repositories.seller_name_repository import SellerNameRepository
+from app.utils.vendor_code import resolve_map_vendor_type
 from app.services.csv_generator import CSVGenerator
 from app.config import settings
 from supabase import Client
@@ -27,6 +27,20 @@ class ReportService:
         """Get all price alerts for a job."""
         return self.report_repo.get_price_alerts(job_id)
 
+    def _map_vendor_for_job(self, job_id: UUID, explicit: Optional[str] = None) -> str:
+        if explicit is not None:
+            return resolve_map_vendor_type(explicit)
+        job_row = (
+            self.db.table("batch_jobs")
+            .select("map_vendor_type")
+            .eq("id", str(job_id))
+            .limit(1)
+            .execute()
+        )
+        if job_row.data:
+            return resolve_map_vendor_type(job_row.data[0].get("map_vendor_type"))
+        return resolve_map_vendor_type(None)
+
     def get_comprehensive_report_rows_for_job(self, job_id: UUID) -> List[dict]:
         """Get report rows using the same logic as Excel/email export."""
         processed_items = self.report_repo.get_all_processed_upcs_for_job(job_id)
@@ -35,7 +49,8 @@ class ReportService:
             return []
 
         upcs = [item.get("upc") for item in processed_items if item.get("upc")]
-        map_prices_by_upc = self.map_repo.get_map_prices_by_upcs(upcs, vendor_type=DEFAULT_MAP_VENDOR_TYPE)
+        map_vendor = self._map_vendor_for_job(job_id)
+        map_prices_by_upc = self.map_repo.get_map_prices_by_upcs(upcs, vendor_type=map_vendor)
 
         try:
             seller_name_map = self.seller_name_repo.get_seller_name_map()
@@ -52,7 +67,12 @@ class ReportService:
         )
         return rows
     
-    def generate_csv_for_job(self, job_id: UUID, job_name: str) -> Tuple[bytes, str, int]:
+    def generate_csv_for_job(
+        self,
+        job_id: UUID,
+        job_name: str,
+        map_vendor_type: Optional[str] = None,
+    ) -> Tuple[bytes, str, int]:
         """
         Generate comprehensive CSV report for a job matching spreadsheet format.
         
@@ -63,6 +83,7 @@ class ReportService:
         processed_items = self.report_repo.get_all_processed_upcs_for_job(job_id)
         
         excluded = settings.report_excluded_seller_pattern_list
+        map_vendor = self._map_vendor_for_job(job_id, explicit=map_vendor_type)
         if not processed_items:
             # Return empty Excel file with headers
             csv_bytes, off_price_count = self.csv_generator.generate_comprehensive_report_csv(
@@ -73,7 +94,7 @@ class ReportService:
             return csv_bytes, filename, off_price_count
 
         upcs = [item.get("upc") for item in processed_items if item.get("upc")]
-        map_prices_by_upc = self.map_repo.get_map_prices_by_upcs(upcs, vendor_type=DEFAULT_MAP_VENDOR_TYPE)
+        map_prices_by_upc = self.map_repo.get_map_prices_by_upcs(upcs, vendor_type=map_vendor)
         
         # Load seller name lookup map from database
         try:

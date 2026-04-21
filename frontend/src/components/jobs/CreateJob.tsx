@@ -1,15 +1,34 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { jobsApi } from '../../services/api'
+import { jobsApi, mapApi } from '../../services/api'
 import EmailRecipientsPicker from './EmailRecipientsPicker'
 
 export default function CreateJob() {
   const [jobName, setJobName] = useState('')
   const [upcs, setUpcs] = useState('')
   const [emailRecipients, setEmailRecipients] = useState('')
+  const [mapVendorType, setMapVendorType] = useState('dnk')
+  const [vendorSuggestions, setVendorSuggestions] = useState<string[]>(['dnk', 'clk'])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
+
+  useEffect(() => {
+    let cancelled = false
+    mapApi
+      .listVendors()
+      .then((res) => {
+        if (!cancelled && res.vendors?.length) {
+          setVendorSuggestions(res.vendors)
+        }
+      })
+      .catch(() => {
+        /* keep defaults */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,9 +48,15 @@ export default function CreateJob() {
         return
       }
 
-      const jobPayload: { job_name: string; upcs: string[]; email_recipients?: string } = {
+      const jobPayload: {
+        job_name: string
+        upcs: string[]
+        email_recipients?: string
+        map_vendor_type: string
+      } = {
         job_name: jobName || `Job ${new Date().toLocaleString()}`,
         upcs: upcList,
+        map_vendor_type: mapVendorType.trim().toLowerCase() || 'dnk',
       }
       if (emailRecipients.trim()) {
         jobPayload.email_recipients = emailRecipients.trim()
@@ -62,6 +87,32 @@ export default function CreateJob() {
             <div className="text-sm text-red-800 font-medium">{error}</div>
           </div>
         )}
+
+        <div>
+          <label htmlFor="mapVendorType" className="block text-sm font-medium text-gray-700 mb-2">
+            MAP vendor <span className="text-gray-500 font-normal">(must match MAP data)</span>
+          </label>
+          <input
+            type="text"
+            id="mapVendorType"
+            list="map-vendor-suggestions"
+            value={mapVendorType}
+            onChange={(e) => setMapVendorType(e.target.value)}
+            className="w-full max-w-md px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm"
+            placeholder="dnk, clk, obz, …"
+            autoComplete="off"
+          />
+          <datalist id="map-vendor-suggestions">
+            {vendorSuggestions.map((v) => (
+              <option key={v} value={v} />
+            ))}
+          </datalist>
+          <p className="mt-2 text-sm text-gray-500">
+            Off-price uses <span className="font-mono text-gray-700">map_prices</span> rows for this vendor code.
+            Use <span className="font-mono">obz</span> for OBZ MAP uploads, <span className="font-mono">dnk</span> or{' '}
+            <span className="font-mono">clk</span> for those vendors.
+          </p>
+        </div>
 
         <div>
           <label htmlFor="jobName" className="block text-sm font-medium text-gray-700 mb-2">

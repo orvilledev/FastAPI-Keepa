@@ -296,7 +296,7 @@ export default function JobDetail() {
 
       {/* Job Info */}
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
           <div>
             <div className="text-sm font-medium text-gray-500">Status</div>
             <div className="mt-1">
@@ -313,6 +313,12 @@ export default function JobDetail() {
             <div className="text-sm font-medium text-gray-500">Total Batches</div>
             <div className="mt-1 text-lg font-semibold text-gray-900">
               {job.total_batches}
+            </div>
+          </div>
+          <div>
+            <div className="text-sm font-medium text-gray-500">MAP vendor</div>
+            <div className="mt-1 text-sm font-mono text-gray-900">
+              {job.map_vendor_type ?? 'dnk'}
             </div>
           </div>
           <div>

@@ -79,6 +79,8 @@ export interface BatchJob {
   error_message?: string
   description?: string
   email_recipients?: string
+  /** MAP vendor (map_prices.vendor_type) used for off-price detection for this job */
+  map_vendor_type?: MapVendorType
 }
 
 export interface UPCBatch {

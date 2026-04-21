@@ -83,7 +83,8 @@ async def run_daily_job_for_category(category: str = 'dnk'):
             job_id = await processor.create_batch_job(
                 job_name=job_name,
                 upcs=upcs,
-                created_by=admin_uuid
+                created_by=admin_uuid,
+                map_vendor_type=category,
             )
             logger.info(f"Created {category.upper()} batch job {job_id} with {len(upcs)} UPCs. Processing...")
             await processor.process_job(job_id)

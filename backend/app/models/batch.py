@@ -1,8 +1,15 @@
 """Pydantic models for batch jobs."""
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from datetime import datetime
 from uuid import UUID
+
+from app.models.map import DEFAULT_MAP_VENDOR_TYPE
+from app.utils.vendor_code import (
+    is_valid_vendor_code,
+    normalize_vendor_code,
+    resolve_map_vendor_type,
+)
 
 
 class BatchJobCreate(BaseModel):
@@ -10,6 +17,23 @@ class BatchJobCreate(BaseModel):
     job_name: str
     upcs: list[str]  # List of UPCs to process
     email_recipients: Optional[str] = None
+    map_vendor_type: Optional[str] = Field(
+        default=None,
+        description="MAP vendor code (map_prices.vendor_type); omit for default (dnk)",
+    )
+
+    @field_validator("map_vendor_type")
+    @classmethod
+    def validate_map_vendor_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or not str(v).strip():
+            return None
+        nv = normalize_vendor_code(v)
+        if not is_valid_vendor_code(nv):
+            raise ValueError(
+                "Invalid map_vendor_type. Use 1–32 lowercase letters, digits, hyphens, or underscores; "
+                "must start with a letter or digit."
+            )
+        return nv
 
 
 class BatchJobUpdate(BaseModel):
@@ -34,6 +58,16 @@ class BatchJobResponse(BaseModel):
     error_message: Optional[str]
     description: Optional[str] = None
     email_recipients: Optional[str] = None
+    map_vendor_type: str = Field(default=DEFAULT_MAP_VENDOR_TYPE)
+
+    @field_validator("map_vendor_type", mode="before")
+    @classmethod
+    def normalize_response_map_vendor(cls, v: object) -> str:
+        if v is None:
+            return resolve_map_vendor_type(None)
+        if isinstance(v, str):
+            return resolve_map_vendor_type(v)
+        return resolve_map_vendor_type(str(v))
 
     class Config:
         from_attributes = True
