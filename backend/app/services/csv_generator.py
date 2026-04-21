@@ -377,9 +377,15 @@ class CSVGenerator:
         product = products[0]
         stats = product.get("stats", {})
         current_sellers = product.get("current_sellers", [])
+        unified_sellers = build_unified_seller_list(keepa_data)
         
         # Get buy box seller ID from stats
         buy_box_seller_id = stats.get("buyBoxSellerId", None)
+        buy_box_seller_id_norm = (
+            CSVGenerator._normalize_seller_id(buy_box_seller_id)
+            if buy_box_seller_id is not None
+            else ""
+        )
         buy_box_price = None
         buy_box_seller_name = None
         
@@ -407,12 +413,13 @@ class CSVGenerator:
             except (TypeError, ValueError):
                 buy_box_price = None
         
-        # Find buy box seller name from current_sellers
-        if buy_box_seller_id and current_sellers:
-            for seller in current_sellers:
-                if seller.get("sellerId") == buy_box_seller_id:
-                    buy_box_seller_name = seller.get("sellerName", "")
-                    # If we don't have buy box price from stats, use seller's price
+        # Find buy box seller by normalized ID from unified sellers.
+        if buy_box_seller_id_norm and unified_sellers:
+            for seller in unified_sellers:
+                sid_norm = CSVGenerator._normalize_seller_id(seller.get("sellerId"))
+                if sid_norm == buy_box_seller_id_norm:
+                    buy_box_seller_name = (seller.get("sellerName") or "").strip()
+                    # If we don't have buy box price from stats, use matched seller's price.
                     if buy_box_price is None:
                         seller_price = seller.get("price")
                         if seller_price is not None:
@@ -423,9 +430,9 @@ class CSVGenerator:
                             except (TypeError, ValueError):
                                 pass
                     break
-        
-        # Fallback: If buy box seller not found by ID, try to find Amazon or the first seller
-        if not buy_box_seller_name and current_sellers:
+
+        # Fallback only when Keepa omitted buyBoxSellerId entirely.
+        if not buy_box_seller_id_norm and current_sellers:
             for seller in current_sellers:
                 seller_name = seller.get("sellerName", "")
                 if "amazon" in seller_name.lower() or seller.get("isFBA", False):

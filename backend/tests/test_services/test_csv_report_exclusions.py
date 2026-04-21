@@ -251,3 +251,42 @@ def test_comprehensive_report_dedupes_duplicate_upc_last_wins():
     headers = [c.value for c in ws[1]]
     title_col = headers.index("Product Title") + 1
     assert ws.cell(row=2, column=title_col).value == "New Title"
+
+
+@pytest.mark.unit
+def test_extract_keepa_product_data_matches_buybox_seller_id_across_types():
+    """Seller id matching should work even when buyBoxSellerId type differs from sellerId type."""
+    keepa = {
+        "products": [
+            {
+                "asin": "B00TEST",
+                "title": "T",
+                "brand": "B",
+                "stats": {
+                    "buyBoxSellerId": 12345,
+                    "buyBoxPrice": None,
+                },
+                "current_sellers": [
+                    {
+                        "sellerId": "12345",
+                        "sellerName": "Correct Seller",
+                        "price": 2500,
+                        "isFBA": False,
+                        "condition": "New",
+                    },
+                    {
+                        "sellerId": "99999",
+                        "sellerName": "Wrong Seller",
+                        "price": 2400,
+                        "isFBA": True,
+                        "condition": "New",
+                    },
+                ],
+                "offers": [],
+            }
+        ]
+    }
+    product = CSVGenerator.extract_keepa_product_data(keepa)
+    assert product["buy_box_seller_id"] == "12345"
+    assert product["buy_box_seller_name"] == "Correct Seller"
+    assert product["buy_box_price"] == 25.0
