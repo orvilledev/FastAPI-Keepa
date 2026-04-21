@@ -4,6 +4,7 @@ import asyncio
 import logging
 import json
 import os
+import random
 from pathlib import Path
 from threading import Lock
 from typing import Optional, Dict, Any, List
@@ -29,14 +30,20 @@ class KeepaClient:
         self.rate_limit_delay = self._compute_effective_rate_limit_delay()
         self.max_retries = max(0, int(settings.keepa_max_retries))
         self.retry_delay = max(0.0, float(settings.keepa_retry_delay_seconds))
+        self.retry_max_delay = max(self.retry_delay, float(settings.keepa_retry_max_delay_seconds))
+        self.retry_jitter_seconds = max(0.0, float(settings.keepa_retry_jitter_seconds))
+        self.cooldown_max_delay = max(0.0, float(settings.keepa_429_cooldown_max_delay_seconds))
+        self.dynamic_delay_penalty = 0.0
         self.tokens_left: Optional[int] = None
         logger.info(
-            "[Key %s] Keepa pacing configured: offers=%s, delay=%.3fs, retries=%s, retry_delay=%.2fs",
+            "[Key %s] Keepa pacing configured: offers=%s, delay=%.3fs, retries=%s, retry_delay=%.2fs, retry_max=%.2fs, jitter=%.2fs",
             self.key_index,
             self._resolved_offers_limit(),
             self.rate_limit_delay,
             self.max_retries,
             self.retry_delay,
+            self.retry_max_delay,
+            self.retry_jitter_seconds,
         )
 
     def _resolved_offers_limit(self) -> int:
@@ -63,6 +70,27 @@ class KeepaClient:
         offers = self._resolved_offers_limit()
         scaled_delay = base_delay * (offers / offers_ref)
         return max(min_delay, scaled_delay)
+
+    def _retry_wait_seconds(self, retry_count: int) -> float:
+        """Exponential backoff + jitter with max cap."""
+        base = self.retry_delay * (2 ** retry_count)
+        capped = min(self.retry_max_delay, base)
+        if self.retry_jitter_seconds <= 0:
+            return capped
+        return capped + random.uniform(0.0, self.retry_jitter_seconds)
+
+    def _on_success_decay_penalty(self) -> None:
+        """Reduce temporary 429 penalty after successful requests."""
+        self.dynamic_delay_penalty = max(0.0, self.dynamic_delay_penalty * 0.5)
+
+    def _on_rate_limit_penalty(self) -> None:
+        """Increase temporary request spacing after 429 to reduce repeated bursts."""
+        if self.cooldown_max_delay <= 0:
+            return
+        if self.dynamic_delay_penalty <= 0:
+            self.dynamic_delay_penalty = min(self.cooldown_max_delay, 0.5)
+            return
+        self.dynamic_delay_penalty = min(self.cooldown_max_delay, self.dynamic_delay_penalty * 2.0)
         
     async def __aenter__(self):
         return self
@@ -95,6 +123,7 @@ class KeepaClient:
                 self.tokens_left = data.get("tokensLeft", self.tokens_left)
                 if self.tokens_left is not None:
                     logger.info(f"[Key {self.key_index}] Tokens remaining: {self.tokens_left}")
+            self._on_success_decay_penalty()
             
             response_preview = str(data)[:500] if data else "Empty response"
             logger.info(f"[Key {self.key_index}] Keepa API response data (preview): {response_preview}")
@@ -107,7 +136,8 @@ class KeepaClient:
             
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 429:
-                wait_time = self.retry_delay * (2 ** retry_count)
+                self._on_rate_limit_penalty()
+                wait_time = self._retry_wait_seconds(retry_count)
                 logger.warning(f"[Key {self.key_index}] Rate limited. Waiting {wait_time}s before retry...")
                 await asyncio.sleep(wait_time)
                 
@@ -117,7 +147,7 @@ class KeepaClient:
                     raise Exception("Max retries exceeded due to rate limiting")
             
             elif e.response.status_code >= 500 and retry_count < self.max_retries:
-                wait_time = self.retry_delay * (2 ** retry_count)
+                wait_time = self._retry_wait_seconds(retry_count)
                 logger.warning(f"[Key {self.key_index}] Server error {e.response.status_code}. Retrying in {wait_time}s...")
                 await asyncio.sleep(wait_time)
                 return await self._make_request(endpoint, params, retry_count + 1)
@@ -129,7 +159,7 @@ class KeepaClient:
                 
         except httpx.RequestError as e:
             if retry_count < self.max_retries:
-                wait_time = self.retry_delay * (2 ** retry_count)
+                wait_time = self._retry_wait_seconds(retry_count)
                 logger.warning(f"[Key {self.key_index}] Request error: {e}. Retrying in {wait_time}s...")
                 await asyncio.sleep(wait_time)
                 return await self._make_request(endpoint, params, retry_count + 1)
@@ -148,7 +178,7 @@ class KeepaClient:
                 "code": upc,
                 "domain": str(settings.keepa_domain),
                 "stats": str(settings.keepa_stats_window_days),
-                "offers": str(self._resolved_offers_limit()),
+                "offers": str(max(0, min(100, self._resolved_offers_limit()))),
             }
 
             # Keep payload lean by default; toggle these via env when needed.
@@ -157,7 +187,7 @@ class KeepaClient:
             if settings.keepa_include_buybox:
                 params["buybox"] = "1"
             
-            await asyncio.sleep(self.rate_limit_delay)
+            await asyncio.sleep(self.rate_limit_delay + self.dynamic_delay_penalty)
             
             logger.info(f"[Key {self.key_index}] Fetching Keepa data for UPC: {upc}")
             data = await self._make_request("product", params)

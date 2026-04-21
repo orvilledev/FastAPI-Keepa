@@ -2,7 +2,7 @@
 import asyncio
 import logging
 import time
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional
 from uuid import UUID
 from datetime import datetime
 from decimal import Decimal
@@ -67,6 +67,19 @@ class BatchProcessor:
                     f"Retrying in {delay:.1f}s..."
                 )
                 time.sleep(delay)
+
+    def _get_job_status(self, job_id: UUID) -> Optional[str]:
+        """Load current job status (lowercased) for cancellation checks."""
+        try:
+            resp = self._execute_with_retry(
+                lambda: self.db.table("batch_jobs").select("status").eq("id", str(job_id)).limit(1).execute(),
+                "load job status",
+            )
+            if resp.data:
+                return str(resp.data[0].get("status") or "").strip().lower()
+        except Exception as e:
+            logger.warning(f"Could not load job status for {job_id}: {e}")
+        return None
     
     def split_upcs_into_batches(self, upcs: List[str]) -> List[List[str]]:
         """
@@ -245,10 +258,11 @@ class BatchProcessor:
             
         except Exception as e:
             logger.error(f"[Key {keepa_client.key_index}] Error processing UPC {upc}: {type(e).__name__}: {str(e)}", exc_info=True)
+            error_message = str(e)
             self._execute_with_retry(
                 lambda: self.db.table("upc_batch_items").update({
                     "status": "failed",
-                    "error_message": str(e),
+                    "error_message": error_message,
                     "processed_at": datetime.utcnow().isoformat(),
                 }).eq("id", item_id).execute(),
                 "mark batch item failed",
@@ -373,7 +387,15 @@ class BatchProcessor:
                 db=self.db,
                 offers_limit=job_offers_limit,
             )
-            
+
+            final_batch_status = self._execute_with_retry(
+                lambda: self.db.table("upc_batches").select("status").eq("id", str(batch_id)).limit(1).execute(),
+                "reload batch status",
+            )
+            if final_batch_status.data and final_batch_status.data[0].get("status") == "cancelled":
+                logger.info(f"Batch {batch_id} was cancelled during processing; skipping completion update")
+                return False
+
             self._execute_with_retry(
                 lambda: self.db.table("upc_batches").update({
                     "status": "completed",
@@ -388,10 +410,11 @@ class BatchProcessor:
             
         except Exception as e:
             logger.error(f"Error processing batch {batch_id}: {e}")
+            error_message = str(e)
             self._execute_with_retry(
                 lambda: self.db.table("upc_batches").update({
                     "status": "failed",
-                    "error_message": str(e),
+                    "error_message": error_message,
                 }).eq("id", str(batch_id)).execute(),
                 "mark batch failed",
             )
@@ -429,6 +452,11 @@ class BatchProcessor:
             
             # Process batches sequentially with rate limiting
             for batch in batches:
+                latest_status = self._get_job_status(job_id)
+                if latest_status == "cancelled":
+                    logger.info(f"Job {job_id} was cancelled; stopping remaining batches")
+                    break
+
                 batch_id = UUID(batch["id"])
                 success = await self.process_batch(batch_id)
                 
@@ -443,7 +471,12 @@ class BatchProcessor:
                 inter_delay = max(0.0, float(settings.batch_inter_delay_seconds))
                 if inter_delay > 0:
                     await asyncio.sleep(inter_delay)
-            
+
+            final_job_status = self._get_job_status(job_id)
+            if final_job_status == "cancelled":
+                logger.info(f"Job {job_id} remains cancelled; skipping completion + report/email")
+                return True
+
             # Mark job as completed immediately — email is just notification
             self._execute_with_retry(
                 lambda: self.db.table("batch_jobs").update({
@@ -517,10 +550,14 @@ class BatchProcessor:
             
         except Exception as e:
             logger.error(f"Error processing job {job_id}: {e}")
+            if self._get_job_status(job_id) == "cancelled":
+                logger.info(f"Job {job_id} is cancelled; skipping failure overwrite")
+                return False
+            error_message = str(e)
             self._execute_with_retry(
                 lambda: self.db.table("batch_jobs").update({
                     "status": "failed",
-                    "error_message": str(e),
+                    "error_message": error_message,
                 }).eq("id", str(job_id)).execute(),
                 "mark job failed",
             )

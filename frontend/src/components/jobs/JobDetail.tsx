@@ -124,6 +124,21 @@ export default function JobDetail() {
     }
   }
 
+  const handleStopJob = async () => {
+    if (!jobId) return
+    if (!window.confirm('Are you sure you want to stop this job? All pending/processing batches will be cancelled.')) {
+      return
+    }
+    try {
+      await jobsApi.stopJob(jobId)
+      await Promise.all([loadJob(), loadStatus()])
+    } catch (error: any) {
+      console.error('Failed to stop job:', error)
+      const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to stop job. Please try again.'
+      alert(errorMessage)
+    }
+  }
+
 
   const handleStopBatch = async (batchId: string) => {
     if (!window.confirm('Are you sure you want to stop this batch?')) {
@@ -274,6 +289,14 @@ export default function JobDetail() {
                 Trigger Job
               </button>
             </>
+          )}
+          {job.status === 'processing' && (
+            <button
+              onClick={handleStopJob}
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+            >
+              Stop Job
+            </button>
           )}
           {job.status === 'completed' && (
             <Link

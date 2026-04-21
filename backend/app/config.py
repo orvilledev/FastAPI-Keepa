@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     keepa_delay_offers_reference: int = 50
     keepa_max_retries: int = 3
     keepa_retry_delay_seconds: float = 2.0
+    keepa_retry_max_delay_seconds: float = 30.0
+    keepa_retry_jitter_seconds: float = 0.5
+    keepa_429_cooldown_max_delay_seconds: float = 5.0
     keepa_cancel_check_every_items: int = 10
     batch_inter_delay_seconds: float = 0.0
     

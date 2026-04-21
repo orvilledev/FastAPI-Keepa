@@ -68,7 +68,7 @@ export interface UserTool {
 export interface BatchJob {
   id: string
   job_name: string
-  status: 'pending' | 'processing' | 'completed' | 'failed'
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
   total_batches: number
   completed_batches: number
   total_upcs: number

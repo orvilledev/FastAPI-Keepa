@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from typing import List
 from uuid import UUID
+from datetime import datetime
 from app.dependencies import get_current_user, get_admin_user, get_job_runner_user, check_is_admin, verify_job_access
 from app.models.batch import BatchJobCreate, BatchJobUpdate, BatchJobResponse
 from app.database import get_supabase
@@ -137,6 +138,39 @@ async def trigger_job(
     background_tasks.add_task(processor.process_job, job_id)
     
     return {"message": "Job triggered successfully", "job_id": str(job_id)}
+
+
+@router.post("/jobs/{job_id}/stop")
+@handle_api_errors("stop job")
+async def stop_job(
+    job: dict = Depends(verify_job_access),
+    _current_user: dict = Depends(get_job_runner_user),
+    db: Client = Depends(get_supabase)
+):
+    """Stop/cancel a job and all active batches."""
+    job_id = UUID(job["id"])
+    current_status = (job.get("status") or "").strip().lower()
+
+    if current_status not in {"processing", "pending"}:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot stop job. Current status: {job.get('status')}"
+        )
+
+    now_iso = datetime.utcnow().isoformat()
+    db.table("batch_jobs").update({
+        "status": "cancelled",
+        "error_message": "Cancelled by user",
+        "completed_at": now_iso,
+    }).eq("id", str(job_id)).execute()
+
+    db.table("upc_batches").update({
+        "status": "cancelled",
+        "error_message": "Cancelled by user",
+        "completed_at": now_iso,
+    }).eq("batch_job_id", str(job_id)).in_("status", ["pending", "processing"]).execute()
+
+    return {"message": "Job stopped successfully", "job_id": str(job_id)}
 
 
 @router.put("/jobs/{job_id}", response_model=BatchJobResponse)

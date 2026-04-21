@@ -182,6 +182,11 @@ export const jobsApi = {
     const response = await api.post(`/api/v1/jobs/${jobId}/trigger`)
     return response.data
   },
+
+  stopJob: async (jobId: string) => {
+    const response = await api.post(`/api/v1/jobs/${jobId}/stop`)
+    return response.data
+  },
   
   deleteJob: async (jobId: string) => {
     const response = await api.delete(`/api/v1/jobs/${jobId}`)
