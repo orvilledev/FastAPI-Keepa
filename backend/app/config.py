@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     keepa_domain: str = "1"
     keepa_stats_window_days: int = 180
     keepa_include_history: bool = False
-    keepa_offers_limit: int = 20
+    keepa_offers_limit: int = 5
     keepa_include_buybox: bool = True
     keepa_cancel_check_every_items: int = 10
     batch_inter_delay_seconds: float = 0.0
