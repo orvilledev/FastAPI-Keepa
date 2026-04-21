@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     keepa_include_history: bool = False
     keepa_offers_limit: int = 20
     keepa_include_buybox: bool = True
+    keepa_cancel_check_every_items: int = 10
+    batch_inter_delay_seconds: float = 0.0
     
     @property
     def keepa_api_keys_list(self) -> List[str]:

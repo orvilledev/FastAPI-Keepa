@@ -3,6 +3,7 @@ import httpx
 import asyncio
 import logging
 import json
+import os
 from pathlib import Path
 from threading import Lock
 from typing import Optional, Dict, Any, List
@@ -152,11 +153,82 @@ class MultiKeyKeepaClient:
     _next_start_index = 0
     _rotation_lock = Lock()
     _rotation_state_path = Path(__file__).resolve().parents[2] / ".keepa_rotation_state.json"
+    _backend_env_path = Path(__file__).resolve().parents[2] / ".env"
     
     def __init__(self):
-        self.api_keys = settings.keepa_api_keys_list
+        self.api_keys = self._load_runtime_api_keys()
         self.num_keys = len(self.api_keys)
         logger.info(f"MultiKeyKeepaClient initialized with {self.num_keys} API key(s)")
+        logger.info("Active Keepa key fingerprints: %s", ", ".join(self._key_fingerprints(self.api_keys)))
+
+    @classmethod
+    def _dedupe_keys(cls, keys: List[str]) -> List[str]:
+        """Preserve order while deduplicating non-empty keys."""
+        out: List[str] = []
+        seen = set()
+        for key in keys:
+            k = (key or "").strip()
+            if not k or k in seen:
+                continue
+            seen.add(k)
+            out.append(k)
+        return out
+
+    @classmethod
+    def _key_fingerprints(cls, keys: List[str]) -> List[str]:
+        """Return non-sensitive key fingerprints for operational verification."""
+        fingerprints: List[str] = []
+        for idx, key in enumerate(keys):
+            k = (key or "").strip()
+            tail = k[-6:] if len(k) >= 6 else k
+            fingerprints.append(f"#{idx}:***{tail}")
+        return fingerprints
+
+    @classmethod
+    def _parse_keepa_keys_from_env_file(cls) -> List[str]:
+        """Best-effort parse of KEEPA_API_KEYS/KEEPA_API_KEY from backend/.env."""
+        if not cls._backend_env_path.exists():
+            return []
+
+        values: Dict[str, str] = {}
+        try:
+            for line in cls._backend_env_path.read_text(encoding="utf-8").splitlines():
+                raw = line.strip()
+                if not raw or raw.startswith("#") or "=" not in raw:
+                    continue
+                key, value = raw.split("=", 1)
+                values[key.strip()] = value.strip()
+        except Exception as e:
+            logger.debug(f"Could not parse backend/.env for Keepa keys: {e}")
+            return []
+
+        csv_keys = [k.strip() for k in values.get("KEEPA_API_KEYS", "").split(",") if k.strip()]
+        primary = values.get("KEEPA_API_KEY", "").strip()
+        if primary:
+            csv_keys.append(primary)
+        return cls._dedupe_keys(csv_keys)
+
+    @classmethod
+    def _load_runtime_api_keys(cls) -> List[str]:
+        """
+        Load Keepa keys at runtime with priority:
+        1) backend/.env (latest local edits)
+        2) process environment
+        3) pydantic settings snapshot
+        """
+        file_keys = cls._parse_keepa_keys_from_env_file()
+        if file_keys:
+            return file_keys
+
+        env_keys = [k.strip() for k in os.getenv("KEEPA_API_KEYS", "").split(",") if k.strip()]
+        env_primary = (os.getenv("KEEPA_API_KEY") or "").strip()
+        if env_primary:
+            env_keys.append(env_primary)
+        env_keys = cls._dedupe_keys(env_keys)
+        if env_keys:
+            return env_keys
+
+        return settings.keepa_api_keys_list
     
     @classmethod
     def _load_rotation_index(cls) -> int:
@@ -229,9 +301,10 @@ class MultiKeyKeepaClient:
         async def worker(key_index: int, api_key: str, worker_items: list) -> int:
             """Worker that processes its assigned items using one API key."""
             processed = 0
+            check_every = max(1, int(settings.keepa_cancel_check_every_items))
             async with KeepaClient(api_key=api_key, key_index=key_index) as client:
-                for item in worker_items:
-                    if batch_id and db:
+                for idx, item in enumerate(worker_items):
+                    if batch_id and db and (idx % check_every == 0):
                         batch_check = db.table("upc_batches").select("status").eq("id", str(batch_id)).execute()
                         if batch_check.data and batch_check.data[0].get("status") == "cancelled":
                             logger.info(f"[Key {key_index}] Batch {batch_id} was cancelled, stopping")

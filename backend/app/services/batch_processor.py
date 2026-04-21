@@ -8,6 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from functools import partial
 from fastapi import HTTPException
+from app.config import settings
 from app.database import get_supabase
 from app.repositories.map_repository import MAPRepository
 from app.repositories.supabase_read_all import read_all_paginated
@@ -167,6 +168,7 @@ class BatchProcessor:
         item: dict,
         batch_data: dict,
         map_vendor_type: str,
+        map_prices_by_upc: Optional[Dict[str, Decimal]] = None,
     ) -> bool:
         """Process a single UPC item with a given Keepa client."""
         upc = item["upc"]
@@ -185,16 +187,21 @@ class BatchProcessor:
             logger.info(f"[Key {keepa_client.key_index}] Keepa response for UPC {upc}: {'Success' if keepa_response else 'None/Empty'}")
             
             if keepa_response:
-                map_price: Optional[Decimal] = None
-                try:
-                    map_row = self.map_repo.get_map_by_upc(upc, vendor_type=map_vendor_type)
-                    mp = Decimal(str(map_row.get("map_price", 0)))
-                    if mp > 0:
-                        map_price = mp
-                except HTTPException:
-                    pass
-                except Exception as e:
-                    logger.debug(f"No MAP for UPC {upc}: {e}")
+                map_price: Optional[Decimal] = (
+                    (map_prices_by_upc or {}).get(upc)
+                    if map_prices_by_upc is not None
+                    else None
+                )
+                if map_price is None:
+                    try:
+                        map_row = self.map_repo.get_map_by_upc(upc, vendor_type=map_vendor_type)
+                        mp = Decimal(str(map_row.get("map_price", 0)))
+                        if mp > 0:
+                            map_price = mp
+                    except HTTPException:
+                        pass
+                    except Exception as e:
+                        logger.debug(f"No MAP for UPC {upc}: {e}")
 
                 analysis = self.price_analyzer.analyze_product(keepa_response, map_price=map_price)
 
@@ -316,10 +323,28 @@ class BatchProcessor:
             
             logger.info(f"Starting to process {len(items)} UPCs in batch {batch_id} using multiple API keys")
             
+            upcs_for_batch = [str(i.get("upc", "")).strip() for i in items if i.get("upc")]
+            map_prices_by_upc = self.map_repo.get_map_prices_by_upcs(
+                upcs_for_batch,
+                vendor_type=job_vendor,
+            )
+            logger.info(
+                "Preloaded MAP prices for %s/%s UPCs in batch %s",
+                len(map_prices_by_upc),
+                len(upcs_for_batch),
+                batch_id,
+            )
+
             multi_client = MultiKeyKeepaClient()
             
             async def process_fn(keepa_client, item):
-                return await self._process_single_item(keepa_client, item, batch_data, job_vendor)
+                return await self._process_single_item(
+                    keepa_client,
+                    item,
+                    batch_data,
+                    job_vendor,
+                    map_prices_by_upc=map_prices_by_upc,
+                )
             
             processed_count = await multi_client.process_items_parallel(
                 items=items,
@@ -393,8 +418,10 @@ class BatchProcessor:
                         "completed_batches": completed_batches
                     }).eq("id", str(job_id)).execute()
                 
-                # Rate limiting delay between batches (1-2 seconds)
-                await asyncio.sleep(1.5)
+                # Optional delay between batches (set to 0 for fastest throughput)
+                inter_delay = max(0.0, float(settings.batch_inter_delay_seconds))
+                if inter_delay > 0:
+                    await asyncio.sleep(inter_delay)
             
             # Mark job as completed immediately — email is just notification
             self._execute_with_retry(
