@@ -737,7 +737,9 @@ class CSVGenerator:
                 msrp = None
 
             asin = product_data.get("asin", "")
-            amazon_url = f"https://www.amazon.com/dp/{asin}" if asin else "N/A"
+            amazon_url = (
+                f"https://www.amazon.com/dp/{asin}?ref=myi_title_dp" if asin else "N/A"
+            )
 
             upc_display = upc
             try:
