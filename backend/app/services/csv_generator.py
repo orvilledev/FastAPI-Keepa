@@ -541,7 +541,7 @@ class CSVGenerator:
         seller_name_map: Dict[str, str],
         excluded_substrings: List[str],
         off_price_scope: str = "buybox_only",
-    ) -> Optional[Tuple[float, str]]:
+    ) -> Optional[Tuple[float, str, str]]:
         """
         One row per UPC: only the buy-box winner can be flagged off-price.
         """
@@ -557,7 +557,8 @@ class CSVGenerator:
             )
             if CSVGenerator.seller_display_excluded(seller_disp, excluded_substrings):
                 return None
-            return (float(representative["price"]), seller_disp)
+            seller_id = CSVGenerator._normalize_seller_id(representative.get("seller_id"))
+            return (float(representative["price"]), seller_disp, seller_id)
 
         stats = {}
         products = keepa_data.get("products", []) if isinstance(keepa_data, dict) else []
@@ -591,7 +592,17 @@ class CSVGenerator:
         if CSVGenerator.seller_display_excluded(seller_disp, excluded_substrings):
             return None
 
-        return (reference_price, seller_disp)
+        return (reference_price, seller_disp, buy_box_seller_id)
+
+    @staticmethod
+    def _build_seller_amazon_url(asin: str, seller_id: str) -> str:
+        """Build seller-specific Amazon URL when seller ID is available."""
+        if not asin:
+            return "N/A"
+        sid = CSVGenerator._normalize_seller_id(seller_id)
+        if sid:
+            return f"https://www.amazon.com/gp/offer-listing/{asin}?smid={sid}&condition=new"
+        return f"https://www.amazon.com/dp/{asin}?ref=myi_title_dp"
 
     @staticmethod
     def _resolve_seller_display(
@@ -762,7 +773,7 @@ class CSVGenerator:
                 msrp = None
 
             asin = product_data.get("asin", "")
-            amazon_url = (
+            default_amazon_url = (
                 f"https://www.amazon.com/dp/{asin}?ref=myi_title_dp" if asin else "N/A"
             )
 
@@ -776,7 +787,7 @@ class CSVGenerator:
             base_title = product_data.get("title", "")
             base_brand = product_data.get("brand", "")
 
-            def append_row(reference_price: float, seller_display: str) -> None:
+            def append_row(reference_price: float, seller_display: str, seller_id: str = "") -> None:
                 nonlocal off_price_count
                 off_price_count += 1
                 try:
@@ -821,7 +832,9 @@ class CSVGenerator:
                     "Seller Offer Price": seller_price_disp,
                     "Seller": seller_display,
                     "Discount %": discount_display,
-                    "Amazon URL": amazon_url,
+                    "Amazon URL": CSVGenerator._build_seller_amazon_url(asin, seller_id)
+                    if asin
+                    else default_amazon_url,
                     "_is_off_price": True,
                 })
 
@@ -853,7 +866,7 @@ class CSVGenerator:
 
                     if seller_id:
                         seen_sellers.add(seller_id)
-                    append_row(offer_price, seller_disp)
+                    append_row(offer_price, seller_disp, seller_id)
                 continue
 
             picked = CSVGenerator._pick_off_price_representative(
@@ -865,8 +878,8 @@ class CSVGenerator:
                 off_price_scope=off_price_scope,
             )
             if picked is not None:
-                ref, seller_disp = picked
-                append_row(ref, seller_disp)
+                ref, seller_disp, seller_id = picked
+                append_row(ref, seller_disp, seller_id)
             elif not offers:
                 products = keepa_data.get("products", []) if isinstance(keepa_data, dict) else []
                 stats = products[0].get("stats", {}) if products else {}
@@ -881,7 +894,7 @@ class CSVGenerator:
                         seller_name_map,
                     )
                     if not CSVGenerator.seller_display_excluded(seller_disp, excluded):
-                        append_row(float(buy_box_only), seller_disp)
+                        append_row(float(buy_box_only), seller_disp, buy_box_seller_id)
                 elif buy_box_only is None:
                     logger.warning(
                         f"No seller or buy box price found in Keepa data for UPC {upc}"
