@@ -540,10 +540,25 @@ class CSVGenerator:
         keepa_data: Dict[str, Any],
         seller_name_map: Dict[str, str],
         excluded_substrings: List[str],
+        off_price_scope: str = "buybox_only",
     ) -> Optional[Tuple[float, str]]:
         """
         One row per UPC: only the buy-box winner can be flagged off-price.
         """
+        if off_price_scope == "buybox_and_non_buybox_below_map":
+            eligible_offers = [off for off in offers if float(off["price"]) < float(msrp)]
+            if not eligible_offers:
+                return None
+            representative = min(eligible_offers, key=lambda off: float(off["price"]))
+            seller_disp = CSVGenerator._resolve_seller_display(
+                representative.get("seller_name") or "",
+                representative.get("seller_id") or "",
+                seller_name_map,
+            )
+            if CSVGenerator.seller_display_excluded(seller_disp, excluded_substrings):
+                return None
+            return (float(representative["price"]), seller_disp)
+
         stats = {}
         products = keepa_data.get("products", []) if isinstance(keepa_data, dict) else []
         if products:
@@ -626,6 +641,7 @@ class CSVGenerator:
         map_prices_by_upc: Dict[str, Decimal],
         seller_name_map: Optional[Dict[str, str]] = None,
         excluded_seller_substrings: Optional[List[str]] = None,
+        off_price_scope: str = "buybox_only",
     ) -> tuple:
         """
         Generate comprehensive CSV report matching the spreadsheet format.
@@ -644,6 +660,7 @@ class CSVGenerator:
             map_prices_by_upc=map_prices_by_upc,
             seller_name_map=seller_name_map,
             excluded_seller_substrings=excluded_seller_substrings,
+            off_price_scope=off_price_scope,
         )
 
         # Create DataFrame with all columns
@@ -719,6 +736,7 @@ class CSVGenerator:
         map_prices_by_upc: Dict[str, Decimal],
         seller_name_map: Optional[Dict[str, str]] = None,
         excluded_seller_substrings: Optional[List[str]] = None,
+        off_price_scope: str = "buybox_only",
     ) -> Tuple[List[Dict[str, Any]], int]:
         """Build comprehensive report rows used by UI and Excel export."""
         csv_data: List[Dict[str, Any]] = []
@@ -817,6 +835,7 @@ class CSVGenerator:
                 keepa_data,
                 seller_name_map,
                 excluded,
+                off_price_scope=off_price_scope,
             )
             if picked is not None:
                 ref, seller_disp = picked

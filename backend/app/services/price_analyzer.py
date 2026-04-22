@@ -108,6 +108,7 @@ class PriceAnalyzer:
         self,
         keepa_data: Dict[str, Any],
         map_price: Optional[Decimal] = None,
+        off_price_scope: str = "buybox_only",
     ) -> List[Dict[str, Any]]:
         """
         Detect sellers whose current price is below MAP.
@@ -130,6 +131,40 @@ class PriceAnalyzer:
                 return off_price_sellers
 
             map_f = float(map_price)
+            if off_price_scope == "buybox_and_non_buybox_below_map":
+                for seller in current_prices:
+                    current_price = seller.get("price")
+                    if current_price is None or current_price <= 0:
+                        continue
+
+                    seller_name_normalized = self._normalize_seller_name(
+                        seller.get("seller_name")
+                    )
+                    if any(
+                        token in seller_name_normalized
+                        for token in self._excluded_buy_box_name_tokens
+                    ):
+                        continue
+
+                    cur_f = float(current_price)
+                    if cur_f >= map_f:
+                        continue
+
+                    price_change = cur_f - map_f
+                    price_change_percent = (price_change / map_f) * 100 if map_f else 0.0
+                    off_price_sellers.append({
+                        "seller_id": seller.get("seller_id"),
+                        "seller_name": seller.get("seller_name"),
+                        "current_price": current_price,
+                        "map_price": map_price,
+                        "historical_price": map_price,
+                        "price_change": Decimal(str(price_change)),
+                        "price_change_percent": price_change_percent,
+                        "is_fba": seller.get("is_fba"),
+                        "condition": seller.get("condition"),
+                    })
+                return off_price_sellers
+
             stats = keepa_data.get("stats", {}) or {}
             buy_box_seller_id = stats.get("buyBoxSellerId")
             buy_box_seller_id = str(buy_box_seller_id).strip() if buy_box_seller_id is not None else ""
@@ -189,6 +224,7 @@ class PriceAnalyzer:
         self,
         keepa_response: Dict[str, Any],
         map_price: Optional[Decimal] = None,
+        off_price_scope: str = "buybox_only",
     ) -> Dict[str, Any]:
         """
         Complete analysis of a product's Keepa data.
@@ -217,7 +253,11 @@ class PriceAnalyzer:
             current_prices = self.get_current_prices(keepa_data)
             result["total_sellers"] = len(current_prices)
 
-            off_price_sellers = self.detect_off_price_sellers(keepa_data, map_price=map_price)
+            off_price_sellers = self.detect_off_price_sellers(
+                keepa_data,
+                map_price=map_price,
+                off_price_scope=off_price_scope,
+            )
             result["off_price_sellers"] = off_price_sellers
 
         except Exception as e:

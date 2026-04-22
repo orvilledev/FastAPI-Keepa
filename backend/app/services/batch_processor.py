@@ -105,6 +105,7 @@ class BatchProcessor:
         email_recipients: str = None,
         keepa_offers_limit: int = 0,
         map_vendor_type: Optional[str] = None,
+        off_price_scope: str = "buybox_only",
     ) -> UUID:
         """
         Create a new batch job and split UPCs into batches.
@@ -132,6 +133,7 @@ class BatchProcessor:
             "created_by": str(created_by),
             "map_vendor_type": resolve_map_vendor_type(map_vendor_type),
             "keepa_offers_limit": max(0, min(500, int(keepa_offers_limit))),
+            "off_price_scope": off_price_scope or "buybox_only",
         }
         if email_recipients:
             insert_data["email_recipients"] = email_recipients
@@ -183,6 +185,7 @@ class BatchProcessor:
         item: dict,
         batch_data: dict,
         map_vendor_type: str,
+        off_price_scope: str,
         map_prices_by_upc: Optional[Dict[str, Decimal]] = None,
     ) -> bool:
         """Process a single UPC item with a given Keepa client."""
@@ -218,7 +221,11 @@ class BatchProcessor:
                     except Exception as e:
                         logger.debug(f"No MAP for UPC {upc}: {e}")
 
-                analysis = self.price_analyzer.analyze_product(keepa_response, map_price=map_price)
+                analysis = self.price_analyzer.analyze_product(
+                    keepa_response,
+                    map_price=map_price,
+                    off_price_scope=off_price_scope,
+                )
 
                 self._execute_with_retry(
                     lambda: self.db.table("upc_batch_items").update({
@@ -292,12 +299,13 @@ class BatchProcessor:
 
             job_vendor = resolve_map_vendor_type(None)
             job_offers_limit: Optional[int] = None
+            job_off_price_scope = "buybox_only"
             job_id_for_batch = batch_data.get("batch_job_id")
             if job_id_for_batch:
                 job_row = self._execute_with_retry(
                     lambda: (
                         self.db.table("batch_jobs")
-                        .select("map_vendor_type, keepa_offers_limit")
+                        .select("map_vendor_type, keepa_offers_limit, off_price_scope")
                         .eq("id", str(job_id_for_batch))
                         .limit(1)
                         .execute()
@@ -307,6 +315,9 @@ class BatchProcessor:
                 if job_row.data:
                     job_vendor = resolve_map_vendor_type(job_row.data[0].get("map_vendor_type"))
                     raw_offers_limit = job_row.data[0].get("keepa_offers_limit")
+                    raw_off_price_scope = job_row.data[0].get("off_price_scope")
+                    if raw_off_price_scope in {"buybox_only", "buybox_and_non_buybox_below_map"}:
+                        job_off_price_scope = raw_off_price_scope
                     if raw_offers_limit is None:
                         raise ValueError(
                             "Missing keepa_offers_limit on batch job. "
@@ -377,6 +388,7 @@ class BatchProcessor:
                     item,
                     batch_data,
                     job_vendor,
+                    job_off_price_scope,
                     map_prices_by_upc=map_prices_by_upc,
                 )
             
@@ -500,11 +512,15 @@ class BatchProcessor:
             custom_recipients = job_data.get("email_recipients")
             total_upcs = sum(batch["upc_count"] for batch in batches)
             job_map_vendor = resolve_map_vendor_type(job_data.get("map_vendor_type"))
+            job_off_price_scope = job_data.get("off_price_scope") or "buybox_only"
 
             try:
                 report_service = ReportService(self.db)
                 csv_bytes, filename, off_price_count = report_service.generate_csv_for_job(
-                    job_id, job_name, map_vendor_type=job_map_vendor
+                    job_id,
+                    job_name,
+                    map_vendor_type=job_map_vendor,
+                    off_price_scope=job_off_price_scope,
                 )
             except Exception as report_err:
                 logger.error(

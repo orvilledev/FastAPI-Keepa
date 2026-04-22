@@ -1,6 +1,6 @@
 """Pydantic models for batch jobs."""
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
 from uuid import UUID
 
@@ -10,6 +10,12 @@ from app.utils.vendor_code import (
     normalize_vendor_code,
     resolve_map_vendor_type,
 )
+
+
+OffPriceScope = Literal[
+    "buybox_only",
+    "buybox_and_non_buybox_below_map",
+]
 
 
 class BatchJobCreate(BaseModel):
@@ -25,6 +31,13 @@ class BatchJobCreate(BaseModel):
     map_vendor_type: Optional[str] = Field(
         default=None,
         description="MAP vendor code (map_prices.vendor_type); omit for default (dnk)",
+    )
+    off_price_scope: OffPriceScope = Field(
+        default="buybox_only",
+        description=(
+            "Off-price detection scope: "
+            "'buybox_only' or 'buybox_and_non_buybox_below_map'"
+        ),
     )
 
     @field_validator("map_vendor_type")
@@ -65,6 +78,7 @@ class BatchJobResponse(BaseModel):
     email_recipients: Optional[str] = None
     keepa_offers_limit: Optional[int] = None
     map_vendor_type: str = Field(default=DEFAULT_MAP_VENDOR_TYPE)
+    off_price_scope: OffPriceScope = "buybox_only"
 
     @field_validator("map_vendor_type", mode="before")
     @classmethod

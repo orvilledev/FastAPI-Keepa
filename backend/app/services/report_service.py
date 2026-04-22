@@ -41,6 +41,22 @@ class ReportService:
             return resolve_map_vendor_type(job_row.data[0].get("map_vendor_type"))
         return resolve_map_vendor_type(None)
 
+    def _off_price_scope_for_job(self, job_id: UUID, explicit: Optional[str] = None) -> str:
+        if explicit in {"buybox_only", "buybox_and_non_buybox_below_map"}:
+            return explicit
+        job_row = (
+            self.db.table("batch_jobs")
+            .select("off_price_scope")
+            .eq("id", str(job_id))
+            .limit(1)
+            .execute()
+        )
+        if job_row.data:
+            scope = job_row.data[0].get("off_price_scope")
+            if scope in {"buybox_only", "buybox_and_non_buybox_below_map"}:
+                return scope
+        return "buybox_only"
+
     def get_comprehensive_report_rows_for_job(self, job_id: UUID) -> List[dict]:
         """Get report rows using the same logic as Excel/email export."""
         processed_items = self.report_repo.get_all_processed_upcs_for_job(job_id)
@@ -50,6 +66,7 @@ class ReportService:
 
         upcs = [item.get("upc") for item in processed_items if item.get("upc")]
         map_vendor = self._map_vendor_for_job(job_id)
+        off_price_scope = self._off_price_scope_for_job(job_id)
         map_prices_by_upc = self.map_repo.get_map_prices_by_upcs(upcs, vendor_type=map_vendor)
 
         try:
@@ -64,6 +81,7 @@ class ReportService:
             map_prices_by_upc=map_prices_by_upc,
             seller_name_map=seller_name_map,
             excluded_seller_substrings=excluded,
+            off_price_scope=off_price_scope,
         )
         return rows
     
@@ -72,6 +90,7 @@ class ReportService:
         job_id: UUID,
         job_name: str,
         map_vendor_type: Optional[str] = None,
+        off_price_scope: Optional[str] = None,
     ) -> Tuple[bytes, str, int]:
         """
         Generate comprehensive CSV report for a job matching spreadsheet format.
@@ -84,11 +103,13 @@ class ReportService:
         
         excluded = settings.report_excluded_seller_pattern_list
         map_vendor = self._map_vendor_for_job(job_id, explicit=map_vendor_type)
+        resolved_scope = self._off_price_scope_for_job(job_id, explicit=off_price_scope)
         if not processed_items:
             # Return empty Excel file with headers
             csv_bytes, off_price_count = self.csv_generator.generate_comprehensive_report_csv(
                 [], {},
                 excluded_seller_substrings=excluded,
+                off_price_scope=resolved_scope,
             )
             filename = self.csv_generator.generate_csv_filename(job_name, extension="xlsx")
             return csv_bytes, filename, off_price_count
@@ -110,6 +131,7 @@ class ReportService:
             map_prices_by_upc,
             seller_name_map=seller_name_map,
             excluded_seller_substrings=excluded,
+            off_price_scope=resolved_scope,
         )
         filename = self.csv_generator.generate_csv_filename(job_name, extension="xlsx")
         
