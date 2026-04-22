@@ -829,6 +829,33 @@ class CSVGenerator:
                 continue
 
             offers = CSVGenerator._seller_offers_from_keepa(keepa_data)
+            if off_price_scope == "buybox_and_non_buybox_below_map":
+                seen_sellers: set[str] = set()
+                for off in offers:
+                    try:
+                        offer_price = float(off.get("price"))
+                    except (TypeError, ValueError):
+                        continue
+                    if not (offer_price < float(msrp)):
+                        continue
+
+                    seller_id = CSVGenerator._normalize_seller_id(off.get("seller_id"))
+                    if seller_id and seller_id in seen_sellers:
+                        continue
+
+                    seller_disp = CSVGenerator._resolve_seller_display(
+                        off.get("seller_name") or "",
+                        off.get("seller_id") or "",
+                        seller_name_map,
+                    )
+                    if CSVGenerator.seller_display_excluded(seller_disp, excluded):
+                        continue
+
+                    if seller_id:
+                        seen_sellers.add(seller_id)
+                    append_row(offer_price, seller_disp)
+                continue
+
             picked = CSVGenerator._pick_off_price_representative(
                 offers,
                 float(msrp),
