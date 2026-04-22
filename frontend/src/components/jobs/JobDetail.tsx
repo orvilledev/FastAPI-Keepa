@@ -261,6 +261,11 @@ export default function JobDetail() {
     return <div className="text-center py-8">Job not found</div>
   }
 
+  const offPriceScopeLabel =
+    job.off_price_scope === 'buybox_and_non_buybox_below_map'
+      ? 'Buy box + non-buy-box below MAP'
+      : 'Buy box winners only'
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -319,7 +324,7 @@ export default function JobDetail() {
 
       {/* Job Info */}
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
           <div>
             <div className="text-sm font-medium text-gray-500">Status</div>
             <div className="mt-1">
@@ -342,6 +347,12 @@ export default function JobDetail() {
             <div className="text-sm font-medium text-gray-500">MAP vendor</div>
             <div className="mt-1 text-sm font-mono text-gray-900">
               {job.map_vendor_type ?? 'dnk'}
+            </div>
+          </div>
+          <div>
+            <div className="text-sm font-medium text-gray-500">Off-price scope</div>
+            <div className="mt-1 text-sm text-gray-900">
+              {offPriceScopeLabel}
             </div>
           </div>
           <div>

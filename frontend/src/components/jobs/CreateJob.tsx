@@ -9,6 +9,7 @@ export default function CreateJob() {
   const [emailRecipients, setEmailRecipients] = useState('')
   const [mapVendorType, setMapVendorType] = useState('dnk')
   const [keepaOffersLimit, setKeepaOffersLimit] = useState<number>(10)
+  const [offPriceScope, setOffPriceScope] = useState<'buybox_only' | 'buybox_and_non_buybox_below_map'>('buybox_only')
   const [vendorSuggestions, setVendorSuggestions] = useState<string[]>(['dnk', 'clk'])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -55,11 +56,13 @@ export default function CreateJob() {
         email_recipients?: string
         map_vendor_type: string
         keepa_offers_limit: number
+        off_price_scope: 'buybox_only' | 'buybox_and_non_buybox_below_map'
       } = {
         job_name: jobName || `Job ${new Date().toLocaleString()}`,
         upcs: upcList,
         map_vendor_type: mapVendorType.trim().toLowerCase() || 'dnk',
         keepa_offers_limit: Math.max(0, Math.min(500, Number.isFinite(keepaOffersLimit) ? keepaOffersLimit : 10)),
+        off_price_scope: offPriceScope,
       }
       if (emailRecipients.trim()) {
         jobPayload.email_recipients = emailRecipients.trim()
@@ -133,6 +136,36 @@ export default function CreateJob() {
           <p className="mt-2 text-sm text-gray-500">
             Lower is faster/lighter, higher improves seller coverage but may increase rate-limit retries.
           </p>
+        </div>
+
+        <div>
+          <p className="block text-sm font-medium text-gray-700 mb-2">
+            Off-price scope <span className="text-gray-500 font-normal">(per job)</span>
+          </p>
+          <div className="space-y-2">
+            <label className="flex items-start gap-2 text-sm text-gray-700">
+              <input
+                type="radio"
+                name="offPriceScope"
+                value="buybox_only"
+                checked={offPriceScope === 'buybox_only'}
+                onChange={() => setOffPriceScope('buybox_only')}
+                className="mt-0.5 h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
+              />
+              <span>Flag only buy box winners below MAP</span>
+            </label>
+            <label className="flex items-start gap-2 text-sm text-gray-700">
+              <input
+                type="radio"
+                name="offPriceScope"
+                value="buybox_and_non_buybox_below_map"
+                checked={offPriceScope === 'buybox_and_non_buybox_below_map'}
+                onChange={() => setOffPriceScope('buybox_and_non_buybox_below_map')}
+                className="mt-0.5 h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
+              />
+              <span>Flag buy box and non-buy-box sellers below MAP</span>
+            </label>
+          </div>
         </div>
 
         <div>

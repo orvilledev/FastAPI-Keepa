@@ -80,6 +80,7 @@ export interface BatchJob {
   description?: string
   email_recipients?: string
   keepa_offers_limit?: number
+  off_price_scope?: 'buybox_only' | 'buybox_and_non_buybox_below_map'
   /** MAP vendor (map_prices.vendor_type) used for off-price detection for this job */
   map_vendor_type?: MapVendorType
 }
