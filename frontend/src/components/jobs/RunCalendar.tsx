@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { schedulerApi } from '../../services/api'
 
 type CalendarResponse = Awaited<ReturnType<typeof schedulerApi.getCalendar>>
@@ -44,21 +44,47 @@ export default function RunCalendar() {
   const [error, setError] = useState('')
   const [data, setData] = useState<CalendarResponse | null>(null)
   const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('daily')
+  const isFetchingRef = useRef(false)
+
+  const loadCalendar = useCallback(async (showLoading: boolean = false) => {
+    if (isFetchingRef.current) return
+    isFetchingRef.current = true
+    if (showLoading) setLoading(true)
+    try {
+      setError('')
+      const response = await schedulerApi.getCalendar()
+      setData(response)
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to load run calendar')
+    } finally {
+      setLoading(false)
+      isFetchingRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        setError('')
-        const response = await schedulerApi.getCalendar()
-        setData(response)
-      } catch (err: any) {
-        setError(err.response?.data?.detail || 'Failed to load run calendar')
-      } finally {
-        setLoading(false)
+    void loadCalendar(true)
+
+    const refreshIntervalMs = 30000
+    const intervalId = window.setInterval(() => {
+      void loadCalendar()
+    }, refreshIntervalMs)
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        void loadCalendar()
       }
     }
-    load()
-  }, [])
+
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus)
+    window.addEventListener('focus', handleVisibilityOrFocus)
+
+    return () => {
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus)
+      window.removeEventListener('focus', handleVisibilityOrFocus)
+    }
+  }, [loadCalendar])
 
   const upcomingDays = useMemo(() => {
     const days: Date[] = []
