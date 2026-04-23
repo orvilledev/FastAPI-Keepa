@@ -83,17 +83,6 @@ async def run_daily_job_for_category(category: str = 'dnk'):
             if category_settings_response.data:
                 custom_recipients = category_settings_response.data[0].get("email_recipients")
 
-            # Fallback to any configured recipients for cross-category/global compatibility.
-            if not custom_recipients:
-                global_recipients_response = (
-                    db.table("scheduler_settings")
-                    .select("email_recipients")
-                    .not_.is_("email_recipients", "null")
-                    .limit(1)
-                    .execute()
-                )
-                if global_recipients_response.data:
-                    custom_recipients = global_recipients_response.data[0].get("email_recipients")
         except Exception as recipients_err:
             logger.warning(f"Could not load scheduler email recipients for {category.upper()}: {recipients_err}")
         

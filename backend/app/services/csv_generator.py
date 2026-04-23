@@ -601,8 +601,8 @@ class CSVGenerator:
             return "N/A"
         sid = CSVGenerator._normalize_seller_id(seller_id)
         if sid:
-            return f"https://www.amazon.com/gp/offer-listing/{asin}?smid={sid}&condition=new"
-        return f"https://www.amazon.com/dp/{asin}?ref=myi_title_dp"
+            return f"https://www.amazon.com/dp/{asin}?smid={sid}&th=1&psc=1"
+        return f"https://www.amazon.com/dp/{asin}?th=1&psc=1"
 
     @staticmethod
     def _resolve_seller_display(

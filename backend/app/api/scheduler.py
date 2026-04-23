@@ -263,14 +263,6 @@ async def update_scheduler_settings_endpoint(
     else:
         response = db.table("scheduler_settings").insert(update_data).execute()
 
-    # Email recipients are global for daily runs and should apply to all categories.
-    if "email_recipients" in update_data:
-        db.table("scheduler_settings").update({
-            "email_recipients": update_data["email_recipients"],
-            "updated_by": current_user["id"],
-            "updated_at": "now()",
-        }).neq("category", category).execute()
-
     # Get updated settings
     updated_settings = response.data[0] if response.data else update_data
 

@@ -507,7 +507,7 @@ export default function OBZDailyRun() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email recipients (applies to all vendors)
+                  Email recipients (OBZ only)
                 </label>
                 <EmailRecipientsPicker
                   value={settingsForm.email_recipients || ''}
@@ -518,7 +518,7 @@ export default function OBZDailyRun() {
 
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800">
-                  <strong>Note:</strong> Schedule timing updates apply to OBZ only. Email recipients are shared across DNK, CLK, and OBZ daily runs.
+                  <strong>Note:</strong> Schedule timing and email recipients here apply to OBZ only.
                 </p>
               </div>
             </div>

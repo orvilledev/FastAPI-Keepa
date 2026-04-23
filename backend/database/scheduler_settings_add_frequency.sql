@@ -25,4 +25,4 @@ WHERE custom_days IS NULL;
 COMMENT ON COLUMN scheduler_settings.run_mode IS 'Schedule mode: daily, every_other_day, custom_days';
 COMMENT ON COLUMN scheduler_settings.custom_days IS 'Custom weekdays as JSON array of mon..sun';
 COMMENT ON COLUMN scheduler_settings.anchor_date IS 'Anchor date for every_other_day mode';
-COMMENT ON COLUMN scheduler_settings.email_recipients IS 'Optional comma-separated recipients applied to all daily-run vendors';
+COMMENT ON COLUMN scheduler_settings.email_recipients IS 'Optional comma-separated recipients for this category/vendor only';

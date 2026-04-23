@@ -545,7 +545,7 @@ export default function DNKDailyRun() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email recipients (applies to all vendors)
+                  Email recipients (DNK only)
                 </label>
                 <EmailRecipientsPicker
                   value={settingsForm.email_recipients || ''}
@@ -556,7 +556,7 @@ export default function DNKDailyRun() {
 
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800">
-                  <strong>Note:</strong> Schedule timing updates apply to DNK only. Email recipients are shared across DNK, CLK, and OBZ daily runs.
+                  <strong>Note:</strong> Schedule timing and email recipients here apply to DNK only.
                 </p>
               </div>
             </div>
