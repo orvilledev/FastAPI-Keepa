@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { jobsApi, batchesApi, schedulerApi, authApi } from '../../services/api'
+import { jobsApi, batchesApi, schedulerApi } from '../../services/api'
 import type { BatchJob, JobStatus } from '../../types'
 import BatchStatus from '../dashboard/BatchStatus'
 import EmailRecipientsPicker from './EmailRecipientsPicker'
@@ -25,27 +25,13 @@ export default function JobDetail() {
   const [editTimezone, setEditTimezone] = useState('Asia/Taipei')
   const [editHour, setEditHour] = useState(20)
   const [editMinute, setEditMinute] = useState(0)
-  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     if (jobId) {
       loadJob()
       loadStatus()
-      checkAdminStatus()
     }
   }, [jobId])
-
-  const checkAdminStatus = async () => {
-    try {
-      const userInfo = await authApi.getCurrentUser()
-      const isAdminUser = userInfo?.role === 'admin'
-      setIsAdmin(isAdminUser)
-      console.log('Admin status checked:', { role: userInfo?.role, isAdmin: isAdminUser })
-    } catch (error) {
-      console.error('Failed to check admin status:', error)
-      setIsAdmin(false)
-    }
-  }
 
   useEffect(() => {
     if (job?.status === 'processing') {
@@ -198,8 +184,8 @@ export default function JobDetail() {
       })
       setJob(updatedJob)
       
-      // Update scheduler settings if admin and settings changed
-      if (isAdmin && isDailyRun && schedulerSettings) {
+      // Update scheduler settings if settings changed
+      if (isDailyRun && schedulerSettings) {
         const settingsChanged = 
           editTimezone !== schedulerSettings.timezone ||
           editHour !== schedulerSettings.hour ||
@@ -513,138 +499,116 @@ export default function JobDetail() {
                 {isDailyRun && (
                   <div className="border-t pt-4 mt-4">
                     <h3 className="text-lg font-semibold text-gray-900 mb-3">Scheduler Settings</h3>
-                    {isAdmin ? (
-                      <div className="space-y-4">
-                        {/* Timezone */}
+                    <div className="space-y-4">
+                      {/* Timezone */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Timezone *
+                        </label>
+                        <select
+                          value={editTimezone}
+                          onChange={(e) => setEditTimezone(e.target.value)}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        >
+                          <optgroup label="US Timezones">
+                            <option value="America/New_York">Eastern Time (UTC-5/-4)</option>
+                            <option value="America/Chicago">Central Time (UTC-6/-5)</option>
+                            <option value="America/Denver">Mountain Time (UTC-7/-6)</option>
+                            <option value="America/Los_Angeles">Pacific Time (UTC-8/-7)</option>
+                            <option value="America/Anchorage">Alaska Time (UTC-9/-8)</option>
+                            <option value="Pacific/Honolulu">Hawaii Time (UTC-10)</option>
+                          </optgroup>
+                          <optgroup label="Asia">
+                            <option value="Asia/Taipei">Asia/Taipei (UTC+8)</option>
+                            <option value="Asia/Tokyo">Asia/Tokyo (UTC+9)</option>
+                            <option value="Asia/Shanghai">Asia/Shanghai (UTC+8)</option>
+                            <option value="Asia/Hong_Kong">Asia/Hong_Kong (UTC+8)</option>
+                            <option value="Asia/Singapore">Asia/Singapore (UTC+8)</option>
+                            <option value="Asia/Seoul">Asia/Seoul (UTC+9)</option>
+                            <option value="Asia/Dubai">Asia/Dubai (UTC+4)</option>
+                            <option value="Asia/Kolkata">Asia/Kolkata (UTC+5:30)</option>
+                          </optgroup>
+                          <optgroup label="Europe">
+                            <option value="Europe/London">Europe/London (UTC+0/+1)</option>
+                            <option value="Europe/Paris">Europe/Paris (UTC+1/+2)</option>
+                            <option value="Europe/Berlin">Europe/Berlin (UTC+1/+2)</option>
+                            <option value="Europe/Rome">Europe/Rome (UTC+1/+2)</option>
+                            <option value="Europe/Madrid">Europe/Madrid (UTC+1/+2)</option>
+                            <option value="Europe/Moscow">Europe/Moscow (UTC+3)</option>
+                          </optgroup>
+                          <optgroup label="Australia & Pacific">
+                            <option value="Australia/Sydney">Australia/Sydney (UTC+10/+11)</option>
+                            <option value="Australia/Melbourne">Australia/Melbourne (UTC+10/+11)</option>
+                            <option value="Australia/Brisbane">Australia/Brisbane (UTC+10)</option>
+                            <option value="Pacific/Auckland">Pacific/Auckland (UTC+12/+13)</option>
+                          </optgroup>
+                          <optgroup label="Americas (Other)">
+                            <option value="America/Toronto">Canada Eastern (UTC-5/-4)</option>
+                            <option value="America/Vancouver">Canada Pacific (UTC-8/-7)</option>
+                            <option value="America/Mexico_City">Mexico City (UTC-6/-5)</option>
+                            <option value="America/Sao_Paulo">Sao Paulo (UTC-3)</option>
+                            <option value="America/Buenos_Aires">Buenos Aires (UTC-3)</option>
+                          </optgroup>
+                          <optgroup label="Other">
+                            <option value="UTC">UTC (UTC+0)</option>
+                            <option value="Africa/Johannesburg">Africa/Johannesburg (UTC+2)</option>
+                            <option value="Asia/Jerusalem">Asia/Jerusalem (UTC+2/+3)</option>
+                          </optgroup>
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">Timezone for the scheduled daily run</p>
+                      </div>
+
+                      {/* Time */}
+                      <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Timezone *
+                            Hour (0-23) *
                           </label>
-                          <select
-                            value={editTimezone}
-                            onChange={(e) => setEditTimezone(e.target.value)}
+                          <input
+                            type="number"
+                            min="0"
+                            max="23"
+                            value={editHour}
+                            onChange={(e) => setEditHour(parseInt(e.target.value) || 0)}
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                          >
-                            <optgroup label="US Timezones">
-                              <option value="America/New_York">Eastern Time (UTC-5/-4)</option>
-                              <option value="America/Chicago">Central Time (UTC-6/-5)</option>
-                              <option value="America/Denver">Mountain Time (UTC-7/-6)</option>
-                              <option value="America/Los_Angeles">Pacific Time (UTC-8/-7)</option>
-                              <option value="America/Anchorage">Alaska Time (UTC-9/-8)</option>
-                              <option value="Pacific/Honolulu">Hawaii Time (UTC-10)</option>
-                            </optgroup>
-                            <optgroup label="Asia">
-                              <option value="Asia/Taipei">Asia/Taipei (UTC+8)</option>
-                              <option value="Asia/Tokyo">Asia/Tokyo (UTC+9)</option>
-                              <option value="Asia/Shanghai">Asia/Shanghai (UTC+8)</option>
-                              <option value="Asia/Hong_Kong">Asia/Hong_Kong (UTC+8)</option>
-                              <option value="Asia/Singapore">Asia/Singapore (UTC+8)</option>
-                              <option value="Asia/Seoul">Asia/Seoul (UTC+9)</option>
-                              <option value="Asia/Dubai">Asia/Dubai (UTC+4)</option>
-                              <option value="Asia/Kolkata">Asia/Kolkata (UTC+5:30)</option>
-                            </optgroup>
-                            <optgroup label="Europe">
-                              <option value="Europe/London">Europe/London (UTC+0/+1)</option>
-                              <option value="Europe/Paris">Europe/Paris (UTC+1/+2)</option>
-                              <option value="Europe/Berlin">Europe/Berlin (UTC+1/+2)</option>
-                              <option value="Europe/Rome">Europe/Rome (UTC+1/+2)</option>
-                              <option value="Europe/Madrid">Europe/Madrid (UTC+1/+2)</option>
-                              <option value="Europe/Moscow">Europe/Moscow (UTC+3)</option>
-                            </optgroup>
-                            <optgroup label="Australia & Pacific">
-                              <option value="Australia/Sydney">Australia/Sydney (UTC+10/+11)</option>
-                              <option value="Australia/Melbourne">Australia/Melbourne (UTC+10/+11)</option>
-                              <option value="Australia/Brisbane">Australia/Brisbane (UTC+10)</option>
-                              <option value="Pacific/Auckland">Pacific/Auckland (UTC+12/+13)</option>
-                            </optgroup>
-                            <optgroup label="Americas (Other)">
-                              <option value="America/Toronto">Canada Eastern (UTC-5/-4)</option>
-                              <option value="America/Vancouver">Canada Pacific (UTC-8/-7)</option>
-                              <option value="America/Mexico_City">Mexico City (UTC-6/-5)</option>
-                              <option value="America/Sao_Paulo">Sao Paulo (UTC-3)</option>
-                              <option value="America/Buenos_Aires">Buenos Aires (UTC-3)</option>
-                            </optgroup>
-                            <optgroup label="Other">
-                              <option value="UTC">UTC (UTC+0)</option>
-                              <option value="Africa/Johannesburg">Africa/Johannesburg (UTC+2)</option>
-                              <option value="Asia/Jerusalem">Asia/Jerusalem (UTC+2/+3)</option>
-                            </optgroup>
-                          </select>
-                          <p className="text-xs text-gray-500 mt-1">Timezone for the scheduled daily run</p>
+                          />
                         </div>
-
-                        {/* Time */}
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Hour (0-23) *
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="23"
-                              value={editHour}
-                              onChange={(e) => setEditHour(parseInt(e.target.value) || 0)}
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Minute (0-59) *
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="59"
-                              value={editMinute}
-                              onChange={(e) => setEditMinute(parseInt(e.target.value) || 0)}
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                            />
-                          </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Minute (0-59) *
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="59"
+                            value={editMinute}
+                            onChange={(e) => setEditMinute(parseInt(e.target.value) || 0)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          />
                         </div>
-
-                        {/* Next Run Info */}
-                        {schedulerInfo?.next_run_time_taipei && (
-                          <div className="bg-blue-50 rounded-lg p-3">
-                            <p className="text-sm text-blue-800">
-                              <span className="font-medium">Next Run:</span> {schedulerInfo.next_run_time_taipei}
-                            </p>
-                          </div>
-                        )}
-                        
-                        {!schedulerSettings && (
-                          <div className="bg-yellow-50 rounded-lg p-3">
-                            <p className="text-sm text-yellow-800">
-                              Loading scheduler settings...
-                            </p>
-                          </div>
-                        )}
-
-                        <p className="text-xs text-gray-500">
-                          Note: Scheduler settings are global and affect all future daily runs. Changes will take effect immediately.
-                        </p>
                       </div>
-                    ) : (
-                      <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Scheduled Time:</span>
-                          <span className="font-medium text-gray-900">{schedulerInfo?.scheduled_time || `${schedulerSettings.hour}:${schedulerSettings.minute.toString().padStart(2, '0')} ${schedulerSettings.timezone}`}</span>
+
+                      {/* Next Run Info */}
+                      {schedulerInfo?.next_run_time_taipei && (
+                        <div className="bg-blue-50 rounded-lg p-3">
+                          <p className="text-sm text-blue-800">
+                            <span className="font-medium">Next Run:</span> {schedulerInfo.next_run_time_taipei}
+                          </p>
                         </div>
-                        {schedulerInfo?.next_run_time_taipei && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-600">Next Run:</span>
-                            <span className="font-medium text-gray-900">{schedulerInfo.next_run_time_taipei}</span>
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Timezone:</span>
-                          <span className="font-medium text-gray-900">{schedulerSettings.timezone}</span>
+                      )}
+                      
+                      {!schedulerSettings && (
+                        <div className="bg-yellow-50 rounded-lg p-3">
+                          <p className="text-sm text-yellow-800">
+                            Loading scheduler settings...
+                          </p>
                         </div>
-                        <p className="text-xs text-gray-500 mt-2">
-                          Note: Scheduler settings are global and affect all future daily runs. Only administrators can change the schedule.
-                        </p>
-                      </div>
-                    )}
+                      )}
+
+                      <p className="text-xs text-gray-500">
+                        Note: Scheduler settings are global and affect all future daily runs. Changes will take effect immediately.
+                      </p>
+                    </div>
                   </div>
                 )}
 

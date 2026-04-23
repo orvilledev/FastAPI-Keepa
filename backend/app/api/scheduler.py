@@ -1,6 +1,6 @@
 """Scheduler API endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, Query
-from app.dependencies import get_current_user, get_admin_user, check_is_admin
+from app.dependencies import get_current_user
 from app.scheduler import scheduler, update_scheduler_settings, pause_scheduler
 from app.database import get_supabase
 from app.utils.error_handler import handle_api_errors
@@ -187,10 +187,10 @@ async def get_scheduler_settings(
 async def update_scheduler_settings_endpoint(
     settings_data: SchedulerSettingsUpdate,
     category: str = Query(default='dnk', regex='^(dnk|clk|obz)$'),
-    current_user: dict = Depends(get_admin_user),
+    current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
-    """Update scheduler settings for a specific category (admin only)."""
+    """Update scheduler settings for a specific category."""
     # Get current settings for this category
     current_response = db.table("scheduler_settings").select("*").eq("category", category).execute()
     
