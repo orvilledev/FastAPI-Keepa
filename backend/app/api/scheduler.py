@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from supabase import Client
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,17 @@ class SchedulerSettingsUpdate(BaseModel):
 
 VALID_RUN_MODES = {"daily", "every_other_day", "custom_days"}
 VALID_WEEKDAYS = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
+DAILY_JOB_NAME_RE = re.compile(r"^Daily\s+([A-Za-z0-9_-]+)\s+", re.IGNORECASE)
+
+
+def _extract_category_from_daily_job_name(job_name: str) -> Optional[str]:
+    """Extract vendor/category token from a daily job name."""
+    if not job_name:
+        return None
+    match = DAILY_JOB_NAME_RE.match(job_name.strip())
+    if not match:
+        return None
+    return match.group(1).lower()
 
 
 @router.get("/scheduler/next-run")
@@ -184,6 +196,113 @@ async def get_scheduler_settings(
             "email_recipients": None,
             "category": category
         }
+
+
+@router.get("/scheduler/calendar")
+@handle_api_errors("get scheduler calendar")
+async def get_scheduler_calendar(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase)
+):
+    """Return an overview of scheduled/ongoing daily runs across vendors."""
+    default_categories = ["dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha"]
+    categories = set(default_categories)
+    settings_by_category = {}
+
+    try:
+        settings_response = db.table("scheduler_settings").select("*").execute()
+        for row in settings_response.data or []:
+            category = str(row.get("category", "")).strip().lower()
+            if not category:
+                continue
+            categories.add(category)
+            settings_by_category[category] = row
+    except Exception:
+        # Keep defaults if table lookup fails.
+        pass
+
+    latest_by_category = {}
+    ongoing_runs = []
+    try:
+        jobs_response = (
+            db.table("batch_jobs")
+            .select("id, job_name, status, created_at, completed_at")
+            .ilike("job_name", "Daily %")
+            .order("created_at", desc=True)
+            .limit(500)
+            .execute()
+        )
+        for job in jobs_response.data or []:
+            category = _extract_category_from_daily_job_name(job.get("job_name", ""))
+            if not category:
+                continue
+            categories.add(category)
+            if category not in latest_by_category:
+                latest_by_category[category] = job
+            if job.get("status") in {"pending", "processing"}:
+                ongoing_runs.append({
+                    "id": job.get("id"),
+                    "job_name": job.get("job_name"),
+                    "category": category,
+                    "status": job.get("status"),
+                    "created_at": job.get("created_at"),
+                    "completed_at": job.get("completed_at"),
+                })
+    except Exception:
+        pass
+
+    vendors = []
+    for category in sorted(categories):
+        settings = settings_by_category.get(category, {})
+        timezone_str = settings.get("timezone", "America/Chicago")
+        hour = settings.get("hour", 6)
+        minute = settings.get("minute", 0)
+        enabled = settings.get("enabled", True)
+        run_mode = settings.get("run_mode", "daily")
+        custom_days = settings.get("custom_days", []) or []
+        anchor_date = settings.get("anchor_date")
+
+        schedule_label = {
+            "daily": "Daily",
+            "every_other_day": "Every other day",
+            "custom_days": f"Custom days ({', '.join(custom_days)})" if custom_days else "Custom days",
+        }.get(run_mode, "Daily")
+        scheduled_time = f"{hour:02d}:{minute:02d} {timezone_str} - {schedule_label}"
+
+        scheduler_job_present = False
+        next_run_time = None
+        if enabled:
+            try:
+                job = scheduler.get_job(f"daily_{category}_job")
+                if job:
+                    scheduler_job_present = True
+                    if job.next_run_time:
+                        next_run_time = job.next_run_time.isoformat()
+            except Exception:
+                pass
+
+        latest_job = latest_by_category.get(category)
+        vendors.append({
+            "category": category,
+            "enabled": enabled,
+            "timezone": timezone_str,
+            "hour": hour,
+            "minute": minute,
+            "run_mode": run_mode,
+            "custom_days": custom_days,
+            "anchor_date": anchor_date,
+            "scheduled_time": scheduled_time,
+            "next_run_time": next_run_time,
+            "scheduler_job_present": scheduler_job_present,
+            "latest_job": latest_job,
+            "is_ongoing": any(run.get("category") == category for run in ongoing_runs),
+        })
+
+    return {
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "vendors": vendors,
+        "ongoing_runs": ongoing_runs,
+    }
 
 
 @router.put("/scheduler/settings")

@@ -449,6 +449,41 @@ export const schedulerApi = {
     const response = await api.put<SchedulerSettings & { message: string }>(`/api/v1/scheduler/settings?category=${category}`, settings)
     return response.data
   },
+  getCalendar: async () => {
+    const response = await api.get<{
+      generated_at: string
+      vendors: Array<{
+        category: string
+        enabled: boolean
+        timezone: string
+        hour: number
+        minute: number
+        run_mode: 'daily' | 'every_other_day' | 'custom_days' | string
+        custom_days: string[]
+        anchor_date?: string | null
+        scheduled_time: string
+        next_run_time: string | null
+        scheduler_job_present: boolean
+        latest_job?: {
+          id: string
+          job_name: string
+          status: string
+          created_at: string
+          completed_at?: string | null
+        } | null
+        is_ongoing: boolean
+      }>
+      ongoing_runs: Array<{
+        id: string
+        job_name: string
+        category: string
+        status: string
+        created_at: string
+        completed_at?: string | null
+      }>
+    }>('/api/v1/scheduler/calendar')
+    return response.data
+  },
 }
 
 // Tools API

@@ -22,6 +22,7 @@ const BORDailyRun = lazy(() => import('./components/jobs/BORDailyRun'))
 const SFFDailyRun = lazy(() => import('./components/jobs/SFFDailyRun'))
 const TEVDailyRun = lazy(() => import('./components/jobs/TEVDailyRun'))
 const CHADailyRun = lazy(() => import('./components/jobs/CHADailyRun'))
+const RunCalendar = lazy(() => import('./components/jobs/RunCalendar'))
 const ReportView = lazy(() => import('./components/reports/ReportView'))
 const UPCManagement = lazy(() => import('./components/upcs/UPCManagement'))
 const MAPManagement = lazy(() => import('./components/map/MAPManagement'))
@@ -127,6 +128,7 @@ function AppRoutes() {
           <Route path="daily-run/sff" element={<ProtectedRoute requireKeepaAccess={true}><SFFDailyRun /></ProtectedRoute>} />
           <Route path="daily-run/tev" element={<ProtectedRoute requireKeepaAccess={true}><TEVDailyRun /></ProtectedRoute>} />
           <Route path="daily-run/cha" element={<ProtectedRoute requireKeepaAccess={true}><CHADailyRun /></ProtectedRoute>} />
+          <Route path="daily-run/calendar" element={<ProtectedRoute requireKeepaAccess={true}><RunCalendar /></ProtectedRoute>} />
 
           <Route path="my-space/notes" element={<Navigate to="/dashboard" replace />} />
           <Route path="notifications" element={<Notifications />} />

@@ -139,6 +139,7 @@ export default function Sidebar() {
     (hoveredNav === null && routeActive) || hoveredNav === id
 
   const dailyRunsMenuItems = [
+    { path: '/daily-run/calendar', label: 'Run Calendar', icon: 'refresh' as const },
     { path: '/daily-run/dnk', label: 'DNK Daily Run', icon: 'refresh' as const },
     { path: '/daily-run/clk', label: 'CLK Daily Run', icon: 'refresh' as const },
     { path: '/daily-run/obz', label: 'OBZ Daily Run', icon: 'refresh' as const },
