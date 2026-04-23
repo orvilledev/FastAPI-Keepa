@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import DNKSchedulerCountdown from './DNKSchedulerCountdown'
 import CLKSchedulerCountdown from './CLKSchedulerCountdown'
+import OBZSchedulerCountdown from './OBZSchedulerCountdown'
 import UPCMAPStats from './UPCMAPStats'
 import { dashboardApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
@@ -21,6 +22,7 @@ export default function Dashboard() {
   // Create widget components separately to avoid dependency issues
   const dnkSchedulerCountdownWidget = useMemo(() => <DNKSchedulerCountdown />, [])
   const clkSchedulerCountdownWidget = useMemo(() => <CLKSchedulerCountdown />, [])
+  const obzSchedulerCountdownWidget = useMemo(() => <OBZSchedulerCountdown />, [])
   const upcMapStatsWidget = useMemo(() => <UPCMAPStats />, [])
 
   // Set greeting from context
@@ -49,6 +51,8 @@ export default function Dashboard() {
                 component = dnkSchedulerCountdownWidget
               } else if (w.widget_id === 'clkSchedulerCountdown' && hasKeepaAccess) {
                 component = clkSchedulerCountdownWidget
+              } else if (w.widget_id === 'obzSchedulerCountdown' && hasKeepaAccess) {
+                component = obzSchedulerCountdownWidget
               } else if (w.widget_id === 'upcMapStats' && hasKeepaAccess) {
                 component = upcMapStatsWidget
               }
@@ -62,6 +66,7 @@ export default function Dashboard() {
             if (hasKeepaAccess) {
               defaultWidgets.push({ id: 'dnkSchedulerCountdown', component: dnkSchedulerCountdownWidget })
               defaultWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
+              defaultWidgets.push({ id: 'obzSchedulerCountdown', component: obzSchedulerCountdownWidget })
               defaultWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
             }
             setWidgets(defaultWidgets)
@@ -84,6 +89,7 @@ export default function Dashboard() {
             if (hasKeepaAccess) {
               allAvailableWidgets.push({ id: 'dnkSchedulerCountdown', component: dnkSchedulerCountdownWidget })
               allAvailableWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
+              allAvailableWidgets.push({ id: 'obzSchedulerCountdown', component: obzSchedulerCountdownWidget })
               allAvailableWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
             }
             const missingWidgets = allAvailableWidgets.filter(w => !savedWidgetIds.has(w.id))
@@ -128,6 +134,7 @@ export default function Dashboard() {
           if (hasKeepaAccess) {
             defaultWidgets.push({ id: 'dnkSchedulerCountdown', component: dnkSchedulerCountdownWidget })
             defaultWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
+            defaultWidgets.push({ id: 'obzSchedulerCountdown', component: obzSchedulerCountdownWidget })
             defaultWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
           }
           setWidgets(defaultWidgets)
@@ -155,6 +162,7 @@ export default function Dashboard() {
         if (hasKeepaAccess) {
           defaultWidgets.push({ id: 'dnkSchedulerCountdown', component: dnkSchedulerCountdownWidget })
           defaultWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
+          defaultWidgets.push({ id: 'obzSchedulerCountdown', component: obzSchedulerCountdownWidget })
           defaultWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
         }
         setWidgets(defaultWidgets)
@@ -164,7 +172,7 @@ export default function Dashboard() {
     }
 
     loadData()
-  }, [hasKeepaAccess, userInfoLoading, dnkSchedulerCountdownWidget, clkSchedulerCountdownWidget, upcMapStatsWidget])
+  }, [hasKeepaAccess, userInfoLoading, dnkSchedulerCountdownWidget, clkSchedulerCountdownWidget, obzSchedulerCountdownWidget, upcMapStatsWidget])
 
   const handleDragStart = (index: number) => {
     setDraggedIndex(index)
