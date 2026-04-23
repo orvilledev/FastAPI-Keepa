@@ -40,6 +40,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
     </svg>
   ),
+  calendar: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10m2 9H5a2 2 0 01-2-2V7a2 2 0 012-2h14a2 2 0 012 2v11a2 2 0 01-2 2z" />
+    </svg>
+  ),
   user: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -169,7 +174,7 @@ export default function Sidebar() {
     },
     { path: '/map', label: 'Manage MAP', icon: 'dollar' as const },
     { path: '/seller-list', label: 'Seller List', icon: 'users' as const },
-    { path: '/daily-run/calendar', label: 'Run Calendar', icon: 'refresh' as const },
+    { path: '/daily-run/calendar', label: 'Run Calendar', icon: 'calendar' as const },
     {
       label: 'Daily Runs',
       icon: 'refresh' as const,
