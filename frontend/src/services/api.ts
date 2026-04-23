@@ -425,11 +425,11 @@ export const sellersApi = {
 
 // Scheduler API
 export const schedulerApi = {
-  getNextRun: async (category: 'dnk' | 'clk' | 'obz' | 'ref' = 'dnk') => {
+  getNextRun: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' = 'dnk') => {
     const response = await api.get<SchedulerStatus>(`/api/v1/scheduler/next-run?category=${category}`)
     return response.data
   },
-  getSettings: async (category: 'dnk' | 'clk' | 'obz' | 'ref' = 'dnk') => {
+  getSettings: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' = 'dnk') => {
     const response = await api.get<SchedulerSettings>(`/api/v1/scheduler/settings?category=${category}`)
     return response.data
   },
@@ -444,7 +444,7 @@ export const schedulerApi = {
       anchor_date?: string | null
       email_recipients?: string | null
     },
-    category: 'dnk' | 'clk' | 'obz' | 'ref' = 'dnk'
+    category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' = 'dnk'
   ) => {
     const response = await api.put<SchedulerSettings & { message: string }>(`/api/v1/scheduler/settings?category=${category}`, settings)
     return response.data

@@ -3,6 +3,8 @@ import DNKSchedulerCountdown from './DNKSchedulerCountdown'
 import CLKSchedulerCountdown from './CLKSchedulerCountdown'
 import OBZSchedulerCountdown from './OBZSchedulerCountdown'
 import REFSchedulerCountdown from './REFSchedulerCountdown'
+import BORSchedulerCountdown from './BORSchedulerCountdown'
+import SFFSchedulerCountdown from './SFFSchedulerCountdown'
 import UPCMAPStats from './UPCMAPStats'
 import { dashboardApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
@@ -25,6 +27,8 @@ export default function Dashboard() {
   const clkSchedulerCountdownWidget = useMemo(() => <CLKSchedulerCountdown />, [])
   const obzSchedulerCountdownWidget = useMemo(() => <OBZSchedulerCountdown />, [])
   const refSchedulerCountdownWidget = useMemo(() => <REFSchedulerCountdown />, [])
+  const borSchedulerCountdownWidget = useMemo(() => <BORSchedulerCountdown />, [])
+  const sffSchedulerCountdownWidget = useMemo(() => <SFFSchedulerCountdown />, [])
   const upcMapStatsWidget = useMemo(() => <UPCMAPStats />, [])
 
   // Set greeting from context
@@ -57,6 +61,10 @@ export default function Dashboard() {
                 component = obzSchedulerCountdownWidget
               } else if (w.widget_id === 'refSchedulerCountdown' && hasKeepaAccess) {
                 component = refSchedulerCountdownWidget
+              } else if (w.widget_id === 'borSchedulerCountdown' && hasKeepaAccess) {
+                component = borSchedulerCountdownWidget
+              } else if (w.widget_id === 'sffSchedulerCountdown' && hasKeepaAccess) {
+                component = sffSchedulerCountdownWidget
               } else if (w.widget_id === 'upcMapStats' && hasKeepaAccess) {
                 component = upcMapStatsWidget
               }
@@ -72,6 +80,8 @@ export default function Dashboard() {
               defaultWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
               defaultWidgets.push({ id: 'obzSchedulerCountdown', component: obzSchedulerCountdownWidget })
               defaultWidgets.push({ id: 'refSchedulerCountdown', component: refSchedulerCountdownWidget })
+              defaultWidgets.push({ id: 'borSchedulerCountdown', component: borSchedulerCountdownWidget })
+              defaultWidgets.push({ id: 'sffSchedulerCountdown', component: sffSchedulerCountdownWidget })
               defaultWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
             }
             setWidgets(defaultWidgets)
@@ -96,6 +106,8 @@ export default function Dashboard() {
               allAvailableWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
               allAvailableWidgets.push({ id: 'obzSchedulerCountdown', component: obzSchedulerCountdownWidget })
               allAvailableWidgets.push({ id: 'refSchedulerCountdown', component: refSchedulerCountdownWidget })
+              allAvailableWidgets.push({ id: 'borSchedulerCountdown', component: borSchedulerCountdownWidget })
+              allAvailableWidgets.push({ id: 'sffSchedulerCountdown', component: sffSchedulerCountdownWidget })
               allAvailableWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
             }
             const missingWidgets = allAvailableWidgets.filter(w => !savedWidgetIds.has(w.id))
@@ -142,6 +154,8 @@ export default function Dashboard() {
             defaultWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
             defaultWidgets.push({ id: 'obzSchedulerCountdown', component: obzSchedulerCountdownWidget })
             defaultWidgets.push({ id: 'refSchedulerCountdown', component: refSchedulerCountdownWidget })
+            defaultWidgets.push({ id: 'borSchedulerCountdown', component: borSchedulerCountdownWidget })
+            defaultWidgets.push({ id: 'sffSchedulerCountdown', component: sffSchedulerCountdownWidget })
             defaultWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
           }
           setWidgets(defaultWidgets)
@@ -171,6 +185,8 @@ export default function Dashboard() {
           defaultWidgets.push({ id: 'clkSchedulerCountdown', component: clkSchedulerCountdownWidget })
           defaultWidgets.push({ id: 'obzSchedulerCountdown', component: obzSchedulerCountdownWidget })
           defaultWidgets.push({ id: 'refSchedulerCountdown', component: refSchedulerCountdownWidget })
+          defaultWidgets.push({ id: 'borSchedulerCountdown', component: borSchedulerCountdownWidget })
+          defaultWidgets.push({ id: 'sffSchedulerCountdown', component: sffSchedulerCountdownWidget })
           defaultWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
         }
         setWidgets(defaultWidgets)
@@ -180,7 +196,7 @@ export default function Dashboard() {
     }
 
     loadData()
-  }, [hasKeepaAccess, userInfoLoading, dnkSchedulerCountdownWidget, clkSchedulerCountdownWidget, obzSchedulerCountdownWidget, refSchedulerCountdownWidget, upcMapStatsWidget])
+  }, [hasKeepaAccess, userInfoLoading, dnkSchedulerCountdownWidget, clkSchedulerCountdownWidget, obzSchedulerCountdownWidget, refSchedulerCountdownWidget, borSchedulerCountdownWidget, sffSchedulerCountdownWidget, upcMapStatsWidget])
 
   const handleDragStart = (index: number) => {
     setDraggedIndex(index)

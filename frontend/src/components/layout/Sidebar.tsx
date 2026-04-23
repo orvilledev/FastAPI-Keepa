@@ -143,6 +143,8 @@ export default function Sidebar() {
     { path: '/daily-run/clk', label: 'CLK Daily Run', icon: 'refresh' as const },
     { path: '/daily-run/obz', label: 'OBZ Daily Run', icon: 'refresh' as const },
     { path: '/daily-run/ref', label: 'REF Daily Run', icon: 'refresh' as const },
+    { path: '/daily-run/bor', label: 'BOR Daily Run', icon: 'refresh' as const },
+    { path: '/daily-run/sff', label: 'SFF Daily Run', icon: 'refresh' as const },
   ]
 
   const manageUPCsMenuItems = [
@@ -150,6 +152,8 @@ export default function Sidebar() {
     { path: '/upcs?category=clk', label: 'CLK', icon: 'barcode' as const },
     { path: '/upcs?category=obz', label: 'OBZ', icon: 'barcode' as const },
     { path: '/upcs?category=ref', label: 'REF', icon: 'barcode' as const },
+    { path: '/upcs?category=bor', label: 'BOR', icon: 'barcode' as const },
+    { path: '/upcs?category=sff', label: 'SFF', icon: 'barcode' as const },
   ]
 
   const keepaMenuItems = [

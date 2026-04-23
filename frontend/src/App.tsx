@@ -18,6 +18,8 @@ const DNKDailyRun = lazy(() => import('./components/jobs/DNKDailyRun'))
 const CLKDailyRun = lazy(() => import('./components/jobs/CLKDailyRun'))
 const OBZDailyRun = lazy(() => import('./components/jobs/OBZDailyRun'))
 const REFDailyRun = lazy(() => import('./components/jobs/REFDailyRun'))
+const BORDailyRun = lazy(() => import('./components/jobs/BORDailyRun'))
+const SFFDailyRun = lazy(() => import('./components/jobs/SFFDailyRun'))
 const ReportView = lazy(() => import('./components/reports/ReportView'))
 const UPCManagement = lazy(() => import('./components/upcs/UPCManagement'))
 const MAPManagement = lazy(() => import('./components/map/MAPManagement'))
@@ -119,6 +121,8 @@ function AppRoutes() {
           <Route path="daily-run/clk" element={<ProtectedRoute requireKeepaAccess={true}><CLKDailyRun /></ProtectedRoute>} />
           <Route path="daily-run/obz" element={<ProtectedRoute requireKeepaAccess={true}><OBZDailyRun /></ProtectedRoute>} />
           <Route path="daily-run/ref" element={<ProtectedRoute requireKeepaAccess={true}><REFDailyRun /></ProtectedRoute>} />
+          <Route path="daily-run/bor" element={<ProtectedRoute requireKeepaAccess={true}><BORDailyRun /></ProtectedRoute>} />
+          <Route path="daily-run/sff" element={<ProtectedRoute requireKeepaAccess={true}><SFFDailyRun /></ProtectedRoute>} />
 
           <Route path="my-space/notes" element={<Navigate to="/dashboard" replace />} />
           <Route path="notifications" element={<Notifications />} />
