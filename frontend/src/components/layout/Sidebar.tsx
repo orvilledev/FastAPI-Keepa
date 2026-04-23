@@ -139,7 +139,6 @@ export default function Sidebar() {
     (hoveredNav === null && routeActive) || hoveredNav === id
 
   const dailyRunsMenuItems = [
-    { path: '/daily-run/calendar', label: 'Run Calendar', icon: 'refresh' as const },
     { path: '/daily-run/dnk', label: 'DNK Daily Run', icon: 'refresh' as const },
     { path: '/daily-run/clk', label: 'CLK Daily Run', icon: 'refresh' as const },
     { path: '/daily-run/obz', label: 'OBZ Daily Run', icon: 'refresh' as const },
@@ -170,6 +169,7 @@ export default function Sidebar() {
     },
     { path: '/map', label: 'Manage MAP', icon: 'dollar' as const },
     { path: '/seller-list', label: 'Seller List', icon: 'users' as const },
+    { path: '/daily-run/calendar', label: 'Run Calendar', icon: 'refresh' as const },
     {
       label: 'Daily Runs',
       icon: 'refresh' as const,
@@ -369,6 +369,8 @@ export default function Sidebar() {
                           ? 'keepa-map'
                           : item.path === '/seller-list'
                             ? 'keepa-sellers'
+                          : item.path === '/daily-run/calendar'
+                            ? 'keepa-calendar'
                             : 'keepa-other'
 
                     return (

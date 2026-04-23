@@ -27,6 +27,7 @@ export default function RunCalendar() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [data, setData] = useState<CalendarResponse | null>(null)
+  const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('daily')
 
   useEffect(() => {
     const load = async () => {
@@ -81,6 +82,55 @@ export default function RunCalendar() {
     return buckets
   }, [data])
 
+  const upcomingWeeks = useMemo(() => {
+    const weeks: Date[] = []
+    const now = new Date()
+    const day = now.getDay()
+    const diffToMonday = day === 0 ? -6 : 1 - day
+    const start = new Date(now)
+    start.setHours(0, 0, 0, 0)
+    start.setDate(start.getDate() + diffToMonday)
+    for (let i = 0; i < 4; i += 1) {
+      const weekStart = new Date(start)
+      weekStart.setDate(start.getDate() + (i * 7))
+      weeks.push(weekStart)
+    }
+    return weeks
+  }, [])
+
+  const eventsByWeek = useMemo(() => {
+    const buckets: Record<string, Array<{
+      category: string
+      next_run_time: string
+      scheduled_time: string
+      is_ongoing: boolean
+    }>> = {}
+
+    for (const vendor of data?.vendors || []) {
+      if (!vendor.next_run_time) continue
+      const date = new Date(vendor.next_run_time)
+      if (Number.isNaN(date.getTime())) continue
+      const weekStart = new Date(date)
+      const day = weekStart.getDay()
+      const diffToMonday = day === 0 ? -6 : 1 - day
+      weekStart.setHours(0, 0, 0, 0)
+      weekStart.setDate(weekStart.getDate() + diffToMonday)
+      const key = dayKey(weekStart)
+      if (!buckets[key]) buckets[key] = []
+      buckets[key].push({
+        category: vendor.category,
+        next_run_time: vendor.next_run_time,
+        scheduled_time: vendor.scheduled_time,
+        is_ongoing: vendor.is_ongoing,
+      })
+    }
+
+    for (const key of Object.keys(buckets)) {
+      buckets[key].sort((a, b) => new Date(a.next_run_time).getTime() - new Date(b.next_run_time).getTime())
+    }
+    return buckets
+  }, [data])
+
   if (loading) {
     return (
       <div className="card p-6">
@@ -127,33 +177,87 @@ export default function RunCalendar() {
       </div>
 
       <div className="card p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Upcoming Schedule (Next 14 Days)</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          {upcomingDays.map((d) => {
-            const key = dayKey(d)
-            const events = eventsByDay[key] || []
-            return (
-              <div key={key} className="rounded-lg border border-gray-200 p-3 bg-white">
-                <p className="text-sm font-semibold text-gray-900">
-                  {d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                </p>
-                {events.length === 0 ? (
-                  <p className="text-xs text-gray-400 mt-2">No runs scheduled</p>
-                ) : (
-                  <div className="mt-2 space-y-2">
-                    {events.map((event) => (
-                      <div key={`${event.category}-${event.next_run_time}`} className="rounded border border-gray-200 p-2">
-                        <p className="text-xs font-semibold text-gray-900">{event.category.toUpperCase()}</p>
-                        <p className="text-xs text-gray-700">{formatLocalDateTime(event.next_run_time)}</p>
-                        <p className="text-[11px] text-gray-500">{event.scheduled_time}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })}
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-xl font-semibold text-gray-900">
+            Upcoming Schedule ({viewMode === 'daily' ? 'Daily View' : 'Weekly View'})
+          </h2>
+          <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+            <button
+              type="button"
+              onClick={() => setViewMode('daily')}
+              className={`px-3 py-1.5 text-sm rounded-md ${viewMode === 'daily' ? 'bg-white shadow text-gray-900' : 'text-gray-600'}`}
+            >
+              Daily
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('weekly')}
+              className={`px-3 py-1.5 text-sm rounded-md ${viewMode === 'weekly' ? 'bg-white shadow text-gray-900' : 'text-gray-600'}`}
+            >
+              Weekly
+            </button>
+          </div>
         </div>
+
+        {viewMode === 'daily' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {upcomingDays.map((d) => {
+              const key = dayKey(d)
+              const events = eventsByDay[key] || []
+              return (
+                <div key={key} className="rounded-lg border border-gray-200 p-3 bg-white">
+                  <p className="text-sm font-semibold text-gray-900">
+                    {d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  </p>
+                  {events.length === 0 ? (
+                    <p className="text-xs text-gray-400 mt-2">No runs scheduled</p>
+                  ) : (
+                    <div className="mt-2 space-y-2">
+                      {events.map((event) => (
+                        <div key={`${event.category}-${event.next_run_time}`} className="rounded border border-gray-200 p-2">
+                          <p className="text-xs font-semibold text-gray-900">{event.category.toUpperCase()}</p>
+                          <p className="text-xs text-gray-700">{formatLocalDateTime(event.next_run_time)}</p>
+                          <p className="text-[11px] text-gray-500">{event.scheduled_time}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {upcomingWeeks.map((weekStart) => {
+              const key = dayKey(weekStart)
+              const events = eventsByWeek[key] || []
+              const weekEnd = new Date(weekStart)
+              weekEnd.setDate(weekStart.getDate() + 6)
+              return (
+                <div key={key} className="rounded-lg border border-gray-200 p-3 bg-white">
+                  <p className="text-sm font-semibold text-gray-900">
+                    {weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    {' - '}
+                    {weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </p>
+                  {events.length === 0 ? (
+                    <p className="text-xs text-gray-400 mt-2">No runs scheduled</p>
+                  ) : (
+                    <div className="mt-2 space-y-2">
+                      {events.map((event) => (
+                        <div key={`${event.category}-${event.next_run_time}`} className="rounded border border-gray-200 p-2">
+                          <p className="text-xs font-semibold text-gray-900">{event.category.toUpperCase()}</p>
+                          <p className="text-xs text-gray-700">{formatLocalDateTime(event.next_run_time)}</p>
+                          <p className="text-[11px] text-gray-500">{event.scheduled_time}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       <div className="card p-6">
