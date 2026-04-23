@@ -2,6 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { schedulerApi } from '../../services/api'
 
 type CalendarResponse = Awaited<ReturnType<typeof schedulerApi.getCalendar>>
+type CalendarVendor = CalendarResponse['vendors'][number]
+type ViewMode = 'daily' | 'weekly' | 'monthly'
+
+type ProjectedEvent = {
+  category: string
+  dateKey: string
+  weekday: string
+  hour: number
+  minute: number
+  timezone: string
+  timezoneAbbrev: string
+}
 
 function formatLocalDateTime(value: string | null | undefined): string {
   if (!value) return 'N/A'
@@ -23,27 +35,76 @@ function dayKey(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
-function formatTimeOnly(value: string): string {
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return value
+function formatTimeOnly(hour: number, minute: number): string {
+  const d = new Date()
+  d.setHours(hour, minute, 0, 0)
   return d.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
   })
 }
 
-function formatTimezoneAbbrev(value: string): string {
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return ''
-  const parts = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' }).formatToParts(d)
+function formatTimezoneAbbrevForDate(timezone: string, date: Date): string {
+  const noonUtc = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0))
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: timezone, timeZoneName: 'short' }).formatToParts(noonUtc)
   return parts.find((part) => part.type === 'timeZoneName')?.value || ''
+}
+
+function startOfDay(date: Date): Date {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function addDays(date: Date, days: number): Date {
+  const d = new Date(date)
+  d.setDate(d.getDate() + days)
+  return d
+}
+
+function parseDateOnly(value: string | null | undefined): Date | null {
+  if (!value) return null
+  const [y, m, d] = value.split('-').map((part) => Number(part))
+  if (!y || !m || !d) return null
+  return new Date(y, m - 1, d)
+}
+
+const WEEKDAY_TO_SHORT: Record<number, string> = {
+  0: 'sun',
+  1: 'mon',
+  2: 'tue',
+  3: 'wed',
+  4: 'thu',
+  5: 'fri',
+  6: 'sat',
+}
+
+function shouldRunOnDate(vendor: CalendarVendor, date: Date): boolean {
+  if (!vendor.enabled) return false
+
+  if (vendor.run_mode === 'daily') return true
+
+  if (vendor.run_mode === 'custom_days') {
+    const dayToken = WEEKDAY_TO_SHORT[date.getDay()]
+    return (vendor.custom_days || []).includes(dayToken)
+  }
+
+  if (vendor.run_mode === 'every_other_day') {
+    const anchor = parseDateOnly(vendor.anchor_date) || (vendor.next_run_time ? startOfDay(new Date(vendor.next_run_time)) : null)
+    if (!anchor) return false
+    const diffMs = startOfDay(date).getTime() - startOfDay(anchor).getTime()
+    const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000))
+    return diffDays >= 0 && diffDays % 2 === 0
+  }
+
+  return false
 }
 
 export default function RunCalendar() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [data, setData] = useState<CalendarResponse | null>(null)
-  const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('daily')
+  const [viewMode, setViewMode] = useState<ViewMode>('daily')
   const isFetchingRef = useRef(false)
 
   const loadCalendar = useCallback(async (showLoading: boolean = false) => {
@@ -86,92 +147,80 @@ export default function RunCalendar() {
     }
   }, [loadCalendar])
 
+  const today = useMemo(() => startOfDay(new Date()), [])
+
+  const projectedEvents = useMemo(() => {
+    const events: ProjectedEvent[] = []
+    const rangeEnd = addDays(today, 62)
+    for (let cursor = new Date(today); cursor <= rangeEnd; cursor = addDays(cursor, 1)) {
+      for (const vendor of data?.vendors || []) {
+        if (!shouldRunOnDate(vendor, cursor)) continue
+        events.push({
+          category: vendor.category.toUpperCase(),
+          dateKey: dayKey(cursor),
+          weekday: cursor.toLocaleDateString('en-US', { weekday: 'long' }),
+          hour: vendor.hour,
+          minute: vendor.minute,
+          timezone: vendor.timezone,
+          timezoneAbbrev: formatTimezoneAbbrevForDate(vendor.timezone, cursor),
+        })
+      }
+    }
+    return events
+  }, [data, today])
+
   const upcomingDays = useMemo(() => {
     const days: Date[] = []
-    const now = new Date()
     for (let i = 0; i < 14; i += 1) {
-      const d = new Date(now)
-      d.setHours(0, 0, 0, 0)
-      d.setDate(d.getDate() + i)
+      const d = addDays(today, i)
       days.push(d)
     }
     return days
-  }, [])
+  }, [today])
 
   const eventsByDay = useMemo(() => {
-    const buckets: Record<string, Array<{
-      category: string
-      next_run_time: string
-      scheduled_time: string
-      is_ongoing: boolean
-    }>> = {}
-    for (const vendor of data?.vendors || []) {
-      if (!vendor.next_run_time) continue
-      const date = new Date(vendor.next_run_time)
-      if (Number.isNaN(date.getTime())) continue
-      const key = dayKey(date)
+    const buckets: Record<string, ProjectedEvent[]> = {}
+    for (const event of projectedEvents) {
+      const key = event.dateKey
       if (!buckets[key]) buckets[key] = []
-      buckets[key].push({
-        category: vendor.category,
-        next_run_time: vendor.next_run_time,
-        scheduled_time: vendor.scheduled_time,
-        is_ongoing: vendor.is_ongoing,
-      })
+      buckets[key].push(event)
     }
     for (const key of Object.keys(buckets)) {
-      buckets[key].sort((a, b) => new Date(a.next_run_time).getTime() - new Date(b.next_run_time).getTime())
+      buckets[key].sort((a, b) => (a.hour * 60 + a.minute) - (b.hour * 60 + b.minute))
     }
     return buckets
-  }, [data])
+  }, [projectedEvents])
 
   const upcomingWeeks = useMemo(() => {
     const weeks: Date[] = []
-    const now = new Date()
-    const day = now.getDay()
+    const day = today.getDay()
     const diffToMonday = day === 0 ? -6 : 1 - day
-    const start = new Date(now)
-    start.setHours(0, 0, 0, 0)
-    start.setDate(start.getDate() + diffToMonday)
+    const start = addDays(today, diffToMonday)
     for (let i = 0; i < 4; i += 1) {
-      const weekStart = new Date(start)
-      weekStart.setDate(start.getDate() + (i * 7))
+      const weekStart = addDays(start, i * 7)
       weeks.push(weekStart)
     }
     return weeks
-  }, [])
+  }, [today])
 
   const eventsByWeek = useMemo(() => {
-    const buckets: Record<string, Array<{
-      category: string
-      next_run_time: string
-      scheduled_time: string
-      is_ongoing: boolean
-    }>> = {}
-
-    for (const vendor of data?.vendors || []) {
-      if (!vendor.next_run_time) continue
-      const date = new Date(vendor.next_run_time)
-      if (Number.isNaN(date.getTime())) continue
-      const weekStart = new Date(date)
-      const day = weekStart.getDay()
+    const buckets: Record<string, ProjectedEvent[]> = {}
+    for (const event of projectedEvents) {
+      const date = parseDateOnly(event.dateKey)
+      if (!date) continue
+      const day = date.getDay()
       const diffToMonday = day === 0 ? -6 : 1 - day
-      weekStart.setHours(0, 0, 0, 0)
-      weekStart.setDate(weekStart.getDate() + diffToMonday)
+      const weekStart = addDays(startOfDay(date), diffToMonday)
       const key = dayKey(weekStart)
       if (!buckets[key]) buckets[key] = []
-      buckets[key].push({
-        category: vendor.category,
-        next_run_time: vendor.next_run_time,
-        scheduled_time: vendor.scheduled_time,
-        is_ongoing: vendor.is_ongoing,
-      })
+      buckets[key].push(event)
     }
 
     for (const key of Object.keys(buckets)) {
-      buckets[key].sort((a, b) => new Date(a.next_run_time).getTime() - new Date(b.next_run_time).getTime())
+      buckets[key].sort((a, b) => (a.hour * 60 + a.minute) - (b.hour * 60 + b.minute))
     }
     return buckets
-  }, [data])
+  }, [projectedEvents])
 
   const weeklyRowsByWeek = useMemo(() => {
     const rows: Record<string, Array<{ label: string; isHeader: boolean }>> = {}
@@ -182,13 +231,11 @@ export default function RunCalendar() {
       const byDay: Record<string, Array<{ category: string; tz: string }>> = {}
 
       for (const event of events) {
-        const eventDate = new Date(event.next_run_time)
-        if (Number.isNaN(eventDate.getTime())) continue
-        const weekday = eventDate.toLocaleDateString('en-US', { weekday: 'long' })
+        const weekday = event.weekday
         if (!byDay[weekday]) byDay[weekday] = []
         byDay[weekday].push({
-          category: event.category.toUpperCase(),
-          tz: formatTimezoneAbbrev(event.next_run_time),
+          category: event.category,
+          tz: event.timezoneAbbrev,
         })
       }
 
@@ -222,6 +269,19 @@ export default function RunCalendar() {
 
     return rows
   }, [eventsByWeek, upcomingWeeks])
+
+  const monthDays = useMemo(() => {
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+    const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+    const startDay = monthStart.getDay()
+    const diffToMonday = startDay === 0 ? -6 : 1 - startDay
+    const gridStart = addDays(monthStart, diffToMonday)
+    const cells: Date[] = []
+    for (let i = 0; i < 42; i += 1) {
+      cells.push(addDays(gridStart, i))
+    }
+    return { monthStart, monthEnd, cells }
+  }, [today])
 
   if (loading) {
     return (
@@ -271,7 +331,9 @@ export default function RunCalendar() {
       <div className="card p-6">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-xl font-semibold text-gray-900">
-            Upcoming Schedule ({viewMode === 'daily' ? 'Daily View' : 'Weekly View'})
+            Upcoming Schedule (
+            {viewMode === 'daily' ? 'Daily View' : viewMode === 'weekly' ? 'Weekly View' : 'Monthly View'}
+            )
           </h2>
           <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
             <button
@@ -287,6 +349,13 @@ export default function RunCalendar() {
               className={`px-3 py-1.5 text-sm rounded-md ${viewMode === 'weekly' ? 'bg-white shadow text-gray-900' : 'text-gray-600'}`}
             >
               Weekly
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('monthly')}
+              className={`px-3 py-1.5 text-sm rounded-md ${viewMode === 'monthly' ? 'bg-white shadow text-gray-900' : 'text-gray-600'}`}
+            >
+              Monthly
             </button>
           </div>
         </div>
@@ -306,10 +375,10 @@ export default function RunCalendar() {
                   ) : (
                     <div className="mt-2 space-y-2">
                       {events.map((event) => (
-                        <div key={`${event.category}-${event.next_run_time}`} className="rounded border border-gray-200 p-2">
+                        <div key={`${event.category}-${event.dateKey}-${event.hour}-${event.minute}`} className="rounded border border-gray-200 p-2">
                           <p className="text-xs font-semibold text-gray-900">
-                            {formatTimeOnly(event.next_run_time)} - {event.category.toUpperCase()}
-                            {formatTimezoneAbbrev(event.next_run_time) ? ` (${formatTimezoneAbbrev(event.next_run_time)})` : ''}
+                            {formatTimeOnly(event.hour, event.minute)} - {event.category}
+                            {event.timezoneAbbrev ? ` (${event.timezoneAbbrev})` : ''}
                           </p>
                         </div>
                       ))}
@@ -319,7 +388,7 @@ export default function RunCalendar() {
               )
             })}
           </div>
-        ) : (
+        ) : viewMode === 'weekly' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {upcomingWeeks.map((weekStart) => {
               const key = dayKey(weekStart)
@@ -351,6 +420,44 @@ export default function RunCalendar() {
                 </div>
               )
             })}
+          </div>
+        ) : (
+          <div>
+            <p className="text-sm text-gray-600 mb-3">
+              {monthDays.monthStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </p>
+            <div className="grid grid-cols-7 gap-2 mb-2">
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((name) => (
+                <p key={name} className="text-xs font-semibold text-gray-500">{name}</p>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-2">
+              {monthDays.cells.map((cellDate) => {
+                const key = dayKey(cellDate)
+                const inCurrentMonth = cellDate.getMonth() === monthDays.monthStart.getMonth()
+                const events = eventsByDay[key] || []
+                return (
+                  <div
+                    key={key}
+                    className={`min-h-[92px] rounded border p-2 ${inCurrentMonth ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50'}`}
+                  >
+                    <p className={`text-xs font-semibold ${inCurrentMonth ? 'text-gray-900' : 'text-gray-400'}`}>
+                      {cellDate.getDate()}
+                    </p>
+                    <div className="mt-1 space-y-1">
+                      {events.slice(0, 3).map((event) => (
+                        <p key={`${event.category}-${event.dateKey}-${event.hour}-${event.minute}`} className="text-[11px] text-gray-700 truncate">
+                          {event.category} {event.timezoneAbbrev ? `(${event.timezoneAbbrev})` : ''}
+                        </p>
+                      ))}
+                      {events.length > 3 && (
+                        <p className="text-[11px] text-gray-500">+{events.length - 3} more</p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
       </div>
