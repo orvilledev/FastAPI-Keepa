@@ -79,12 +79,12 @@ async def startup_event():
     logger.info("Initializing database connection...")
     init_db()
     logger.info("Setting up scheduler...")
-    # Try to load scheduler settings from database for DNK, CLK, OBZ, REF, BOR, and SFF
+    # Try to load scheduler settings from database for DNK, CLK, OBZ, REF, BOR, SFF, TEV, and CHA
     try:
         from app.database import get_supabase
         db = get_supabase()
 
-        for category in ("dnk", "clk", "obz", "ref", "bor", "sff"):
+        for category in ("dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha"):
             settings_response = (
                 db.table("scheduler_settings").select("*").eq("category", category).execute()
             )
@@ -112,6 +112,8 @@ async def startup_event():
         setup_scheduler(category='ref')  # Use REF defaults
         setup_scheduler(category='bor')  # Use BOR defaults
         setup_scheduler(category='sff')  # Use SFF defaults
+        setup_scheduler(category='tev')  # Use TEV defaults
+        setup_scheduler(category='cha')  # Use CHA defaults
     start_scheduler()
     logger.info("Application startup complete")
 
