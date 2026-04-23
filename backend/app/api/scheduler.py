@@ -24,6 +24,7 @@ class SchedulerSettingsUpdate(BaseModel):
     run_mode: Optional[str] = None
     custom_days: Optional[List[str]] = None
     anchor_date: Optional[str] = None
+    email_recipients: Optional[str] = None
 
 
 VALID_RUN_MODES = {"daily", "every_other_day", "custom_days"}
@@ -155,6 +156,7 @@ async def get_scheduler_settings(
                 "run_mode": "daily",
                 "custom_days": [],
                 "anchor_date": None,
+                "email_recipients": None,
                 "category": category
             }
         settings = response.data[0]
@@ -166,6 +168,7 @@ async def get_scheduler_settings(
             "run_mode": settings.get("run_mode", "daily"),
             "custom_days": settings.get("custom_days", []),
             "anchor_date": settings.get("anchor_date"),
+            "email_recipients": settings.get("email_recipients"),
             "category": settings.get("category", category)
         }
     except Exception as e:
@@ -178,6 +181,7 @@ async def get_scheduler_settings(
             "run_mode": "daily",
             "custom_days": [],
             "anchor_date": None,
+            "email_recipients": None,
             "category": category
         }
 
@@ -226,6 +230,9 @@ async def update_scheduler_settings_endpoint(
             except ValueError:
                 raise HTTPException(status_code=400, detail="anchor_date must be YYYY-MM-DD")
         update_data["anchor_date"] = settings_data.anchor_date
+    if settings_data.email_recipients is not None:
+        cleaned_recipients = settings_data.email_recipients.strip()
+        update_data["email_recipients"] = cleaned_recipients or None
     
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -256,6 +263,14 @@ async def update_scheduler_settings_endpoint(
     else:
         response = db.table("scheduler_settings").insert(update_data).execute()
 
+    # Email recipients are global for daily runs and should apply to all categories.
+    if "email_recipients" in update_data:
+        db.table("scheduler_settings").update({
+            "email_recipients": update_data["email_recipients"],
+            "updated_by": current_user["id"],
+            "updated_at": "now()",
+        }).neq("category", category).execute()
+
     # Get updated settings
     updated_settings = response.data[0] if response.data else update_data
 
@@ -284,6 +299,7 @@ async def update_scheduler_settings_endpoint(
         "run_mode": updated_settings.get("run_mode", "daily"),
         "custom_days": updated_settings.get("custom_days", []),
         "anchor_date": updated_settings.get("anchor_date"),
+        "email_recipients": updated_settings.get("email_recipients"),
         "category": category,
         "message": f"{category.upper()} scheduler settings updated successfully"
     }

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { jobsApi, authApi, schedulerApi } from '../../services/api'
 import type { SchedulerSettings } from '../../types'
 import { formatRunDuration } from '../../utils/timeUtils'
+import EmailRecipientsPicker from './EmailRecipientsPicker'
 
 interface DailyRunJob {
   id: string
@@ -42,6 +43,7 @@ export default function CLKDailyRun() {
     run_mode: 'daily' as 'daily' | 'every_other_day' | 'custom_days',
     custom_days: [] as string[],
     anchor_date: null as string | null,
+    email_recipients: '',
   })
   const [savingSettings, setSavingSettings] = useState(false)
   const [togglingEnabled, setTogglingEnabled] = useState(false)
@@ -87,6 +89,7 @@ export default function CLKDailyRun() {
         run_mode: settings.run_mode || 'daily',
         custom_days: settings.custom_days || [],
         anchor_date: settings.anchor_date || null,
+        email_recipients: settings.email_recipients || '',
       }
       setSchedulerSettings(normalizedSettings)
       setSettingsForm(normalizedSettings)
@@ -101,6 +104,7 @@ export default function CLKDailyRun() {
         run_mode: 'daily' as const,
         custom_days: [],
         anchor_date: null,
+        email_recipients: '',
       }
       setSchedulerSettings(defaults)
       setSettingsForm(defaults)
@@ -539,9 +543,20 @@ export default function CLKDailyRun() {
                 </div>
               )}
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email recipients (applies to all vendors)
+                </label>
+                <EmailRecipientsPicker
+                  value={settingsForm.email_recipients || ''}
+                  onChange={(value) => setSettingsForm({ ...settingsForm, email_recipients: value })}
+                  disabled={savingSettings}
+                />
+              </div>
+
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800">
-                  <strong>Note:</strong> This will update the CLK daily run schedule only. DNK has its own independent schedule.
+                  <strong>Note:</strong> Schedule timing updates apply to CLK only. Email recipients are shared across DNK, CLK, and OBZ daily runs.
                 </p>
               </div>
             </div>

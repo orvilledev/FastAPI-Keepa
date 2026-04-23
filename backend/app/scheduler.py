@@ -70,6 +70,32 @@ async def run_daily_job_for_category(category: str = 'dnk'):
         
         db = get_supabase()
         processor = BatchProcessor()
+        custom_recipients = None
+
+        try:
+            category_settings_response = (
+                db.table("scheduler_settings")
+                .select("email_recipients")
+                .eq("category", category)
+                .limit(1)
+                .execute()
+            )
+            if category_settings_response.data:
+                custom_recipients = category_settings_response.data[0].get("email_recipients")
+
+            # Fallback to any configured recipients for cross-category/global compatibility.
+            if not custom_recipients:
+                global_recipients_response = (
+                    db.table("scheduler_settings")
+                    .select("email_recipients")
+                    .not_.is_("email_recipients", "null")
+                    .limit(1)
+                    .execute()
+                )
+                if global_recipients_response.data:
+                    custom_recipients = global_recipients_response.data[0].get("email_recipients")
+        except Exception as recipients_err:
+            logger.warning(f"Could not load scheduler email recipients for {category.upper()}: {recipients_err}")
         
         # Get admin user ID (or system user)
         profiles_response = db.table("profiles").select("id").eq("role", "admin").limit(1).execute()
@@ -93,6 +119,7 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                 job_name=job_name,
                 upcs=upcs,
                 created_by=admin_uuid,
+                email_recipients=custom_recipients,
                 keepa_offers_limit=settings.keepa_offers_limit,
                 map_vendor_type=category,
                 off_price_scope="buybox_and_non_buybox_below_map",

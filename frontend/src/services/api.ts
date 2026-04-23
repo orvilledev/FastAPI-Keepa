@@ -442,6 +442,7 @@ export const schedulerApi = {
       run_mode?: 'daily' | 'every_other_day' | 'custom_days'
       custom_days?: string[]
       anchor_date?: string | null
+      email_recipients?: string | null
     },
     category: 'dnk' | 'clk' | 'obz' = 'dnk'
   ) => {
