@@ -86,7 +86,7 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                 created_by=admin_uuid,
                 keepa_offers_limit=settings.keepa_offers_limit,
                 map_vendor_type=category,
-                off_price_scope="buybox_only",
+                off_price_scope="buybox_and_non_buybox_below_map",
             )
             logger.info(f"Created {category.upper()} batch job {job_id} with {len(upcs)} UPCs. Processing...")
             await processor.process_job(job_id)
