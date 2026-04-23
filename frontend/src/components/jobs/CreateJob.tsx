@@ -116,7 +116,7 @@ export default function CreateJob() {
           <p className="mt-2 text-sm text-gray-500">
             Off-price uses <span className="font-mono text-gray-700">map_prices</span> rows for this vendor code.
             Use <span className="font-mono">obz</span> for OBZ MAP uploads, <span className="font-mono">dnk</span> or{' '}
-            <span className="font-mono">clk</span> for those vendors.
+            <span className="font-mono">clk</span> for those vendors, and <span className="font-mono">ref</span> for REF.
           </p>
         </div>
 

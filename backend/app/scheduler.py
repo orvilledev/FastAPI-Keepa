@@ -27,7 +27,7 @@ class SchedulerConfig:
     custom_days: Optional[List[str]] = None
     anchor_date: Optional[str] = None
 
-# Default configurations for DNK, CLK, and OBZ
+# Default configurations for DNK, CLK, OBZ, and REF
 _scheduler_configs = {
     'dnk': SchedulerConfig(
         timezone=timezone('America/Chicago'),
@@ -52,6 +52,15 @@ _scheduler_configs = {
         hour=6,
         minute=0,
         category='obz',
+        run_mode='daily',
+        custom_days=None,
+        anchor_date=None
+    ),
+    'ref': SchedulerConfig(
+        timezone=timezone('America/Chicago'),
+        hour=6,
+        minute=0,
+        category='ref',
         run_mode='daily',
         custom_days=None,
         anchor_date=None
