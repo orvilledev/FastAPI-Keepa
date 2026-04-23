@@ -23,6 +23,22 @@ function dayKey(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
+function formatTimeOnly(value: string): string {
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return value
+  return d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function formatTimezoneAbbrev(value: string): string {
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
+  const parts = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' }).formatToParts(d)
+  return parts.find((part) => part.type === 'timeZoneName')?.value || ''
+}
+
 export default function RunCalendar() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -131,6 +147,56 @@ export default function RunCalendar() {
     return buckets
   }, [data])
 
+  const weeklyRowsByWeek = useMemo(() => {
+    const rows: Record<string, Array<{ label: string; isHeader: boolean }>> = {}
+
+    for (const weekStart of upcomingWeeks) {
+      const key = dayKey(weekStart)
+      const events = eventsByWeek[key] || []
+      const byDay: Record<string, Array<{ category: string; tz: string }>> = {}
+
+      for (const event of events) {
+        const eventDate = new Date(event.next_run_time)
+        if (Number.isNaN(eventDate.getTime())) continue
+        const weekday = eventDate.toLocaleDateString('en-US', { weekday: 'long' })
+        if (!byDay[weekday]) byDay[weekday] = []
+        byDay[weekday].push({
+          category: event.category.toUpperCase(),
+          tz: formatTimezoneAbbrev(event.next_run_time),
+        })
+      }
+
+      const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+      const lines: Array<{ label: string; isHeader: boolean }> = []
+
+      for (const weekday of dayOrder) {
+        const dayEvents = byDay[weekday] || []
+        if (dayEvents.length === 0) {
+          lines.push({ label: weekday, isHeader: true })
+          continue
+        }
+
+        const first = dayEvents[0]
+        lines.push({
+          label: `${weekday} - ${first.category}${first.tz ? ` (${first.tz})` : ''}`,
+          isHeader: true,
+        })
+
+        for (let i = 1; i < dayEvents.length; i += 1) {
+          const current = dayEvents[i]
+          lines.push({
+            label: `- ${current.category}${current.tz ? ` (${current.tz})` : ''}`,
+            isHeader: false,
+          })
+        }
+      }
+
+      rows[key] = lines
+    }
+
+    return rows
+  }, [eventsByWeek, upcomingWeeks])
+
   if (loading) {
     return (
       <div className="card p-6">
@@ -215,9 +281,10 @@ export default function RunCalendar() {
                     <div className="mt-2 space-y-2">
                       {events.map((event) => (
                         <div key={`${event.category}-${event.next_run_time}`} className="rounded border border-gray-200 p-2">
-                          <p className="text-xs font-semibold text-gray-900">{event.category.toUpperCase()}</p>
-                          <p className="text-xs text-gray-700">{formatLocalDateTime(event.next_run_time)}</p>
-                          <p className="text-[11px] text-gray-500">{event.scheduled_time}</p>
+                          <p className="text-xs font-semibold text-gray-900">
+                            {formatTimeOnly(event.next_run_time)} - {event.category.toUpperCase()}
+                            {formatTimezoneAbbrev(event.next_run_time) ? ` (${formatTimezoneAbbrev(event.next_run_time)})` : ''}
+                          </p>
                         </div>
                       ))}
                     </div>
@@ -231,6 +298,7 @@ export default function RunCalendar() {
             {upcomingWeeks.map((weekStart) => {
               const key = dayKey(weekStart)
               const events = eventsByWeek[key] || []
+              const lines = weeklyRowsByWeek[key] || []
               const weekEnd = new Date(weekStart)
               weekEnd.setDate(weekStart.getDate() + 6)
               return (
@@ -243,13 +311,14 @@ export default function RunCalendar() {
                   {events.length === 0 ? (
                     <p className="text-xs text-gray-400 mt-2">No runs scheduled</p>
                   ) : (
-                    <div className="mt-2 space-y-2">
-                      {events.map((event) => (
-                        <div key={`${event.category}-${event.next_run_time}`} className="rounded border border-gray-200 p-2">
-                          <p className="text-xs font-semibold text-gray-900">{event.category.toUpperCase()}</p>
-                          <p className="text-xs text-gray-700">{formatLocalDateTime(event.next_run_time)}</p>
-                          <p className="text-[11px] text-gray-500">{event.scheduled_time}</p>
-                        </div>
+                    <div className="mt-2 space-y-1">
+                      {lines.map((line, idx) => (
+                        <p
+                          key={`${key}-${idx}-${line.label}`}
+                          className={`text-xs ${line.isHeader ? 'font-semibold text-gray-900' : 'pl-5 text-gray-700'}`}
+                        >
+                          {line.label}
+                        </p>
                       ))}
                     </div>
                   )}
