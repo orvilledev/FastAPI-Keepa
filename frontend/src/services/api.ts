@@ -425,11 +425,11 @@ export const sellersApi = {
 
 // Scheduler API
 export const schedulerApi = {
-  getNextRun: async (category: 'dnk' | 'clk' = 'dnk') => {
+  getNextRun: async (category: 'dnk' | 'clk' | 'obz' = 'dnk') => {
     const response = await api.get<SchedulerStatus>(`/api/v1/scheduler/next-run?category=${category}`)
     return response.data
   },
-  getSettings: async (category: 'dnk' | 'clk' = 'dnk') => {
+  getSettings: async (category: 'dnk' | 'clk' | 'obz' = 'dnk') => {
     const response = await api.get<SchedulerSettings>(`/api/v1/scheduler/settings?category=${category}`)
     return response.data
   },
@@ -443,7 +443,7 @@ export const schedulerApi = {
       custom_days?: string[]
       anchor_date?: string | null
     },
-    category: 'dnk' | 'clk' = 'dnk'
+    category: 'dnk' | 'clk' | 'obz' = 'dnk'
   ) => {
     const response = await api.put<SchedulerSettings & { message: string }>(`/api/v1/scheduler/settings?category=${category}`, settings)
     return response.data

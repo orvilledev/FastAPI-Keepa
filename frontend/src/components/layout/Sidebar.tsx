@@ -141,11 +141,13 @@ export default function Sidebar() {
   const dailyRunsMenuItems = [
     { path: '/daily-run/dnk', label: 'DNK Daily Run', icon: 'refresh' as const },
     { path: '/daily-run/clk', label: 'CLK Daily Run', icon: 'refresh' as const },
+    { path: '/daily-run/obz', label: 'OBZ Daily Run', icon: 'refresh' as const },
   ]
 
   const manageUPCsMenuItems = [
     { path: '/upcs?category=dnk', label: 'DNK', icon: 'barcode' as const },
     { path: '/upcs?category=clk', label: 'CLK', icon: 'barcode' as const },
+    { path: '/upcs?category=obz', label: 'OBZ', icon: 'barcode' as const },
   ]
 
   const keepaMenuItems = [

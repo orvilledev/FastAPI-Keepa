@@ -32,7 +32,7 @@ VALID_WEEKDAYS = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
 
 @router.get("/scheduler/next-run")
 async def get_next_scheduled_run(
-    category: str = Query(default='dnk', regex='^(dnk|clk)$'),
+    category: str = Query(default='dnk', regex='^(dnk|clk|obz)$'),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -138,7 +138,7 @@ async def get_next_scheduled_run(
 @router.get("/scheduler/settings")
 @handle_api_errors("get scheduler settings")
 async def get_scheduler_settings(
-    category: str = Query(default='dnk', regex='^(dnk|clk)$'),
+    category: str = Query(default='dnk', regex='^(dnk|clk|obz)$'),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -186,7 +186,7 @@ async def get_scheduler_settings(
 @handle_api_errors("update scheduler settings")
 async def update_scheduler_settings_endpoint(
     settings_data: SchedulerSettingsUpdate,
-    category: str = Query(default='dnk', regex='^(dnk|clk)$'),
+    category: str = Query(default='dnk', regex='^(dnk|clk|obz)$'),
     current_user: dict = Depends(get_admin_user),
     db: Client = Depends(get_supabase)
 ):

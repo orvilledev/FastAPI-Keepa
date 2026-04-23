@@ -16,6 +16,7 @@ const JobDetail = lazy(() => import('./components/jobs/JobDetail'))
 const CreateJob = lazy(() => import('./components/jobs/CreateJob'))
 const DNKDailyRun = lazy(() => import('./components/jobs/DNKDailyRun'))
 const CLKDailyRun = lazy(() => import('./components/jobs/CLKDailyRun'))
+const OBZDailyRun = lazy(() => import('./components/jobs/OBZDailyRun'))
 const ReportView = lazy(() => import('./components/reports/ReportView'))
 const UPCManagement = lazy(() => import('./components/upcs/UPCManagement'))
 const MAPManagement = lazy(() => import('./components/map/MAPManagement'))
@@ -115,6 +116,7 @@ function AppRoutes() {
           <Route path="daily-run" element={<Navigate to="/daily-run/dnk" replace />} />
           <Route path="daily-run/dnk" element={<ProtectedRoute requireKeepaAccess={true}><DNKDailyRun /></ProtectedRoute>} />
           <Route path="daily-run/clk" element={<ProtectedRoute requireKeepaAccess={true}><CLKDailyRun /></ProtectedRoute>} />
+          <Route path="daily-run/obz" element={<ProtectedRoute requireKeepaAccess={true}><OBZDailyRun /></ProtectedRoute>} />
 
           <Route path="my-space/notes" element={<Navigate to="/dashboard" replace />} />
           <Route path="notifications" element={<Notifications />} />

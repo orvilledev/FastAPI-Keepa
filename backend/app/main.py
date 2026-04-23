@@ -79,52 +79,36 @@ async def startup_event():
     logger.info("Initializing database connection...")
     init_db()
     logger.info("Setting up scheduler...")
-    # Try to load scheduler settings from database for both DNK and CLK
+    # Try to load scheduler settings from database for DNK, CLK, and OBZ
     try:
         from app.database import get_supabase
         db = get_supabase()
 
-        # Load DNK settings
-        dnk_settings_response = db.table("scheduler_settings").select("*").eq("category", "dnk").execute()
-        if dnk_settings_response.data:
-            dnk_settings = dnk_settings_response.data[0]
-            if dnk_settings.get("enabled", True):
-                setup_scheduler(
-                    timezone_str=dnk_settings.get("timezone", "America/Chicago"),
-                    hour=dnk_settings.get("hour", 6),
-                    minute=dnk_settings.get("minute", 0),
-                    category='dnk',
-                    run_mode=dnk_settings.get("run_mode", "daily"),
-                    custom_days=dnk_settings.get("custom_days", []),
-                    anchor_date=dnk_settings.get("anchor_date")
-                )
+        for category in ("dnk", "clk", "obz"):
+            settings_response = (
+                db.table("scheduler_settings").select("*").eq("category", category).execute()
+            )
+            if settings_response.data:
+                category_settings = settings_response.data[0]
+                if category_settings.get("enabled", True):
+                    setup_scheduler(
+                        timezone_str=category_settings.get("timezone", "America/Chicago"),
+                        hour=category_settings.get("hour", 6),
+                        minute=category_settings.get("minute", 0),
+                        category=category,
+                        run_mode=category_settings.get("run_mode", "daily"),
+                        custom_days=category_settings.get("custom_days", []),
+                        anchor_date=category_settings.get("anchor_date"),
+                    )
+                else:
+                    logger.info(f"{category.upper()} scheduler is disabled, skipping setup")
             else:
-                logger.info("DNK scheduler is disabled, skipping setup")
-        else:
-            setup_scheduler(category='dnk')  # Use DNK defaults
-
-        # Load CLK settings
-        clk_settings_response = db.table("scheduler_settings").select("*").eq("category", "clk").execute()
-        if clk_settings_response.data:
-            clk_settings = clk_settings_response.data[0]
-            if clk_settings.get("enabled", True):
-                setup_scheduler(
-                    timezone_str=clk_settings.get("timezone", "America/Chicago"),
-                    hour=clk_settings.get("hour", 6),
-                    minute=clk_settings.get("minute", 0),
-                    category='clk',
-                    run_mode=clk_settings.get("run_mode", "daily"),
-                    custom_days=clk_settings.get("custom_days", []),
-                    anchor_date=clk_settings.get("anchor_date")
-                )
-            else:
-                logger.info("CLK scheduler is disabled, skipping setup")
-        else:
-            setup_scheduler(category='clk')  # Use CLK defaults
+                setup_scheduler(category=category)  # Use category defaults
     except Exception as e:
         logger.warning(f"Failed to load scheduler settings, using defaults: {e}")
         setup_scheduler(category='dnk')  # Use DNK defaults
         setup_scheduler(category='clk')  # Use CLK defaults
+        setup_scheduler(category='obz')  # Use OBZ defaults
     start_scheduler()
     logger.info("Application startup complete")
 
