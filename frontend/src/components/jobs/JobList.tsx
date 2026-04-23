@@ -147,7 +147,8 @@ export default function JobList() {
       </div>
 
       <div className="card overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
+        <div className="overflow-x-auto">
+        <table className="min-w-[1120px] w-full divide-y divide-gray-200">
           <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50">
             <tr>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
@@ -234,6 +235,7 @@ export default function JobList() {
             ))}
           </tbody>
         </table>
+        </div>
         {jobs.length === 0 && !loading && (
           <div className="text-center py-8 text-gray-500">No jobs found</div>
         )}
