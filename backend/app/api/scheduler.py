@@ -91,40 +91,77 @@ def _extract_upcs_from_text(text: str) -> List[str]:
     return found
 
 
-def _extract_upcs_from_dataframe(df: pd.DataFrame) -> List[str]:
-    """Extract UPCs from all cells in a dataframe."""
-    found: List[str] = []
-    seen = set()
-    for row in df.itertuples(index=False):
-        for cell in row:
-            normalized = _normalize_upc_token("" if cell is None else str(cell))
-            if normalized and normalized not in seen:
-                seen.add(normalized)
-                found.append(normalized)
-            for match in UPC_RE.findall("" if cell is None else str(cell)):
-                if match not in seen:
-                    seen.add(match)
-                    found.append(match)
-    return found
+def _parse_price_token(raw: str) -> Optional[float]:
+    cleaned = (raw or "").strip().replace("$", "").replace(",", "")
+    if not cleaned:
+        return None
+    try:
+        value = float(cleaned)
+        return value if value > 0 else None
+    except Exception:
+        return None
 
 
-def _extract_upcs_from_uploaded_file(filename: str, raw: bytes) -> tuple[List[str], dict]:
-    """Parse UPCs from CSV/TXT/Excel-like uploads."""
+def _extract_rows_from_dataframe(df: pd.DataFrame) -> List[dict]:
+    """
+    Fixed uploaded schema (1-based columns):
+      A=UPC, C=Product Title, D=ASIN, F=Seller, H=Seller Price, U=Amazon Link
+    """
+    rows: List[dict] = []
+    # Zero-based column indices
+    idx_upc = 0
+    idx_title = 2
+    idx_asin = 3
+    idx_seller = 5
+    idx_price = 7
+    idx_link = 20
+
+    for raw_row in df.itertuples(index=False):
+        cells = list(raw_row)
+        if len(cells) <= idx_upc:
+            continue
+        upc = _normalize_upc_token("" if cells[idx_upc] is None else str(cells[idx_upc]))
+        if not upc:
+            continue
+        title = str(cells[idx_title]).strip() if len(cells) > idx_title and cells[idx_title] is not None else ""
+        asin = str(cells[idx_asin]).strip() if len(cells) > idx_asin and cells[idx_asin] is not None else ""
+        seller = str(cells[idx_seller]).strip() if len(cells) > idx_seller and cells[idx_seller] is not None else ""
+        price_raw = str(cells[idx_price]).strip() if len(cells) > idx_price and cells[idx_price] is not None else ""
+        seller_price = _parse_price_token(price_raw)
+        amazon_link = str(cells[idx_link]).strip() if len(cells) > idx_link and cells[idx_link] is not None else ""
+        rows.append({
+            "upc": upc,
+            "product_title": title,
+            "asin": asin,
+            "seller": seller,
+            "seller_price": seller_price,
+            "amazon_link": amazon_link,
+        })
+    return rows
+
+
+def _extract_uploaded_rows(filename: str, raw: bytes) -> tuple[List[dict], dict]:
+    """Parse fixed-schema rows from CSV/TXT/Excel-like uploads."""
     lower_name = (filename or "").lower()
 
-    # Text-like files first.
     if lower_name.endswith((".csv", ".txt", ".tsv")):
-        text = ""
-        for enc in ("utf-8-sig", "utf-16", "latin-1"):
+        text = None
+        for enc in ("utf-8-sig", "utf-16", "latin-1", "cp1252"):
             try:
                 text = raw.decode(enc)
                 break
             except Exception:
                 continue
-        if not text:
+        if text is None:
             text = raw.decode("utf-8", errors="ignore")
-        upcs = _extract_upcs_from_text(text)
-        return upcs, {"file_kind": "text", "sheet_count": None}
+        # Parse as delimited table (header unknown/ignored) and map by column index.
+        try:
+            df = pd.read_csv(BytesIO(text.encode("utf-8")), header=None, dtype=str, sep=None, engine="python")
+        except Exception:
+            # Fallback: one-column text, still interpreted as col A UPCs.
+            df = pd.DataFrame(text.splitlines(), columns=[0], dtype=str)
+        rows = _extract_rows_from_dataframe(df)
+        return rows, {"file_kind": "text", "sheet_count": 1}
 
     # Excel-like files: read all sheets without assuming headers.
     excel_exts = (".xlsx", ".xls", ".xlsm", ".xlsb")
@@ -136,28 +173,25 @@ def _extract_upcs_from_uploaded_file(filename: str, raw: bytes) -> tuple[List[st
             # Some files masquerade as Excel but are csv-ish; fallback to text parse.
             try:
                 text_fallback = raw.decode("utf-8", errors="ignore")
-                upcs = _extract_upcs_from_text(text_fallback)
-                return upcs, {"file_kind": "text_fallback", "sheet_count": None}
+                df_fallback = pd.DataFrame(text_fallback.splitlines(), columns=[0], dtype=str)
+                rows_fallback = _extract_rows_from_dataframe(df_fallback)
+                return rows_fallback, {"file_kind": "text_fallback", "sheet_count": 1}
             except Exception:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Could not read Excel file: {first_err}",
                 ) from first_err
 
-        found: List[str] = []
-        seen = set()
+        found_rows: List[dict] = []
         for _, df in sheets.items():
-            for upc in _extract_upcs_from_dataframe(df):
-                if upc in seen:
-                    continue
-                seen.add(upc)
-                found.append(upc)
-        return found, {"file_kind": "excel", "sheet_count": len(sheets)}
+            found_rows.extend(_extract_rows_from_dataframe(df))
+        return found_rows, {"file_kind": "excel", "sheet_count": len(sheets)}
 
     # Unknown extension: best effort text decode.
     fallback_text = raw.decode("utf-8", errors="ignore")
-    upcs = _extract_upcs_from_text(fallback_text)
-    return upcs, {"file_kind": "text_fallback", "sheet_count": None}
+    df_fallback = pd.DataFrame(fallback_text.splitlines(), columns=[0], dtype=str)
+    rows_fallback = _extract_rows_from_dataframe(df_fallback)
+    return rows_fallback, {"file_kind": "text_fallback", "sheet_count": 1}
 
 
 @router.get("/scheduler/next-run")
@@ -556,9 +590,18 @@ async def upload_scheduler_report(
     filename = (file.filename or "").strip()
 
     raw = await file.read()
-    upcs, parse_meta = _extract_upcs_from_uploaded_file(filename, raw)
-    if not upcs:
+    parsed_rows, parse_meta = _extract_uploaded_rows(filename, raw)
+    if not parsed_rows:
         raise HTTPException(status_code=400, detail="No valid UPC values found in uploaded file")
+    # Distinct UPC list for quick scheduler prechecks.
+    seen_upcs = set()
+    upcs: List[str] = []
+    for row in parsed_rows:
+        u = str(row.get("upc") or "").strip()
+        if not u or u in seen_upcs:
+            continue
+        seen_upcs.add(u)
+        upcs.append(u)
 
     today = datetime.utcnow().date().isoformat()
     db.table("scheduler_uploaded_reports").insert({
@@ -567,6 +610,7 @@ async def upload_scheduler_report(
         "content_type": file.content_type,
         "uploaded_for_date": today,
         "upcs": upcs,
+        "parsed_rows": parsed_rows,
         "upc_count": len(upcs),
         "uploaded_by": current_user["id"],
     }).execute()
@@ -579,6 +623,7 @@ async def upload_scheduler_report(
         "upc_count": len(upcs),
         "file_kind": parse_meta.get("file_kind"),
         "sheet_count": parse_meta.get("sheet_count"),
+        "row_count": len(parsed_rows),
     }
 
 

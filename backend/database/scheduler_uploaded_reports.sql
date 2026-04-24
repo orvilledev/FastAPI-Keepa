@@ -15,10 +15,14 @@ CREATE TABLE IF NOT EXISTS scheduler_uploaded_reports (
   content_type TEXT,
   uploaded_for_date DATE NOT NULL,
   upcs JSONB NOT NULL DEFAULT '[]'::jsonb,
+  parsed_rows JSONB NOT NULL DEFAULT '[]'::jsonb,
   upc_count INTEGER NOT NULL DEFAULT 0,
   uploaded_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE scheduler_uploaded_reports
+ADD COLUMN IF NOT EXISTS parsed_rows JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE INDEX IF NOT EXISTS idx_scheduler_uploaded_reports_category_date
   ON scheduler_uploaded_reports (category, uploaded_for_date, created_at DESC);
@@ -35,3 +39,4 @@ CREATE POLICY "Authenticated users can insert scheduler uploaded reports"
 
 COMMENT ON COLUMN scheduler_settings.input_mode IS 'Run input mode: api or uploaded';
 COMMENT ON TABLE scheduler_uploaded_reports IS 'Uploaded daily-run source files parsed into UPC lists';
+COMMENT ON COLUMN scheduler_uploaded_reports.parsed_rows IS 'Parsed fixed-schema rows: upc/title/asin/seller/seller_price/amazon_link';

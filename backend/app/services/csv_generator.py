@@ -490,6 +490,7 @@ class CSVGenerator:
             "asin": product.get("asin", ""),
             "title": product.get("title", ""),
             "brand": product.get("brand", ""),
+            "amazon_link": product.get("amazon_link", ""),
             "buy_box_price": buy_box_price,
             "buy_box_seller_name": buy_box_seller_name or "",
             "buy_box_seller_id": buy_box_seller_id_display,
@@ -773,7 +774,7 @@ class CSVGenerator:
                 msrp = None
 
             asin = product_data.get("asin", "")
-            default_amazon_url = (
+            default_amazon_url = product_data.get("amazon_link") or (
                 f"https://www.amazon.com/dp/{asin}?ref=myi_title_dp" if asin else "N/A"
             )
 

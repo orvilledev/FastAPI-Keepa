@@ -7,14 +7,66 @@ from pytz import timezone
 from app.config import settings
 from app.database import get_supabase
 from app.repositories.upc_repository import UPCRepository
+from app.repositories.map_repository import MAPRepository
 from app.services.batch_processor import BatchProcessor
+from app.services.price_analyzer import PriceAnalyzer
+from app.services.email_service import EmailService
+from app.services.report_service import ReportService
 from typing import List, Optional
 from dataclasses import dataclass
 from datetime import datetime
+import hashlib
 
 logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler()
+
+
+def _normalize_price(value) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        num = float(str(value).replace("$", "").replace(",", "").strip())
+        return num if num > 0 else None
+    except Exception:
+        return None
+
+
+def _seller_id_for_name(name: str) -> str:
+    base = (name or "unknown_seller").strip().lower()
+    digest = hashlib.md5(base.encode("utf-8")).hexdigest()[:12]
+    return f"UPLD{digest}"
+
+
+def _build_synthetic_keepa_for_upc(rows: List[dict]) -> dict:
+    first = rows[0] if rows else {}
+    asin = str(first.get("asin") or "").strip()
+    title = str(first.get("product_title") or "").strip()
+    amazon_link = str(first.get("amazon_link") or "").strip()
+    offers = []
+    for row in rows:
+        seller_name = str(row.get("seller") or "").strip() or "Unknown"
+        seller_price = _normalize_price(row.get("seller_price"))
+        if seller_price is None:
+            continue
+        offers.append({
+            "sellerId": _seller_id_for_name(seller_name),
+            "sellerName": seller_name,
+            "price": int(round(seller_price * 100)),
+        })
+    buy_box_seller_id = ""
+    if offers:
+        cheapest = min(offers, key=lambda o: o["price"])
+        buy_box_seller_id = str(cheapest.get("sellerId") or "")
+    return {
+        "products": [{
+            "asin": asin,
+            "title": title,
+            "stats": {"buyBoxSellerId": buy_box_seller_id},
+            "current_sellers": offers,
+            "amazon_link": amazon_link,
+        }]
+    }
 
 @dataclass
 class SchedulerConfig:
@@ -146,11 +198,12 @@ async def run_daily_job_for_category(category: str = 'dnk'):
 
         # Resolve UPC source for this run mode.
         upcs: List[str] = []
+        uploaded_rows: List[dict] = []
         if input_mode == "uploaded":
             local_today = datetime.now(config.timezone).date().isoformat()
             uploaded_response = (
                 db.table("scheduler_uploaded_reports")
-                .select("id, upcs")
+                .select("id, upcs, parsed_rows")
                 .eq("category", category)
                 .eq("uploaded_for_date", local_today)
                 .order("created_at", desc=True)
@@ -158,7 +211,9 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                 .execute()
             )
             if uploaded_response.data:
-                upcs = [str(x).strip() for x in (uploaded_response.data[0].get("upcs") or []) if str(x).strip()]
+                report = uploaded_response.data[0]
+                upcs = [str(x).strip() for x in (report.get("upcs") or []) if str(x).strip()]
+                uploaded_rows = report.get("parsed_rows") or []
             else:
                 logger.warning(
                     "No uploaded report found for %s on %s; creating failed daily run entry",
@@ -197,7 +252,91 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                 off_price_scope="buybox_and_non_buybox_below_map",
             )
             logger.info(f"Created {category.upper()} batch job {job_id} with {len(upcs)} UPCs. Processing...")
-            await processor.process_job(job_id)
+            if input_mode == "uploaded" and uploaded_rows:
+                map_repo = MAPRepository(db)
+                map_prices = map_repo.get_map_prices_by_upcs(upcs, vendor_type=category)
+                analyzer = PriceAnalyzer()
+
+                upc_to_rows = {}
+                for row in uploaded_rows:
+                    upc = str(row.get("upc") or "").strip()
+                    if not upc:
+                        continue
+                    upc_to_rows.setdefault(upc, []).append(row)
+
+                # Fill existing batch items with synthetic Keepa-like payloads.
+                batches_resp = db.table("upc_batches").select("id").eq("batch_job_id", str(job_id)).execute()
+                for batch in batches_resp.data or []:
+                    batch_id = batch["id"]
+                    items_resp = db.table("upc_batch_items").select("id, upc").eq("upc_batch_id", batch_id).execute()
+                    completed_count = 0
+                    for item in items_resp.data or []:
+                        upc = str(item.get("upc") or "").strip()
+                        keepa_data = _build_synthetic_keepa_for_upc(upc_to_rows.get(upc, []))
+                        db.table("upc_batch_items").update({
+                            "status": "completed",
+                            "keepa_data": keepa_data,
+                            "processed_at": datetime.utcnow().isoformat(),
+                        }).eq("id", item["id"]).execute()
+                        completed_count += 1
+
+                        map_price = map_prices.get(upc)
+                        try:
+                            if map_price is not None:
+                                alerts = analyzer.detect_off_price_sellers(
+                                    upc=upc,
+                                    keepa_data=keepa_data,
+                                    map_price=float(map_price),
+                                )
+                                for alert in alerts:
+                                    db.table("price_alerts").insert({
+                                        "batch_job_id": str(job_id),
+                                        "upc": upc,
+                                        "seller_name": alert.get("seller_name"),
+                                        "current_price": alert.get("current_price"),
+                                        "historical_price": float(map_price),
+                                        "price_change_percent": alert.get("price_change_percent"),
+                                        "detected_at": datetime.utcnow().isoformat(),
+                                        "keepa_data": keepa_data,
+                                    }).execute()
+                        except Exception as alert_err:
+                            logger.warning("Could not evaluate uploaded off-price alerts for UPC %s: %s", upc, alert_err)
+
+                    db.table("upc_batches").update({
+                        "status": "completed",
+                        "processed_count": completed_count,
+                        "completed_at": datetime.utcnow().isoformat(),
+                    }).eq("id", batch_id).execute()
+
+                total_batches = len(batches_resp.data or [])
+                db.table("batch_jobs").update({
+                    "status": "completed",
+                    "completed_batches": total_batches,
+                    "completed_at": datetime.utcnow().isoformat(),
+                }).eq("id", str(job_id)).execute()
+
+                # Keep daily-run behavior: generate/export report and send email.
+                try:
+                    report_service = ReportService(db)
+                    csv_bytes, filename, alerts_count = report_service.generate_csv_for_job(
+                        job_id,
+                        job_name,
+                        map_vendor_type=category,
+                        off_price_scope="buybox_and_non_buybox_below_map",
+                    )
+                    total_upcs = report_service.get_total_upcs_for_job(job_id)
+                    EmailService().send_csv_report(
+                        csv_bytes=csv_bytes,
+                        filename=filename,
+                        job_name=job_name,
+                        total_upcs=total_upcs,
+                        alerts_count=alerts_count,
+                        custom_recipients=custom_recipients,
+                    )
+                except Exception as email_err:
+                    logger.warning("Uploaded daily run email/report step failed for %s: %s", category.upper(), email_err)
+            else:
+                await processor.process_job(job_id)
             logger.info(f"Daily {category.upper()} batch job {job_id} completed successfully")
         else:
             logger.info(f"No {category.upper()} UPCs found to process")
