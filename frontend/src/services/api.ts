@@ -50,6 +50,12 @@ api.interceptors.request.use(async (config) => {
   if (cachedToken) {
     config.headers.Authorization = `Bearer ${cachedToken}`
   }
+
+  // Let axios/browser set multipart boundary automatically for FormData.
+  // A global JSON content-type breaks FastAPI UploadFile parsing (422).
+  if (config.data instanceof FormData && config.headers) {
+    delete config.headers['Content-Type']
+  }
   return config
 })
 
