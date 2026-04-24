@@ -496,6 +496,8 @@ export const schedulerApi = {
       filename: string
       uploaded_for_date: string
       upc_count: number
+      file_kind?: 'excel' | 'text' | 'text_fallback'
+      sheet_count?: number | null
     }
   },
   getLatestUploadedReport: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {

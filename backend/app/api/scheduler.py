@@ -6,11 +6,13 @@ from app.database import get_supabase
 from app.utils.error_handler import handle_api_errors
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from io import BytesIO
 from pydantic import BaseModel
 from typing import Optional, List
 from supabase import Client
 import logging
 import re
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +89,75 @@ def _extract_upcs_from_text(text: str) -> List[str]:
                 seen.add(match)
                 found.append(match)
     return found
+
+
+def _extract_upcs_from_dataframe(df: pd.DataFrame) -> List[str]:
+    """Extract UPCs from all cells in a dataframe."""
+    found: List[str] = []
+    seen = set()
+    for row in df.itertuples(index=False):
+        for cell in row:
+            normalized = _normalize_upc_token("" if cell is None else str(cell))
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                found.append(normalized)
+            for match in UPC_RE.findall("" if cell is None else str(cell)):
+                if match not in seen:
+                    seen.add(match)
+                    found.append(match)
+    return found
+
+
+def _extract_upcs_from_uploaded_file(filename: str, raw: bytes) -> tuple[List[str], dict]:
+    """Parse UPCs from CSV/TXT/Excel-like uploads."""
+    lower_name = (filename or "").lower()
+
+    # Text-like files first.
+    if lower_name.endswith((".csv", ".txt", ".tsv")):
+        text = ""
+        for enc in ("utf-8-sig", "utf-16", "latin-1"):
+            try:
+                text = raw.decode(enc)
+                break
+            except Exception:
+                continue
+        if not text:
+            text = raw.decode("utf-8", errors="ignore")
+        upcs = _extract_upcs_from_text(text)
+        return upcs, {"file_kind": "text", "sheet_count": None}
+
+    # Excel-like files: read all sheets without assuming headers.
+    excel_exts = (".xlsx", ".xls", ".xlsm", ".xlsb")
+    if lower_name.endswith(excel_exts):
+        buffer = BytesIO(raw)
+        try:
+            sheets = pd.read_excel(buffer, sheet_name=None, header=None, dtype=str)
+        except Exception as first_err:
+            # Some files masquerade as Excel but are csv-ish; fallback to text parse.
+            try:
+                text_fallback = raw.decode("utf-8", errors="ignore")
+                upcs = _extract_upcs_from_text(text_fallback)
+                return upcs, {"file_kind": "text_fallback", "sheet_count": None}
+            except Exception:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Could not read Excel file: {first_err}",
+                ) from first_err
+
+        found: List[str] = []
+        seen = set()
+        for _, df in sheets.items():
+            for upc in _extract_upcs_from_dataframe(df):
+                if upc in seen:
+                    continue
+                seen.add(upc)
+                found.append(upc)
+        return found, {"file_kind": "excel", "sheet_count": len(sheets)}
+
+    # Unknown extension: best effort text decode.
+    fallback_text = raw.decode("utf-8", errors="ignore")
+    upcs = _extract_upcs_from_text(fallback_text)
+    return upcs, {"file_kind": "text_fallback", "sheet_count": None}
 
 
 @router.get("/scheduler/next-run")
@@ -485,16 +556,7 @@ async def upload_scheduler_report(
     filename = (file.filename or "").strip()
 
     raw = await file.read()
-    text = ""
-    for enc in ("utf-8-sig", "utf-16", "latin-1"):
-        try:
-            text = raw.decode(enc)
-            break
-        except Exception:
-            continue
-    if not text:
-        text = raw.decode("utf-8", errors="ignore")
-    upcs = _extract_upcs_from_text(text)
+    upcs, parse_meta = _extract_upcs_from_uploaded_file(filename, raw)
     if not upcs:
         raise HTTPException(status_code=400, detail="No valid UPC values found in uploaded file")
 
@@ -515,6 +577,8 @@ async def upload_scheduler_report(
         "filename": filename,
         "uploaded_for_date": today,
         "upc_count": len(upcs),
+        "file_kind": parse_meta.get("file_kind"),
+        "sheet_count": parse_meta.get("sheet_count"),
     }
 
 

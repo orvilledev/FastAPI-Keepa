@@ -4,6 +4,7 @@ import EmailRecipientsPicker from './EmailRecipientsPicker'
 import { schedulerApi } from '../../services/api'
 
 const SUPPORTED_VENDORS = new Set(['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha'])
+const EXCEL_EXTENSIONS = ['.xlsx', '.xls', '.xlsm', '.xlsb']
 
 export default function UploadedVendorDailyRun() {
   const { vendor } = useParams<{ vendor: string }>()
@@ -123,16 +124,25 @@ export default function UploadedVendorDailyRun() {
       return
     }
 
+    const lowerName = (file.name || '').toLowerCase()
+    const isExcelFile = EXCEL_EXTENSIONS.some((ext) => lowerName.endsWith(ext))
+
     try {
-      const content = await file.text()
-      const upcs = extractUpcsFromText(content)
       setSelectedFileName(file.name)
-      setParsedUpcs(upcs)
       setUploadedFile(file)
-      if (upcs.length) {
-        setSuccess(`Loaded ${upcs.length} UPCs from ${file.name}.`)
+      if (isExcelFile) {
+        // Browser preview for binary Excel files is unreliable; backend parser is authoritative.
+        setParsedUpcs([])
+        setSuccess(`Excel file "${file.name}" ready. UPCs will be parsed on upload.`)
       } else {
-        setError('Preview found no UPCs in this file. You can still upload and let the backend validate.')
+        const content = await file.text()
+        const upcs = extractUpcsFromText(content)
+        setParsedUpcs(upcs)
+        if (upcs.length) {
+          setSuccess(`Loaded ${upcs.length} UPCs from ${file.name}.`)
+        } else {
+          setError('Preview found no UPCs in this file. You can still upload and let the backend validate.')
+        }
       }
     } catch (readErr) {
       console.error('Failed to parse uploaded file', readErr)
@@ -153,14 +163,18 @@ export default function UploadedVendorDailyRun() {
     setSuccess('')
     try {
       const category = normalizedVendor as 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
-      await schedulerApi.uploadReport(uploadedFile, category)
+      const uploadResult = await schedulerApi.uploadReport(uploadedFile, category)
       await schedulerApi.updateSettings({
         input_mode: 'uploaded',
         email_recipients: emailRecipients.trim() || null,
       }, category)
       await schedulerApi.rerunUploadedReport(category)
       await loadLatestUpload(normalizedVendor)
-      setSuccess('File uploaded. Uploaded-mode run has been queued.')
+      const excelSuffix =
+        uploadResult.file_kind === 'excel'
+          ? ` Parsed from ${uploadResult.sheet_count ?? 0} sheet(s), ${uploadResult.upc_count} UPCs.`
+          : ` Parsed ${uploadResult.upc_count} UPCs.`
+      setSuccess(`File uploaded. Uploaded-mode run has been queued.${excelSuffix}`)
     } catch (submitErr: any) {
       setError(submitErr?.response?.data?.detail || 'Failed to upload/queue uploaded run.')
     } finally {
@@ -202,12 +216,12 @@ export default function UploadedVendorDailyRun() {
 
         <div>
           <label htmlFor="uploaded-run-file" className="block text-sm font-medium text-gray-700 mb-2">
-            Keepa report file (.csv or .txt)
+            Keepa report file (Excel, CSV, TXT)
           </label>
           <input
             id="uploaded-run-file"
             type="file"
-            accept=".csv,.CSV,.txt,.TXT,text/plain,text/csv,application/vnd.ms-excel"
+            accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.CSV,.txt,.TXT,.tsv,text/plain,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={handleFileChange}
             className="block w-full text-sm text-gray-700"
           />
