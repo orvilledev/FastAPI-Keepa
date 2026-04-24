@@ -122,6 +122,26 @@ export default function UploadedVendorDailyRun() {
     }
   }
 
+  const pollLatestUploadStatus = async (vendorCode: string) => {
+    try {
+      const latest = await schedulerApi.getLatestUploadedReportStatus(vendorCode as 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha')
+      if (!latest.report) return
+      setLatestUpload((prev) => {
+        if (!prev || prev.id !== latest.report?.id) return prev
+        return {
+          ...prev,
+          parse_status: latest.report.parse_status,
+          parse_error: latest.report.parse_error,
+          upc_count: latest.report.upc_count ?? prev.upc_count,
+          row_count: latest.report.row_count ?? prev.row_count,
+          parsed_at: latest.report.parsed_at,
+        }
+      })
+    } catch {
+      // non-blocking
+    }
+  }
+
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     setError('')
     setSuccess('')
@@ -172,11 +192,23 @@ export default function UploadedVendorDailyRun() {
     setSuccess('')
     try {
       const category = normalizedVendor as 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
-      await schedulerApi.uploadReport(uploadedFile, category)
+      const uploadResult = await schedulerApi.uploadReport(uploadedFile, category)
       await schedulerApi.updateSettings({
         input_mode: 'uploaded',
         email_recipients: emailRecipients.trim() || null,
       }, category)
+      // Optimistic status update for snappier UX while first poll is pending.
+      setLatestUpload((prev) => ({
+        id: uploadResult.report_id,
+        filename: uploadedFile.name,
+        uploaded_for_date: new Date().toISOString().slice(0, 10),
+        upc_count: 0,
+        row_count: 0,
+        parse_status: 'pending',
+        parse_error: null,
+        parsed_at: null,
+        created_at: prev?.created_at || new Date().toISOString(),
+      }))
       await loadLatestUpload(normalizedVendor)
       setSuccess('File uploaded. Parsing started in background. Queue the run after status is Completed.')
     } catch (submitErr: any) {
@@ -238,8 +270,8 @@ export default function UploadedVendorDailyRun() {
     const status = latestUpload?.parse_status
     if (status !== 'pending' && status !== 'processing') return
     const id = setInterval(() => {
-      void loadLatestUpload(normalizedVendor)
-    }, 2500)
+      void pollLatestUploadStatus(normalizedVendor)
+    }, 1000)
     return () => clearInterval(id)
   }, [latestUpload?.id, latestUpload?.parse_status, normalizedVendor])
 

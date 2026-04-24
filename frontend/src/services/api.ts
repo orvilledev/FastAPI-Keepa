@@ -523,6 +523,20 @@ export const schedulerApi = {
       }
     }
   },
+  getLatestUploadedReportStatus: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
+    const response = await api.get(`/api/v1/scheduler/uploaded-report/status?category=${category}`)
+    return response.data as {
+      report: null | {
+        id: string
+        parse_status?: 'pending' | 'processing' | 'completed' | 'failed'
+        parse_error?: string | null
+        upc_count?: number
+        row_count?: number
+        parsed_at?: string | null
+        created_at: string
+      }
+    }
+  },
   deleteUploadedReport: async (
     reportId: string,
     category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'

@@ -764,6 +764,26 @@ async def get_latest_uploaded_report(
     return {"report": report}
 
 
+@router.get("/scheduler/uploaded-report/status")
+@handle_api_errors("get uploaded scheduler report status")
+async def get_uploaded_report_status(
+    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Get lightweight parse status for latest uploaded scheduler report."""
+    response = (
+        db.table("scheduler_uploaded_reports")
+        .select("id, parse_status, parse_error, upc_count, row_count, parsed_at, created_at")
+        .eq("category", category)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    report = response.data[0] if response.data else None
+    return {"report": report}
+
+
 @router.delete("/scheduler/uploaded-report/{report_id}")
 @handle_api_errors("delete uploaded scheduler report")
 async def delete_uploaded_report(
