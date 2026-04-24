@@ -24,7 +24,9 @@ export default function UploadedVendorDailyRun() {
     created_at: string
   } | null>(null)
   const [emailRecipients, setEmailRecipients] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [queueing, setQueueing] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -165,7 +167,7 @@ export default function UploadedVendorDailyRun() {
       setError('Select a file before uploading.')
       return
     }
-    setLoading(true)
+    setUploading(true)
     setError('')
     setSuccess('')
     try {
@@ -180,12 +182,12 @@ export default function UploadedVendorDailyRun() {
     } catch (submitErr: any) {
       setError(submitErr?.response?.data?.detail || 'Failed to upload report.')
     } finally {
-      setLoading(false)
+      setUploading(false)
     }
   }
 
   const handleQueueRun = async () => {
-    setLoading(true)
+    setQueueing(true)
     setError('')
     setSuccess('')
     try {
@@ -199,7 +201,7 @@ export default function UploadedVendorDailyRun() {
     } catch (queueErr: any) {
       setError(queueErr?.response?.data?.detail || 'Failed to queue uploaded run.')
     } finally {
-      setLoading(false)
+      setQueueing(false)
     }
   }
 
@@ -210,7 +212,7 @@ export default function UploadedVendorDailyRun() {
     )
     if (!confirmed) return
 
-    setLoading(true)
+    setDeleting(true)
     setError('')
     setSuccess('')
     try {
@@ -222,7 +224,7 @@ export default function UploadedVendorDailyRun() {
     } catch (deleteErr: any) {
       setError(deleteErr?.response?.data?.detail || 'Failed to delete uploaded report.')
     } finally {
-      setLoading(false)
+      setDeleting(false)
     }
   }
 
@@ -305,10 +307,10 @@ export default function UploadedVendorDailyRun() {
               <button
                 type="button"
                 onClick={handleDeleteLatestUpload}
-                disabled={loading}
+                disabled={uploading || queueing || deleting}
                 className="px-3 py-1.5 rounded-md border border-red-300 text-red-700 bg-white hover:bg-red-50 disabled:opacity-50 text-sm"
               >
-                Delete
+                {deleting ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>
@@ -340,19 +342,19 @@ export default function UploadedVendorDailyRun() {
         </Link>
         <button
           type="button"
-          disabled={loading || !uploadedFile}
+          disabled={uploading || queueing || deleting || !uploadedFile}
           onClick={handleUploadReport}
           className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
         >
-          {loading ? 'Submitting...' : 'Upload Report'}
+          {uploading ? 'Uploading...' : 'Upload Report'}
         </button>
         <button
           type="button"
-          disabled={loading || !latestUpload || latestUpload.parse_status !== 'completed'}
+          disabled={uploading || queueing || deleting || !latestUpload || latestUpload.parse_status !== 'completed'}
           onClick={handleQueueRun}
           className="px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 disabled:opacity-50"
         >
-          {loading ? 'Submitting...' : 'Queue Uploaded Run'}
+          {queueing ? 'Queueing...' : 'Queue Uploaded Run'}
         </button>
       </div>
     </div>
