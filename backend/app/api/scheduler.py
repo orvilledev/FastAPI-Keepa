@@ -1,7 +1,7 @@
 """Scheduler API endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, BackgroundTasks
 from app.dependencies import get_current_user
-from app.scheduler import scheduler, update_scheduler_settings, pause_scheduler
+from app.scheduler import scheduler, update_scheduler_settings, pause_scheduler, run_daily_job_for_category
 from app.database import get_supabase
 from app.utils.error_handler import handle_api_errors
 from datetime import datetime, timedelta
@@ -26,11 +26,14 @@ class SchedulerSettingsUpdate(BaseModel):
     custom_days: Optional[List[str]] = None
     anchor_date: Optional[str] = None
     email_recipients: Optional[str] = None
+    input_mode: Optional[str] = None
 
 
 VALID_RUN_MODES = {"daily", "every_other_day", "custom_days"}
 VALID_WEEKDAYS = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
+VALID_INPUT_MODES = {"api", "uploaded"}
 DAILY_JOB_NAME_RE = re.compile(r"^Daily\s+([A-Za-z0-9_-]+)\s+", re.IGNORECASE)
+UPC_RE = re.compile(r"\b\d{8,14}\b")
 
 
 def _extract_category_from_daily_job_name(job_name: str) -> Optional[str]:
@@ -169,6 +172,7 @@ async def get_scheduler_settings(
                 "custom_days": [],
                 "anchor_date": None,
                 "email_recipients": None,
+                "input_mode": "api",
                 "category": category
             }
         settings = response.data[0]
@@ -181,6 +185,7 @@ async def get_scheduler_settings(
             "custom_days": settings.get("custom_days", []),
             "anchor_date": settings.get("anchor_date"),
             "email_recipients": settings.get("email_recipients"),
+            "input_mode": settings.get("input_mode", "api"),
             "category": settings.get("category", category)
         }
     except Exception as e:
@@ -194,6 +199,7 @@ async def get_scheduler_settings(
             "custom_days": [],
             "anchor_date": None,
             "email_recipients": None,
+            "input_mode": "api",
             "category": category
         }
 
@@ -261,6 +267,7 @@ async def get_scheduler_calendar(
         run_mode = settings.get("run_mode", "daily")
         custom_days = settings.get("custom_days", []) or []
         anchor_date = settings.get("anchor_date")
+        input_mode = settings.get("input_mode", "api")
 
         schedule_label = {
             "daily": "Daily",
@@ -291,6 +298,7 @@ async def get_scheduler_calendar(
             "run_mode": run_mode,
             "custom_days": custom_days,
             "anchor_date": anchor_date,
+            "input_mode": input_mode,
             "scheduled_time": scheduled_time,
             "next_run_time": next_run_time,
             "scheduler_job_present": scheduler_job_present,
@@ -352,6 +360,11 @@ async def update_scheduler_settings_endpoint(
     if settings_data.email_recipients is not None:
         cleaned_recipients = settings_data.email_recipients.strip()
         update_data["email_recipients"] = cleaned_recipients or None
+    if settings_data.input_mode is not None:
+        normalized_input_mode = settings_data.input_mode.strip().lower()
+        if normalized_input_mode not in VALID_INPUT_MODES:
+            raise HTTPException(status_code=400, detail="Invalid input_mode. Use api or uploaded")
+        update_data["input_mode"] = normalized_input_mode
     
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -411,7 +424,86 @@ async def update_scheduler_settings_endpoint(
         "custom_days": updated_settings.get("custom_days", []),
         "anchor_date": updated_settings.get("anchor_date"),
         "email_recipients": updated_settings.get("email_recipients"),
+        "input_mode": updated_settings.get("input_mode", "api"),
         "category": category,
         "message": f"{category.upper()} scheduler settings updated successfully"
     }
+
+
+@router.post("/scheduler/uploaded-report")
+@handle_api_errors("upload scheduler report")
+async def upload_scheduler_report(
+    file: UploadFile = File(...),
+    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Upload a Keepa report file (csv/txt) used by uploaded daily run mode."""
+    filename = (file.filename or "").strip()
+    lower_name = filename.lower()
+    if not (lower_name.endswith(".csv") or lower_name.endswith(".txt")):
+        raise HTTPException(status_code=400, detail="Only .csv and .txt files are supported")
+
+    raw = await file.read()
+    text = raw.decode("utf-8", errors="ignore")
+    upcs = []
+    seen = set()
+    for match in UPC_RE.findall(text):
+        if match in seen:
+            continue
+        seen.add(match)
+        upcs.append(match)
+    if not upcs:
+        raise HTTPException(status_code=400, detail="No valid UPC values found in uploaded file")
+
+    today = datetime.utcnow().date().isoformat()
+    db.table("scheduler_uploaded_reports").insert({
+        "category": category,
+        "filename": filename,
+        "content_type": file.content_type,
+        "uploaded_for_date": today,
+        "upcs": upcs,
+        "upc_count": len(upcs),
+        "uploaded_by": current_user["id"],
+    }).execute()
+
+    return {
+        "message": "Uploaded report saved",
+        "category": category,
+        "filename": filename,
+        "uploaded_for_date": today,
+        "upc_count": len(upcs),
+    }
+
+
+@router.get("/scheduler/uploaded-report/latest")
+@handle_api_errors("get latest uploaded scheduler report")
+async def get_latest_uploaded_report(
+    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Get latest uploaded scheduler report metadata for a category."""
+    response = (
+        db.table("scheduler_uploaded_reports")
+        .select("id, category, filename, uploaded_for_date, upc_count, created_at")
+        .eq("category", category)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    report = response.data[0] if response.data else None
+    return {"report": report}
+
+
+@router.post("/scheduler/uploaded-report/rerun")
+@handle_api_errors("rerun uploaded scheduler report")
+async def rerun_uploaded_report(
+    background_tasks: BackgroundTasks,
+    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
+    current_user: dict = Depends(get_current_user),
+):
+    """Trigger an immediate uploaded-mode run for a category."""
+    background_tasks.add_task(run_daily_job_for_category, category)
+    return {"message": f"{category.upper()} uploaded run queued"}
 

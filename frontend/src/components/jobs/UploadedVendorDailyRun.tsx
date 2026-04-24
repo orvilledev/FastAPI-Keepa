@@ -1,0 +1,231 @@
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import EmailRecipientsPicker from './EmailRecipientsPicker'
+import { schedulerApi } from '../../services/api'
+
+const SUPPORTED_VENDORS = new Set(['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha'])
+
+export default function UploadedVendorDailyRun() {
+  const { vendor } = useParams<{ vendor: string }>()
+  const normalizedVendor = (vendor || '').toLowerCase()
+  const [selectedFileName, setSelectedFileName] = useState('')
+  const [parsedUpcs, setParsedUpcs] = useState<string[]>([])
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [latestUpload, setLatestUpload] = useState<{
+    filename: string
+    uploaded_for_date: string
+    upc_count: number
+    created_at: string
+  } | null>(null)
+  const [emailRecipients, setEmailRecipients] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  if (!SUPPORTED_VENDORS.has(normalizedVendor)) {
+    return (
+      <div className="card p-8">
+        <h1 className="text-2xl font-bold text-gray-900">Vendor not found</h1>
+        <p className="mt-2 text-sm text-gray-500">
+          This uploaded-run vendor route is not configured.
+        </p>
+        <Link
+          to="/daily-run/uploaded"
+          className="inline-block mt-4 px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235]"
+        >
+          Back to Uploaded Runs
+        </Link>
+      </div>
+    )
+  }
+
+  const previewUpcs = useMemo(() => parsedUpcs.slice(0, 10), [parsedUpcs])
+
+  const extractUpcsFromText = (text: string): string[] => {
+    const upcMatches = text.match(/\b\d{8,14}\b/g) || []
+    const deduped: string[] = []
+    const seen = new Set<string>()
+    for (const upc of upcMatches) {
+      if (seen.has(upc)) continue
+      seen.add(upc)
+      deduped.push(upc)
+    }
+    return deduped
+  }
+
+  const loadLatestUpload = async (vendorCode: string) => {
+    try {
+      const latest = await schedulerApi.getLatestUploadedReport(vendorCode as 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha')
+      if (latest.report) {
+        setLatestUpload(latest.report)
+      }
+    } catch {
+      // non-blocking
+    }
+  }
+
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    setError('')
+    setSuccess('')
+    const file = event.target.files?.[0]
+    if (!file) {
+      setSelectedFileName('')
+      setParsedUpcs([])
+      setUploadedFile(null)
+      return
+    }
+
+    const lowerName = file.name.toLowerCase()
+    if (!lowerName.endsWith('.csv') && !lowerName.endsWith('.txt')) {
+      setError('Only .csv and .txt files are supported for uploaded runs right now.')
+      setSelectedFileName('')
+      setParsedUpcs([])
+      setUploadedFile(null)
+      return
+    }
+
+    try {
+      const content = await file.text()
+      const upcs = extractUpcsFromText(content)
+      if (!upcs.length) {
+        setError('No valid UPC values found in this file.')
+        setSelectedFileName(file.name)
+        setParsedUpcs([])
+        return
+      }
+      setSelectedFileName(file.name)
+      setParsedUpcs(upcs)
+      setUploadedFile(file)
+      setSuccess(`Loaded ${upcs.length} UPCs from ${file.name}.`)
+    } catch (readErr) {
+      console.error('Failed to parse uploaded file', readErr)
+      setError('Could not read this file. Please try again.')
+      setSelectedFileName('')
+      setParsedUpcs([])
+      setUploadedFile(null)
+    }
+  }
+
+  const handleUploadAndQueueRun = async () => {
+    if (!uploadedFile || !parsedUpcs.length) {
+      setError('Select and parse a file before uploading.')
+      return
+    }
+    setLoading(true)
+    setError('')
+    setSuccess('')
+    try {
+      const category = normalizedVendor as 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
+      await schedulerApi.uploadReport(uploadedFile, category)
+      await schedulerApi.updateSettings({
+        input_mode: 'uploaded',
+        email_recipients: emailRecipients.trim() || null,
+      }, category)
+      await schedulerApi.rerunUploadedReport(category)
+      await loadLatestUpload(normalizedVendor)
+      setSuccess('File uploaded. Uploaded-mode run has been queued.')
+    } catch (submitErr: any) {
+      setError(submitErr?.response?.data?.detail || 'Failed to upload/queue uploaded run.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (SUPPORTED_VENDORS.has(normalizedVendor)) {
+      void loadLatestUpload(normalizedVendor)
+    }
+  }, [normalizedVendor])
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">
+          {normalizedVendor.toUpperCase()} Uploaded Run
+        </h1>
+        <p className="mt-1 text-sm text-gray-500">
+          This page is reserved for uploaded-report daily runs for {normalizedVendor.toUpperCase()}.
+        </p>
+      </div>
+
+      <div className="card p-6 border-yellow-300 bg-yellow-50">
+        <h2 className="text-lg font-semibold text-yellow-900">Upload-based mode</h2>
+        <p className="mt-2 text-sm text-yellow-800">
+          Upload a Keepa CSV/TXT report, switch this vendor to uploaded input mode, then queue a run.
+        </p>
+      </div>
+
+      <div className="card p-6 space-y-5">
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>
+        )}
+        {success && (
+          <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">{success}</div>
+        )}
+
+        <div>
+          <label htmlFor="uploaded-run-file" className="block text-sm font-medium text-gray-700 mb-2">
+            Keepa report file (.csv or .txt)
+          </label>
+          <input
+            id="uploaded-run-file"
+            type="file"
+            accept=".csv,.txt,text/plain,text/csv"
+            onChange={handleFileChange}
+            className="block w-full text-sm text-gray-700"
+          />
+          {selectedFileName && (
+            <p className="mt-2 text-xs text-gray-500">Loaded file: {selectedFileName}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Email recipients (optional)</label>
+          <EmailRecipientsPicker value={emailRecipients} onChange={setEmailRecipients} persistDismissed />
+        </div>
+
+        {latestUpload && (
+          <div className="rounded-lg border border-blue-200 p-4 bg-blue-50">
+            <p className="text-sm font-semibold text-blue-900">Latest uploaded report</p>
+            <p className="text-xs text-blue-800 mt-1">
+              {latestUpload.filename} | {latestUpload.upc_count} UPCs | date {latestUpload.uploaded_for_date}
+            </p>
+          </div>
+        )}
+
+        <div className="rounded-lg border border-gray-200 p-4 bg-gray-50">
+          <p className="text-sm font-medium text-gray-900">Parsed UPCs: {parsedUpcs.length}</p>
+          {previewUpcs.length > 0 && (
+            <p className="mt-1 text-xs text-gray-600 font-mono">
+              {previewUpcs.join(', ')}
+              {parsedUpcs.length > previewUpcs.length ? ' ...' : ''}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <Link
+          to="/daily-run/uploaded"
+          className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+        >
+          Back to Uploaded Runs
+        </Link>
+        <Link
+          to={`/daily-run/${normalizedVendor}`}
+          className="px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235]"
+        >
+          Open API Daily Run
+        </Link>
+        <button
+          type="button"
+          disabled={loading || parsedUpcs.length === 0}
+          onClick={handleUploadAndQueueRun}
+          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+        >
+          {loading ? 'Submitting...' : 'Upload + Queue Run'}
+        </button>
+      </div>
+    </div>
+  )
+}

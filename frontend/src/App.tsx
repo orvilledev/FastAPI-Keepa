@@ -22,6 +22,9 @@ const BORDailyRun = lazy(() => import('./components/jobs/BORDailyRun'))
 const SFFDailyRun = lazy(() => import('./components/jobs/SFFDailyRun'))
 const TEVDailyRun = lazy(() => import('./components/jobs/TEVDailyRun'))
 const CHADailyRun = lazy(() => import('./components/jobs/CHADailyRun'))
+const ApiDailyRunsMenu = lazy(() => import('./components/jobs/ApiDailyRunsMenu'))
+const UploadedRunsMenu = lazy(() => import('./components/jobs/UploadedRunsMenu'))
+const UploadedVendorDailyRun = lazy(() => import('./components/jobs/UploadedVendorDailyRun'))
 const RunCalendar = lazy(() => import('./components/jobs/RunCalendar'))
 const ReportView = lazy(() => import('./components/reports/ReportView'))
 const UPCManagement = lazy(() => import('./components/upcs/UPCManagement'))
@@ -119,7 +122,10 @@ function AppRoutes() {
           <Route path="map" element={<ProtectedRoute requireKeepaAccess={true}><MAPManagement /></ProtectedRoute>} />
           <Route path="vendor-list" element={<Navigate to="/seller-list" replace />} />
           <Route path="seller-list" element={<ProtectedRoute requireKeepaAccess={true}><SellerList /></ProtectedRoute>} />
-          <Route path="daily-run" element={<Navigate to="/daily-run/dnk" replace />} />
+          <Route path="daily-run" element={<Navigate to="/daily-run/api" replace />} />
+          <Route path="daily-run/api" element={<ProtectedRoute requireKeepaAccess={true}><ApiDailyRunsMenu /></ProtectedRoute>} />
+          <Route path="daily-run/uploaded" element={<ProtectedRoute requireKeepaAccess={true}><UploadedRunsMenu /></ProtectedRoute>} />
+          <Route path="daily-run/uploaded/:vendor" element={<ProtectedRoute requireKeepaAccess={true}><UploadedVendorDailyRun /></ProtectedRoute>} />
           <Route path="daily-run/dnk" element={<ProtectedRoute requireKeepaAccess={true}><DNKDailyRun /></ProtectedRoute>} />
           <Route path="daily-run/clk" element={<ProtectedRoute requireKeepaAccess={true}><CLKDailyRun /></ProtectedRoute>} />
           <Route path="daily-run/obz" element={<ProtectedRoute requireKeepaAccess={true}><OBZDailyRun /></ProtectedRoute>} />

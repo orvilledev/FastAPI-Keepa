@@ -144,14 +144,8 @@ export default function Sidebar() {
     (hoveredNav === null && routeActive) || hoveredNav === id
 
   const dailyRunsMenuItems = [
-    { path: '/daily-run/dnk', label: 'DNK Daily Run', icon: 'refresh' as const },
-    { path: '/daily-run/clk', label: 'CLK Daily Run', icon: 'refresh' as const },
-    { path: '/daily-run/obz', label: 'OBZ Daily Run', icon: 'refresh' as const },
-    { path: '/daily-run/ref', label: 'REF Daily Run', icon: 'refresh' as const },
-    { path: '/daily-run/bor', label: 'BOR Daily Run', icon: 'refresh' as const },
-    { path: '/daily-run/sff', label: 'SFF Daily Run', icon: 'refresh' as const },
-    { path: '/daily-run/tev', label: 'TEV Daily Run', icon: 'refresh' as const },
-    { path: '/daily-run/cha', label: 'CHA Daily Run', icon: 'refresh' as const },
+    { path: '/daily-run/api', label: 'API Daily Runs', icon: 'refresh' as const },
+    { path: '/daily-run/uploaded', label: 'Uploaded Runs', icon: 'refresh' as const },
   ]
 
   const manageUPCsMenuItems = [

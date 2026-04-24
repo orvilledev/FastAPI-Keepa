@@ -116,17 +116,19 @@ async def run_daily_job_for_category(category: str = 'dnk'):
         db = get_supabase()
         processor = BatchProcessor()
         custom_recipients = None
+        input_mode = "api"
 
         try:
             category_settings_response = (
                 db.table("scheduler_settings")
-                .select("email_recipients")
+                .select("email_recipients, input_mode")
                 .eq("category", category)
                 .limit(1)
                 .execute()
             )
             if category_settings_response.data:
                 custom_recipients = category_settings_response.data[0].get("email_recipients")
+                input_mode = (category_settings_response.data[0].get("input_mode") or "api").strip().lower()
 
         except Exception as recipients_err:
             logger.warning(f"Could not load scheduler email recipients for {category.upper()}: {recipients_err}")
@@ -142,13 +144,49 @@ async def run_daily_job_for_category(category: str = 'dnk'):
         from uuid import UUID
         admin_uuid = UUID(admin_id)
 
-        # Process UPCs for the specified category (paginate past PostgREST 1000-row default)
-        upc_repo = UPCRepository(db)
-        upcs = upc_repo.get_all_upc_codes(category)
+        # Resolve UPC source for this run mode.
+        upcs: List[str] = []
+        if input_mode == "uploaded":
+            local_today = datetime.now(config.timezone).date().isoformat()
+            uploaded_response = (
+                db.table("scheduler_uploaded_reports")
+                .select("id, upcs")
+                .eq("category", category)
+                .eq("uploaded_for_date", local_today)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if uploaded_response.data:
+                upcs = [str(x).strip() for x in (uploaded_response.data[0].get("upcs") or []) if str(x).strip()]
+            else:
+                logger.warning(
+                    "No uploaded report found for %s on %s; creating failed daily run entry",
+                    category.upper(),
+                    local_today,
+                )
+                db.table("batch_jobs").insert({
+                    "job_name": f"Daily {category.upper()} Uploaded Report - {current_time.strftime('%Y-%m-%d')}",
+                    "status": "failed",
+                    "total_batches": 0,
+                    "completed_batches": 0,
+                    "created_by": str(admin_uuid),
+                    "completed_at": datetime.utcnow().isoformat(),
+                    "error_message": "Missing uploaded Keepa report for scheduled run date.",
+                    "email_recipients": custom_recipients,
+                    "map_vendor_type": category,
+                    "keepa_offers_limit": settings.keepa_offers_limit,
+                    "off_price_scope": "buybox_and_non_buybox_below_map",
+                }).execute()
+                return
+        else:
+            upc_repo = UPCRepository(db)
+            upcs = upc_repo.get_all_upc_codes(category)
 
         if upcs:
             logger.info(f"Found {len(upcs)} {category.upper()} UPCs to process")
-            job_name = f"Daily {category.upper()} Off Price Report - {current_time.strftime('%Y-%m-%d')}"
+            job_name_prefix = "Uploaded Report" if input_mode == "uploaded" else "Off Price Report"
+            job_name = f"Daily {category.upper()} {job_name_prefix} - {current_time.strftime('%Y-%m-%d')}"
             job_id = await processor.create_batch_job(
                 job_name=job_name,
                 upcs=upcs,

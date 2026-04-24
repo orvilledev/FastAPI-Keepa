@@ -443,6 +443,7 @@ export const schedulerApi = {
       custom_days?: string[]
       anchor_date?: string | null
       email_recipients?: string | null
+      input_mode?: 'api' | 'uploaded'
     },
     category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' = 'dnk'
   ) => {
@@ -483,6 +484,39 @@ export const schedulerApi = {
       }>
     }>('/api/v1/scheduler/calendar')
     return response.data
+  },
+  uploadReport: async (file: File, category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await api.post(`/api/v1/scheduler/uploaded-report?category=${category}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data as {
+      message: string
+      category: string
+      filename: string
+      uploaded_for_date: string
+      upc_count: number
+    }
+  },
+  getLatestUploadedReport: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
+    const response = await api.get(`/api/v1/scheduler/uploaded-report/latest?category=${category}`)
+    return response.data as {
+      report: null | {
+        id: string
+        category: string
+        filename: string
+        uploaded_for_date: string
+        upc_count: number
+        created_at: string
+      }
+    }
+  },
+  rerunUploadedReport: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
+    const response = await api.post(`/api/v1/scheduler/uploaded-report/rerun?category=${category}`)
+    return response.data as { message: string }
   },
 }
 

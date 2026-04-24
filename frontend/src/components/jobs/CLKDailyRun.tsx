@@ -47,6 +47,7 @@ export default function CLKDailyRun() {
   })
   const [savingSettings, setSavingSettings] = useState(false)
   const [togglingEnabled, setTogglingEnabled] = useState(false)
+  const [switchingInputMode, setSwitchingInputMode] = useState(false)
 
   useEffect(() => {
     checkKeepaAccess()
@@ -87,6 +88,7 @@ export default function CLKDailyRun() {
       const normalizedSettings = {
         ...settings,
         run_mode: settings.run_mode || 'daily',
+        input_mode: settings.input_mode || 'api',
         custom_days: settings.custom_days || [],
         anchor_date: settings.anchor_date || null,
         email_recipients: settings.email_recipients || '',
@@ -102,6 +104,7 @@ export default function CLKDailyRun() {
         minute: 0,
         enabled: true,
         run_mode: 'daily' as const,
+        input_mode: 'api' as const,
         custom_days: [],
         anchor_date: null,
         email_recipients: '',
@@ -146,6 +149,21 @@ export default function CLKDailyRun() {
       setError(err.response?.data?.detail || 'Failed to toggle scheduler')
     } finally {
       setTogglingEnabled(false)
+    }
+  }
+
+  const handleInputModeChange = async (mode: 'api' | 'uploaded') => {
+    if (!schedulerSettings || schedulerSettings.input_mode === mode) return
+    try {
+      setSwitchingInputMode(true)
+      setError('')
+      await schedulerApi.updateSettings({ input_mode: mode }, 'clk')
+      await loadSchedulerSettings()
+      await loadNextRun()
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to update input mode')
+    } finally {
+      setSwitchingInputMode(false)
     }
   }
 
@@ -248,8 +266,40 @@ export default function CLKDailyRun() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">CLK Daily Run</h1>
           <p className="mt-1 text-sm text-gray-500">Manage and view CLK Daily Email Runs</p>
+          <p className="mt-2 text-xs text-gray-600">
+            Input Mode:{' '}
+            <span className={`px-2 py-0.5 rounded font-semibold ${schedulerSettings?.input_mode === 'uploaded' ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}`}>
+              {schedulerSettings?.input_mode === 'uploaded' ? 'Uploaded' : 'API'}
+            </span>
+          </p>
         </div>
         <div className="flex items-center gap-3">
+          <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => handleInputModeChange('api')}
+              disabled={switchingInputMode || !schedulerSettings}
+              className={`px-3 py-2 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                schedulerSettings?.input_mode !== 'uploaded'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              API
+            </button>
+            <button
+              type="button"
+              onClick={() => handleInputModeChange('uploaded')}
+              disabled={switchingInputMode || !schedulerSettings}
+              className={`px-3 py-2 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                schedulerSettings?.input_mode === 'uploaded'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Uploaded
+            </button>
+          </div>
           <button
             onClick={handleToggleEnabled}
             disabled={togglingEnabled || !schedulerSettings}
@@ -446,6 +496,11 @@ export default function CLKDailyRun() {
             </div>
 
             <div className="space-y-4">
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <p className="text-xs text-gray-700">
+                  Input mode is managed from the API/Uploaded toggle on the page header.
+                </p>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Timezone

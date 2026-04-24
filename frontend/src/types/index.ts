@@ -179,6 +179,7 @@ export interface SchedulerSettings {
   minute: number
   enabled: boolean
   run_mode: 'daily' | 'every_other_day' | 'custom_days'
+  input_mode?: 'api' | 'uploaded'
   custom_days: string[]
   anchor_date?: string | null
   email_recipients?: string | null
