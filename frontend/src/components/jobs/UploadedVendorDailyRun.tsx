@@ -13,6 +13,7 @@ export default function UploadedVendorDailyRun() {
   const [parsedUpcs, setParsedUpcs] = useState<string[]>([])
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [latestUpload, setLatestUpload] = useState<{
+    id: string
     filename: string
     uploaded_for_date: string
     upc_count: number
@@ -182,6 +183,29 @@ export default function UploadedVendorDailyRun() {
     }
   }
 
+  const handleDeleteLatestUpload = async () => {
+    if (!latestUpload) return
+    const confirmed = window.confirm(
+      `Delete uploaded report "${latestUpload.filename}" for ${normalizedVendor.toUpperCase()}?`
+    )
+    if (!confirmed) return
+
+    setLoading(true)
+    setError('')
+    setSuccess('')
+    try {
+      const category = normalizedVendor as 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
+      await schedulerApi.deleteUploadedReport(latestUpload.id, category)
+      setLatestUpload(null)
+      setSuccess('Uploaded report deleted.')
+      await loadLatestUpload(normalizedVendor)
+    } catch (deleteErr: any) {
+      setError(deleteErr?.response?.data?.detail || 'Failed to delete uploaded report.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (SUPPORTED_VENDORS.has(normalizedVendor)) {
       void loadLatestUpload(normalizedVendor)
@@ -241,6 +265,16 @@ export default function UploadedVendorDailyRun() {
             <p className="text-xs text-blue-800 mt-1">
               {latestUpload.filename} | {latestUpload.upc_count} UPCs | date {latestUpload.uploaded_for_date}
             </p>
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={handleDeleteLatestUpload}
+                disabled={loading}
+                className="px-3 py-1.5 rounded-md border border-red-300 text-red-700 bg-white hover:bg-red-50 disabled:opacity-50 text-sm"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         )}
 

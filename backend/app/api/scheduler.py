@@ -145,6 +145,29 @@ def _extract_uploaded_rows(filename: str, raw: bytes) -> tuple[List[dict], dict]
     lower_name = (filename or "").lower()
 
     if lower_name.endswith((".csv", ".txt", ".tsv")):
+        # Fast path: parse bytes directly with pandas C engine + known delimiters.
+        csv_usecols = [0, 2, 3, 5, 7, 20]
+        sep_candidates = ["\t"] if lower_name.endswith(".tsv") else [",", "\t", ";", "|"]
+        for enc in ("utf-8-sig", "utf-16", "latin-1", "cp1252"):
+            for sep in sep_candidates:
+                try:
+                    df = pd.read_csv(
+                        BytesIO(raw),
+                        header=None,
+                        dtype=str,
+                        sep=sep,
+                        engine="c",
+                        encoding=enc,
+                        usecols=csv_usecols,
+                        na_filter=False,
+                    )
+                    rows = _extract_rows_from_dataframe(df)
+                    if rows:
+                        return rows, {"file_kind": "text", "sheet_count": 1}
+                except Exception:
+                    continue
+
+        # Fallback: decode text and use python parser only if fast path failed.
         text = None
         for enc in ("utf-8-sig", "utf-16", "latin-1", "cp1252"):
             try:
@@ -168,7 +191,14 @@ def _extract_uploaded_rows(filename: str, raw: bytes) -> tuple[List[dict], dict]
     if lower_name.endswith(excel_exts):
         buffer = BytesIO(raw)
         try:
-            sheets = pd.read_excel(buffer, sheet_name=None, header=None, dtype=str)
+            # Read only needed columns to reduce parse time/memory.
+            sheets = pd.read_excel(
+                buffer,
+                sheet_name=None,
+                header=None,
+                dtype=str,
+                usecols="A,C,D,F,H,U",
+            )
         except Exception as first_err:
             # Some files masquerade as Excel but are csv-ish; fallback to text parse.
             try:
@@ -645,6 +675,30 @@ async def get_latest_uploaded_report(
     )
     report = response.data[0] if response.data else None
     return {"report": report}
+
+
+@router.delete("/scheduler/uploaded-report/{report_id}")
+@handle_api_errors("delete uploaded scheduler report")
+async def delete_uploaded_report(
+    report_id: str,
+    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Delete one uploaded scheduler report by id for a category."""
+    lookup = (
+        db.table("scheduler_uploaded_reports")
+        .select("id")
+        .eq("id", report_id)
+        .eq("category", category)
+        .limit(1)
+        .execute()
+    )
+    if not lookup.data:
+        raise HTTPException(status_code=404, detail="Uploaded report not found for this category")
+
+    db.table("scheduler_uploaded_reports").delete().eq("id", report_id).eq("category", category).execute()
+    return {"message": "Uploaded report deleted", "id": report_id, "category": category}
 
 
 @router.post("/scheduler/uploaded-report/rerun")

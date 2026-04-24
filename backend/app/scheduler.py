@@ -264,6 +264,48 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                         continue
                     upc_to_rows.setdefault(upc, []).append(row)
 
+                # Build synthetic keepa payloads and alerts once per UPC (reuse per batch item).
+                keepa_by_upc = {}
+                alerts_by_upc = {}
+                for upc, rows in upc_to_rows.items():
+                    keepa_data = _build_synthetic_keepa_for_upc(rows)
+                    keepa_by_upc[upc] = keepa_data
+                    map_price = map_prices.get(upc)
+                    if map_price is None:
+                        continue
+                    try:
+                        alerts = analyzer.detect_off_price_sellers(
+                            upc=upc,
+                            keepa_data=keepa_data,
+                            map_price=float(map_price),
+                        )
+                        alerts_by_upc[upc] = alerts
+                    except Exception as alert_err:
+                        logger.warning("Could not evaluate uploaded off-price alerts for UPC %s: %s", upc, alert_err)
+
+                # Flatten alert rows once and insert in chunks.
+                alert_rows = []
+                now_iso = datetime.utcnow().isoformat()
+                for upc, alerts in alerts_by_upc.items():
+                    map_price = map_prices.get(upc)
+                    keepa_data = keepa_by_upc.get(upc, {})
+                    for alert in alerts:
+                        alert_rows.append({
+                            "batch_job_id": str(job_id),
+                            "upc": upc,
+                            "seller_name": alert.get("seller_name"),
+                            "current_price": alert.get("current_price"),
+                            "historical_price": float(map_price) if map_price is not None else None,
+                            "price_change_percent": alert.get("price_change_percent"),
+                            "detected_at": now_iso,
+                            "keepa_data": keepa_data,
+                        })
+
+                if alert_rows:
+                    chunk_size = 500
+                    for i in range(0, len(alert_rows), chunk_size):
+                        db.table("price_alerts").insert(alert_rows[i:i + chunk_size]).execute()
+
                 # Fill existing batch items with synthetic Keepa-like payloads.
                 batches_resp = db.table("upc_batches").select("id").eq("batch_job_id", str(job_id)).execute()
                 for batch in batches_resp.data or []:
@@ -272,35 +314,13 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                     completed_count = 0
                     for item in items_resp.data or []:
                         upc = str(item.get("upc") or "").strip()
-                        keepa_data = _build_synthetic_keepa_for_upc(upc_to_rows.get(upc, []))
+                        keepa_data = keepa_by_upc.get(upc) or _build_synthetic_keepa_for_upc(upc_to_rows.get(upc, []))
                         db.table("upc_batch_items").update({
                             "status": "completed",
                             "keepa_data": keepa_data,
                             "processed_at": datetime.utcnow().isoformat(),
                         }).eq("id", item["id"]).execute()
                         completed_count += 1
-
-                        map_price = map_prices.get(upc)
-                        try:
-                            if map_price is not None:
-                                alerts = analyzer.detect_off_price_sellers(
-                                    upc=upc,
-                                    keepa_data=keepa_data,
-                                    map_price=float(map_price),
-                                )
-                                for alert in alerts:
-                                    db.table("price_alerts").insert({
-                                        "batch_job_id": str(job_id),
-                                        "upc": upc,
-                                        "seller_name": alert.get("seller_name"),
-                                        "current_price": alert.get("current_price"),
-                                        "historical_price": float(map_price),
-                                        "price_change_percent": alert.get("price_change_percent"),
-                                        "detected_at": datetime.utcnow().isoformat(),
-                                        "keepa_data": keepa_data,
-                                    }).execute()
-                        except Exception as alert_err:
-                            logger.warning("Could not evaluate uploaded off-price alerts for UPC %s: %s", upc, alert_err)
 
                     db.table("upc_batches").update({
                         "status": "completed",

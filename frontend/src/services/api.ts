@@ -519,6 +519,13 @@ export const schedulerApi = {
       }
     }
   },
+  deleteUploadedReport: async (
+    reportId: string,
+    category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
+  ) => {
+    const response = await api.delete(`/api/v1/scheduler/uploaded-report/${reportId}?category=${category}`)
+    return response.data as { message: string; id: string; category: string }
+  },
   rerunUploadedReport: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
     const response = await api.post(`/api/v1/scheduler/uploaded-report/rerun?category=${category}`)
     return response.data as { message: string }

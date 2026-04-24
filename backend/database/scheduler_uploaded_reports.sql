@@ -37,6 +37,10 @@ CREATE POLICY "Authenticated users can insert scheduler uploaded reports"
   ON scheduler_uploaded_reports FOR INSERT
   WITH CHECK (auth.role() = 'authenticated');
 
+CREATE POLICY "Authenticated users can delete scheduler uploaded reports"
+  ON scheduler_uploaded_reports FOR DELETE
+  USING (auth.role() = 'authenticated');
+
 COMMENT ON COLUMN scheduler_settings.input_mode IS 'Run input mode: api or uploaded';
 COMMENT ON TABLE scheduler_uploaded_reports IS 'Uploaded daily-run source files parsed into UPC lists';
 COMMENT ON COLUMN scheduler_uploaded_reports.parsed_rows IS 'Parsed fixed-schema rows: upc/title/asin/seller/seller_price/amazon_link';
