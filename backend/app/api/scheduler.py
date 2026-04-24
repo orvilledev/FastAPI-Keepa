@@ -46,6 +46,39 @@ def _extract_category_from_daily_job_name(job_name: str) -> Optional[str]:
     return match.group(1).lower()
 
 
+def _normalize_upc_token(raw: str) -> Optional[str]:
+    """Normalize one CSV/TXT token into a UPC string."""
+    if raw is None:
+        return None
+    cleaned = str(raw).strip().strip('"').strip("'")
+    if not cleaned:
+        return None
+    # Common spreadsheet export form, e.g. 012345678905.0
+    if re.fullmatch(r"\d{8,14}\.0+", cleaned):
+        cleaned = cleaned.split(".", 1)[0]
+    digits = re.sub(r"\D", "", cleaned)
+    if 8 <= len(digits) <= 14:
+        return digits
+    return None
+
+
+def _extract_upcs_from_text(text: str) -> List[str]:
+    """Extract unique UPCs from delimited/plain text content."""
+    found: List[str] = []
+    seen = set()
+    for line in text.splitlines():
+        for token in re.split(r"[,;\t|]", line):
+            normalized = _normalize_upc_token(token)
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                found.append(normalized)
+        for match in UPC_RE.findall(line):
+            if match not in seen:
+                seen.add(match)
+                found.append(match)
+    return found
+
+
 @router.get("/scheduler/next-run")
 async def get_next_scheduled_run(
     category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
@@ -441,18 +474,27 @@ async def upload_scheduler_report(
     """Upload a Keepa report file (csv/txt) used by uploaded daily run mode."""
     filename = (file.filename or "").strip()
     lower_name = filename.lower()
-    if not (lower_name.endswith(".csv") or lower_name.endswith(".txt")):
-        raise HTTPException(status_code=400, detail="Only .csv and .txt files are supported")
+    content_type = (file.content_type or "").lower()
+    name_ok = lower_name.endswith(".csv") or lower_name.endswith(".txt")
+    mime_ok = (
+        "csv" in content_type
+        or content_type.startswith("text/")
+        or content_type == "application/vnd.ms-excel"
+    )
+    if not name_ok and not mime_ok:
+        raise HTTPException(status_code=400, detail="File type not recognized. Upload CSV or TXT.")
 
     raw = await file.read()
-    text = raw.decode("utf-8", errors="ignore")
-    upcs = []
-    seen = set()
-    for match in UPC_RE.findall(text):
-        if match in seen:
+    text = ""
+    for enc in ("utf-8-sig", "utf-16", "latin-1"):
+        try:
+            text = raw.decode(enc)
+            break
+        except Exception:
             continue
-        seen.add(match)
-        upcs.append(match)
+    if not text:
+        text = raw.decode("utf-8", errors="ignore")
+    upcs = _extract_upcs_from_text(text)
     if not upcs:
         raise HTTPException(status_code=400, detail="No valid UPC values found in uploaded file")
 

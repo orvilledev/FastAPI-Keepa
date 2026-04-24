@@ -488,11 +488,8 @@ export const schedulerApi = {
   uploadReport: async (file: File, category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
     const formData = new FormData()
     formData.append('file', file)
-    const response = await api.post(`/api/v1/scheduler/uploaded-report?category=${category}`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    })
+    // Let browser/axios set multipart boundary automatically.
+    const response = await api.post(`/api/v1/scheduler/uploaded-report?category=${category}`, formData)
     return response.data as {
       message: string
       category: string

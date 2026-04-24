@@ -41,14 +41,34 @@ export default function UploadedVendorDailyRun() {
 
   const previewUpcs = useMemo(() => parsedUpcs.slice(0, 10), [parsedUpcs])
 
+  const normalizeUpcToken = (raw: string): string | null => {
+    const cleaned = raw.trim().replace(/^"+|"+$/g, '').replace(/^'+|'+$/g, '')
+    if (!cleaned) return null
+    const withoutDecimal = cleaned.match(/^\d{8,14}\.0+$/) ? cleaned.split('.')[0] : cleaned
+    const digitsOnly = withoutDecimal.replace(/\D/g, '')
+    if (!digitsOnly || digitsOnly.length < 8 || digitsOnly.length > 14) return null
+    return digitsOnly
+  }
+
   const extractUpcsFromText = (text: string): string[] => {
-    const upcMatches = text.match(/\b\d{8,14}\b/g) || []
     const deduped: string[] = []
     const seen = new Set<string>()
-    for (const upc of upcMatches) {
-      if (seen.has(upc)) continue
-      seen.add(upc)
-      deduped.push(upc)
+    const lines = text.split(/\r?\n/)
+    for (const line of lines) {
+      const parts = line.split(/[,\t;|]/g)
+      for (const part of parts) {
+        const normalized = normalizeUpcToken(part)
+        if (!normalized || seen.has(normalized)) continue
+        seen.add(normalized)
+        deduped.push(normalized)
+      }
+      // Fallback: still capture raw digit spans in line.
+      const matches = line.match(/\b\d{8,14}\b/g) || []
+      for (const m of matches) {
+        if (seen.has(m)) continue
+        seen.add(m)
+        deduped.push(m)
+      }
     }
     return deduped
   }
@@ -75,9 +95,16 @@ export default function UploadedVendorDailyRun() {
       return
     }
 
-    const lowerName = file.name.toLowerCase()
-    if (!lowerName.endsWith('.csv') && !lowerName.endsWith('.txt')) {
-      setError('Only .csv and .txt files are supported for uploaded runs right now.')
+    const lowerName = (file.name || '').toLowerCase()
+    const fileType = (file.type || '').toLowerCase()
+    const looksLikeCsvOrTxtByName = lowerName.endsWith('.csv') || lowerName.endsWith('.txt')
+    const looksLikeTextByMime =
+      fileType.includes('csv') ||
+      fileType.startsWith('text/') ||
+      fileType === 'application/vnd.ms-excel'
+
+    if (!looksLikeCsvOrTxtByName && !looksLikeTextByMime) {
+      setError('File type not recognized. Please upload a CSV or TXT file.')
       setSelectedFileName('')
       setParsedUpcs([])
       setUploadedFile(null)
@@ -170,7 +197,7 @@ export default function UploadedVendorDailyRun() {
           <input
             id="uploaded-run-file"
             type="file"
-            accept=".csv,.txt,text/plain,text/csv"
+            accept=".csv,.CSV,.txt,.TXT,text/plain,text/csv,application/vnd.ms-excel"
             onChange={handleFileChange}
             className="block w-full text-sm text-gray-700"
           />
