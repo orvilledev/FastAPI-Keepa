@@ -68,6 +68,44 @@ def _build_synthetic_keepa_for_upc(rows: List[dict]) -> dict:
         }]
     }
 
+
+def _expand_uploaded_payload_to_rows(payload: List[dict]) -> List[dict]:
+    """
+    Backward/forward compatible payload reader:
+    - old payload: list of row dicts with seller/seller_price
+    - compact payload: list of per-upc dicts with offers[]
+    """
+    if not payload:
+        return []
+    sample = payload[0] if isinstance(payload[0], dict) else {}
+    if "offers" not in sample:
+        return payload
+
+    expanded: List[dict] = []
+    for entry in payload:
+        if not isinstance(entry, dict):
+            continue
+        upc = str(entry.get("upc") or "").strip()
+        if not upc:
+            continue
+        base = {
+            "upc": upc,
+            "product_title": str(entry.get("product_title") or "").strip(),
+            "asin": str(entry.get("asin") or "").strip(),
+            "amazon_link": str(entry.get("amazon_link") or "").strip(),
+        }
+        offers = entry.get("offers") or []
+        if not offers:
+            expanded.append({**base, "seller": "", "seller_price": None})
+            continue
+        for offer in offers:
+            expanded.append({
+                **base,
+                "seller": str((offer or {}).get("seller") or "").strip(),
+                "seller_price": (offer or {}).get("seller_price"),
+            })
+    return expanded
+
 @dataclass
 class SchedulerConfig:
     """Configuration for the scheduler."""
@@ -213,7 +251,8 @@ async def run_daily_job_for_category(category: str = 'dnk'):
             if uploaded_response.data:
                 report = uploaded_response.data[0]
                 upcs = [str(x).strip() for x in (report.get("upcs") or []) if str(x).strip()]
-                uploaded_rows = report.get("parsed_rows") or []
+                uploaded_payload = report.get("parsed_rows") or []
+                uploaded_rows = _expand_uploaded_payload_to_rows(uploaded_payload)
             else:
                 logger.warning(
                     "No uploaded report found for %s on %s; creating failed daily run entry",
@@ -311,16 +350,25 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                 for batch in batches_resp.data or []:
                     batch_id = batch["id"]
                     items_resp = db.table("upc_batch_items").select("id, upc").eq("upc_batch_id", batch_id).execute()
-                    completed_count = 0
-                    for item in items_resp.data or []:
+                    batch_items = items_resp.data or []
+                    completed_count = len(batch_items)
+                    processed_at_iso = datetime.utcnow().isoformat()
+
+                    # Bulk-update item rows grouped by UPC to reduce DB round trips.
+                    ids_by_upc = {}
+                    for item in batch_items:
                         upc = str(item.get("upc") or "").strip()
+                        if not upc:
+                            continue
+                        ids_by_upc.setdefault(upc, []).append(item["id"])
+
+                    for upc, item_ids in ids_by_upc.items():
                         keepa_data = keepa_by_upc.get(upc) or _build_synthetic_keepa_for_upc(upc_to_rows.get(upc, []))
                         db.table("upc_batch_items").update({
                             "status": "completed",
                             "keepa_data": keepa_data,
-                            "processed_at": datetime.utcnow().isoformat(),
-                        }).eq("id", item["id"]).execute()
-                        completed_count += 1
+                            "processed_at": processed_at_iso,
+                        }).in_("id", item_ids).execute()
 
                     db.table("upc_batches").update({
                         "status": "completed",

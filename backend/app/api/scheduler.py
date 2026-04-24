@@ -140,6 +140,56 @@ def _extract_rows_from_dataframe(df: pd.DataFrame) -> List[dict]:
     return rows
 
 
+def _compress_rows_by_upc(rows: List[dict]) -> List[dict]:
+    """
+    Compact parsed rows to reduce DB payload:
+      [
+        {
+          "upc": "...",
+          "product_title": "...",
+          "asin": "...",
+          "amazon_link": "...",
+          "offers": [{"seller": "...", "seller_price": 12.34}, ...]
+        }
+      ]
+    """
+    compact_by_upc = {}
+    offer_seen_by_upc = {}
+
+    for row in rows:
+        upc = str(row.get("upc") or "").strip()
+        if not upc:
+            continue
+        if upc not in compact_by_upc:
+            compact_by_upc[upc] = {
+                "upc": upc,
+                "product_title": str(row.get("product_title") or "").strip(),
+                "asin": str(row.get("asin") or "").strip(),
+                "amazon_link": str(row.get("amazon_link") or "").strip(),
+                "offers": [],
+            }
+            offer_seen_by_upc[upc] = set()
+
+        seller = str(row.get("seller") or "").strip()
+        seller_price = row.get("seller_price")
+        if seller_price is None:
+            continue
+        try:
+            price_num = float(seller_price)
+        except Exception:
+            continue
+        offer_key = (seller.lower(), round(price_num, 4))
+        if offer_key in offer_seen_by_upc[upc]:
+            continue
+        offer_seen_by_upc[upc].add(offer_key)
+        compact_by_upc[upc]["offers"].append({
+            "seller": seller,
+            "seller_price": price_num,
+        })
+
+    return list(compact_by_upc.values())
+
+
 def _extract_uploaded_rows(filename: str, raw: bytes) -> tuple[List[dict], dict]:
     """Parse fixed-schema rows from CSV/TXT/Excel-like uploads."""
     lower_name = (filename or "").lower()
@@ -623,10 +673,11 @@ async def upload_scheduler_report(
     parsed_rows, parse_meta = _extract_uploaded_rows(filename, raw)
     if not parsed_rows:
         raise HTTPException(status_code=400, detail="No valid UPC values found in uploaded file")
+    compact_rows = _compress_rows_by_upc(parsed_rows)
     # Distinct UPC list for quick scheduler prechecks.
     seen_upcs = set()
     upcs: List[str] = []
-    for row in parsed_rows:
+    for row in compact_rows:
         u = str(row.get("upc") or "").strip()
         if not u or u in seen_upcs:
             continue
@@ -640,7 +691,7 @@ async def upload_scheduler_report(
         "content_type": file.content_type,
         "uploaded_for_date": today,
         "upcs": upcs,
-        "parsed_rows": parsed_rows,
+        "parsed_rows": compact_rows,
         "upc_count": len(upcs),
         "uploaded_by": current_user["id"],
     }).execute()
@@ -654,6 +705,7 @@ async def upload_scheduler_report(
         "file_kind": parse_meta.get("file_kind"),
         "sheet_count": parse_meta.get("sheet_count"),
         "row_count": len(parsed_rows),
+        "stored_row_count": len(compact_rows),
     }
 
 
