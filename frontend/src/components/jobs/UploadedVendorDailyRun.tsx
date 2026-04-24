@@ -224,11 +224,9 @@ export default function UploadedVendorDailyRun() {
     setSuccess('')
     try {
       const category = normalizedVendor as 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
-      await schedulerApi.updateSettings({
-        input_mode: 'uploaded',
-        email_recipients: emailRecipients.trim() || null,
-      }, category)
       await schedulerApi.rerunUploadedReport(category)
+      // Refresh immediately for snappier queue feedback.
+      await pollLatestUploadStatus(normalizedVendor)
       setSuccess('Uploaded-mode run has been queued.')
     } catch (queueErr: any) {
       setError(queueErr?.response?.data?.detail || 'Failed to queue uploaded run.')
