@@ -274,6 +274,47 @@ def _extract_uploaded_rows(filename: str, raw: bytes) -> tuple[List[dict], dict]
     return rows_fallback, {"file_kind": "text_fallback", "sheet_count": 1}
 
 
+def _process_uploaded_report_in_background(report_id: str, filename: str, raw: bytes) -> None:
+    """Parse uploaded file after request returns, then update stored report row."""
+    db = get_supabase()
+    try:
+        db.table("scheduler_uploaded_reports").update({
+            "parse_status": "processing",
+            "parse_error": None,
+        }).eq("id", report_id).execute()
+
+        parsed_rows, _ = _extract_uploaded_rows(filename, raw)
+        if not parsed_rows:
+            raise ValueError("No valid UPC values found in uploaded file")
+
+        compact_rows = _compress_rows_by_upc(parsed_rows)
+        seen_upcs = set()
+        upcs: List[str] = []
+        for row in compact_rows:
+            u = str(row.get("upc") or "").strip()
+            if not u or u in seen_upcs:
+                continue
+            seen_upcs.add(u)
+            upcs.append(u)
+
+        db.table("scheduler_uploaded_reports").update({
+            "upcs": upcs,
+            "parsed_rows": compact_rows,
+            "upc_count": len(upcs),
+            "row_count": len(parsed_rows),
+            "parse_status": "completed",
+            "parse_error": None,
+            "parsed_at": datetime.utcnow().isoformat(),
+        }).eq("id", report_id).execute()
+    except Exception as e:
+        logger.exception("Failed to parse uploaded report %s", report_id)
+        db.table("scheduler_uploaded_reports").update({
+            "parse_status": "failed",
+            "parse_error": str(e),
+            "parsed_at": datetime.utcnow().isoformat(),
+        }).eq("id", report_id).execute()
+
+
 @router.get("/scheduler/next-run")
 async def get_next_scheduled_run(
     category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
@@ -661,6 +702,7 @@ async def update_scheduler_settings_endpoint(
 @router.post("/scheduler/uploaded-report")
 @handle_api_errors("upload scheduler report")
 async def upload_scheduler_report(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
     current_user: dict = Depends(get_current_user),
@@ -670,42 +712,35 @@ async def upload_scheduler_report(
     filename = (file.filename or "").strip()
 
     raw = await file.read()
-    parsed_rows, parse_meta = _extract_uploaded_rows(filename, raw)
-    if not parsed_rows:
-        raise HTTPException(status_code=400, detail="No valid UPC values found in uploaded file")
-    compact_rows = _compress_rows_by_upc(parsed_rows)
-    # Distinct UPC list for quick scheduler prechecks.
-    seen_upcs = set()
-    upcs: List[str] = []
-    for row in compact_rows:
-        u = str(row.get("upc") or "").strip()
-        if not u or u in seen_upcs:
-            continue
-        seen_upcs.add(u)
-        upcs.append(u)
-
     today = datetime.utcnow().date().isoformat()
-    db.table("scheduler_uploaded_reports").insert({
+    insert_resp = db.table("scheduler_uploaded_reports").insert({
         "category": category,
         "filename": filename,
         "content_type": file.content_type,
         "uploaded_for_date": today,
-        "upcs": upcs,
-        "parsed_rows": compact_rows,
-        "upc_count": len(upcs),
+        "upcs": [],
+        "parsed_rows": [],
+        "upc_count": 0,
+        "row_count": 0,
+        "parse_status": "pending",
+        "parse_error": None,
         "uploaded_by": current_user["id"],
     }).execute()
+    report = insert_resp.data[0] if insert_resp.data else None
+    report_id = str(report["id"]) if report and report.get("id") else None
+    if not report_id:
+        raise HTTPException(status_code=500, detail="Failed to create uploaded report record")
+
+    background_tasks.add_task(_process_uploaded_report_in_background, report_id, filename, raw)
 
     return {
-        "message": "Uploaded report saved",
+        "message": "Uploaded report accepted. Parsing in progress.",
+        "report_id": report_id,
         "category": category,
         "filename": filename,
         "uploaded_for_date": today,
-        "upc_count": len(upcs),
-        "file_kind": parse_meta.get("file_kind"),
-        "sheet_count": parse_meta.get("sheet_count"),
-        "row_count": len(parsed_rows),
-        "stored_row_count": len(compact_rows),
+        "upc_count": 0,
+        "parse_status": "pending",
     }
 
 
@@ -719,7 +754,7 @@ async def get_latest_uploaded_report(
     """Get latest uploaded scheduler report metadata for a category."""
     response = (
         db.table("scheduler_uploaded_reports")
-        .select("id, category, filename, uploaded_for_date, upc_count, created_at")
+        .select("id, category, filename, uploaded_for_date, upc_count, row_count, parse_status, parse_error, parsed_at, created_at")
         .eq("category", category)
         .order("created_at", desc=True)
         .limit(1)
@@ -761,6 +796,24 @@ async def rerun_uploaded_report(
     current_user: dict = Depends(get_current_user),
 ):
     """Trigger an immediate uploaded-mode run for a category."""
+    db = get_supabase()
+    today = datetime.utcnow().date().isoformat()
+    latest = (
+        db.table("scheduler_uploaded_reports")
+        .select("id, parse_status")
+        .eq("category", category)
+        .eq("uploaded_for_date", today)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    report = latest.data[0] if latest.data else None
+    if not report:
+        raise HTTPException(status_code=400, detail="No uploaded report found for today.")
+    parse_status = (report.get("parse_status") or "").strip().lower()
+    if parse_status != "completed":
+        raise HTTPException(status_code=409, detail=f"Uploaded report is not ready yet (status: {parse_status or 'pending'}).")
+
     background_tasks.add_task(run_daily_job_for_category, category)
     return {"message": f"{category.upper()} uploaded run queued"}
 

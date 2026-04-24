@@ -498,12 +498,12 @@ export const schedulerApi = {
     const response = await api.post(`/api/v1/scheduler/uploaded-report?category=${category}`, formData)
     return response.data as {
       message: string
+      report_id: string
       category: string
       filename: string
       uploaded_for_date: string
       upc_count: number
-      file_kind?: 'excel' | 'text' | 'text_fallback'
-      sheet_count?: number | null
+      parse_status: 'pending' | 'processing' | 'completed' | 'failed'
     }
   },
   getLatestUploadedReport: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
@@ -515,6 +515,10 @@ export const schedulerApi = {
         filename: string
         uploaded_for_date: string
         upc_count: number
+        row_count?: number
+        parse_status?: 'pending' | 'processing' | 'completed' | 'failed'
+        parse_error?: string | null
+        parsed_at?: string | null
         created_at: string
       }
     }

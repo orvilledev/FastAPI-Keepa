@@ -241,7 +241,7 @@ async def run_daily_job_for_category(category: str = 'dnk'):
             local_today = datetime.now(config.timezone).date().isoformat()
             uploaded_response = (
                 db.table("scheduler_uploaded_reports")
-                .select("id, upcs, parsed_rows")
+                .select("id, upcs, parsed_rows, parse_status")
                 .eq("category", category)
                 .eq("uploaded_for_date", local_today)
                 .order("created_at", desc=True)
@@ -250,6 +250,28 @@ async def run_daily_job_for_category(category: str = 'dnk'):
             )
             if uploaded_response.data:
                 report = uploaded_response.data[0]
+                parse_status = (report.get("parse_status") or "").strip().lower()
+                if parse_status != "completed":
+                    logger.warning(
+                        "Uploaded report for %s on %s is not ready yet (status=%s); skipping run",
+                        category.upper(),
+                        local_today,
+                        parse_status or "pending",
+                    )
+                    db.table("batch_jobs").insert({
+                        "job_name": f"Daily {category.upper()} Uploaded Report - {current_time.strftime('%Y-%m-%d')}",
+                        "status": "failed",
+                        "total_batches": 0,
+                        "completed_batches": 0,
+                        "created_by": str(admin_uuid),
+                        "completed_at": datetime.utcnow().isoformat(),
+                        "error_message": f"Uploaded report not ready yet (status: {parse_status or 'pending'}).",
+                        "email_recipients": custom_recipients,
+                        "map_vendor_type": category,
+                        "keepa_offers_limit": settings.keepa_offers_limit,
+                        "off_price_scope": "buybox_and_non_buybox_below_map",
+                    }).execute()
+                    return
                 upcs = [str(x).strip() for x in (report.get("upcs") or []) if str(x).strip()]
                 uploaded_payload = report.get("parsed_rows") or []
                 uploaded_rows = _expand_uploaded_payload_to_rows(uploaded_payload)

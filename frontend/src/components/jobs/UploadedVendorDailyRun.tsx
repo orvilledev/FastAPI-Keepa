@@ -17,6 +17,10 @@ export default function UploadedVendorDailyRun() {
     filename: string
     uploaded_for_date: string
     upc_count: number
+    row_count?: number
+    parse_status?: 'pending' | 'processing' | 'completed' | 'failed'
+    parse_error?: string | null
+    parsed_at?: string | null
     created_at: string
   } | null>(null)
   const [emailRecipients, setEmailRecipients] = useState('')
@@ -108,6 +112,8 @@ export default function UploadedVendorDailyRun() {
       const latest = await schedulerApi.getLatestUploadedReport(vendorCode as 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha')
       if (latest.report) {
         setLatestUpload(latest.report)
+      } else {
+        setLatestUpload(null)
       }
     } catch {
       // non-blocking
@@ -154,7 +160,7 @@ export default function UploadedVendorDailyRun() {
     }
   }
 
-  const handleUploadAndQueueRun = async () => {
+  const handleUploadReport = async () => {
     if (!uploadedFile) {
       setError('Select a file before uploading.')
       return
@@ -164,20 +170,34 @@ export default function UploadedVendorDailyRun() {
     setSuccess('')
     try {
       const category = normalizedVendor as 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
-      const uploadResult = await schedulerApi.uploadReport(uploadedFile, category)
+      await schedulerApi.uploadReport(uploadedFile, category)
+      await schedulerApi.updateSettings({
+        input_mode: 'uploaded',
+        email_recipients: emailRecipients.trim() || null,
+      }, category)
+      await loadLatestUpload(normalizedVendor)
+      setSuccess('File uploaded. Parsing started in background. Queue the run after status is Completed.')
+    } catch (submitErr: any) {
+      setError(submitErr?.response?.data?.detail || 'Failed to upload report.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleQueueRun = async () => {
+    setLoading(true)
+    setError('')
+    setSuccess('')
+    try {
+      const category = normalizedVendor as 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
       await schedulerApi.updateSettings({
         input_mode: 'uploaded',
         email_recipients: emailRecipients.trim() || null,
       }, category)
       await schedulerApi.rerunUploadedReport(category)
-      await loadLatestUpload(normalizedVendor)
-      const excelSuffix =
-        uploadResult.file_kind === 'excel'
-          ? ` Parsed from ${uploadResult.sheet_count ?? 0} sheet(s), ${uploadResult.upc_count} UPCs.`
-          : ` Parsed ${uploadResult.upc_count} UPCs.`
-      setSuccess(`File uploaded. Uploaded-mode run has been queued.${excelSuffix}`)
-    } catch (submitErr: any) {
-      setError(submitErr?.response?.data?.detail || 'Failed to upload/queue uploaded run.')
+      setSuccess('Uploaded-mode run has been queued.')
+    } catch (queueErr: any) {
+      setError(queueErr?.response?.data?.detail || 'Failed to queue uploaded run.')
     } finally {
       setLoading(false)
     }
@@ -211,6 +231,15 @@ export default function UploadedVendorDailyRun() {
       void loadLatestUpload(normalizedVendor)
     }
   }, [normalizedVendor])
+
+  useEffect(() => {
+    const status = latestUpload?.parse_status
+    if (status !== 'pending' && status !== 'processing') return
+    const id = setInterval(() => {
+      void loadLatestUpload(normalizedVendor)
+    }, 2500)
+    return () => clearInterval(id)
+  }, [latestUpload?.id, latestUpload?.parse_status, normalizedVendor])
 
   return (
     <div className="space-y-6">
@@ -265,6 +294,13 @@ export default function UploadedVendorDailyRun() {
             <p className="text-xs text-blue-800 mt-1">
               {latestUpload.filename} | {latestUpload.upc_count} UPCs | date {latestUpload.uploaded_for_date}
             </p>
+            <p className="text-xs text-blue-800 mt-1">
+              Parse status: <span className="font-semibold">{(latestUpload.parse_status || 'pending').toUpperCase()}</span>
+              {latestUpload.row_count ? ` | Parsed rows: ${latestUpload.row_count}` : ''}
+            </p>
+            {latestUpload.parse_error && (
+              <p className="text-xs text-red-700 mt-1">{latestUpload.parse_error}</p>
+            )}
             <div className="mt-3">
               <button
                 type="button"
@@ -305,10 +341,18 @@ export default function UploadedVendorDailyRun() {
         <button
           type="button"
           disabled={loading || !uploadedFile}
-          onClick={handleUploadAndQueueRun}
+          onClick={handleUploadReport}
           className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
         >
-          {loading ? 'Submitting...' : 'Upload + Queue Run'}
+          {loading ? 'Submitting...' : 'Upload Report'}
+        </button>
+        <button
+          type="button"
+          disabled={loading || !latestUpload || latestUpload.parse_status !== 'completed'}
+          onClick={handleQueueRun}
+          className="px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 disabled:opacity-50"
+        >
+          {loading ? 'Submitting...' : 'Queue Uploaded Run'}
         </button>
       </div>
     </div>
