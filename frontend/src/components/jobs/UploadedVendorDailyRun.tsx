@@ -41,11 +41,39 @@ export default function UploadedVendorDailyRun() {
 
   const previewUpcs = useMemo(() => parsedUpcs.slice(0, 10), [parsedUpcs])
 
+  const scientificToIntegerString = (raw: string): string | null => {
+    const m = raw.trim().toLowerCase().match(/^([+-]?\d+(?:\.\d+)?)[e]([+-]?\d+)$/)
+    if (!m) return null
+    const mantissaRaw = m[1]
+    const exp = Number.parseInt(m[2], 10)
+    if (!Number.isFinite(exp)) return null
+
+    const sign = mantissaRaw.startsWith('-') ? '-' : ''
+    const mantissa = mantissaRaw.replace(/^[+-]/, '')
+    const [intPart, fracPart = ''] = mantissa.split('.')
+    const digits = `${intPart}${fracPart}`.replace(/^0+/, '') || '0'
+    const decimalPlaces = fracPart.length
+    const shift = exp - decimalPlaces
+
+    if (shift >= 0) {
+      return `${sign}${digits}${'0'.repeat(shift)}`
+    }
+
+    const cut = digits.length + shift
+    if (cut <= 0) return null
+    const whole = digits.slice(0, cut)
+    const fractional = digits.slice(cut)
+    if (fractional.replace(/0/g, '') !== '') return null
+    return `${sign}${whole}`
+  }
+
   const normalizeUpcToken = (raw: string): string | null => {
     const cleaned = raw.trim().replace(/^"+|"+$/g, '').replace(/^'+|'+$/g, '')
     if (!cleaned) return null
     const withoutDecimal = cleaned.match(/^\d{8,14}\.0+$/) ? cleaned.split('.')[0] : cleaned
-    const digitsOnly = withoutDecimal.replace(/\D/g, '')
+    const sciAsInt = scientificToIntegerString(withoutDecimal)
+    const normalizedSource = sciAsInt ?? withoutDecimal
+    const digitsOnly = normalizedSource.replace(/\D/g, '')
     if (!digitsOnly || digitsOnly.length < 8 || digitsOnly.length > 14) return null
     return digitsOnly
   }
@@ -95,35 +123,17 @@ export default function UploadedVendorDailyRun() {
       return
     }
 
-    const lowerName = (file.name || '').toLowerCase()
-    const fileType = (file.type || '').toLowerCase()
-    const looksLikeCsvOrTxtByName = lowerName.endsWith('.csv') || lowerName.endsWith('.txt')
-    const looksLikeTextByMime =
-      fileType.includes('csv') ||
-      fileType.startsWith('text/') ||
-      fileType === 'application/vnd.ms-excel'
-
-    if (!looksLikeCsvOrTxtByName && !looksLikeTextByMime) {
-      setError('File type not recognized. Please upload a CSV or TXT file.')
-      setSelectedFileName('')
-      setParsedUpcs([])
-      setUploadedFile(null)
-      return
-    }
-
     try {
       const content = await file.text()
       const upcs = extractUpcsFromText(content)
-      if (!upcs.length) {
-        setError('No valid UPC values found in this file.')
-        setSelectedFileName(file.name)
-        setParsedUpcs([])
-        return
-      }
       setSelectedFileName(file.name)
       setParsedUpcs(upcs)
       setUploadedFile(file)
-      setSuccess(`Loaded ${upcs.length} UPCs from ${file.name}.`)
+      if (upcs.length) {
+        setSuccess(`Loaded ${upcs.length} UPCs from ${file.name}.`)
+      } else {
+        setError('Preview found no UPCs in this file. You can still upload and let the backend validate.')
+      }
     } catch (readErr) {
       console.error('Failed to parse uploaded file', readErr)
       setError('Could not read this file. Please try again.')
@@ -134,8 +144,8 @@ export default function UploadedVendorDailyRun() {
   }
 
   const handleUploadAndQueueRun = async () => {
-    if (!uploadedFile || !parsedUpcs.length) {
-      setError('Select and parse a file before uploading.')
+    if (!uploadedFile) {
+      setError('Select a file before uploading.')
       return
     }
     setLoading(true)
@@ -246,7 +256,7 @@ export default function UploadedVendorDailyRun() {
         </Link>
         <button
           type="button"
-          disabled={loading || parsedUpcs.length === 0}
+          disabled={loading || !uploadedFile}
           onClick={handleUploadAndQueueRun}
           className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
         >

@@ -5,6 +5,7 @@ from app.scheduler import scheduler, update_scheduler_settings, pause_scheduler,
 from app.database import get_supabase
 from app.utils.error_handler import handle_api_errors
 from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from pydantic import BaseModel
 from typing import Optional, List
 from supabase import Client
@@ -56,6 +57,15 @@ def _normalize_upc_token(raw: str) -> Optional[str]:
     # Common spreadsheet export form, e.g. 012345678905.0
     if re.fullmatch(r"\d{8,14}\.0+", cleaned):
         cleaned = cleaned.split(".", 1)[0]
+    # Scientific notation from spreadsheets, e.g. 1.23456789012E+11
+    sci_match = re.fullmatch(r"[+-]?\d+(?:\.\d+)?[eE][+-]?\d+", cleaned)
+    if sci_match:
+        try:
+            sci_decimal = Decimal(cleaned)
+            if sci_decimal == sci_decimal.to_integral_value():
+                cleaned = format(sci_decimal.quantize(Decimal("1")), "f")
+        except (InvalidOperation, ValueError):
+            pass
     digits = re.sub(r"\D", "", cleaned)
     if 8 <= len(digits) <= 14:
         return digits
@@ -473,16 +483,6 @@ async def upload_scheduler_report(
 ):
     """Upload a Keepa report file (csv/txt) used by uploaded daily run mode."""
     filename = (file.filename or "").strip()
-    lower_name = filename.lower()
-    content_type = (file.content_type or "").lower()
-    name_ok = lower_name.endswith(".csv") or lower_name.endswith(".txt")
-    mime_ok = (
-        "csv" in content_type
-        or content_type.startswith("text/")
-        or content_type == "application/vnd.ms-excel"
-    )
-    if not name_ok and not mime_ok:
-        raise HTTPException(status_code=400, detail="File type not recognized. Upload CSV or TXT.")
 
     raw = await file.read()
     text = ""
