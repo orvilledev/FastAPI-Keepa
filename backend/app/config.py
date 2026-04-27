@@ -76,6 +76,9 @@ class Settings(BaseSettings):
     # Scheduler Configuration
     scheduler_hour: int = 2  # Default: 2 AM
     scheduler_minute: int = 0
+    # Uploaded-report runs use the latest file regardless of upload date/timezone.
+    # This guard prevents accidentally running against very old files.
+    scheduler_uploaded_report_max_age_days: int = 7
 
     # Report: comma-separated substrings matched case-insensitively (after removing
     # spaces/punctuation) against resolved seller display text. Rows for matching

@@ -14,7 +14,7 @@ from app.services.email_service import EmailService
 from app.services.report_service import ReportService
 from typing import List, Optional
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone as dt_timezone
 import hashlib
 
 logger = logging.getLogger(__name__)
@@ -105,6 +105,22 @@ def _expand_uploaded_payload_to_rows(payload: List[dict]) -> List[dict]:
                 "seller_price": (offer or {}).get("seller_price"),
             })
     return expanded
+
+
+def _parse_utc_naive_timestamp(value: Optional[str]) -> Optional[datetime]:
+    """Parse ISO timestamp and normalize to UTC-naive datetime."""
+    if not value:
+        return None
+    raw = str(value).strip()
+    if raw.endswith("Z"):
+        raw = f"{raw[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except Exception:
+        return None
+    if parsed.tzinfo is not None:
+        return parsed.astimezone(dt_timezone.utc).replace(tzinfo=None)
+    return parsed
 
 @dataclass
 class SchedulerConfig:
@@ -238,24 +254,46 @@ async def run_daily_job_for_category(category: str = 'dnk'):
         upcs: List[str] = []
         uploaded_rows: List[dict] = []
         if input_mode == "uploaded":
-            local_today = datetime.now(config.timezone).date().isoformat()
             uploaded_response = (
                 db.table("scheduler_uploaded_reports")
-                .select("id, upcs, parsed_rows, parse_status")
+                .select("id, upcs, parsed_rows, parse_status, created_at")
                 .eq("category", category)
-                .eq("uploaded_for_date", local_today)
                 .order("created_at", desc=True)
                 .limit(1)
                 .execute()
             )
             if uploaded_response.data:
                 report = uploaded_response.data[0]
+                report_created_at = _parse_utc_naive_timestamp(report.get("created_at"))
+                max_age_days = max(1, int(settings.scheduler_uploaded_report_max_age_days))
+                if report_created_at:
+                    age = datetime.utcnow() - report_created_at
+                    if age.days > max_age_days:
+                        logger.warning(
+                            "Latest uploaded report for %s is stale (age=%s days, limit=%s days); skipping run",
+                            category.upper(),
+                            age.days,
+                            max_age_days,
+                        )
+                        db.table("batch_jobs").insert({
+                            "job_name": f"Daily {category.upper()} Uploaded Report - {current_time.strftime('%Y-%m-%d')}",
+                            "status": "failed",
+                            "total_batches": 0,
+                            "completed_batches": 0,
+                            "created_by": str(admin_uuid),
+                            "completed_at": datetime.utcnow().isoformat(),
+                            "error_message": f"Latest uploaded report is stale ({age.days} days old; limit: {max_age_days} days).",
+                            "email_recipients": custom_recipients,
+                            "map_vendor_type": category,
+                            "keepa_offers_limit": settings.keepa_offers_limit,
+                            "off_price_scope": "buybox_and_non_buybox_below_map",
+                        }).execute()
+                        return
                 parse_status = (report.get("parse_status") or "").strip().lower()
                 if parse_status != "completed":
                     logger.warning(
-                        "Uploaded report for %s on %s is not ready yet (status=%s); skipping run",
+                        "Latest uploaded report for %s is not ready yet (status=%s); skipping run",
                         category.upper(),
-                        local_today,
                         parse_status or "pending",
                     )
                     db.table("batch_jobs").insert({
@@ -280,9 +318,8 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                 upcs = upc_repo.get_all_upc_codes(category)
             else:
                 logger.warning(
-                    "No uploaded report found for %s on %s; creating failed daily run entry",
+                    "No uploaded report found for %s; creating failed daily run entry",
                     category.upper(),
-                    local_today,
                 )
                 db.table("batch_jobs").insert({
                     "job_name": f"Daily {category.upper()} Uploaded Report - {current_time.strftime('%Y-%m-%d')}",
@@ -291,7 +328,7 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                     "completed_batches": 0,
                     "created_by": str(admin_uuid),
                     "completed_at": datetime.utcnow().isoformat(),
-                    "error_message": "Missing uploaded Keepa report for scheduled run date.",
+                    "error_message": "Missing uploaded Keepa report for scheduled run.",
                     "email_recipients": custom_recipients,
                     "map_vendor_type": category,
                     "keepa_offers_limit": settings.keepa_offers_limit,

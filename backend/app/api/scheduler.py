@@ -4,7 +4,7 @@ from app.dependencies import get_current_user
 from app.scheduler import scheduler, update_scheduler_settings, pause_scheduler, run_daily_job_for_category
 from app.database import get_supabase
 from app.utils.error_handler import handle_api_errors
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from pydantic import BaseModel
@@ -37,6 +37,22 @@ VALID_WEEKDAYS = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
 VALID_INPUT_MODES = {"api", "uploaded"}
 DAILY_JOB_NAME_RE = re.compile(r"^Daily\s+([A-Za-z0-9_-]+)\s+", re.IGNORECASE)
 UPC_RE = re.compile(r"\b\d{8,14}\b")
+def _parse_utc_naive_timestamp(value: Optional[str]) -> Optional[datetime]:
+    """Parse ISO timestamp and normalize to UTC-naive datetime."""
+    if not value:
+        return None
+    raw = str(value).strip()
+    if raw.endswith("Z"):
+        raw = f"{raw[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except Exception:
+        return None
+    if parsed.tzinfo is not None:
+        return parsed.astimezone(dt_timezone.utc).replace(tzinfo=None)
+    return parsed
+
+
 
 
 def _extract_category_from_daily_job_name(job_name: str) -> Optional[str]:
@@ -817,19 +833,27 @@ async def rerun_uploaded_report(
 ):
     """Trigger an immediate uploaded-mode run for a category."""
     db = get_supabase()
-    today = datetime.utcnow().date().isoformat()
     latest = (
         db.table("scheduler_uploaded_reports")
-        .select("id, parse_status")
+        .select("id, parse_status, created_at")
         .eq("category", category)
-        .eq("uploaded_for_date", today)
         .order("created_at", desc=True)
         .limit(1)
         .execute()
     )
     report = latest.data[0] if latest.data else None
     if not report:
-        raise HTTPException(status_code=400, detail="No uploaded report found for today.")
+        raise HTTPException(status_code=400, detail="No uploaded report found for this category.")
+    from app.config import settings
+    created_at = _parse_utc_naive_timestamp(report.get("created_at"))
+    max_age_days = max(1, int(settings.scheduler_uploaded_report_max_age_days))
+    if created_at:
+        age = datetime.utcnow() - created_at
+        if age.days > max_age_days:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Latest uploaded report is stale ({age.days} days old; limit: {max_age_days} days).",
+            )
     parse_status = (report.get("parse_status") or "").strip().lower()
     if parse_status != "completed":
         raise HTTPException(status_code=409, detail=f"Uploaded report is not ready yet (status: {parse_status or 'pending'}).")
