@@ -802,7 +802,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
               onClick={handleQueueUploadedRun}
               className="px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 disabled:opacity-50"
             >
-              {queueing ? 'Queueing...' : 'Queue Uploaded Run Now'}
+              {queueing ? 'Queueing...' : 'Trigger Upload Run Now (Express)'}
             </button>
           </div>
         </div>
