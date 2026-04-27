@@ -143,9 +143,17 @@ export default function Sidebar() {
   const navHighlighted = (id: string, routeActive: boolean) =>
     (hoveredNav === null && routeActive) || hoveredNav === id
 
+  // Daily Runs no longer has an API/Upload split — each vendor's page hosts
+  // both modes via a toggle. The flyout lists vendors directly.
   const dailyRunsMenuItems = [
-    { path: '/daily-run/api', label: 'API Daily Runs', icon: 'refresh' as const },
-    { path: '/daily-run/uploaded', label: 'Uploaded Runs', icon: 'refresh' as const },
+    { path: '/daily-run/dnk', label: 'DNK', icon: 'refresh' as const },
+    { path: '/daily-run/clk', label: 'CLK', icon: 'refresh' as const },
+    { path: '/daily-run/obz', label: 'OBZ', icon: 'refresh' as const },
+    { path: '/daily-run/ref', label: 'REF', icon: 'refresh' as const },
+    { path: '/daily-run/bor', label: 'BOR', icon: 'refresh' as const },
+    { path: '/daily-run/sff', label: 'SFF', icon: 'refresh' as const },
+    { path: '/daily-run/tev', label: 'TEV', icon: 'refresh' as const },
+    { path: '/daily-run/cha', label: 'CHA', icon: 'refresh' as const },
   ]
 
   const manageUPCsMenuItems = [
