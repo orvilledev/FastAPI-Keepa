@@ -54,7 +54,8 @@ const EXCEL_EXTENSIONS = ['.xlsx', '.xls', '.xlsm', '.xlsb']
  *
  * In `uploaded` mode the page also exposes a Keepa-file uploader plus per-upload
  * status / queue / delete controls. In that mode the scheduler skips Keepa API
- * tokens and uses the most recently uploaded report's parsed UPC + MAP data.
+ * tokens, keeps UPC scope from Manage UPCs, and uses uploaded report rows for
+ * comparison input.
  */
 export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
   const VENDOR_UPPER = vendor.toUpperCase()
@@ -707,9 +708,10 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
             <div>
               <h2 className="text-lg font-semibold text-amber-900">Uploaded Keepa Report</h2>
               <p className="mt-1 text-sm text-amber-800">
-                Upload a Keepa export file (Excel, CSV, or TXT). The system will parse it and use those UPCs and
-                MAP comparisons for the next run instead of consuming Keepa API tokens. A current Keepa upload is
-                <strong> required</strong> for the upload-mode run to work.
+                Upload a Keepa export file (Excel, CSV, or TXT). The system will parse it and use uploaded rows for
+                MAP/off-price comparison on the next run instead of consuming Keepa API tokens. Run UPC scope still
+                comes from Manage UPCs for this vendor. A current Keepa upload is <strong>required</strong> for
+                upload-mode runs.
               </p>
             </div>
           </div>
@@ -770,7 +772,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
           )}
 
           <div className="rounded-lg border border-gray-200 p-4 bg-gray-50">
-            <p className="text-sm font-medium text-gray-900">Parsed UPCs (preview): {parsedUpcs.length}</p>
+            <p className="text-sm font-medium text-gray-900">Parsed file UPCs (preview only): {parsedUpcs.length}</p>
             {previewUpcs.length > 0 && (
               <p className="mt-1 text-xs text-gray-600 font-mono break-all">
                 {previewUpcs.join(', ')}

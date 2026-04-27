@@ -272,9 +272,12 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                         "off_price_scope": "buybox_and_non_buybox_below_map",
                     }).execute()
                     return
-                upcs = [str(x).strip() for x in (report.get("upcs") or []) if str(x).strip()]
                 uploaded_payload = report.get("parsed_rows") or []
                 uploaded_rows = _expand_uploaded_payload_to_rows(uploaded_payload)
+                # Uploaded mode always uses Manage UPCs (per-vendor app UPC list)
+                # as the run scope; uploaded file rows are comparison input only.
+                upc_repo = UPCRepository(db)
+                upcs = upc_repo.get_all_upc_codes(category)
             else:
                 logger.warning(
                     "No uploaded report found for %s on %s; creating failed daily run entry",
@@ -313,17 +316,42 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                 off_price_scope="buybox_and_non_buybox_below_map",
             )
             logger.info(f"Created {category.upper()} batch job {job_id} with {len(upcs)} UPCs. Processing...")
-            if input_mode == "uploaded" and uploaded_rows:
+            if input_mode == "uploaded":
                 map_repo = MAPRepository(db)
                 map_prices = map_repo.get_map_prices_by_upcs(upcs, vendor_type=category)
                 analyzer = PriceAnalyzer()
 
+                if not uploaded_rows:
+                    logger.warning(
+                        "Uploaded mode run for %s has no parsed rows in uploaded report; failing run",
+                        category.upper(),
+                    )
+                    db.table("batch_jobs").update({
+                        "status": "failed",
+                        "completed_at": datetime.utcnow().isoformat(),
+                        "error_message": "Uploaded Keepa report has no parsed rows for comparison.",
+                    }).eq("id", str(job_id)).execute()
+                    return
+
+                upc_scope = {str(u).strip() for u in upcs if str(u).strip()}
                 upc_to_rows = {}
                 for row in uploaded_rows:
                     upc = str(row.get("upc") or "").strip()
-                    if not upc:
+                    if not upc or upc not in upc_scope:
                         continue
                     upc_to_rows.setdefault(upc, []).append(row)
+
+                if not upc_to_rows:
+                    logger.warning(
+                        "Uploaded mode run for %s has no UPC overlap between uploaded file and Manage UPCs",
+                        category.upper(),
+                    )
+                    db.table("batch_jobs").update({
+                        "status": "failed",
+                        "completed_at": datetime.utcnow().isoformat(),
+                        "error_message": "No overlapping UPCs between uploaded file and Manage UPCs.",
+                    }).eq("id", str(job_id)).execute()
+                    return
 
                 # Build synthetic keepa payloads and alerts once per UPC (reuse per batch item).
                 keepa_by_upc = {}
