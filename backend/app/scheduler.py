@@ -571,7 +571,7 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                         job_name=job_name,
                         total_upcs=total_upcs,
                         alerts_count=alerts_count,
-                        custom_recipients=custom_recipients,
+                        recipient_email=custom_recipients,
                     )
                 except Exception as email_err:
                     logger.warning("Uploaded daily run email/report step failed for %s: %s", category.upper(), email_err)
