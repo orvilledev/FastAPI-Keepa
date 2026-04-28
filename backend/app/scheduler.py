@@ -9,7 +9,6 @@ from app.database import get_supabase
 from app.repositories.upc_repository import UPCRepository
 from app.repositories.map_repository import MAPRepository
 from app.services.batch_processor import BatchProcessor
-from app.services.price_analyzer import PriceAnalyzer
 from app.services.email_service import EmailService
 from app.services.report_service import ReportService
 from typing import List, Optional
@@ -38,26 +37,28 @@ def _seller_id_for_name(name: str) -> str:
     return f"UPLD{digest}"
 
 
-def _build_synthetic_keepa_for_upc(rows: List[dict]) -> dict:
-    first = rows[0] if rows else {}
-    asin = str(first.get("asin") or "").strip()
-    title = str(first.get("product_title") or "").strip()
-    amazon_link = str(first.get("amazon_link") or "").strip()
-    offers = []
-    for row in rows:
-        seller_name = str(row.get("seller") or "").strip() or "Unknown"
-        seller_price = _normalize_price(row.get("seller_price"))
-        if seller_price is None:
-            continue
-        offers.append({
-            "sellerId": _seller_id_for_name(seller_name),
-            "sellerName": seller_name,
-            "price": int(round(seller_price * 100)),
-        })
+def _build_synthetic_keepa_buy_box_only(entry: dict) -> dict:
+    """Build a minimal Keepa-shaped payload for one UPC using uploaded Buy Box: Current.
+
+    Only the buy box winner is represented (one offer), so downstream off-price
+    detection with `buybox_only` scope simply compares `H` vs system MAP.
+    """
+    asin = str(entry.get("asin") or "").strip()
+    title = str(entry.get("product_title") or "").strip()
+    amazon_link = str(entry.get("amazon_link") or "").strip()
+    bb_value = _normalize_price(entry.get("buy_box_current"))
+    bb_seller = str(entry.get("buy_box_seller") or "").strip() or "Buy Box"
+
+    offers: List[dict] = []
     buy_box_seller_id = ""
-    if offers:
-        cheapest = min(offers, key=lambda o: o["price"])
-        buy_box_seller_id = str(cheapest.get("sellerId") or "")
+    if bb_value is not None:
+        buy_box_seller_id = _seller_id_for_name(bb_seller)
+        offers.append({
+            "sellerId": buy_box_seller_id,
+            "sellerName": bb_seller,
+            "price": int(round(bb_value * 100)),
+        })
+
     return {
         "products": [{
             "asin": asin,
@@ -69,42 +70,71 @@ def _build_synthetic_keepa_for_upc(rows: List[dict]) -> dict:
     }
 
 
-def _expand_uploaded_payload_to_rows(payload: List[dict]) -> List[dict]:
-    """
-    Backward/forward compatible payload reader:
-    - old payload: list of row dicts with seller/seller_price
-    - compact payload: list of per-upc dicts with offers[]
+def _normalize_uploaded_payload(payload: List[dict]) -> List[dict]:
+    """Normalize stored parsed_rows into per-UPC dicts with `buy_box_current`.
+
+    Accepts the new compact format (one entry per UPC with `buy_box_current`)
+    and stays backward compatible with older stored shapes:
+      - per-UPC entries with `offers[]` (old compact format) — buy_box_current
+        is taken as the lowest valid offer price.
+      - flat row entries with `seller` / `seller_price` — first valid price
+        per UPC is used.
     """
     if not payload:
         return []
-    sample = payload[0] if isinstance(payload[0], dict) else {}
-    if "offers" not in sample:
-        return payload
 
-    expanded: List[dict] = []
+    by_upc: dict = {}
     for entry in payload:
         if not isinstance(entry, dict):
             continue
         upc = str(entry.get("upc") or "").strip()
         if not upc:
             continue
-        base = {
+
+        base = by_upc.get(upc) or {
             "upc": upc,
             "product_title": str(entry.get("product_title") or "").strip(),
             "asin": str(entry.get("asin") or "").strip(),
             "amazon_link": str(entry.get("amazon_link") or "").strip(),
+            "buy_box_current": None,
+            "buy_box_seller": "",
         }
-        offers = entry.get("offers") or []
-        if not offers:
-            expanded.append({**base, "seller": "", "seller_price": None})
-            continue
-        for offer in offers:
-            expanded.append({
-                **base,
-                "seller": str((offer or {}).get("seller") or "").strip(),
-                "seller_price": (offer or {}).get("seller_price"),
-            })
-    return expanded
+
+        if "buy_box_current" in entry:
+            bb_value = _normalize_price(entry.get("buy_box_current"))
+            if base["buy_box_current"] is None and bb_value is not None:
+                base["buy_box_current"] = float(bb_value)
+                base["buy_box_seller"] = str(entry.get("buy_box_seller") or "").strip()
+        elif "offers" in entry:
+            offers = entry.get("offers") or []
+            best_price: Optional[float] = None
+            best_seller = ""
+            for offer in offers:
+                if not isinstance(offer, dict):
+                    continue
+                price = _normalize_price(offer.get("seller_price"))
+                if price is None:
+                    continue
+                price_f = float(price)
+                if best_price is None or price_f < best_price:
+                    best_price = price_f
+                    best_seller = str(offer.get("seller") or "").strip()
+            if base["buy_box_current"] is None and best_price is not None:
+                base["buy_box_current"] = best_price
+                base["buy_box_seller"] = best_seller
+        else:
+            price = _normalize_price(entry.get("seller_price"))
+            if base["buy_box_current"] is None and price is not None:
+                base["buy_box_current"] = float(price)
+                base["buy_box_seller"] = str(entry.get("seller") or "").strip()
+
+        for field in ("product_title", "asin", "amazon_link"):
+            if not base.get(field) and entry.get(field):
+                base[field] = str(entry.get(field) or "").strip()
+
+        by_upc[upc] = base
+
+    return list(by_upc.values())
 
 
 def _parse_utc_naive_timestamp(value: Optional[str]) -> Optional[datetime]:
@@ -252,7 +282,7 @@ async def run_daily_job_for_category(category: str = 'dnk'):
 
         # Resolve UPC source for this run mode.
         upcs: List[str] = []
-        uploaded_rows: List[dict] = []
+        uploaded_entries: List[dict] = []
         if input_mode == "uploaded":
             uploaded_response = (
                 db.table("scheduler_uploaded_reports")
@@ -286,7 +316,7 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                             "email_recipients": custom_recipients,
                             "map_vendor_type": category,
                             "keepa_offers_limit": settings.keepa_offers_limit,
-                            "off_price_scope": "buybox_and_non_buybox_below_map",
+                            "off_price_scope": "buybox_only",
                         }).execute()
                         return
                 parse_status = (report.get("parse_status") or "").strip().lower()
@@ -307,11 +337,11 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                         "email_recipients": custom_recipients,
                         "map_vendor_type": category,
                         "keepa_offers_limit": settings.keepa_offers_limit,
-                        "off_price_scope": "buybox_and_non_buybox_below_map",
+                        "off_price_scope": "buybox_only",
                     }).execute()
                     return
                 uploaded_payload = report.get("parsed_rows") or []
-                uploaded_rows = _expand_uploaded_payload_to_rows(uploaded_payload)
+                uploaded_entries = _normalize_uploaded_payload(uploaded_payload)
                 # Uploaded mode always uses Manage UPCs (per-vendor app UPC list)
                 # as the run scope; uploaded file rows are comparison input only.
                 upc_repo = UPCRepository(db)
@@ -332,7 +362,7 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                     "email_recipients": custom_recipients,
                     "map_vendor_type": category,
                     "keepa_offers_limit": settings.keepa_offers_limit,
-                    "off_price_scope": "buybox_and_non_buybox_below_map",
+                    "off_price_scope": "buybox_only",
                 }).execute()
                 return
         else:
@@ -343,6 +373,7 @@ async def run_daily_job_for_category(category: str = 'dnk'):
             logger.info(f"Found {len(upcs)} {category.upper()} UPCs to process")
             job_name_prefix = "Uploaded Report" if input_mode == "uploaded" else "Off Price Report"
             job_name = f"Daily {category.upper()} {job_name_prefix} - {current_time.strftime('%Y-%m-%d')}"
+            run_off_price_scope = "buybox_only" if input_mode == "uploaded" else "buybox_and_non_buybox_below_map"
             job_id = await processor.create_batch_job(
                 job_name=job_name,
                 upcs=upcs,
@@ -350,15 +381,14 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                 email_recipients=custom_recipients,
                 keepa_offers_limit=settings.keepa_offers_limit,
                 map_vendor_type=category,
-                off_price_scope="buybox_and_non_buybox_below_map",
+                off_price_scope=run_off_price_scope,
             )
             logger.info(f"Created {category.upper()} batch job {job_id} with {len(upcs)} UPCs. Processing...")
             if input_mode == "uploaded":
                 map_repo = MAPRepository(db)
                 map_prices = map_repo.get_map_prices_by_upcs(upcs, vendor_type=category)
-                analyzer = PriceAnalyzer()
 
-                if not uploaded_rows:
+                if not uploaded_entries:
                     logger.warning(
                         "Uploaded mode run for %s has no parsed rows in uploaded report; failing run",
                         category.upper(),
@@ -371,14 +401,15 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                     return
 
                 upc_scope = {str(u).strip() for u in upcs if str(u).strip()}
-                upc_to_rows = {}
-                for row in uploaded_rows:
-                    upc = str(row.get("upc") or "").strip()
+                upc_to_entry: dict = {}
+                for entry in uploaded_entries:
+                    upc = str(entry.get("upc") or "").strip()
                     if not upc or upc not in upc_scope:
                         continue
-                    upc_to_rows.setdefault(upc, []).append(row)
+                    if upc not in upc_to_entry:
+                        upc_to_entry[upc] = entry
 
-                if not upc_to_rows:
+                if not upc_to_entry:
                     logger.warning(
                         "Uploaded mode run for %s has no UPC overlap between uploaded file and Manage UPCs",
                         category.upper(),
@@ -390,42 +421,48 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                     }).eq("id", str(job_id)).execute()
                     return
 
-                # Build synthetic keepa payloads and alerts once per UPC (reuse per batch item).
-                keepa_by_upc = {}
-                alerts_by_upc = {}
-                for upc, rows in upc_to_rows.items():
-                    keepa_data = _build_synthetic_keepa_for_upc(rows)
+                # Build synthetic Keepa payloads (one offer = uploaded Buy Box: Current)
+                # and run direct H-vs-MAP comparison per UPC.
+                keepa_by_upc: dict = {}
+                alert_rows = []
+                now_iso = datetime.utcnow().isoformat()
+                for upc, entry in upc_to_entry.items():
+                    keepa_data = _build_synthetic_keepa_buy_box_only(entry)
                     keepa_by_upc[upc] = keepa_data
+
                     map_price = map_prices.get(upc)
                     if map_price is None:
                         continue
                     try:
-                        alerts = analyzer.detect_off_price_sellers(
-                            upc=upc,
-                            keepa_data=keepa_data,
-                            map_price=float(map_price),
-                        )
-                        alerts_by_upc[upc] = alerts
-                    except Exception as alert_err:
-                        logger.warning("Could not evaluate uploaded off-price alerts for UPC %s: %s", upc, alert_err)
+                        map_f = float(map_price)
+                    except (TypeError, ValueError):
+                        continue
+                    if map_f <= 0:
+                        continue
 
-                # Flatten alert rows once and insert in chunks.
-                alert_rows = []
-                now_iso = datetime.utcnow().isoformat()
-                for upc, alerts in alerts_by_upc.items():
-                    map_price = map_prices.get(upc)
-                    keepa_data = keepa_by_upc.get(upc, {})
-                    for alert in alerts:
-                        alert_rows.append({
-                            "batch_job_id": str(job_id),
-                            "upc": upc,
-                            "seller_name": alert.get("seller_name"),
-                            "current_price": alert.get("current_price"),
-                            "historical_price": float(map_price) if map_price is not None else None,
-                            "price_change_percent": alert.get("price_change_percent"),
-                            "detected_at": now_iso,
-                            "keepa_data": keepa_data,
-                        })
+                    bb_value = entry.get("buy_box_current")
+                    try:
+                        bb_f = float(bb_value) if bb_value is not None else None
+                    except (TypeError, ValueError):
+                        bb_f = None
+                    if bb_f is None or bb_f <= 0:
+                        continue
+
+                    if bb_f >= map_f:
+                        continue
+
+                    price_change_percent = ((bb_f - map_f) / map_f) * 100 if map_f else 0.0
+                    seller_display = str(entry.get("buy_box_seller") or "").strip() or "Buy Box"
+                    alert_rows.append({
+                        "batch_job_id": str(job_id),
+                        "upc": upc,
+                        "seller_name": seller_display,
+                        "current_price": bb_f,
+                        "historical_price": map_f,
+                        "price_change_percent": price_change_percent,
+                        "detected_at": now_iso,
+                        "keepa_data": keepa_data,
+                    })
 
                 if alert_rows:
                     chunk_size = 500
@@ -441,8 +478,7 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                     completed_count = len(batch_items)
                     processed_at_iso = datetime.utcnow().isoformat()
 
-                    # Bulk-update item rows grouped by UPC to reduce DB round trips.
-                    ids_by_upc = {}
+                    ids_by_upc: dict = {}
                     for item in batch_items:
                         upc = str(item.get("upc") or "").strip()
                         if not upc:
@@ -450,7 +486,10 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                         ids_by_upc.setdefault(upc, []).append(item["id"])
 
                     for upc, item_ids in ids_by_upc.items():
-                        keepa_data = keepa_by_upc.get(upc) or _build_synthetic_keepa_for_upc(upc_to_rows.get(upc, []))
+                        keepa_data = keepa_by_upc.get(upc)
+                        if keepa_data is None:
+                            entry = upc_to_entry.get(upc)
+                            keepa_data = _build_synthetic_keepa_buy_box_only(entry or {"upc": upc})
                         db.table("upc_batch_items").update({
                             "status": "completed",
                             "keepa_data": keepa_data,
@@ -470,14 +509,14 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                     "completed_at": datetime.utcnow().isoformat(),
                 }).eq("id", str(job_id)).execute()
 
-                # Keep daily-run behavior: generate/export report and send email.
+                # Generate the off-price CSV (one row per flagged UPC) and email it.
                 try:
                     report_service = ReportService(db)
                     csv_bytes, filename, alerts_count = report_service.generate_csv_for_job(
                         job_id,
                         job_name,
                         map_vendor_type=category,
-                        off_price_scope="buybox_and_non_buybox_below_map",
+                        off_price_scope="buybox_only",
                     )
                     total_upcs = report_service.get_total_upcs_for_job(job_id)
                     EmailService().send_csv_report(

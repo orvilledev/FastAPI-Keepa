@@ -121,10 +121,11 @@ def _parse_price_token(raw: str) -> Optional[float]:
 def _extract_rows_from_dataframe(df: pd.DataFrame) -> List[dict]:
     """
     Fixed uploaded schema (1-based columns):
-      A=UPC, C=Product Title, D=ASIN, F=Seller, H=Seller Price, U=Amazon Link
+      A=UPC, C=Product Title, D=ASIN, F=Buy Box Seller, H=Buy Box: Current, U=Amazon Link
+
+    H is the canonical Buy Box: Current price used for off-price comparison vs system MAP.
     """
     rows: List[dict] = []
-    # Zero-based column indices
     idx_upc = 0
     idx_title = 2
     idx_asin = 3
@@ -143,14 +144,14 @@ def _extract_rows_from_dataframe(df: pd.DataFrame) -> List[dict]:
         asin = str(cells[idx_asin]).strip() if len(cells) > idx_asin and cells[idx_asin] is not None else ""
         seller = str(cells[idx_seller]).strip() if len(cells) > idx_seller and cells[idx_seller] is not None else ""
         price_raw = str(cells[idx_price]).strip() if len(cells) > idx_price and cells[idx_price] is not None else ""
-        seller_price = _parse_price_token(price_raw)
+        buy_box_current = _parse_price_token(price_raw)
         amazon_link = str(cells[idx_link]).strip() if len(cells) > idx_link and cells[idx_link] is not None else ""
         rows.append({
             "upc": upc,
             "product_title": title,
             "asin": asin,
-            "seller": seller,
-            "seller_price": seller_price,
+            "buy_box_seller": seller,
+            "buy_box_current": buy_box_current,
             "amazon_link": amazon_link,
         })
     return rows
@@ -158,50 +159,63 @@ def _extract_rows_from_dataframe(df: pd.DataFrame) -> List[dict]:
 
 def _compress_rows_by_upc(rows: List[dict]) -> List[dict]:
     """
-    Compact parsed rows to reduce DB payload:
-      [
-        {
-          "upc": "...",
-          "product_title": "...",
-          "asin": "...",
-          "amazon_link": "...",
-          "offers": [{"seller": "...", "seller_price": 12.34}, ...]
-        }
-      ]
+    Collapse parsed rows to one entry per UPC for off-price comparison.
+
+    Output shape per UPC:
+      {
+        "upc": "...",
+        "product_title": "...",
+        "asin": "...",
+        "amazon_link": "...",
+        "buy_box_current": 12.34 | None,
+        "buy_box_seller": "..."
+      }
+
+    Duplicate-UPC policy: first row whose H (buy_box_current) is a positive number
+    wins. Subsequent rows for the same UPC fill in product metadata only if the
+    first row left them blank.
     """
-    compact_by_upc = {}
-    offer_seen_by_upc = {}
+    compact_by_upc: dict = {}
 
     for row in rows:
         upc = str(row.get("upc") or "").strip()
         if not upc:
             continue
+
+        bb_value = row.get("buy_box_current")
+        try:
+            bb_num = float(bb_value) if bb_value is not None else None
+            if bb_num is not None and bb_num <= 0:
+                bb_num = None
+        except (TypeError, ValueError):
+            bb_num = None
+
+        title = str(row.get("product_title") or "").strip()
+        asin = str(row.get("asin") or "").strip()
+        amazon_link = str(row.get("amazon_link") or "").strip()
+        seller = str(row.get("buy_box_seller") or "").strip()
+
         if upc not in compact_by_upc:
             compact_by_upc[upc] = {
                 "upc": upc,
-                "product_title": str(row.get("product_title") or "").strip(),
-                "asin": str(row.get("asin") or "").strip(),
-                "amazon_link": str(row.get("amazon_link") or "").strip(),
-                "offers": [],
+                "product_title": title,
+                "asin": asin,
+                "amazon_link": amazon_link,
+                "buy_box_current": bb_num,
+                "buy_box_seller": seller if bb_num is not None else "",
             }
-            offer_seen_by_upc[upc] = set()
+            continue
 
-        seller = str(row.get("seller") or "").strip()
-        seller_price = row.get("seller_price")
-        if seller_price is None:
-            continue
-        try:
-            price_num = float(seller_price)
-        except Exception:
-            continue
-        offer_key = (seller.lower(), round(price_num, 4))
-        if offer_key in offer_seen_by_upc[upc]:
-            continue
-        offer_seen_by_upc[upc].add(offer_key)
-        compact_by_upc[upc]["offers"].append({
-            "seller": seller,
-            "seller_price": price_num,
-        })
+        existing = compact_by_upc[upc]
+        if existing.get("buy_box_current") is None and bb_num is not None:
+            existing["buy_box_current"] = bb_num
+            existing["buy_box_seller"] = seller
+        if not existing.get("product_title") and title:
+            existing["product_title"] = title
+        if not existing.get("asin") and asin:
+            existing["asin"] = asin
+        if not existing.get("amazon_link") and amazon_link:
+            existing["amazon_link"] = amazon_link
 
     return list(compact_by_upc.values())
 
