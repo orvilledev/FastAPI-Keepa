@@ -118,7 +118,19 @@ def _parse_price_token(raw: str) -> Optional[float]:
         return None
 
 
-def _extract_rows_from_dataframe(df: pd.DataFrame) -> List[dict]:
+# Original Excel column positions for the uploaded Keepa schema:
+#   A=UPC, C=Product Title, D=ASIN, F=Seller, H=Price, U=Amazon Link
+_FULL_COLUMN_INDICES = (0, 2, 3, 5, 7, 20)
+# When a reader is given an explicit usecols subset (Excel/CSV fast paths) the
+# resulting DataFrame is compacted to one column per requested field, so the
+# extractor must use sequential indices instead of the original column letters.
+_COMPACT_COLUMN_INDICES = (0, 1, 2, 3, 4, 5)
+
+
+def _extract_rows_from_dataframe(
+    df: pd.DataFrame,
+    indices: tuple = _FULL_COLUMN_INDICES,
+) -> List[dict]:
     """
     Fixed uploaded schema (1-based columns):
       A=UPC, C=Product Title, D=ASIN, F=Seller, H=Price, U=Amazon Link
@@ -127,12 +139,7 @@ def _extract_rows_from_dataframe(df: pd.DataFrame) -> List[dict]:
     as the uploaded comparison price vs system MAP per UPC.
     """
     rows: List[dict] = []
-    idx_upc = 0
-    idx_title = 2
-    idx_asin = 3
-    idx_seller = 5
-    idx_price = 7
-    idx_link = 20
+    idx_upc, idx_title, idx_asin, idx_seller, idx_price, idx_link = indices
 
     for raw_row in df.itertuples(index=False):
         cells = list(raw_row)
@@ -251,7 +258,7 @@ def _extract_uploaded_rows(filename: str, raw: bytes) -> tuple[List[dict], dict]
                         usecols=csv_usecols,
                         na_filter=False,
                     )
-                    rows = _extract_rows_from_dataframe(df)
+                    rows = _extract_rows_from_dataframe(df, _COMPACT_COLUMN_INDICES)
                     if rows:
                         return rows, {"file_kind": "text", "sheet_count": 1}
                 except Exception:
@@ -304,7 +311,7 @@ def _extract_uploaded_rows(filename: str, raw: bytes) -> tuple[List[dict], dict]
 
         found_rows: List[dict] = []
         for _, df in sheets.items():
-            found_rows.extend(_extract_rows_from_dataframe(df))
+            found_rows.extend(_extract_rows_from_dataframe(df, _COMPACT_COLUMN_INDICES))
         return found_rows, {"file_kind": "excel", "sheet_count": len(sheets)}
 
     # Unknown extension: best effort text decode.
