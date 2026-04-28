@@ -593,16 +593,57 @@ class CSVGenerator:
         if CSVGenerator.seller_display_excluded(seller_disp, excluded_substrings):
             return None
 
-        return (reference_price, seller_disp, buy_box_seller_id)
+        # Use the matched offer's seller id so the row's `Amazon URL` always
+        # filters to the same merchant the row's `Seller` column came from,
+        # even if the formatting differs from stats.buyBoxSellerId.
+        matched_seller_id = (
+            CSVGenerator._normalize_seller_id(buy_box_offer.get("seller_id"))
+            or buy_box_seller_id
+        )
+        return (reference_price, seller_disp, matched_seller_id)
 
     @staticmethod
-    def _build_seller_amazon_url(asin: str, seller_id: str) -> str:
-        """Build seller-specific Amazon URL when seller ID is available."""
+    def _is_synthetic_uploaded_seller_id(seller_id: str) -> bool:
+        """
+        Synthetic seller ids minted for uploaded-mode rows look like 'UPLD<12 hex>'
+        (see backend/app/scheduler.py _seller_id_for_name). They are not real Amazon
+        merchant ids, so injecting them as `smid` produces a URL Amazon ignores and
+        silently routes to the live Buy Box winner — which makes the displayed
+        seller and the link target visibly disagree. Detect these so callers can
+        prefer the uploaded `amazon_link` or a clean ASIN URL instead.
+        """
+        sid = (seller_id or "").strip()
+        if len(sid) != 16 or not sid.startswith("UPLD"):
+            return False
+        suffix = sid[4:]
+        return all(ch in "0123456789abcdefABCDEF" for ch in suffix)
+
+    @staticmethod
+    def _build_seller_amazon_url(
+        asin: str,
+        seller_id: str,
+        fallback_url: Optional[str] = None,
+    ) -> str:
+        """
+        Build the URL written to the report's `Amazon URL` column.
+
+        Prefers the seller-filtered URL when the seller id is a real Amazon
+        merchant id. Falls back to `fallback_url` (e.g. uploaded amazon_link
+        from column U) or the plain ASIN page when the id is missing or is a
+        synthetic uploaded id, so the link target is consistent with the
+        displayed seller for that row.
+        """
+        clean_fallback = (fallback_url or "").strip()
+
         if not asin:
-            return "N/A"
+            return clean_fallback or "N/A"
+
         sid = CSVGenerator._normalize_seller_id(seller_id)
-        if sid:
+        if sid and not CSVGenerator._is_synthetic_uploaded_seller_id(sid):
             return f"https://www.amazon.com/dp/{asin}?smid={sid}&th=1&psc=1"
+
+        if clean_fallback:
+            return clean_fallback
         return f"https://www.amazon.com/dp/{asin}?th=1&psc=1"
 
     @staticmethod
@@ -833,7 +874,9 @@ class CSVGenerator:
                     "Seller Offer Price": seller_price_disp,
                     "Seller": seller_display,
                     "Discount %": discount_display,
-                    "Amazon URL": CSVGenerator._build_seller_amazon_url(asin, seller_id)
+                    "Amazon URL": CSVGenerator._build_seller_amazon_url(
+                        asin, seller_id, fallback_url=default_amazon_url
+                    )
                     if asin
                     else default_amazon_url,
                     "_is_off_price": True,
