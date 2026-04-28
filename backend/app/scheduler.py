@@ -37,33 +37,39 @@ def _seller_id_for_name(name: str) -> str:
     return f"UPLD{digest}"
 
 
-def _build_synthetic_keepa_buy_box_only(entry: dict) -> dict:
-    """Build a minimal Keepa-shaped payload for one UPC using uploaded Buy Box: Current.
+def _build_synthetic_uploaded_offer(entry: dict) -> dict:
+    """Build a minimal Keepa-shaped payload for one UPC from uploaded data.
 
-    Only the buy box winner is represented (one offer), so downstream off-price
-    detection with `buybox_only` scope simply compares `H` vs system MAP.
+    Uploaded daily runs ignore buy-box semantics. Each UPC contributes a single
+    synthetic offer carrying the uploaded price + seller for traceability so the
+    shared report generator can render the row using direct UPC vs MAP logic.
     """
     asin = str(entry.get("asin") or "").strip()
     title = str(entry.get("product_title") or "").strip()
     amazon_link = str(entry.get("amazon_link") or "").strip()
-    bb_value = _normalize_price(entry.get("buy_box_current"))
-    bb_seller = str(entry.get("buy_box_seller") or "").strip() or "Buy Box"
+    uploaded_value = _normalize_price(
+        entry.get("uploaded_price") if entry.get("uploaded_price") is not None
+        else entry.get("buy_box_current")
+    )
+    uploaded_seller = str(
+        entry.get("uploaded_seller")
+        or entry.get("buy_box_seller")
+        or ""
+    ).strip() or "Uploaded Report"
 
     offers: List[dict] = []
-    buy_box_seller_id = ""
-    if bb_value is not None:
-        buy_box_seller_id = _seller_id_for_name(bb_seller)
+    if uploaded_value is not None:
         offers.append({
-            "sellerId": buy_box_seller_id,
-            "sellerName": bb_seller,
-            "price": int(round(bb_value * 100)),
+            "sellerId": _seller_id_for_name(uploaded_seller),
+            "sellerName": uploaded_seller,
+            "price": int(round(uploaded_value * 100)),
         })
 
     return {
         "products": [{
             "asin": asin,
             "title": title,
-            "stats": {"buyBoxSellerId": buy_box_seller_id},
+            "stats": {},
             "current_sellers": offers,
             "amazon_link": amazon_link,
         }]
@@ -71,12 +77,14 @@ def _build_synthetic_keepa_buy_box_only(entry: dict) -> dict:
 
 
 def _normalize_uploaded_payload(payload: List[dict]) -> List[dict]:
-    """Normalize stored parsed_rows into per-UPC dicts with `buy_box_current`.
+    """Normalize stored parsed_rows into per-UPC dicts with `uploaded_price`.
 
-    Accepts the new compact format (one entry per UPC with `buy_box_current`)
+    Accepts the current compact format (one entry per UPC with `uploaded_price`)
     and stays backward compatible with older stored shapes:
-      - per-UPC entries with `offers[]` (old compact format) — buy_box_current
-        is taken as the lowest valid offer price.
+      - legacy `buy_box_current` / `buy_box_seller` entries — mapped 1:1 to
+        `uploaded_price` / `uploaded_seller`.
+      - per-UPC entries with `offers[]` — `uploaded_price` is taken as the
+        lowest valid offer price.
       - flat row entries with `seller` / `seller_price` — first valid price
         per UPC is used.
     """
@@ -96,15 +104,21 @@ def _normalize_uploaded_payload(payload: List[dict]) -> List[dict]:
             "product_title": str(entry.get("product_title") or "").strip(),
             "asin": str(entry.get("asin") or "").strip(),
             "amazon_link": str(entry.get("amazon_link") or "").strip(),
-            "buy_box_current": None,
-            "buy_box_seller": "",
+            "uploaded_price": None,
+            "uploaded_seller": "",
         }
 
-        if "buy_box_current" in entry:
-            bb_value = _normalize_price(entry.get("buy_box_current"))
-            if base["buy_box_current"] is None and bb_value is not None:
-                base["buy_box_current"] = float(bb_value)
-                base["buy_box_seller"] = str(entry.get("buy_box_seller") or "").strip()
+        if "uploaded_price" in entry or "buy_box_current" in entry:
+            raw_price = entry.get("uploaded_price")
+            if raw_price is None:
+                raw_price = entry.get("buy_box_current")
+            raw_seller = entry.get("uploaded_seller")
+            if not raw_seller:
+                raw_seller = entry.get("buy_box_seller")
+            price_value = _normalize_price(raw_price)
+            if base["uploaded_price"] is None and price_value is not None:
+                base["uploaded_price"] = float(price_value)
+                base["uploaded_seller"] = str(raw_seller or "").strip()
         elif "offers" in entry:
             offers = entry.get("offers") or []
             best_price: Optional[float] = None
@@ -119,14 +133,14 @@ def _normalize_uploaded_payload(payload: List[dict]) -> List[dict]:
                 if best_price is None or price_f < best_price:
                     best_price = price_f
                     best_seller = str(offer.get("seller") or "").strip()
-            if base["buy_box_current"] is None and best_price is not None:
-                base["buy_box_current"] = best_price
-                base["buy_box_seller"] = best_seller
+            if base["uploaded_price"] is None and best_price is not None:
+                base["uploaded_price"] = best_price
+                base["uploaded_seller"] = best_seller
         else:
             price = _normalize_price(entry.get("seller_price"))
-            if base["buy_box_current"] is None and price is not None:
-                base["buy_box_current"] = float(price)
-                base["buy_box_seller"] = str(entry.get("seller") or "").strip()
+            if base["uploaded_price"] is None and price is not None:
+                base["uploaded_price"] = float(price)
+                base["uploaded_seller"] = str(entry.get("seller") or "").strip()
 
         for field in ("product_title", "asin", "amazon_link"):
             if not base.get(field) and entry.get(field):
@@ -373,7 +387,7 @@ async def run_daily_job_for_category(category: str = 'dnk'):
             logger.info(f"Found {len(upcs)} {category.upper()} UPCs to process")
             job_name_prefix = "Uploaded Report" if input_mode == "uploaded" else "Off Price Report"
             job_name = f"Daily {category.upper()} {job_name_prefix} - {current_time.strftime('%Y-%m-%d')}"
-            run_off_price_scope = "buybox_only" if input_mode == "uploaded" else "buybox_and_non_buybox_below_map"
+            run_off_price_scope = "buybox_and_non_buybox_below_map"
             job_id = await processor.create_batch_job(
                 job_name=job_name,
                 upcs=upcs,
@@ -421,13 +435,15 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                     }).eq("id", str(job_id)).execute()
                     return
 
-                # Build synthetic Keepa payloads (one offer = uploaded Buy Box: Current)
-                # and run direct H-vs-MAP comparison per UPC.
+                # Direct UPC vs MAP comparison: ignore buy-box semantics. The
+                # synthetic Keepa payload is only used to render the report row
+                # for the matching UPC; flagging is decided here from the
+                # uploaded price vs system MAP.
                 keepa_by_upc: dict = {}
                 alert_rows = []
                 now_iso = datetime.utcnow().isoformat()
                 for upc, entry in upc_to_entry.items():
-                    keepa_data = _build_synthetic_keepa_buy_box_only(entry)
+                    keepa_data = _build_synthetic_uploaded_offer(entry)
                     keepa_by_upc[upc] = keepa_data
 
                     map_price = map_prices.get(upc)
@@ -440,24 +456,24 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                     if map_f <= 0:
                         continue
 
-                    bb_value = entry.get("buy_box_current")
+                    uploaded_value = entry.get("uploaded_price")
                     try:
-                        bb_f = float(bb_value) if bb_value is not None else None
+                        uploaded_f = float(uploaded_value) if uploaded_value is not None else None
                     except (TypeError, ValueError):
-                        bb_f = None
-                    if bb_f is None or bb_f <= 0:
+                        uploaded_f = None
+                    if uploaded_f is None or uploaded_f <= 0:
                         continue
 
-                    if bb_f >= map_f:
+                    if uploaded_f >= map_f:
                         continue
 
-                    price_change_percent = ((bb_f - map_f) / map_f) * 100 if map_f else 0.0
-                    seller_display = str(entry.get("buy_box_seller") or "").strip() or "Buy Box"
+                    price_change_percent = ((uploaded_f - map_f) / map_f) * 100 if map_f else 0.0
+                    seller_display = str(entry.get("uploaded_seller") or "").strip() or "Uploaded Report"
                     alert_rows.append({
                         "batch_job_id": str(job_id),
                         "upc": upc,
                         "seller_name": seller_display,
-                        "current_price": bb_f,
+                        "current_price": uploaded_f,
                         "historical_price": map_f,
                         "price_change_percent": price_change_percent,
                         "detected_at": now_iso,
@@ -489,7 +505,7 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                         keepa_data = keepa_by_upc.get(upc)
                         if keepa_data is None:
                             entry = upc_to_entry.get(upc)
-                            keepa_data = _build_synthetic_keepa_buy_box_only(entry or {"upc": upc})
+                            keepa_data = _build_synthetic_uploaded_offer(entry or {"upc": upc})
                         db.table("upc_batch_items").update({
                             "status": "completed",
                             "keepa_data": keepa_data,
@@ -516,7 +532,7 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                         job_id,
                         job_name,
                         map_vendor_type=category,
-                        off_price_scope="buybox_only",
+                        off_price_scope="buybox_and_non_buybox_below_map",
                     )
                     total_upcs = report_service.get_total_upcs_for_job(job_id)
                     EmailService().send_csv_report(

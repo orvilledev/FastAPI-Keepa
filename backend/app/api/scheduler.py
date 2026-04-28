@@ -121,9 +121,10 @@ def _parse_price_token(raw: str) -> Optional[float]:
 def _extract_rows_from_dataframe(df: pd.DataFrame) -> List[dict]:
     """
     Fixed uploaded schema (1-based columns):
-      A=UPC, C=Product Title, D=ASIN, F=Buy Box Seller, H=Buy Box: Current, U=Amazon Link
+      A=UPC, C=Product Title, D=ASIN, F=Seller, H=Price, U=Amazon Link
 
-    H is the canonical Buy Box: Current price used for off-price comparison vs system MAP.
+    Uploaded daily runs ignore buy-box semantics. The price in column H is used
+    as the uploaded comparison price vs system MAP per UPC.
     """
     rows: List[dict] = []
     idx_upc = 0
@@ -144,14 +145,14 @@ def _extract_rows_from_dataframe(df: pd.DataFrame) -> List[dict]:
         asin = str(cells[idx_asin]).strip() if len(cells) > idx_asin and cells[idx_asin] is not None else ""
         seller = str(cells[idx_seller]).strip() if len(cells) > idx_seller and cells[idx_seller] is not None else ""
         price_raw = str(cells[idx_price]).strip() if len(cells) > idx_price and cells[idx_price] is not None else ""
-        buy_box_current = _parse_price_token(price_raw)
+        uploaded_price = _parse_price_token(price_raw)
         amazon_link = str(cells[idx_link]).strip() if len(cells) > idx_link and cells[idx_link] is not None else ""
         rows.append({
             "upc": upc,
             "product_title": title,
             "asin": asin,
-            "buy_box_seller": seller,
-            "buy_box_current": buy_box_current,
+            "uploaded_seller": seller,
+            "uploaded_price": uploaded_price,
             "amazon_link": amazon_link,
         })
     return rows
@@ -159,7 +160,7 @@ def _extract_rows_from_dataframe(df: pd.DataFrame) -> List[dict]:
 
 def _compress_rows_by_upc(rows: List[dict]) -> List[dict]:
     """
-    Collapse parsed rows to one entry per UPC for off-price comparison.
+    Collapse parsed rows to one entry per UPC for uploaded-mode comparison.
 
     Output shape per UPC:
       {
@@ -167,11 +168,11 @@ def _compress_rows_by_upc(rows: List[dict]) -> List[dict]:
         "product_title": "...",
         "asin": "...",
         "amazon_link": "...",
-        "buy_box_current": 12.34 | None,
-        "buy_box_seller": "..."
+        "uploaded_price": 12.34 | None,
+        "uploaded_seller": "..."
       }
 
-    Duplicate-UPC policy: first row whose H (buy_box_current) is a positive number
+    Duplicate-UPC policy: first row whose uploaded price is a positive number
     wins. Subsequent rows for the same UPC fill in product metadata only if the
     first row left them blank.
     """
@@ -182,18 +183,18 @@ def _compress_rows_by_upc(rows: List[dict]) -> List[dict]:
         if not upc:
             continue
 
-        bb_value = row.get("buy_box_current")
+        price_value = row.get("uploaded_price")
         try:
-            bb_num = float(bb_value) if bb_value is not None else None
-            if bb_num is not None and bb_num <= 0:
-                bb_num = None
+            price_num = float(price_value) if price_value is not None else None
+            if price_num is not None and price_num <= 0:
+                price_num = None
         except (TypeError, ValueError):
-            bb_num = None
+            price_num = None
 
         title = str(row.get("product_title") or "").strip()
         asin = str(row.get("asin") or "").strip()
         amazon_link = str(row.get("amazon_link") or "").strip()
-        seller = str(row.get("buy_box_seller") or "").strip()
+        seller = str(row.get("uploaded_seller") or "").strip()
 
         if upc not in compact_by_upc:
             compact_by_upc[upc] = {
@@ -201,15 +202,15 @@ def _compress_rows_by_upc(rows: List[dict]) -> List[dict]:
                 "product_title": title,
                 "asin": asin,
                 "amazon_link": amazon_link,
-                "buy_box_current": bb_num,
-                "buy_box_seller": seller if bb_num is not None else "",
+                "uploaded_price": price_num,
+                "uploaded_seller": seller if price_num is not None else "",
             }
             continue
 
         existing = compact_by_upc[upc]
-        if existing.get("buy_box_current") is None and bb_num is not None:
-            existing["buy_box_current"] = bb_num
-            existing["buy_box_seller"] = seller
+        if existing.get("uploaded_price") is None and price_num is not None:
+            existing["uploaded_price"] = price_num
+            existing["uploaded_seller"] = seller
         if not existing.get("product_title") and title:
             existing["product_title"] = title
         if not existing.get("asin") and asin:
