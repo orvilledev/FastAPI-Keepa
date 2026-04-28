@@ -87,12 +87,23 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [latestUpload, setLatestUpload] = useState<UploadedReport | null>(null)
   const [uploadEmailRecipients, setUploadEmailRecipients] = useState('')
+  const [savingUploadRecipients, setSavingUploadRecipients] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [queueing, setQueueing] = useState(false)
   const [deletingUpload, setDeletingUpload] = useState(false)
 
   const inputMode = schedulerSettings?.input_mode === 'uploaded' ? 'uploaded' : 'api'
   const isUploadMode = inputMode === 'uploaded'
+  const normalizeRecipientString = (raw?: string | null) =>
+    (raw || '')
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean)
+      .sort()
+      .join(', ')
+  const uploadRecipientsDirty =
+    normalizeRecipientString(uploadEmailRecipients) !==
+    normalizeRecipientString(schedulerSettings?.email_recipients)
 
   useEffect(() => {
     checkKeepaAccess()
@@ -411,6 +422,24 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
     }
   }
 
+  const handleSaveUploadRecipients = async () => {
+    setSavingUploadRecipients(true)
+    setError('')
+    setSuccess('')
+    try {
+      await schedulerApi.updateSettings(
+        { email_recipients: uploadEmailRecipients.trim() || null },
+        vendor,
+      )
+      await loadSchedulerSettings()
+      setSuccess('Upload Mode recipients saved.')
+    } catch (saveErr: any) {
+      setError(saveErr?.response?.data?.detail || 'Failed to save upload recipients.')
+    } finally {
+      setSavingUploadRecipients(false)
+    }
+  }
+
   const handleDeleteLatestUpload = async () => {
     if (!latestUpload) return
     const confirmed = window.confirm(
@@ -670,6 +699,25 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Email recipients (optional)</label>
             <EmailRecipientsPicker value={uploadEmailRecipients} onChange={setUploadEmailRecipients} persistDismissed />
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handleSaveUploadRecipients}
+                disabled={
+                  savingUploadRecipients ||
+                  uploading ||
+                  queueing ||
+                  deletingUpload ||
+                  !uploadRecipientsDirty
+                }
+                className="px-3 py-1.5 rounded-md border border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50 disabled:opacity-50 text-sm font-medium"
+              >
+                {savingUploadRecipients ? 'Saving...' : 'Save Recipients'}
+              </button>
+              <span className="text-xs text-gray-500">
+                Recipient changes are saved only after clicking <strong>Save Recipients</strong> (or Upload Report).
+              </span>
+            </div>
           </div>
 
           {latestUpload && (
