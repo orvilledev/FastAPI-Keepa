@@ -7,7 +7,6 @@ import BORSchedulerCountdown from './BORSchedulerCountdown'
 import SFFSchedulerCountdown from './SFFSchedulerCountdown'
 import TEVSchedulerCountdown from './TEVSchedulerCountdown'
 import CHASchedulerCountdown from './CHASchedulerCountdown'
-import UPCMAPStats from './UPCMAPStats'
 import { dashboardApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
 
@@ -33,7 +32,6 @@ export default function Dashboard() {
   const sffSchedulerCountdownWidget = useMemo(() => <SFFSchedulerCountdown />, [])
   const tevSchedulerCountdownWidget = useMemo(() => <TEVSchedulerCountdown />, [])
   const chaSchedulerCountdownWidget = useMemo(() => <CHASchedulerCountdown />, [])
-  const upcMapStatsWidget = useMemo(() => <UPCMAPStats />, [])
 
   // Set greeting from context
   useEffect(() => {
@@ -73,8 +71,6 @@ export default function Dashboard() {
                 component = tevSchedulerCountdownWidget
               } else if (w.widget_id === 'chaSchedulerCountdown' && hasKeepaAccess) {
                 component = chaSchedulerCountdownWidget
-              } else if (w.widget_id === 'upcMapStats' && hasKeepaAccess) {
-                component = upcMapStatsWidget
               }
               return { id: w.widget_id, component }
             })
@@ -92,7 +88,6 @@ export default function Dashboard() {
               defaultWidgets.push({ id: 'sffSchedulerCountdown', component: sffSchedulerCountdownWidget })
               defaultWidgets.push({ id: 'tevSchedulerCountdown', component: tevSchedulerCountdownWidget })
               defaultWidgets.push({ id: 'chaSchedulerCountdown', component: chaSchedulerCountdownWidget })
-              defaultWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
             }
             setWidgets(defaultWidgets)
             
@@ -120,7 +115,6 @@ export default function Dashboard() {
               allAvailableWidgets.push({ id: 'sffSchedulerCountdown', component: sffSchedulerCountdownWidget })
               allAvailableWidgets.push({ id: 'tevSchedulerCountdown', component: tevSchedulerCountdownWidget })
               allAvailableWidgets.push({ id: 'chaSchedulerCountdown', component: chaSchedulerCountdownWidget })
-              allAvailableWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
             }
             const missingWidgets = allAvailableWidgets.filter(w => !savedWidgetIds.has(w.id))
             
@@ -170,7 +164,6 @@ export default function Dashboard() {
             defaultWidgets.push({ id: 'sffSchedulerCountdown', component: sffSchedulerCountdownWidget })
             defaultWidgets.push({ id: 'tevSchedulerCountdown', component: tevSchedulerCountdownWidget })
             defaultWidgets.push({ id: 'chaSchedulerCountdown', component: chaSchedulerCountdownWidget })
-            defaultWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
           }
           setWidgets(defaultWidgets)
           
@@ -203,7 +196,6 @@ export default function Dashboard() {
           defaultWidgets.push({ id: 'sffSchedulerCountdown', component: sffSchedulerCountdownWidget })
           defaultWidgets.push({ id: 'tevSchedulerCountdown', component: tevSchedulerCountdownWidget })
           defaultWidgets.push({ id: 'chaSchedulerCountdown', component: chaSchedulerCountdownWidget })
-          defaultWidgets.push({ id: 'upcMapStats', component: upcMapStatsWidget })
         }
         setWidgets(defaultWidgets)
       } finally {
@@ -212,7 +204,7 @@ export default function Dashboard() {
     }
 
     loadData()
-  }, [hasKeepaAccess, userInfoLoading, dnkSchedulerCountdownWidget, clkSchedulerCountdownWidget, obzSchedulerCountdownWidget, refSchedulerCountdownWidget, borSchedulerCountdownWidget, sffSchedulerCountdownWidget, tevSchedulerCountdownWidget, chaSchedulerCountdownWidget, upcMapStatsWidget])
+  }, [hasKeepaAccess, userInfoLoading, dnkSchedulerCountdownWidget, clkSchedulerCountdownWidget, obzSchedulerCountdownWidget, refSchedulerCountdownWidget, borSchedulerCountdownWidget, sffSchedulerCountdownWidget, tevSchedulerCountdownWidget, chaSchedulerCountdownWidget])
 
   const handleDragStart = (index: number) => {
     setDraggedIndex(index)
