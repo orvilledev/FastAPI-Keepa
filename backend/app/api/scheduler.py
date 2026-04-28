@@ -744,6 +744,8 @@ async def upload_scheduler_report(
 
     raw = await file.read()
     today = datetime.utcnow().date().isoformat()
+    # Keep exactly one uploaded report per category; a new upload replaces older ones.
+    db.table("scheduler_uploaded_reports").delete().eq("category", category).execute()
     insert_resp = db.table("scheduler_uploaded_reports").insert({
         "category": category,
         "filename": filename,
@@ -859,16 +861,6 @@ async def rerun_uploaded_report(
     report = latest.data[0] if latest.data else None
     if not report:
         raise HTTPException(status_code=400, detail="No uploaded report found for this category.")
-    from app.config import settings
-    created_at = _parse_utc_naive_timestamp(report.get("created_at"))
-    max_age_days = max(1, int(settings.scheduler_uploaded_report_max_age_days))
-    if created_at:
-        age = datetime.utcnow() - created_at
-        if age.days > max_age_days:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Latest uploaded report is stale ({age.days} days old; limit: {max_age_days} days).",
-            )
     parse_status = (report.get("parse_status") or "").strip().lower()
     if parse_status != "completed":
         raise HTTPException(status_code=409, detail=f"Uploaded report is not ready yet (status: {parse_status or 'pending'}).")

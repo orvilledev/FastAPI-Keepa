@@ -13,7 +13,7 @@ from app.services.email_service import EmailService
 from app.services.report_service import ReportService
 from typing import List, Optional
 from dataclasses import dataclass
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime
 import hashlib
 
 logger = logging.getLogger(__name__)
@@ -150,21 +150,6 @@ def _normalize_uploaded_payload(payload: List[dict]) -> List[dict]:
 
     return list(by_upc.values())
 
-
-def _parse_utc_naive_timestamp(value: Optional[str]) -> Optional[datetime]:
-    """Parse ISO timestamp and normalize to UTC-naive datetime."""
-    if not value:
-        return None
-    raw = str(value).strip()
-    if raw.endswith("Z"):
-        raw = f"{raw[:-1]}+00:00"
-    try:
-        parsed = datetime.fromisoformat(raw)
-    except Exception:
-        return None
-    if parsed.tzinfo is not None:
-        return parsed.astimezone(dt_timezone.utc).replace(tzinfo=None)
-    return parsed
 
 @dataclass
 class SchedulerConfig:
@@ -308,31 +293,6 @@ async def run_daily_job_for_category(category: str = 'dnk'):
             )
             if uploaded_response.data:
                 report = uploaded_response.data[0]
-                report_created_at = _parse_utc_naive_timestamp(report.get("created_at"))
-                max_age_days = max(1, int(settings.scheduler_uploaded_report_max_age_days))
-                if report_created_at:
-                    age = datetime.utcnow() - report_created_at
-                    if age.days > max_age_days:
-                        logger.warning(
-                            "Latest uploaded report for %s is stale (age=%s days, limit=%s days); skipping run",
-                            category.upper(),
-                            age.days,
-                            max_age_days,
-                        )
-                        db.table("batch_jobs").insert({
-                            "job_name": f"Daily {category.upper()} Uploaded Report - {current_time.strftime('%Y-%m-%d')}",
-                            "status": "failed",
-                            "total_batches": 0,
-                            "completed_batches": 0,
-                            "created_by": str(admin_uuid),
-                            "completed_at": datetime.utcnow().isoformat(),
-                            "error_message": f"Latest uploaded report is stale ({age.days} days old; limit: {max_age_days} days).",
-                            "email_recipients": custom_recipients,
-                            "map_vendor_type": category,
-                            "keepa_offers_limit": settings.keepa_offers_limit,
-                            "off_price_scope": "buybox_only",
-                        }).execute()
-                        return
                 parse_status = (report.get("parse_status") or "").strip().lower()
                 if parse_status != "completed":
                     logger.warning(
