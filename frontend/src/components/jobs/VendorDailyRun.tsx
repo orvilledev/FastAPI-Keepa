@@ -586,7 +586,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                   : 'bg-white text-gray-700 hover:bg-gray-50'
               }`}
             >
-              API Run
+              API Mode
             </button>
             <button
               type="button"
@@ -599,7 +599,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                   : 'bg-white text-gray-700 hover:bg-gray-50'
               }`}
             >
-              Upload Run
+              Upload Mode
             </button>
           </div>
           <button

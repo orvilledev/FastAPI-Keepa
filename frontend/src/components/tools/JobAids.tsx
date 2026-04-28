@@ -39,11 +39,75 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     ),
   },
   {
-    q: 'What are Daily Runs (DNK/CLK)?',
+    q: 'What are Daily Runs?',
     a: (
       <>
-        Daily Runs are scheduled monitoring—for example separate DNK and CLK flows—that run automatically so pricing
+        Daily Runs are scheduled monitoring per vendor category (DNK, CLK, OBZ, REF, BOR, SFF, TEV, CHA) so pricing
         stays under review without starting each batch by hand.
+      </>
+    ),
+  },
+  {
+    q: 'What is the difference between API Mode and Upload Mode?',
+    a: (
+      <>
+        <strong>API Mode</strong> pulls live Keepa data at run time. <strong>Upload Mode</strong> compares the latest
+        uploaded Keepa report file against MAP using Manage UPCs as run scope. Both modes use the same schedule time; the
+        selected mode determines which data source is used.
+      </>
+    ),
+  },
+  {
+    q: 'Can I switch modes and keep the same scheduled time?',
+    a: (
+      <>
+        Yes. Use the mode toggle in Vendor Daily Run (<strong>API Mode</strong> / <strong>Upload Mode</strong>). The next
+        scheduled run uses whichever mode is currently selected for that vendor.
+      </>
+    ),
+  },
+  {
+    q: 'What gets flagged in Daily API runs: buy-box only or also non-buy-box sellers?',
+    a: (
+      <>
+        Daily API runs flag both buy-box and non-buy-box sellers that are below MAP (the run scope is
+        <code> buybox_and_non_buybox_below_map </code> for scheduled daily processing).
+      </>
+    ),
+  },
+  {
+    q: 'Do Upload Daily Run and Trigger Upload Run Now (Express) send emails?',
+    a: (
+      <>
+        Yes. Both paths run through the same uploaded-mode scheduler flow and include report generation + email sending
+        when recipients and SMTP settings are configured correctly.
+      </>
+    ),
+  },
+  {
+    q: 'Why can Upload Mode produce no results even when my file has off-MAP rows?',
+    a: (
+      <>
+        Common causes are: uploaded file parse not completed yet, no overlap between uploaded UPCs and Manage UPCs, missing
+        MAP entries for those UPCs, or seller exclusion filters. Check uploaded report status first, then confirm overlap
+        and MAP coverage.
+      </>
+    ),
+  },
+  {
+    q: 'Are Amazon URLs in reports the same for API, Express Jobs, and Upload?',
+    a: (
+      <>
+        They are built by one shared URL formatter, but output depends on seller id quality:
+        <ul className="list-disc pl-5 mt-2 space-y-1">
+          <li>
+            API/Express rows with real seller ids use seller-filtered URLs:
+            <code> https://www.amazon.com/dp/ASIN?smid=SELLER_ID&amp;th=1&amp;psc=1</code>.
+          </li>
+          <li>
+            Upload rows use the uploaded Amazon link (column U) or a clean ASIN URL when seller id is synthetic.
+          </li>
+        </ul>
       </>
     ),
   },

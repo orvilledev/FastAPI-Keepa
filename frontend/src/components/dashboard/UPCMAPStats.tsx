@@ -4,7 +4,6 @@ import { Link } from 'react-router-dom'
 
 export default function UPCMAPStats() {
   const [dnkUpcCount, setDnkUpcCount] = useState<number | null>(null)
-  const [clkUpcCount, setClkUpcCount] = useState<number | null>(null)
   const [mapCount, setMapCount] = useState<number | null>(null)
   const [initialLoading, setInitialLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -21,14 +20,12 @@ export default function UPCMAPStats() {
         }
 
         // Load all counts in parallel
-        const [dnkUpcData, clkUpcData, mapData] = await Promise.all([
+        const [dnkUpcData, mapData] = await Promise.all([
           upcsApi.getUPCCount('dnk'),
-          upcsApi.getUPCCount('clk'),
           mapApi.getMAPCount()
         ])
 
         setDnkUpcCount(dnkUpcData.count)
-        setClkUpcCount(clkUpcData.count)
         setMapCount(mapData.count)
       } catch (err: any) {
         console.error('Failed to load UPC/MAP counts:', err)
@@ -48,7 +45,7 @@ export default function UPCMAPStats() {
     return () => clearInterval(interval)
   }, [])
 
-  if (initialLoading && dnkUpcCount === null && clkUpcCount === null && mapCount === null) {
+  if (initialLoading && dnkUpcCount === null && mapCount === null) {
     return (
       <div className="card p-4">
         <div className="text-center text-gray-500 text-sm">Loading stats...</div>
@@ -69,7 +66,7 @@ export default function UPCMAPStats() {
           Error refreshing stats: {error}
         </div>
       )}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {/* DNK UPC Count */}
         <Link
           to="/upcs?category=dnk"
@@ -79,19 +76,6 @@ export default function UPCMAPStats() {
             <div className="text-xs text-gray-500 mb-1">DNK UPCs</div>
             <div className="text-2xl font-bold text-[#0B1020] group-hover:text-[#1a2235]">
               {dnkUpcCount !== null ? dnkUpcCount.toLocaleString() : '—'}
-            </div>
-          </div>
-        </Link>
-
-        {/* CLK UPC Count */}
-        <Link
-          to="/upcs?category=clk"
-          className="group hover:bg-blue-50 rounded-lg p-3 transition-colors border border-transparent hover:border-blue-200"
-        >
-          <div>
-            <div className="text-xs text-gray-500 mb-1">CLK UPCs</div>
-            <div className="text-2xl font-bold text-[#0B1020] group-hover:text-[#1a2235]">
-              {clkUpcCount !== null ? clkUpcCount.toLocaleString() : '—'}
             </div>
           </div>
         </Link>
