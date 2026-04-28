@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
+import { useEffect, useState, type ChangeEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { jobsApi, authApi, schedulerApi } from '../../services/api'
 import type { SchedulerSettings } from '../../types'
@@ -84,7 +84,6 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
 
   // Upload-mode state
   const [selectedFileName, setSelectedFileName] = useState('')
-  const [parsedUpcs, setParsedUpcs] = useState<string[]>([])
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [latestUpload, setLatestUpload] = useState<UploadedReport | null>(null)
   const [uploadEmailRecipients, setUploadEmailRecipients] = useState('')
@@ -298,65 +297,6 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
 
   // ---------------- Upload helpers ----------------
 
-  const previewUpcs = useMemo(() => parsedUpcs.slice(0, 10), [parsedUpcs])
-
-  const scientificToIntegerString = (raw: string): string | null => {
-    const m = raw.trim().toLowerCase().match(/^([+-]?\d+(?:\.\d+)?)[e]([+-]?\d+)$/)
-    if (!m) return null
-    const mantissaRaw = m[1]
-    const exp = Number.parseInt(m[2], 10)
-    if (!Number.isFinite(exp)) return null
-    const sign = mantissaRaw.startsWith('-') ? '-' : ''
-    const mantissa = mantissaRaw.replace(/^[+-]/, '')
-    const [intPart, fracPart = ''] = mantissa.split('.')
-    const digits = `${intPart}${fracPart}`.replace(/^0+/, '') || '0'
-    const decimalPlaces = fracPart.length
-    const shift = exp - decimalPlaces
-    if (shift >= 0) {
-      return `${sign}${digits}${'0'.repeat(shift)}`
-    }
-    const cut = digits.length + shift
-    if (cut <= 0) return null
-    const whole = digits.slice(0, cut)
-    const fractional = digits.slice(cut)
-    if (fractional.replace(/0/g, '') !== '') return null
-    return `${sign}${whole}`
-  }
-
-  const normalizeUpcToken = (raw: string): string | null => {
-    const cleaned = raw.trim().replace(/^"+|"+$/g, '').replace(/^'+|'+$/g, '')
-    if (!cleaned) return null
-    const withoutDecimal = cleaned.match(/^\d{8,14}\.0+$/) ? cleaned.split('.')[0] : cleaned
-    const sciAsInt = scientificToIntegerString(withoutDecimal)
-    const normalizedSource = sciAsInt ?? withoutDecimal
-    const digitsOnly = normalizedSource.replace(/\D/g, '')
-    if (!digitsOnly || digitsOnly.length < 8 || digitsOnly.length > 14) return null
-    return digitsOnly
-  }
-
-  const extractUpcsFromText = (text: string): string[] => {
-    const deduped: string[] = []
-    const seen = new Set<string>()
-    const lines = text.split(/\r?\n/)
-    for (const line of lines) {
-      const parts = line.split(/[,\t;|]/g)
-      for (const part of parts) {
-        const normalized = normalizeUpcToken(part)
-        if (!normalized || seen.has(normalized)) continue
-        seen.add(normalized)
-        deduped.push(normalized)
-      }
-      // Fallback: still capture raw digit spans in line.
-      const matches = line.match(/\b\d{8,14}\b/g) || []
-      for (const m of matches) {
-        if (seen.has(m)) continue
-        seen.add(m)
-        deduped.push(m)
-      }
-    }
-    return deduped
-  }
-
   const loadLatestUpload = async () => {
     try {
       const latest = await schedulerApi.getLatestUploadedReport(vendor)
@@ -392,36 +332,24 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
     const file = event.target.files?.[0]
     if (!file) {
       setSelectedFileName('')
-      setParsedUpcs([])
       setUploadedFile(null)
       return
     }
 
-    const lowerName = (file.name || '').toLowerCase()
-    const isExcelFile = EXCEL_EXTENSIONS.some((ext) => lowerName.endsWith(ext))
-
     try {
       setSelectedFileName(file.name)
       setUploadedFile(file)
-      if (isExcelFile) {
-        // Browser preview for binary Excel files is unreliable; backend parser is authoritative.
-        setParsedUpcs([])
-        setSuccess(`Excel file "${file.name}" ready. UPCs will be parsed on upload.`)
-      } else {
-        const content = await file.text()
-        const upcs = extractUpcsFromText(content)
-        setParsedUpcs(upcs)
-        if (upcs.length) {
-          setSuccess(`Loaded ${upcs.length} UPCs from ${file.name}.`)
-        } else {
-          setError('Preview found no UPCs in this file. You can still upload and let the backend validate.')
-        }
-      }
+      const lowerName = (file.name || '').toLowerCase()
+      const isExcelFile = EXCEL_EXTENSIONS.some((ext) => lowerName.endsWith(ext))
+      setSuccess(
+        isExcelFile
+          ? `Excel file "${file.name}" ready. Upload to parse it on the server.`
+          : `File "${file.name}" ready. Upload to parse it on the server.`,
+      )
     } catch (readErr) {
       console.error('Failed to parse uploaded file', readErr)
       setError('Could not read this file. Please try again.')
       setSelectedFileName('')
-      setParsedUpcs([])
       setUploadedFile(null)
     }
   }
@@ -770,16 +698,6 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
               </div>
             </div>
           )}
-
-          <div className="rounded-lg border border-gray-200 p-4 bg-gray-50">
-            <p className="text-sm font-medium text-gray-900">Parsed file UPCs (preview only): {parsedUpcs.length}</p>
-            {previewUpcs.length > 0 && (
-              <p className="mt-1 text-xs text-gray-600 font-mono break-all">
-                {previewUpcs.join(', ')}
-                {parsedUpcs.length > previewUpcs.length ? ' ...' : ''}
-              </p>
-            )}
-          </div>
 
           <div className="flex flex-wrap gap-3">
             <button
