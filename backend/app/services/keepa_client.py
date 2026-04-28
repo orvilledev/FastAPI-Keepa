@@ -280,24 +280,36 @@ class MultiKeyKeepaClient:
     @classmethod
     def _load_runtime_api_keys(cls) -> List[str]:
         """
-        Load Keepa keys at runtime with priority:
+        Load Keepa keys at runtime by merging all known sources:
         1) backend/.env (latest local edits)
         2) process environment
         3) pydantic settings snapshot
+
+        We merge (not short-circuit) to avoid silently dropping valid keys
+        that may be present in one source but missing in another.
         """
         file_keys = cls._parse_keepa_keys_from_env_file()
-        if file_keys:
-            return file_keys
-
         env_keys = [k.strip() for k in os.getenv("KEEPA_API_KEYS", "").split(",") if k.strip()]
         env_primary = (os.getenv("KEEPA_API_KEY") or "").strip()
         if env_primary:
             env_keys.append(env_primary)
         env_keys = cls._dedupe_keys(env_keys)
-        if env_keys:
-            return env_keys
 
-        return settings.keepa_api_keys_list
+        settings_keys = cls._dedupe_keys(settings.keepa_api_keys_list)
+        merged = cls._dedupe_keys(file_keys + env_keys + settings_keys)
+
+        logger.info(
+            "Keepa key source counts: file=%s env=%s settings=%s merged=%s",
+            len(file_keys),
+            len(env_keys),
+            len(settings_keys),
+            len(merged),
+        )
+        if merged:
+            return merged
+
+        # Defensive fallback (should rarely be hit due keepa_api_key required).
+        return [settings.keepa_api_key]
     
     @classmethod
     def _load_rotation_index(cls) -> int:
