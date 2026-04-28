@@ -1,5 +1,5 @@
 """Repository for UPC database operations."""
-from typing import List, Tuple, Optional, Dict, Set
+from typing import List, Optional, Dict, Set
 from supabase import Client
 from fastapi import HTTPException
 import logging
@@ -14,13 +14,22 @@ class UPCRepository:
         self.db = db
         self.table = "upcs"
     
-    def list_upcs(self, limit: int = 100, offset: int = 0, category: Optional[str] = None) -> List[dict]:
-        """List UPCs with pagination, optionally filtered by category."""
+    def list_upcs(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        category: Optional[str] = None,
+        search: Optional[str] = None,
+    ) -> List[dict]:
+        """List UPCs with pagination, optionally filtered by category and search term."""
         query = self.db.table(self.table).select("*")
         
         if category:
             # Explicitly filter by category to ensure separation
             query = query.eq("category", category)
+
+        if search:
+            query = query.ilike("upc", f"%{search.strip()}%")
         
         response = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
         
@@ -36,12 +45,15 @@ class UPCRepository:
         
         return response.data
     
-    def get_upc_count(self, category: Optional[str] = None) -> int:
-        """Get total count of UPCs, optionally filtered by category."""
+    def get_upc_count(self, category: Optional[str] = None, search: Optional[str] = None) -> int:
+        """Get total count of UPCs, optionally filtered by category and search term."""
         query = self.db.table(self.table).select("id", count="exact")
         
         if category:
             query = query.eq("category", category)
+
+        if search:
+            query = query.ilike("upc", f"%{search.strip()}%")
         
         response = query.limit(0).execute()
         return response.count if hasattr(response, 'count') else len(response.data)

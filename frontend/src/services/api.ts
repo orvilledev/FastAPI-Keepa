@@ -286,15 +286,19 @@ export const upcsApi = {
     }
   },
   
-  listUPCs: async (limit: number = 100, offset: number = 0, category?: string) => {
-    const categoryParam = category ? `&category=${category}` : ''
-    const response = await api.get<UPC[]>(`/api/v1/upcs?limit=${limit}&offset=${offset}${categoryParam}`)
+  listUPCs: async (limit: number = 100, offset: number = 0, category?: string, search?: string) => {
+    const params: Record<string, string | number> = { limit, offset }
+    if (category) params.category = category
+    if (search && search.trim()) params.search = search.trim()
+    const response = await api.get<UPC[]>('/api/v1/upcs', { params })
     return response.data
   },
   
-  getUPCCount: async (category?: string) => {
-    const categoryParam = category ? `?category=${category}` : ''
-    const response = await api.get<{ count: number }>(`/api/v1/upcs/count${categoryParam}`)
+  getUPCCount: async (category?: string, search?: string) => {
+    const params: Record<string, string> = {}
+    if (category) params.category = category
+    if (search && search.trim()) params.search = search.trim()
+    const response = await api.get<{ count: number }>('/api/v1/upcs/count', { params })
     return response.data
   },
   

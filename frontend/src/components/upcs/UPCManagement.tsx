@@ -27,7 +27,6 @@ export default function UPCManagement() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [category, setCategory] = useState<string>('dnk')
   const [upcs, setUpcs] = useState<UPC[]>([])
-  const [allUpcs, setAllUpcs] = useState<UPC[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
@@ -59,7 +58,7 @@ export default function UPCManagement() {
   useEffect(() => {
     loadUPCCount()
     loadUPCs()
-  }, [currentPage, category])
+  }, [currentPage, category, searchTerm])
 
   useEffect(() => {
     setDeleteQueue([])
@@ -67,9 +66,13 @@ export default function UPCManagement() {
     setQueueBulkText('')
   }, [category])
 
+  useEffect(() => {
+    setCurrentPage(0)
+  }, [searchTerm, category])
+
   const loadUPCCount = async () => {
     try {
-      const data = await upcsApi.getUPCCount(category)
+      const data = await upcsApi.getUPCCount(category, searchTerm)
       setTotalCount(data.count)
     } catch (error) {
       console.error('Failed to load UPC count:', error)
@@ -79,34 +82,14 @@ export default function UPCManagement() {
   const loadUPCs = async () => {
     try {
       setLoading(true)
-      const data = await upcsApi.listUPCs(limit, currentPage * limit, category)
-      setAllUpcs(data)
-      if (searchTerm.trim()) {
-        const filtered = data.filter((upc) =>
-          upc.upc.toLowerCase().includes(searchTerm.toLowerCase().trim())
-        )
-        setUpcs(filtered)
-      } else {
-        setUpcs(data)
-      }
+      const data = await upcsApi.listUPCs(limit, currentPage * limit, category, searchTerm)
+      setUpcs(data)
     } catch (error: any) {
       setError(error.response?.data?.detail || 'Failed to load UPCs')
     } finally {
       setLoading(false)
     }
   }
-
-  // Filter UPCs when search term changes
-  useEffect(() => {
-    if (searchTerm.trim()) {
-      const filtered = allUpcs.filter((upc) =>
-        upc.upc.toLowerCase().includes(searchTerm.toLowerCase().trim())
-      )
-      setUpcs(filtered)
-    } else {
-      setUpcs(allUpcs)
-    }
-  }, [searchTerm, allUpcs])
 
   const handleAddUPCs = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -506,7 +489,7 @@ export default function UPCManagement() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Filter visible rows by UPC (partial match)..."
+              placeholder="Search UPCs in this category (partial match)..."
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm font-mono"
             />
             {searchTerm && (

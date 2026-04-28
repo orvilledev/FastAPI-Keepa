@@ -142,13 +142,15 @@ async def list_upcs(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     category: Optional[str] = Query(None, description="Filter by vendor category code"),
+    search: Optional[str] = Query(None, description="Search UPCs by partial code match"),
 ):
-    """List UPCs in the database, optionally filtered by category (authenticated users)."""
+    """List UPCs in the database, optionally filtered by category and UPC search."""
     category = _parse_optional_category(category)
+    search = (search or "").strip() or None
     
     try:
         upc_repo = UPCRepository(db)
-        upcs = upc_repo.list_upcs(limit=limit, offset=offset, category=category)
+        upcs = upc_repo.list_upcs(limit=limit, offset=offset, category=category, search=search)
         
         # Convert to response models, handling validation errors gracefully
         if not upcs:
@@ -181,12 +183,14 @@ async def get_upc_count(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
     category: Optional[str] = Query(None, description="Filter by vendor category code"),
+    search: Optional[str] = Query(None, description="Search UPCs by partial code match"),
 ):
-    """Get total count of UPCs in the database, optionally filtered by category."""
+    """Get total count of UPCs in the database, optionally filtered by category and search."""
     category = _parse_optional_category(category)
+    search = (search or "").strip() or None
     
     upc_repo = UPCRepository(db)
-    count = upc_repo.get_upc_count(category=category)
+    count = upc_repo.get_upc_count(category=category, search=search)
     return {"count": count}
 
 
