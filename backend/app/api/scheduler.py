@@ -172,9 +172,9 @@ def _compress_rows_by_upc(rows: List[dict]) -> List[dict]:
         "uploaded_seller": "..."
       }
 
-    Duplicate-UPC policy: first row whose uploaded price is a positive number
-    wins. Subsequent rows for the same UPC fill in product metadata only if the
-    first row left them blank.
+    Duplicate-UPC policy: retain all duplicate rows as ordered candidates so
+    runtime comparison can fall back to later rows when the first candidate
+    cannot be used for off-price detection.
     """
     compact_by_upc: dict = {}
 
@@ -195,6 +195,13 @@ def _compress_rows_by_upc(rows: List[dict]) -> List[dict]:
         asin = str(row.get("asin") or "").strip()
         amazon_link = str(row.get("amazon_link") or "").strip()
         seller = str(row.get("uploaded_seller") or "").strip()
+        candidate = {
+            "uploaded_price": price_num,
+            "uploaded_seller": seller,
+            "product_title": title,
+            "asin": asin,
+            "amazon_link": amazon_link,
+        }
 
         if upc not in compact_by_upc:
             compact_by_upc[upc] = {
@@ -204,10 +211,12 @@ def _compress_rows_by_upc(rows: List[dict]) -> List[dict]:
                 "amazon_link": amazon_link,
                 "uploaded_price": price_num,
                 "uploaded_seller": seller if price_num is not None else "",
+                "uploaded_candidates": [candidate],
             }
             continue
 
         existing = compact_by_upc[upc]
+        existing.setdefault("uploaded_candidates", []).append(candidate)
         if existing.get("uploaded_price") is None and price_num is not None:
             existing["uploaded_price"] = price_num
             existing["uploaded_seller"] = seller

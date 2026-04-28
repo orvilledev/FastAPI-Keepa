@@ -79,8 +79,8 @@ def _build_synthetic_uploaded_offer(entry: dict) -> dict:
 def _normalize_uploaded_payload(payload: List[dict]) -> List[dict]:
     """Normalize stored parsed_rows into per-UPC dicts with `uploaded_price`.
 
-    Accepts the current compact format (one entry per UPC with `uploaded_price`)
-    and stays backward compatible with older stored shapes:
+    Accepts compact format and stays backward compatible with older stored shapes:
+      - per-UPC entries with `uploaded_candidates[]` (preferred)
       - legacy `buy_box_current` / `buy_box_seller` entries — mapped 1:1 to
         `uploaded_price` / `uploaded_seller`.
       - per-UPC entries with `offers[]` — `uploaded_price` is taken as the
@@ -106,9 +106,39 @@ def _normalize_uploaded_payload(payload: List[dict]) -> List[dict]:
             "amazon_link": str(entry.get("amazon_link") or "").strip(),
             "uploaded_price": None,
             "uploaded_seller": "",
+            "uploaded_candidates": [],
         }
 
-        if "uploaded_price" in entry or "buy_box_current" in entry:
+        # Preferred shape: explicit ordered candidates for duplicate UPC rows.
+        if isinstance(entry.get("uploaded_candidates"), list) and entry.get("uploaded_candidates"):
+            candidates = []
+            for cand in entry.get("uploaded_candidates") or []:
+                if not isinstance(cand, dict):
+                    continue
+                cand_price = _normalize_price(cand.get("uploaded_price"))
+                cand_seller = str(cand.get("uploaded_seller") or "").strip()
+                cand_title = str(cand.get("product_title") or "").strip()
+                cand_asin = str(cand.get("asin") or "").strip()
+                cand_link = str(cand.get("amazon_link") or "").strip()
+                candidates.append({
+                    "uploaded_price": float(cand_price) if cand_price is not None else None,
+                    "uploaded_seller": cand_seller,
+                    "product_title": cand_title,
+                    "asin": cand_asin,
+                    "amazon_link": cand_link,
+                })
+            if candidates:
+                base["uploaded_candidates"].extend(candidates)
+                first_valid = next((c for c in candidates if c.get("uploaded_price") is not None), None)
+                if base["uploaded_price"] is None and first_valid is not None:
+                    base["uploaded_price"] = float(first_valid["uploaded_price"])
+                    base["uploaded_seller"] = first_valid.get("uploaded_seller") or ""
+                for field in ("product_title", "asin", "amazon_link"):
+                    if not base.get(field):
+                        fallback = next((c.get(field) for c in candidates if c.get(field)), "")
+                        if fallback:
+                            base[field] = str(fallback).strip()
+        elif "uploaded_price" in entry or "buy_box_current" in entry:
             raw_price = entry.get("uploaded_price")
             if raw_price is None:
                 raw_price = entry.get("buy_box_current")
@@ -116,6 +146,13 @@ def _normalize_uploaded_payload(payload: List[dict]) -> List[dict]:
             if not raw_seller:
                 raw_seller = entry.get("buy_box_seller")
             price_value = _normalize_price(raw_price)
+            base["uploaded_candidates"].append({
+                "uploaded_price": float(price_value) if price_value is not None else None,
+                "uploaded_seller": str(raw_seller or "").strip(),
+                "product_title": str(entry.get("product_title") or "").strip(),
+                "asin": str(entry.get("asin") or "").strip(),
+                "amazon_link": str(entry.get("amazon_link") or "").strip(),
+            })
             if base["uploaded_price"] is None and price_value is not None:
                 base["uploaded_price"] = float(price_value)
                 base["uploaded_seller"] = str(raw_seller or "").strip()
@@ -136,11 +173,25 @@ def _normalize_uploaded_payload(payload: List[dict]) -> List[dict]:
             if base["uploaded_price"] is None and best_price is not None:
                 base["uploaded_price"] = best_price
                 base["uploaded_seller"] = best_seller
+            base["uploaded_candidates"].append({
+                "uploaded_price": best_price,
+                "uploaded_seller": best_seller,
+                "product_title": str(entry.get("product_title") or "").strip(),
+                "asin": str(entry.get("asin") or "").strip(),
+                "amazon_link": str(entry.get("amazon_link") or "").strip(),
+            })
         else:
             price = _normalize_price(entry.get("seller_price"))
             if base["uploaded_price"] is None and price is not None:
                 base["uploaded_price"] = float(price)
                 base["uploaded_seller"] = str(entry.get("seller") or "").strip()
+            base["uploaded_candidates"].append({
+                "uploaded_price": float(price) if price is not None else None,
+                "uploaded_seller": str(entry.get("seller") or "").strip(),
+                "product_title": str(entry.get("product_title") or "").strip(),
+                "asin": str(entry.get("asin") or "").strip(),
+                "amazon_link": str(entry.get("amazon_link") or "").strip(),
+            })
 
         for field in ("product_title", "asin", "amazon_link"):
             if not base.get(field) and entry.get(field):
@@ -403,37 +454,56 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                 alert_rows = []
                 now_iso = datetime.utcnow().isoformat()
                 for upc, entry in upc_to_entry.items():
-                    keepa_data = _build_synthetic_uploaded_offer(entry)
-                    keepa_by_upc[upc] = keepa_data
-
                     map_price = map_prices.get(upc)
                     if map_price is None:
+                        keepa_by_upc[upc] = _build_synthetic_uploaded_offer(entry)
                         continue
                     try:
                         map_f = float(map_price)
                     except (TypeError, ValueError):
+                        keepa_by_upc[upc] = _build_synthetic_uploaded_offer(entry)
                         continue
                     if map_f <= 0:
+                        keepa_by_upc[upc] = _build_synthetic_uploaded_offer(entry)
                         continue
 
-                    uploaded_value = entry.get("uploaded_price")
-                    try:
-                        uploaded_f = float(uploaded_value) if uploaded_value is not None else None
-                    except (TypeError, ValueError):
-                        uploaded_f = None
-                    if uploaded_f is None or uploaded_f <= 0:
+                    candidates = entry.get("uploaded_candidates")
+                    if not isinstance(candidates, list) or not candidates:
+                        candidates = [entry]
+
+                    selected_entry = None
+                    selected_price = None
+                    for cand in candidates:
+                        if not isinstance(cand, dict):
+                            continue
+                        uploaded_value = cand.get("uploaded_price")
+                        try:
+                            uploaded_f = float(uploaded_value) if uploaded_value is not None else None
+                        except (TypeError, ValueError):
+                            uploaded_f = None
+                        if uploaded_f is None or uploaded_f <= 0:
+                            continue
+                        if uploaded_f >= map_f:
+                            continue
+                        selected_entry = cand
+                        selected_price = uploaded_f
+                        break
+
+                    # Keep first candidate for traceability in batch item Keepa payload even
+                    # when no off-price candidate is found.
+                    keepa_source = selected_entry or (candidates[0] if candidates else entry)
+                    keepa_data = _build_synthetic_uploaded_offer(keepa_source)
+                    keepa_by_upc[upc] = keepa_data
+                    if selected_entry is None or selected_price is None:
                         continue
 
-                    if uploaded_f >= map_f:
-                        continue
-
-                    price_change_percent = ((uploaded_f - map_f) / map_f) * 100 if map_f else 0.0
-                    seller_display = str(entry.get("uploaded_seller") or "").strip() or "Uploaded Report"
+                    price_change_percent = ((selected_price - map_f) / map_f) * 100 if map_f else 0.0
+                    seller_display = str(selected_entry.get("uploaded_seller") or "").strip() or "Uploaded Report"
                     alert_rows.append({
                         "batch_job_id": str(job_id),
                         "upc": upc,
                         "seller_name": seller_display,
-                        "current_price": uploaded_f,
+                        "current_price": selected_price,
                         "historical_price": map_f,
                         "price_change_percent": price_change_percent,
                         "detected_at": now_iso,
