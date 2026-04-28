@@ -10,6 +10,7 @@ from io import BytesIO
 from pydantic import BaseModel
 from typing import Optional, List
 from supabase import Client
+import asyncio
 import logging
 import re
 import pandas as pd
@@ -860,7 +861,6 @@ async def delete_uploaded_report(
 @router.post("/scheduler/uploaded-report/rerun")
 @handle_api_errors("rerun uploaded scheduler report")
 async def rerun_uploaded_report(
-    background_tasks: BackgroundTasks,
     category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
     current_user: dict = Depends(get_current_user),
 ):
@@ -881,6 +881,7 @@ async def rerun_uploaded_report(
     if parse_status != "completed":
         raise HTTPException(status_code=409, detail=f"Uploaded report is not ready yet (status: {parse_status or 'pending'}).")
 
-    background_tasks.add_task(run_daily_job_for_category, category)
+    # Queue immediately and return without waiting on the long-running job.
+    asyncio.create_task(run_daily_job_for_category(category))
     return {"message": f"{category.upper()} uploaded run queued"}
 
