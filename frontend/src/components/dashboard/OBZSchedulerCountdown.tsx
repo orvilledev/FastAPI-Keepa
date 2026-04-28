@@ -12,6 +12,7 @@ export default function OBZSchedulerCountdown() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [enabled, setEnabled] = useState<boolean>(true)
+  const [inputMode, setInputMode] = useState<'api' | 'uploaded'>('api')
 
   const loadStatus = useCallback(async () => {
     try {
@@ -28,6 +29,7 @@ export default function OBZSchedulerCountdown() {
 
       setStatus(data)
       setEnabled(settings.enabled !== false)
+      setInputMode((settings.input_mode || 'api') === 'uploaded' ? 'uploaded' : 'api')
 
       if (data.seconds_until !== null && data.seconds_until > 0) {
         setTimeLeft({
@@ -108,6 +110,7 @@ export default function OBZSchedulerCountdown() {
           <div className="flex-1">
             <h3 className="text-lg font-semibold mb-2 text-gray-900">OBZ Keepa Off Price Daily Run</h3>
             <p className="text-gray-500 text-sm">Daily run is currently stopped.</p>
+            <p className="text-gray-500 text-xs mt-1">Mode: {inputMode === 'uploaded' ? 'Upload Mode' : 'API Mode'}</p>
           </div>
           <div className="text-right ml-6">
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
@@ -135,7 +138,7 @@ export default function OBZSchedulerCountdown() {
         <div className="flex-1">
           <h3 className="text-lg font-semibold mb-2 text-white">OBZ Keepa Off Price Daily Run</h3>
           <p className="text-white/90 text-sm mb-4">
-            Scheduled for {status.scheduled_time} ({status.timezone})
+            Scheduled for {status.scheduled_time} ({status.timezone}) - {inputMode === 'uploaded' ? 'Upload Mode' : 'API Mode'}
           </p>
           {timeLeft && status.seconds_until !== null && status.seconds_until > 0 ? (
             <div className="flex items-center space-x-4">
