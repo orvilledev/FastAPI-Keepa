@@ -3,6 +3,62 @@ import { toolsApi, authApi } from '../../services/api'
 import type { PublicTool } from '../../types'
 
 export default function PublicTools() {
+  const quickGuides = [
+    {
+      id: 'email-list',
+      title: 'How to add or update email recipients',
+      steps: [
+        'Go to Keepa Alert Services > Email List.',
+        'Click Add recipient, then enter name and email.',
+        'To update, edit the same entry and save.',
+      ],
+    },
+    {
+      id: 'express-job',
+      title: 'How to run an Express Job',
+      steps: [
+        'Go to Keepa Alert Services > Express Jobs.',
+        'Click New Job, then enter job name and required settings.',
+        'Select recipients, save, then click Trigger.',
+      ],
+    },
+    {
+      id: 'daily-runs',
+      title: 'How to configure Daily Runs',
+      steps: [
+        'Go to Keepa Alert Services > Daily Runs.',
+        'Open the vendor card you want to configure.',
+        'Set time, mode, recipients, then click Save.',
+      ],
+    },
+    {
+      id: 'map',
+      title: 'How to update MAP records',
+      steps: [
+        'Go to Keepa Alert Services > Manage MAP.',
+        'Add new MAP rows or upload your list.',
+        'Review and save changes before leaving the page.',
+      ],
+    },
+    {
+      id: 'upc',
+      title: 'How to upload UPCs',
+      steps: [
+        'Go to Keepa Alert Services > Manage UPCs.',
+        'Choose category, then add or upload UPCs.',
+        'Confirm rows appear in the table before running jobs.',
+      ],
+    },
+    {
+      id: 'calendar',
+      title: 'How to check run schedules',
+      steps: [
+        'Go to Keepa Alert Services > Run Calendar.',
+        'Check upcoming schedule times and recent activity.',
+        'Use this before daily execution to confirm timing.',
+      ],
+    },
+  ]
   const [tools, setTools] = useState<PublicTool[]>([])
   const [starredTools, setStarredTools] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -11,6 +67,7 @@ export default function PublicTools() {
   const [editingTool, setEditingTool] = useState<PublicTool | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedGuideId, setSelectedGuideId] = useState<string>(quickGuides[0].id)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -56,7 +113,7 @@ export default function PublicTools() {
       // Load starred status after tools are loaded
       await loadStarredStatus()
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to load training materials')
+      setError(err.response?.data?.detail || 'Failed to load guides')
     } finally {
       setLoading(false)
     }
@@ -71,11 +128,11 @@ export default function PublicTools() {
       if (editingTool) {
         // Update existing tool
         await toolsApi.updatePublicTool(editingTool.id, formData)
-        setSuccess('Training material updated successfully!')
+        setSuccess('Guide updated successfully!')
       } else {
         // Create new training material
         await toolsApi.createPublicTool(formData)
-        setSuccess('Training material added successfully!')
+        setSuccess('Guide added successfully!')
       }
       setFormData({ name: '', description: '', url: '', video_url: '', developer: '', category: '', icon: '' })
       setShowAddForm(false)
@@ -83,11 +140,11 @@ export default function PublicTools() {
       loadTools()
     } catch (err: any) {
       if (err.response?.status === 403) {
-        setError('Permission to manage training materials required')
+        setError('Permission to manage guides required')
       } else {
         setError(
           err.response?.data?.detail ||
-            (editingTool ? 'Failed to update training material' : 'Failed to add training material')
+            (editingTool ? 'Failed to update guide' : 'Failed to add guide')
         )
       }
     }
@@ -108,19 +165,19 @@ export default function PublicTools() {
   }
 
   const handleDelete = async (toolId: string) => {
-    if (!confirm('Are you sure you want to delete this training material?')) {
+    if (!confirm('Are you sure you want to delete this guide?')) {
       return
     }
 
     try {
       await toolsApi.deletePublicTool(toolId)
-      setSuccess('Training material deleted successfully!')
+      setSuccess('Guide deleted successfully!')
       loadTools()
     } catch (err: any) {
       if (err.response?.status === 403) {
-        setError('Permission to manage training materials required')
+        setError('Permission to manage guides required')
       } else {
-        setError(err.response?.data?.detail || 'Failed to delete training material')
+        setError(err.response?.data?.detail || 'Failed to delete guide')
       }
     }
   }
@@ -141,7 +198,7 @@ export default function PublicTools() {
       } else {
         await toolsApi.starTool(toolId)
         setStarredTools(prev => new Set(prev).add(toolId))
-        setSuccess('Training material added to your toolbox!')
+        setSuccess('Guide added to your toolbox!')
       }
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to update star status')
@@ -151,26 +208,58 @@ export default function PublicTools() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-gray-500">Loading training materials...</div>
+        <div className="text-gray-500">Loading guides...</div>
       </div>
     )
   }
+
+  const selectedGuide = quickGuides.find((guide) => guide.id === selectedGuideId) || quickGuides[0]
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Trainings</h1>
-          <p className="mt-1 text-sm text-gray-500">Self-service training, walkthroughs, and reference materials for the team</p>
+          <h1 className="text-3xl font-bold text-gray-900">How To Guide</h1>
+          <p className="mt-1 text-sm text-gray-500">Simple click-and-follow steps for Keepa Alert Services</p>
         </div>
         {canManageTools && (
           <button
             onClick={() => setShowAddForm(true)}
             className="btn-primary"
           >
-            Add Training Material
+            Add Guide
           </button>
         )}
+      </div>
+
+      <div className="card p-5">
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">Quick start guides</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+          {quickGuides.map((guide) => (
+            <button
+              key={guide.id}
+              type="button"
+              onClick={() => setSelectedGuideId(guide.id)}
+              className={`text-left rounded-lg border p-4 transition-colors ${
+                selectedGuideId === guide.id
+                  ? 'border-[#0B1020] bg-[#0B1020]/5'
+                  : 'border-gray-200 bg-white hover:bg-gray-50'
+              }`}
+            >
+              <span className="text-sm font-semibold text-gray-900">{guide.title}</span>
+            </button>
+          ))}
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <h3 className="text-base font-semibold text-[#0B1020] mb-2">{selectedGuide.title}</h3>
+          <div className="space-y-2">
+            {selectedGuide.steps.map((step, index) => (
+              <p key={`${selectedGuide.id}-step-${index}`} className="text-sm text-gray-700">
+                <span className="font-semibold">Step {index + 1}:</span> {step}
+              </p>
+            ))}
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -206,7 +295,7 @@ export default function PublicTools() {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search training materials by name, description, developer, or category..."
+            placeholder="Search saved guides by name, description, owner, or category..."
             className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           />
           {searchTerm && (
@@ -284,7 +373,7 @@ export default function PublicTools() {
 
             {searchTerm && (
               <div className="mb-4 text-sm text-gray-600">
-                Found {filteredTools.length} training material
+                Found {filteredTools.length} guide
                 {filteredTools.length !== 1 ? 's' : ''} matching "{searchTerm}"
                 {selectedCategory && ` in ${selectedCategory} category`}
               </div>
@@ -294,10 +383,10 @@ export default function PublicTools() {
               <div className="card p-12 text-center">
                 <div className="text-gray-500 mb-4">
                   {searchTerm 
-                    ? `No training materials found matching "${searchTerm}"${selectedCategory ? ` in ${selectedCategory} category` : ''}.`
+                    ? `No guides found matching "${searchTerm}"${selectedCategory ? ` in ${selectedCategory} category` : ''}.`
                     : selectedCategory 
-                      ? `No training materials found in ${selectedCategory} category.`
-                      : 'No training materials found.'}
+                      ? `No guides found in ${selectedCategory} category.`
+                      : 'No guides found.'}
                 </div>
               </div>
             ) : (
@@ -388,7 +477,7 @@ export default function PublicTools() {
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-semibold text-gray-900">
-                  {editingTool ? 'Edit Training Material' : 'Add Training Material'}
+                  {editingTool ? 'Edit Guide' : 'Add Guide'}
                 </h2>
                 <button
                   onClick={() => {
@@ -405,7 +494,7 @@ export default function PublicTools() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Training Name *
+                    Guide Title *
                   </label>
                   <input
                     type="text"
@@ -418,7 +507,7 @@ export default function PublicTools() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Link to Training File
+                    Link to Guide File
                   </label>
                   <input
                     type="url"
@@ -430,7 +519,7 @@ export default function PublicTools() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Link to Training Video
+                    Link to Guide Video
                   </label>
                   <input
                     type="url"
@@ -450,12 +539,12 @@ export default function PublicTools() {
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     rows={4}
-                    placeholder="Brief description of this training material..."
+                    placeholder="Brief description for this guide..."
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Trainer/Developer *
+                    Owner/Developer *
                   </label>
                   <input
                     type="text"
@@ -493,7 +582,7 @@ export default function PublicTools() {
                     Cancel
                   </button>
                   <button type="submit" className="btn-primary">
-                    {editingTool ? 'Update Training Material' : 'Add Training Material'}
+                    {editingTool ? 'Update Guide' : 'Add Guide'}
                   </button>
                 </div>
               </form>
@@ -504,13 +593,13 @@ export default function PublicTools() {
 
       {tools.length === 0 && (
         <div className="card p-12 text-center">
-          <div className="text-gray-500 mb-4">No training materials available yet.</div>
+          <div className="text-gray-500 mb-4">No saved guides available yet.</div>
           {canManageTools && (
             <button
               onClick={() => setShowAddForm(true)}
               className="btn-primary"
             >
-              Add First Training Material
+              Add First Guide
             </button>
           )}
         </div>

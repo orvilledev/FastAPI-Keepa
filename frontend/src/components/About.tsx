@@ -27,7 +27,7 @@ export default function About() {
               <span className="font-semibold">Express Jobs:</span> On-demand checks with report output and recipient selection.
             </li>
             <li>
-              <span className="font-semibold">Daily Runs (DNK, CLK, OBZ, REF, BOR, SFF, TEV, CHA):</span> Scheduled monitoring with countdowns, grouped by active and inactive runs on the dashboard.
+              <span className="font-semibold">Daily Runs:</span> Scheduled monitoring with countdowns, grouped by active and inactive runs on the dashboard.
             </li>
             <li>
               <span className="font-semibold">API Mode and Upload Mode:</span> API Mode uses live Keepa data, while Upload Mode evaluates uploaded Keepa report data against managed MAP/UPC scope.
