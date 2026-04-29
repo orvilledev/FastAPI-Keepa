@@ -86,6 +86,14 @@ function randomQuestion(excludeIds: string[] = []): QuizItem {
   return pool[Math.floor(Math.random() * pool.length)]
 }
 
+function getScoreMessage(correctCount: number, total: number): string {
+  const ratio = total > 0 ? correctCount / total : 0
+  if (ratio >= 0.9) return '🏆 Outstanding! You crushed it — quiz champion status unlocked.'
+  if (ratio >= 0.7) return '🎉 Great job! Strong score. Your general knowledge is sharp.'
+  if (ratio >= 0.5) return '👏 Nice work! Solid effort — keep it up and you will level up fast.'
+  return '📚 Good attempt! Keep reading and researching — you will get even better.'
+}
+
 export default function Maintenance({
   title = 'Quick Tune-Up in Progress',
   message,
@@ -101,6 +109,11 @@ export default function Maintenance({
 
   const selectedIsCorrect = submitted && selectedIndex === quiz.correctIndex
   const answerLabel = useMemo(() => quiz.choices[quiz.correctIndex], [quiz])
+  const quizComplete = attemptCount >= QUIZ_BANK.length
+  const scoreMessage = useMemo(
+    () => getScoreMessage(correctCount, QUIZ_BANK.length),
+    [correctCount]
+  )
 
   const handleCheckAnswer = () => {
     if (selectedIndex === null || submitted) return
@@ -112,11 +125,21 @@ export default function Maintenance({
   }
 
   const handleNextQuestion = () => {
+    if (!submitted) return
     const nextAsked = [...askedIds, quiz.id]
     setAskedIds(nextAsked.length >= QUIZ_BANK.length ? [] : nextAsked)
     setQuiz(randomQuestion(nextAsked))
     setSelectedIndex(null)
     setSubmitted(false)
+  }
+
+  const handleRestartQuiz = () => {
+    setAskedIds([])
+    setQuiz(randomQuestion())
+    setSelectedIndex(null)
+    setSubmitted(false)
+    setCorrectCount(0)
+    setAttemptCount(0)
   }
 
   const [nowMs, setNowMs] = useState<number>(Date.now())
@@ -194,41 +217,43 @@ export default function Maintenance({
             </span>
           </div>
 
-          <p className="text-gray-800 font-medium">{quiz.question}</p>
+          {!quizComplete && <p className="text-gray-800 font-medium">{quiz.question}</p>}
 
-          <div className="mt-4 space-y-2">
-            {quiz.choices.map((choice, idx) => {
-              const isSelected = selectedIndex === idx
-              const isCorrect = idx === quiz.correctIndex
-              let className = 'w-full text-left px-3 py-2 rounded-lg border transition-colors '
-              if (submitted) {
-                if (isCorrect) {
-                  className += 'border-green-500 bg-green-50 text-green-900'
-                } else if (isSelected) {
-                  className += 'border-red-400 bg-red-50 text-red-900'
+          {!quizComplete && (
+            <div className="mt-4 space-y-2">
+              {quiz.choices.map((choice, idx) => {
+                const isSelected = selectedIndex === idx
+                const isCorrect = idx === quiz.correctIndex
+                let className = 'w-full text-left px-3 py-2 rounded-lg border transition-colors '
+                if (submitted) {
+                  if (isCorrect) {
+                    className += 'border-green-500 bg-green-50 text-green-900'
+                  } else if (isSelected) {
+                    className += 'border-red-400 bg-red-50 text-red-900'
+                  } else {
+                    className += 'border-gray-200 bg-white text-gray-700'
+                  }
                 } else {
-                  className += 'border-gray-200 bg-white text-gray-700'
+                  className += isSelected
+                    ? 'border-indigo-500 bg-indigo-50 text-indigo-900'
+                    : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50'
                 }
-              } else {
-                className += isSelected
-                  ? 'border-indigo-500 bg-indigo-50 text-indigo-900'
-                  : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50'
-              }
-              return (
-                <button
-                  key={`${quiz.id}-${idx}`}
-                  type="button"
-                  disabled={submitted}
-                  onClick={() => setSelectedIndex(idx)}
-                  className={className}
-                >
-                  {choice}
-                </button>
-              )
-            })}
-          </div>
+                return (
+                  <button
+                    key={`${quiz.id}-${idx}`}
+                    type="button"
+                    disabled={submitted}
+                    onClick={() => setSelectedIndex(idx)}
+                    className={className}
+                  >
+                    {choice}
+                  </button>
+                )
+              })}
+            </div>
+          )}
 
-          {submitted && (
+          {!quizComplete && submitted && (
             <div className="mt-4 text-sm">
               {selectedIsCorrect ? (
                 <p className="text-green-700 font-medium">Correct! Nice one.</p>
@@ -241,23 +266,42 @@ export default function Maintenance({
             </div>
           )}
 
-          <div className="mt-4 flex gap-2">
-            <button
-              type="button"
-              onClick={handleCheckAnswer}
-              disabled={selectedIndex === null || submitted}
-              className="px-4 py-2 rounded-lg bg-[#0B1020] text-white text-sm font-medium disabled:opacity-50"
-            >
-              Check Answer
-            </button>
-            <button
-              type="button"
-              onClick={handleNextQuestion}
-              className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50"
-            >
-              Next Question
-            </button>
-          </div>
+          {!quizComplete && (
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={handleCheckAnswer}
+                disabled={selectedIndex === null || submitted}
+                className="px-4 py-2 rounded-lg bg-[#0B1020] text-white text-sm font-medium disabled:opacity-50"
+              >
+                Check Answer
+              </button>
+              <button
+                type="button"
+                onClick={handleNextQuestion}
+                disabled={!submitted}
+                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+              >
+                Next Question
+              </button>
+            </div>
+          )}
+
+          {quizComplete && (
+            <div className="mt-4 rounded-lg border border-indigo-200 bg-white p-4">
+              <p className="text-lg font-semibold text-indigo-900">
+                Quiz complete: {correctCount} / {QUIZ_BANK.length}
+              </p>
+              <p className="mt-2 text-sm text-gray-700">{scoreMessage}</p>
+              <button
+                type="button"
+                onClick={handleRestartQuiz}
+                className="mt-3 px-4 py-2 rounded-lg bg-[#0B1020] text-white text-sm font-medium"
+              >
+                Play Again
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
