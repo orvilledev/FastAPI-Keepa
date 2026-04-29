@@ -1,5 +1,5 @@
 """FastAPI application entry point."""
-from fastapi import FastAPI, Request, status
+from fastapi import Depends, FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -8,6 +8,7 @@ from app.config import settings
 from app.database import init_db
 from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notes, notifications, sellers, email_recipients
 from app.scheduler import setup_scheduler, start_scheduler, shutdown_scheduler
+from app.dependencies import require_app_access
 from app.middleware.rate_limiter import limiter, log_rate_limit_exceeded, RATE_LIMIT_ERROR_MESSAGE
 import logging
 import json
@@ -138,19 +139,28 @@ async def health_check():
     return {"status": "healthy"}
 
 
+@app.get(f"{settings.api_v1_str}/system/maintenance-status")
+async def maintenance_status():
+    """Public maintenance status for frontend routing."""
+    return {
+        "maintenance_mode": settings.maintenance_mode,
+        "message": settings.maintenance_message,
+    }
+
+
 # Include API routers
 app.include_router(auth.router, prefix=f"{settings.api_v1_str}/auth", tags=["auth"])
-app.include_router(jobs.router, prefix=settings.api_v1_str, tags=["jobs"])
-app.include_router(batches.router, prefix=settings.api_v1_str, tags=["batches"])
-app.include_router(reports.router, prefix=settings.api_v1_str, tags=["reports"])
-app.include_router(upcs.router, prefix=settings.api_v1_str, tags=["upcs"])
-app.include_router(map.router, prefix=settings.api_v1_str, tags=["map"])
-app.include_router(scheduler.router, prefix=settings.api_v1_str, tags=["scheduler"])
-app.include_router(tools.router, prefix=settings.api_v1_str, tags=["tools"])
-app.include_router(quick_access.router, prefix=settings.api_v1_str, tags=["quick-access"])
-app.include_router(dashboard.router, prefix=settings.api_v1_str, tags=["dashboard"])
-app.include_router(notes.router, prefix=settings.api_v1_str, tags=["notes"])
-app.include_router(notifications.router, prefix=settings.api_v1_str, tags=["notifications"])
-app.include_router(sellers.router, prefix=settings.api_v1_str, tags=["sellers"])
-app.include_router(email_recipients.router, prefix=settings.api_v1_str, tags=["email-recipients"])
+app.include_router(jobs.router, prefix=settings.api_v1_str, tags=["jobs"], dependencies=[Depends(require_app_access)])
+app.include_router(batches.router, prefix=settings.api_v1_str, tags=["batches"], dependencies=[Depends(require_app_access)])
+app.include_router(reports.router, prefix=settings.api_v1_str, tags=["reports"], dependencies=[Depends(require_app_access)])
+app.include_router(upcs.router, prefix=settings.api_v1_str, tags=["upcs"], dependencies=[Depends(require_app_access)])
+app.include_router(map.router, prefix=settings.api_v1_str, tags=["map"], dependencies=[Depends(require_app_access)])
+app.include_router(scheduler.router, prefix=settings.api_v1_str, tags=["scheduler"], dependencies=[Depends(require_app_access)])
+app.include_router(tools.router, prefix=settings.api_v1_str, tags=["tools"], dependencies=[Depends(require_app_access)])
+app.include_router(quick_access.router, prefix=settings.api_v1_str, tags=["quick-access"], dependencies=[Depends(require_app_access)])
+app.include_router(dashboard.router, prefix=settings.api_v1_str, tags=["dashboard"], dependencies=[Depends(require_app_access)])
+app.include_router(notes.router, prefix=settings.api_v1_str, tags=["notes"], dependencies=[Depends(require_app_access)])
+app.include_router(notifications.router, prefix=settings.api_v1_str, tags=["notifications"], dependencies=[Depends(require_app_access)])
+app.include_router(sellers.router, prefix=settings.api_v1_str, tags=["sellers"], dependencies=[Depends(require_app_access)])
+app.include_router(email_recipients.router, prefix=settings.api_v1_str, tags=["email-recipients"], dependencies=[Depends(require_app_access)])
 

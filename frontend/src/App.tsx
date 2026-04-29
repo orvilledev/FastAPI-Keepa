@@ -1,9 +1,11 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useParams, useLocation } from 'react-router-dom'
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { UserProvider, useUser } from './contexts/UserContext'
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/common/ProtectedRoute'
 import About from './components/About'
+import Maintenance from './components/Maintenance'
+import { systemApi } from './services/api'
 
 // Lazy load page components for code splitting (About is eager so its chunk cannot 404 behind stale CDN/cache)
 const Landing = lazy(() => import('./components/Landing'))
@@ -115,10 +117,37 @@ function RememberLastPrivatePath() {
 
 // Inner app component that uses the user context
 function AppRoutes() {
-  const { authLoading } = useUser()
+  const { authLoading, authUser, userInfoLoading, isSuperadmin } = useUser()
+  const [maintenanceMode, setMaintenanceMode] = useState(false)
+  const [maintenanceChecked, setMaintenanceChecked] = useState(false)
 
-  if (authLoading) {
+  useEffect(() => {
+    let active = true
+    const loadMaintenanceStatus = async () => {
+      try {
+        const status = await systemApi.getMaintenanceStatus()
+        if (!active) return
+        setMaintenanceMode(Boolean(status.maintenance_mode))
+      } catch {
+        if (!active) return
+        setMaintenanceMode(false)
+      } finally {
+        if (active) setMaintenanceChecked(true)
+      }
+    }
+    void loadMaintenanceStatus()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  if (authLoading || !maintenanceChecked) {
     return <LoadingSpinner />
+  }
+
+  if (maintenanceMode && (!authUser || userInfoLoading || !isSuperadmin)) {
+    if (authUser && userInfoLoading) return <LoadingSpinner />
+    return <Maintenance />
   }
 
   return (

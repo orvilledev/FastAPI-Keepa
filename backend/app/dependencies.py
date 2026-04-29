@@ -231,6 +231,33 @@ async def get_job_runner_user(
     return current_user
 
 
+def _is_maintenance_bypass_user(current_user: dict, db: Client) -> bool:
+    """Return True when user can bypass maintenance mode."""
+    if is_superadmin_user(current_user, db):
+        return True
+    user_email = (current_user.get("email") or "").strip().lower()
+    return user_email in set(settings.maintenance_allowlist_emails_list)
+
+
+async def require_app_access(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+) -> dict:
+    """Block non-bypass users while maintenance mode is enabled."""
+    if not settings.maintenance_mode:
+        return current_user
+    if _is_maintenance_bypass_user(current_user, db):
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail={
+            "message": settings.maintenance_message,
+            "maintenance_mode": True,
+            "allowlisted": False,
+        },
+    )
+
+
 async def check_is_admin(
     current_user: dict,
     db: Client

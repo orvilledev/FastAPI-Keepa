@@ -80,6 +80,11 @@ class Settings(BaseSettings):
     # This guard prevents accidentally running against very old files.
     scheduler_uploaded_report_max_age_days: int = 7
 
+    # Maintenance mode controls
+    maintenance_mode: bool = False
+    maintenance_message: str = "App is currently under maintenance. Please try again later."
+    maintenance_allowlist_emails: str = ""
+
     # Report: comma-separated substrings matched case-insensitively (after removing
     # spaces/punctuation) against resolved seller display text. Rows for matching
     # sellers are omitted from off-price Excel/CSV. Default drops MetroShoe variants.
@@ -98,6 +103,14 @@ class Settings(BaseSettings):
         if not raw:
             return []
         return [p.strip() for p in raw.split(",") if p.strip()]
+
+    @property
+    def maintenance_allowlist_emails_list(self) -> List[str]:
+        """Normalized allowlist emails that bypass maintenance mode."""
+        raw = (self.maintenance_allowlist_emails or "").strip()
+        if not raw:
+            return []
+        return [email.strip().lower() for email in raw.split(",") if email.strip()]
     
     class Config:
         # Use absolute path to .env file relative to backend directory

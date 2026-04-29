@@ -840,5 +840,12 @@ export const notificationsApi = {
   },
 }
 
+export const systemApi = {
+  getMaintenanceStatus: async (): Promise<{ maintenance_mode: boolean; message: string }> => {
+    const response = await api.get('/api/v1/system/maintenance-status')
+    return response.data
+  },
+}
+
 export default api
 
