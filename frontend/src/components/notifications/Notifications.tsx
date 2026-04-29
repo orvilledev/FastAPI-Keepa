@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { notificationsApi } from '../../services/api'
 import type { Notification } from '../../types'
 
 export default function Notifications() {
+  const navigate = useNavigate()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
   const [unreadCount, setUnreadCount] = useState(0)
+  const [markingReadIds, setMarkingReadIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     loadNotifications()
@@ -54,12 +56,54 @@ export default function Notifications() {
   }
 
   const handleMarkAsRead = async (notificationId: string) => {
+    const target = notifications.find((n) => n.id === notificationId)
+    if (!target || target.is_read || markingReadIds.has(notificationId)) {
+      return
+    }
+
+    setMarkingReadIds((prev) => {
+      const next = new Set(prev)
+      next.add(notificationId)
+      return next
+    })
+
+    // Optimistic UI: mark instantly so one click feels responsive.
+    setNotifications((prev) => {
+      if (filter === 'unread') {
+        return prev.filter((n) => n.id !== notificationId)
+      }
+      return prev.map((n) =>
+        n.id === notificationId
+          ? { ...n, is_read: true, read_at: new Date().toISOString() }
+          : n,
+      )
+    })
+    setUnreadCount((prev) => Math.max(0, prev - 1))
+
     try {
       await notificationsApi.markAsRead(notificationId)
-      await loadNotifications()
-      await loadUnreadCount()
     } catch (err: any) {
       console.error('Failed to mark notification as read:', err)
+      // Roll back optimistic state on failure.
+      setNotifications((prev) => {
+        const alreadyPresent = prev.some((n) => n.id === notificationId)
+        if (alreadyPresent) {
+          return prev.map((n) =>
+            n.id === notificationId ? { ...n, is_read: false, read_at: undefined } : n,
+          )
+        }
+        if (filter === 'unread') {
+          return [{ ...target, is_read: false, read_at: undefined }, ...prev]
+        }
+        return prev
+      })
+      setUnreadCount((prev) => prev + 1)
+    } finally {
+      setMarkingReadIds((prev) => {
+        const next = new Set(prev)
+        next.delete(notificationId)
+        return next
+      })
     }
   }
 
@@ -195,9 +239,18 @@ export default function Notifications() {
         <div className="space-y-3">
           {notifications.map((notification) => {
             const link = getNotificationLink(notification)
-            const NotificationContent = (
+            return (
               <div
-                className={`card p-4 hover:shadow-md transition-shadow ${
+                key={notification.id}
+                onClick={() => {
+                  if (!notification.is_read) {
+                    void handleMarkAsRead(notification.id)
+                  }
+                  if (link) {
+                    navigate(link)
+                  }
+                }}
+                className={`card p-4 hover:shadow-md transition-shadow cursor-pointer ${
                   !notification.is_read ? 'bg-blue-50 border-l-4 border-blue-500' : ''
                 }`}
               >
@@ -223,15 +276,6 @@ export default function Notifications() {
                         )}
                       </div>
                       <p className="text-sm text-gray-600 mb-2">{notification.message}</p>
-                      {notification.action_label && notification.action_url && (
-                        <a
-                          href={notification.action_url}
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex mb-2 px-2.5 py-1 text-xs rounded-md bg-[#0B1020] text-white hover:opacity-90"
-                        >
-                          {notification.action_label}
-                        </a>
-                      )}
                       <div className="flex items-center space-x-4 text-xs text-gray-500">
                         <span>{formatDate(notification.created_at)}</span>
                         {notification.metadata && (
@@ -245,22 +289,10 @@ export default function Notifications() {
                     </div>
                   </div>
                   <div className="flex items-center space-x-2 ml-4">
-                    {!notification.is_read && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleMarkAsRead(notification.id)
-                        }}
-                        className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                        title="Mark as read"
-                      >
-                        Mark read
-                      </button>
-                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        handleDelete(notification.id)
+                        void handleDelete(notification.id)
                       }}
                       className="px-3 py-1 text-xs text-red-600 hover:text-red-800"
                       title="Delete"
@@ -271,20 +303,6 @@ export default function Notifications() {
                 </div>
               </div>
             )
-
-            if (link) {
-              return (
-                <Link key={notification.id} to={link} onClick={() => {
-                  if (!notification.is_read) {
-                    handleMarkAsRead(notification.id)
-                  }
-                }}>
-                  {NotificationContent}
-                </Link>
-              )
-            }
-
-            return <div key={notification.id}>{NotificationContent}</div>
           })}
         </div>
       )}
