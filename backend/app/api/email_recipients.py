@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_BULK_PAGE_SIZE = 500
 
 
 def _normalize_email(raw: str) -> str:
@@ -54,23 +55,43 @@ def _parse_recipient_string(raw: str) -> List[str]:
     return out
 
 
+def _chunk_list(items: List[str], size: int) -> List[List[str]]:
+    return [items[i:i + size] for i in range(0, len(items), size)]
+
+
 def _insert_pool_emails_for_user(db: Client, user_id: str, emails: Set[str]) -> int:
-    """Insert validated emails into pool; ignore duplicates."""
-    inserted = 0
-    for email in sorted(emails):
+    """Insert validated emails into pool with batched lookups/inserts."""
+    if not emails:
+        return 0
+
+    ordered_emails = sorted(emails)
+    existing_emails: Set[str] = set()
+
+    # Fetch existing rows in chunks to avoid per-email query overhead.
+    for chunk in _chunk_list(ordered_emails, _BULK_PAGE_SIZE):
         existing = (
             db.table("email_recipient_pool")
-            .select("id")
+            .select("email")
             .eq("user_id", user_id)
-            .eq("email", email)
-            .limit(1)
+            .in_("email", chunk)
             .execute()
         )
-        if existing.data:
-            continue
-        res = db.table("email_recipient_pool").insert({"user_id": user_id, "email": email}).execute()
-        if res.data:
-            inserted += 1
+        for row in existing.data or []:
+            email = row.get("email")
+            if isinstance(email, str):
+                n = _normalize_email(email)
+                if n:
+                    existing_emails.add(n)
+
+    missing_rows = [{"user_id": user_id, "email": email} for email in ordered_emails if email not in existing_emails]
+    if not missing_rows:
+        return 0
+
+    inserted = 0
+    for start in range(0, len(missing_rows), _BULK_PAGE_SIZE):
+        batch = missing_rows[start:start + _BULK_PAGE_SIZE]
+        res = db.table("email_recipient_pool").insert(batch).execute()
+        inserted += len(res.data or [])
     return inserted
 
 

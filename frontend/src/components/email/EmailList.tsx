@@ -28,6 +28,7 @@ export default function EmailList() {
   const [rows, setRows] = useState<EmailPoolEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [syncingUsedRecipients, setSyncingUsedRecipients] = useState(false)
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -35,12 +36,10 @@ export default function EmailList() {
 
   const [uploading, setUploading] = useState(false)
 
-  const load = async () => {
+  const loadPool = async () => {
     setLoading(true)
     setError(null)
     try {
-      // Pull in recipients already used in Daily Runs / Express Jobs first.
-      await emailRecipientsApi.syncUsedToPool()
       const data = await emailRecipientsApi.getPool()
       setRows(data)
     } catch {
@@ -50,8 +49,22 @@ export default function EmailList() {
     }
   }
 
+  const syncUsedRecipientsInBackground = async () => {
+    setSyncingUsedRecipients(true)
+    try {
+      await emailRecipientsApi.syncUsedToPool()
+      const refreshed = await emailRecipientsApi.getPool()
+      setRows(refreshed)
+    } catch {
+      // Non-blocking: page already rendered from current pool.
+    } finally {
+      setSyncingUsedRecipients(false)
+    }
+  }
+
   useEffect(() => {
-    void load()
+    void loadPool()
+    void syncUsedRecipientsInBackground()
   }, [])
 
   const sorted = useMemo(
@@ -117,7 +130,7 @@ export default function EmailList() {
       for (const item of parsed) {
         await emailRecipientsApi.addToPool(item.email, item.display_name)
       }
-      await load()
+      await loadPool()
     } finally {
       setUploading(false)
     }
@@ -130,6 +143,9 @@ export default function EmailList() {
         <p className="text-sm text-gray-600 mt-1">
           Manage recipient names and addresses used by Express Jobs and Daily Runs.
         </p>
+        {syncingUsedRecipients && (
+          <p className="text-xs text-gray-500 mt-1">Syncing used recipients in background...</p>
+        )}
       </div>
 
       <div className="card p-5 space-y-3">
