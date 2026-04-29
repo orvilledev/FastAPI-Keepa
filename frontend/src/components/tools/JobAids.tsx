@@ -130,34 +130,6 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     ),
   },
   {
-    q: 'What is the Documentations area?',
-    a: (
-      <>
-        Documentations supports day-to-day work by keeping team tools and guidance in one place. It includes{' '}
-        <strong>Trainings</strong> (shared links and utilities) and this <strong>FAQ</strong> (how the Keepa-related
-        product areas fit together). In short, Keepa Alert Services drives monitoring and reporting; Documentations helps
-        people use it consistently—matching the overview on{' '}
-        <Link to="/about" className="text-[#0B1020] font-medium underline">
-          About
-        </Link>
-        .
-      </>
-    ),
-  },
-  {
-    q: 'What is the difference between Trainings and this FAQ?',
-    a: (
-      <>
-        <strong>Trainings</strong> (
-        <Link to="/trainings" className="text-[#0B1020] font-medium underline">
-          Documentations → Trainings
-        </Link>
-        ) lists curated links and resources for the team. This <strong>FAQ</strong> focuses on the Keepa Alert Services
-        workflow and Documentations—not on every feature of the wider app.
-      </>
-    ),
-  },
-  {
     q: 'Why don’t I see Keepa or UPC/MAP features?',
     a: (
       <>
