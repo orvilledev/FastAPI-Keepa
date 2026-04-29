@@ -7,6 +7,7 @@ from app.utils.error_handler import handle_api_errors
 from supabase import Client
 from pydantic import BaseModel
 from typing import List, Optional
+from app.maintenance import get_maintenance_state, set_maintenance_state
 
 router = APIRouter()
 
@@ -203,6 +204,11 @@ class UserKeepaAccessUpdate(BaseModel):
     has_keepa_access: bool
 
 
+class MaintenanceUpdate(BaseModel):
+    maintenance_mode: bool
+    message: Optional[str] = None
+
+
 @router.get("/users")
 @handle_api_errors("get all users")
 async def get_all_users(
@@ -225,6 +231,25 @@ async def get_all_users(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch users: {str(e)}"
         )
+
+
+@router.get("/maintenance")
+@handle_api_errors("get maintenance mode")
+async def get_maintenance_mode(
+    current_user: dict = Depends(get_superadmin_user),
+):
+    """Get runtime maintenance mode state (superadmin only)."""
+    return get_maintenance_state()
+
+
+@router.put("/maintenance")
+@handle_api_errors("update maintenance mode")
+async def update_maintenance_mode(
+    payload: MaintenanceUpdate,
+    current_user: dict = Depends(get_superadmin_user),
+):
+    """Update runtime maintenance mode state (superadmin only)."""
+    return set_maintenance_state(payload.maintenance_mode, payload.message)
 
 
 @router.put("/users/{user_id}/keepa-access")

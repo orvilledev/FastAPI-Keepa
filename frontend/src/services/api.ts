@@ -141,6 +141,14 @@ export const authApi = {
     const response = await api.put<{ user_id: string; can_manage_tools: boolean; message: string }>(`/api/v1/auth/users/${userId}/tools-access`, { can_manage_tools: canManageTools })
     return response.data
   },
+  getMaintenanceMode: async () => {
+    const response = await api.get<{ maintenance_mode: boolean; message: string }>('/api/v1/auth/maintenance')
+    return response.data
+  },
+  updateMaintenanceMode: async (maintenance_mode: boolean, message?: string) => {
+    const response = await api.put<{ maintenance_mode: boolean; message: string }>('/api/v1/auth/maintenance', { maintenance_mode, message })
+    return response.data
+  },
   updateProfile: async (profileData: any) => {
     const response = await api.put('/api/v1/auth/profile', profileData)
     return response.data

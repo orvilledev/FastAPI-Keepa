@@ -4,6 +4,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from supabase import Client
 from app.database import get_supabase
 from app.config import settings
+from app.maintenance import get_maintenance_state
 from uuid import UUID
 import httpx
 import logging
@@ -244,14 +245,15 @@ async def require_app_access(
     db: Client = Depends(get_supabase),
 ) -> dict:
     """Block non-bypass users while maintenance mode is enabled."""
-    if not settings.maintenance_mode:
+    maintenance = get_maintenance_state()
+    if not maintenance.get("maintenance_mode"):
         return current_user
     if _is_maintenance_bypass_user(current_user, db):
         return current_user
     raise HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail={
-            "message": settings.maintenance_message,
+            "message": maintenance.get("message") or settings.maintenance_message,
             "maintenance_mode": True,
             "allowlisted": False,
         },

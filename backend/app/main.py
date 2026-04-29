@@ -9,6 +9,7 @@ from app.database import init_db
 from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notes, notifications, sellers, email_recipients
 from app.scheduler import setup_scheduler, start_scheduler, shutdown_scheduler
 from app.dependencies import require_app_access
+from app.maintenance import get_maintenance_state
 from app.middleware.rate_limiter import limiter, log_rate_limit_exceeded, RATE_LIMIT_ERROR_MESSAGE
 import logging
 import json
@@ -142,10 +143,7 @@ async def health_check():
 @app.get(f"{settings.api_v1_str}/system/maintenance-status")
 async def maintenance_status():
     """Public maintenance status for frontend routing."""
-    return {
-        "maintenance_mode": settings.maintenance_mode,
-        "message": settings.maintenance_message,
-    }
+    return get_maintenance_state()
 
 
 # Include API routers
