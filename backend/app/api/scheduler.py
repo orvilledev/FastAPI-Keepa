@@ -38,6 +38,74 @@ VALID_WEEKDAYS = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
 VALID_INPUT_MODES = {"api", "uploaded"}
 DAILY_JOB_NAME_RE = re.compile(r"^Daily\s+([A-Za-z0-9_-]+)\s+", re.IGNORECASE)
 UPC_RE = re.compile(r"\b\d{8,14}\b")
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_SCHEDULER_CATEGORIES = ("dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha")
+
+
+def _normalize_email(raw: str) -> str:
+    return str(raw or "").strip().lower()
+
+
+def _parse_recipients_csv(raw: Optional[str]) -> List[str]:
+    if not raw:
+        return []
+    seen = set()
+    out: List[str] = []
+    for part in str(raw).split(","):
+        email = _normalize_email(part)
+        if not email or not _EMAIL_RE.match(email) or email in seen:
+            continue
+        seen.add(email)
+        out.append(email)
+    return out
+
+
+def _load_allowed_pool_emails(db: Client, user_id: str) -> set[str]:
+    try:
+        response = (
+            db.table("email_recipient_pool")
+            .select("email")
+            .eq("user_id", user_id)
+            .execute()
+        )
+    except Exception:
+        return set()
+    allowed = set()
+    for row in response.data or []:
+        email = _normalize_email(row.get("email"))
+        if email and _EMAIL_RE.match(email):
+            allowed.add(email)
+    return allowed
+
+
+def _sanitize_scheduler_recipients_for_all_categories(db: Client, user_id: str) -> None:
+    """
+    Ensure daily-run recipients exist in the caller's Email List pool.
+    Any recipient not in `email_recipient_pool` is removed for all categories.
+    """
+    allowed = _load_allowed_pool_emails(db, user_id)
+    settings_response = (
+        db.table("scheduler_settings")
+        .select("category, email_recipients")
+        .in_("category", list(_SCHEDULER_CATEGORIES))
+        .execute()
+    )
+    for row in settings_response.data or []:
+        category = str(row.get("category") or "").strip().lower()
+        if category not in _SCHEDULER_CATEGORIES:
+            continue
+        raw = row.get("email_recipients")
+        if raw is None:
+            continue
+        current = _parse_recipients_csv(raw)
+        filtered = [email for email in current if email in allowed]
+        filtered_csv = ",".join(filtered) if filtered else None
+        current_csv = ",".join(current) if current else None
+        if filtered_csv == current_csv:
+            continue
+        db.table("scheduler_settings").update({"email_recipients": filtered_csv}).eq("category", category).execute()
+
+
 def _parse_utc_naive_timestamp(value: Optional[str]) -> Optional[datetime]:
     """Parse ISO timestamp and normalize to UTC-naive datetime."""
     if not value:
@@ -477,6 +545,7 @@ async def get_scheduler_settings(
 ):
     """Get current scheduler settings for a specific category."""
     try:
+        _sanitize_scheduler_recipients_for_all_categories(db, str(current_user["id"]))
         response = db.table("scheduler_settings").select("*").eq("category", category).execute()
         if not response.data:
             # Return default settings if not found
@@ -675,8 +744,10 @@ async def update_scheduler_settings_endpoint(
                 raise HTTPException(status_code=400, detail="anchor_date must be YYYY-MM-DD")
         update_data["anchor_date"] = settings_data.anchor_date
     if settings_data.email_recipients is not None:
-        cleaned_recipients = settings_data.email_recipients.strip()
-        update_data["email_recipients"] = cleaned_recipients or None
+        allowed = _load_allowed_pool_emails(db, str(current_user["id"]))
+        requested = _parse_recipients_csv(settings_data.email_recipients)
+        filtered = [email for email in requested if email in allowed]
+        update_data["email_recipients"] = ",".join(filtered) if filtered else None
     if settings_data.input_mode is not None:
         normalized_input_mode = settings_data.input_mode.strip().lower()
         if normalized_input_mode not in VALID_INPUT_MODES:
