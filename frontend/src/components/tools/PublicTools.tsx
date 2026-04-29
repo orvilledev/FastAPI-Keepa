@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { toolsApi, authApi } from '../../services/api'
 import type { PublicTool } from '../../types'
+import { useUser } from '../../contexts/UserContext'
 
 type QuickGuide = {
   id: string
@@ -106,6 +107,7 @@ const INITIAL_QUICK_GUIDES: QuickGuide[] = [
 ]
 
 export default function HowToGuide() {
+  const { isSuperadmin } = useUser()
   const [quickGuides, setQuickGuides] = useState<QuickGuide[]>(INITIAL_QUICK_GUIDES)
   const [showQuickGuideForm, setShowQuickGuideForm] = useState(false)
   const [quickGuideTitle, setQuickGuideTitle] = useState('')
@@ -291,6 +293,24 @@ export default function HowToGuide() {
     setSuccess('New quick start guide added.')
   }
 
+  const handleDeleteQuickGuide = () => {
+    if (!isSuperadmin || !selectedGuide) return
+    if (!confirm(`Delete guide "${selectedGuide.title}"?`)) {
+      return
+    }
+
+    setQuickGuides((prev) => {
+      const next = prev.filter((guide) => guide.id !== selectedGuide.id)
+      if (next.length === 0) {
+        setSelectedGuideId('')
+      } else if (!next.some((guide) => guide.id === selectedGuideId)) {
+        setSelectedGuideId(next[0].id)
+      }
+      return next
+    })
+    setSuccess('Guide deleted successfully.')
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -341,16 +361,33 @@ export default function HowToGuide() {
             </button>
           ))}
         </div>
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-          <h3 className="text-base font-semibold text-[#0B1020] mb-2">{selectedGuide.title}</h3>
-          <div className="space-y-2">
-            {selectedGuide.steps.map((step, index) => (
-              <p key={`${selectedGuide.id}-step-${index}`} className="text-sm text-gray-700">
-                <span className="font-semibold">Step {index + 1}:</span> {step}
-              </p>
-            ))}
+        {selectedGuide ? (
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <h3 className="text-base font-semibold text-[#0B1020]">{selectedGuide.title}</h3>
+              {isSuperadmin && (
+                <button
+                  type="button"
+                  onClick={handleDeleteQuickGuide}
+                  className="px-3 py-1 text-xs font-medium text-red-700 bg-red-100 rounded hover:bg-red-200"
+                >
+                  Delete Guide
+                </button>
+              )}
+            </div>
+            <div className="space-y-2">
+              {selectedGuide.steps.map((step, index) => (
+                <p key={`${selectedGuide.id}-step-${index}`} className="text-sm text-gray-700">
+                  <span className="font-semibold">Step {index + 1}:</span> {step}
+                </p>
+              ))}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">
+            No quick start guide selected.
+          </div>
+        )}
       </div>
 
       {error && (
@@ -749,11 +786,6 @@ export default function HowToGuide() {
         </div>
       )}
 
-      {tools.length === 0 && (
-        <div className="card p-12 text-center">
-          <div className="text-gray-500 mb-4">No saved guides available yet.</div>
-        </div>
-      )}
     </div>
   )
 }
