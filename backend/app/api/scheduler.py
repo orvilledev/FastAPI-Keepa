@@ -954,5 +954,5 @@ async def rerun_uploaded_report(
 
     # Queue immediately and return without waiting on the long-running job.
     asyncio.create_task(run_daily_job_for_category(category))
-    return {"message": f"{category.upper()} uploaded run queued"}
+    return {"message": f"{category.upper()} import run queued"}
 

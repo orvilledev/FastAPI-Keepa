@@ -65,7 +65,7 @@ function GuestRoute({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Redirect helper for the legacy `/daily-run/uploaded/:vendor` route. Uploaded
+ * Redirect helper for the legacy `/daily-run/uploaded/:vendor` route. Import
  * and API runs were merged into a single per-vendor page (`/daily-run/:vendor`),
  * but old bookmarks / emails should still resolve to the new location.
  */

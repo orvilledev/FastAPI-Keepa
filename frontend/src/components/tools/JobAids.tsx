@@ -76,7 +76,7 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     ),
   },
   {
-    q: 'Do Upload Daily Run and Trigger Upload Run Now (Express) send emails?',
+    q: 'Do Import Daily Run and Trigger Import Run Now (Express) send emails?',
     a: (
       <>
         Yes. Both paths run through the same uploaded-mode scheduler flow and include report generation + email sending

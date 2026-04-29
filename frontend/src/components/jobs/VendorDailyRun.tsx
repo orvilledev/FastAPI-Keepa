@@ -48,7 +48,7 @@ const WEEKDAYS = [
 const EXCEL_EXTENSIONS = ['.xlsx', '.xls', '.xlsm', '.xlsb']
 
 /**
- * Unified Daily Run page for a vendor. Hosts both modes (API and Uploaded) on
+ * Unified Daily Run page for a vendor. Hosts both modes (API and Import) on
  * the same screen; the input-mode toggle in the header switches the active mode
  * and is mutually exclusive (changing it persists to the scheduler settings).
  *
@@ -414,9 +414,9 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
       await schedulerApi.rerunUploadedReport(vendor)
       await pollLatestUploadStatus()
       await loadDailyRuns()
-      setSuccess('Uploaded-mode run has been queued.')
+      setSuccess('Import-mode run has been queued.')
     } catch (queueErr: any) {
-      setError(queueErr?.response?.data?.detail || 'Failed to queue uploaded run.')
+      setError(queueErr?.response?.data?.detail || 'Failed to queue import run.')
     } finally {
       setQueueing(false)
     }
@@ -443,7 +443,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
   const handleDeleteLatestUpload = async () => {
     if (!latestUpload) return
     const confirmed = window.confirm(
-      `Delete uploaded report "${latestUpload.filename}" for ${VENDOR_UPPER}?`,
+      `Delete imported report "${latestUpload.filename}" for ${VENDOR_UPPER}?`,
     )
     if (!confirmed) return
 
@@ -453,7 +453,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
     try {
       await schedulerApi.deleteUploadedReport(latestUpload.id, vendor)
       setLatestUpload(null)
-      setSuccess('Uploaded report deleted.')
+      setSuccess('Imported report deleted.')
       await loadLatestUpload()
     } catch (deleteErr: any) {
       setError(deleteErr?.response?.data?.detail || 'Failed to delete uploaded report.')
@@ -522,7 +522,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                 isUploadMode ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
               }`}
             >
-              {isUploadMode ? 'Uploaded' : 'API'}
+              {isUploadMode ? 'Import' : 'API'}
             </span>
           </p>
         </div>
@@ -663,7 +663,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
               <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>
             <div>
-              <h2 className="text-lg font-semibold text-amber-900">Uploaded Keepa Report</h2>
+              <h2 className="text-lg font-semibold text-amber-900">Imported Keepa Report</h2>
               <p className="mt-1 text-sm text-amber-800">
                 Upload a Keepa export file (Excel, CSV, or TXT). The system will parse it and use uploaded rows for
                 MAP/off-price comparison on the next run instead of consuming Keepa API tokens. Run UPC scope still
@@ -722,7 +722,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
 
           {latestUpload && (
             <div className="rounded-lg border border-blue-200 p-4 bg-blue-50">
-              <p className="text-sm font-semibold text-blue-900">Latest uploaded report</p>
+              <p className="text-sm font-semibold text-blue-900">Latest imported report</p>
               <p className="text-xs text-blue-800 mt-1">
                 {latestUpload.filename} | {latestUpload.upc_count} UPCs | date {latestUpload.uploaded_for_date}
               </p>
@@ -768,7 +768,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
               onClick={handleQueueUploadedRun}
               className="px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 disabled:opacity-50"
             >
-              {queueing ? 'Queueing...' : 'Trigger Upload Run Now (Express)'}
+              {queueing ? 'Queueing...' : 'Trigger Import Run Now (Express)'}
             </button>
           </div>
         </div>
