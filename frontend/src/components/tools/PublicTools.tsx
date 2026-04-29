@@ -105,8 +105,11 @@ const INITIAL_QUICK_GUIDES: QuickGuide[] = [
   },
 ]
 
-export default function PublicTools() {
+export default function HowToGuide() {
   const [quickGuides, setQuickGuides] = useState<QuickGuide[]>(INITIAL_QUICK_GUIDES)
+  const [showQuickGuideForm, setShowQuickGuideForm] = useState(false)
+  const [quickGuideTitle, setQuickGuideTitle] = useState('')
+  const [quickGuideStepsText, setQuickGuideStepsText] = useState('')
   const [tools, setTools] = useState<PublicTool[]>([])
   const [starredTools, setStarredTools] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -253,18 +256,39 @@ export default function PublicTools() {
     }
   }
 
-  const handleAddQuickGuide = () => {
-    const template = quickGuides[0]
-    if (!template) return
-    const nextNumber = quickGuides.length + 1
+  const handleCreateQuickGuide = (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setSuccess('')
+
+    const title = quickGuideTitle.trim()
+    const steps = quickGuideStepsText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+
+    if (!title) {
+      setError('Guide title is required.')
+      return
+    }
+
+    if (steps.length === 0) {
+      setError('Add at least one step.')
+      return
+    }
+
     const newGuide: QuickGuide = {
       id: `quick-guide-${Date.now()}`,
-      title: `How to add or update email recipients (${nextNumber})`,
-      steps: [...template.steps],
+      title,
+      steps,
     }
+
     setQuickGuides((prev) => [...prev, newGuide])
     setSelectedGuideId(newGuide.id)
-    setSuccess('New quick start guide item added.')
+    setQuickGuideTitle('')
+    setQuickGuideStepsText('')
+    setShowQuickGuideForm(false)
+    setSuccess('New quick start guide added.')
   }
 
   if (loading) {
@@ -286,7 +310,12 @@ export default function PublicTools() {
         </div>
         {canManageTools && (
           <button
-            onClick={handleAddQuickGuide}
+            onClick={() => {
+              setShowQuickGuideForm(true)
+              setQuickGuideTitle('')
+              setQuickGuideStepsText('')
+              setError('')
+            }}
             className="btn-primary"
           >
             Add Guide
@@ -645,6 +674,73 @@ export default function PublicTools() {
                   </button>
                   <button type="submit" className="btn-primary">
                     {editingTool ? 'Update Guide' : 'Add Guide'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showQuickGuideForm && canManageTools && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-xl w-full mx-4">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-semibold text-gray-900">Add Quick Start Guide</h2>
+                <button
+                  onClick={() => {
+                    setShowQuickGuideForm(false)
+                    setQuickGuideTitle('')
+                    setQuickGuideStepsText('')
+                  }}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateQuickGuide} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Guide Title *</label>
+                  <input
+                    type="text"
+                    required
+                    value={quickGuideTitle}
+                    onChange={(e) => setQuickGuideTitle(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="Example: How to update email recipients"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Steps (one step per line) *
+                  </label>
+                  <textarea
+                    required
+                    value={quickGuideStepsText}
+                    onChange={(e) => setQuickGuideStepsText(e.target.value)}
+                    rows={8}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder={`Step 1: Go to ...\nStep 2: Click ...\nStep 3: Enter ...\nStep 4: Save ...`}
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQuickGuideForm(false)
+                      setQuickGuideTitle('')
+                      setQuickGuideStepsText('')
+                    }}
+                    className="btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-primary">
+                    Add Guide
                   </button>
                 </div>
               </form>

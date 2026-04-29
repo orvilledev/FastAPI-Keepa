@@ -29,7 +29,7 @@ const UPCManagement = lazy(() => import('./components/upcs/UPCManagement'))
 const MAPManagement = lazy(() => import('./components/map/MAPManagement'))
 const SellerList = lazy(() => import('./components/sellers/SellerList'))
 const EmailList = lazy(() => import('./components/email/EmailList'))
-const PublicTools = lazy(() => import('./components/tools/PublicTools'))
+const HowToGuide = lazy(() => import('./components/tools/PublicTools'))
 const JobAids = lazy(() => import('./components/tools/JobAids'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
@@ -149,7 +149,7 @@ function AppRoutes() {
 
           <Route path="my-space/notes" element={<Navigate to="/dashboard" replace />} />
           <Route path="notifications" element={<Notifications />} />
-          <Route path="trainings" element={<PublicTools />} />
+          <Route path="trainings" element={<HowToGuide />} />
           <Route path="faq" element={<JobAids />} />
           <Route path="tools/public" element={<Navigate to="/trainings" replace />} />
           <Route path="tools/job-aids" element={<Navigate to="/faq" replace />} />
