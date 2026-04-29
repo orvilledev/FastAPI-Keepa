@@ -2,63 +2,111 @@ import { useEffect, useState } from 'react'
 import { toolsApi, authApi } from '../../services/api'
 import type { PublicTool } from '../../types'
 
+type QuickGuide = {
+  id: string
+  title: string
+  steps: string[]
+}
+
+const INITIAL_QUICK_GUIDES: QuickGuide[] = [
+  {
+    id: 'email-list',
+    title: 'How to add or update email recipients',
+    steps: [
+      'On the left menu, click Keepa Alert Services, then click Email List.',
+      'Click Add Recipient.',
+      'Type the person name in the Name box.',
+      'Type the email address in the Email box.',
+      'Click Save.',
+      'To change it later, find the same row, click Edit, make your change, then click Save again.',
+    ],
+  },
+  {
+    id: 'express-job',
+    title: 'How to run an Express Job',
+    steps: [
+      'On the left menu, click Keepa Alert Services, then click Express Jobs.',
+      'Click Create New Job.',
+      'Type a clear job name (example: DNK Morning Check).',
+      'Add or paste the UPCs you want to check.',
+      'Pick settings and email recipients.',
+      'Click Save, then click Trigger to start the run now.',
+    ],
+  },
+  {
+    id: 'daily-runs',
+    title: 'How to configure Daily Runs',
+    steps: [
+      'On the left menu, click Keepa Alert Services, then click Daily Runs.',
+      'Pick the brand/vendor card you want (DNK, CLK, etc.).',
+      'Choose your run time and timezone.',
+      'Pick API Mode or Import Mode.',
+      'Add email recipients, then click Save Settings.',
+      'Check Next Scheduled Run to confirm your setup is correct.',
+    ],
+  },
+  {
+    id: 'map',
+    title: 'How to update MAP records',
+    steps: [
+      'On the left menu, click Keepa Alert Services, then click Manage MAP.',
+      'Choose the correct vendor/brand first.',
+      'Add one row at a time or upload your MAP file.',
+      'Double-check UPC and MAP price values.',
+      'Click Save/Upload.',
+      'Use search to confirm your new rows are now in the table.',
+    ],
+  },
+  {
+    id: 'upc',
+    title: 'How to upload UPCs',
+    steps: [
+      'On the left menu, click Keepa Alert Services, then click Manage UPCs.',
+      'Choose the right category/vendor.',
+      'Paste UPCs or upload your UPC file.',
+      'Click Add or Upload.',
+      'Wait for the table to refresh.',
+      'Confirm your UPC list appears before running Express Jobs or Daily Runs.',
+    ],
+  },
+  {
+    id: 'calendar',
+    title: 'How to check run schedules',
+    steps: [
+      'On the left menu, click Keepa Alert Services, then click Run Calendar.',
+      'Find your vendor row.',
+      'Check the Next Run time and status.',
+      'If something looks wrong, go back to Daily Runs and update settings.',
+      'Return to Run Calendar and confirm the new time is shown.',
+    ],
+  },
+  {
+    id: 'import-run',
+    title: 'How to run Import Mode (Express)',
+    steps: [
+      'Open Daily Runs and choose your vendor.',
+      'Switch to Import Mode.',
+      'Upload the latest Keepa file and wait until parse status says Completed.',
+      'Click Trigger Import Run Now (Express).',
+      'Open Express Jobs to watch progress.',
+      'When the job is done, open report details and confirm output rows.',
+    ],
+  },
+  {
+    id: 'reports',
+    title: 'How to open and share reports',
+    steps: [
+      'Go to Express Jobs.',
+      'Open the finished job you want to review.',
+      'Check alerts, status, and summary numbers.',
+      'Download the CSV report if needed.',
+      'Share the result with your team by email or your normal workflow.',
+    ],
+  },
+]
+
 export default function PublicTools() {
-  const quickGuides = [
-    {
-      id: 'email-list',
-      title: 'How to add or update email recipients',
-      steps: [
-        'Go to Keepa Alert Services > Email List.',
-        'Click Add recipient, then enter name and email.',
-        'To update, edit the same entry and save.',
-      ],
-    },
-    {
-      id: 'express-job',
-      title: 'How to run an Express Job',
-      steps: [
-        'Go to Keepa Alert Services > Express Jobs.',
-        'Click New Job, then enter job name and required settings.',
-        'Select recipients, save, then click Trigger.',
-      ],
-    },
-    {
-      id: 'daily-runs',
-      title: 'How to configure Daily Runs',
-      steps: [
-        'Go to Keepa Alert Services > Daily Runs.',
-        'Open the vendor card you want to configure.',
-        'Set time, mode, recipients, then click Save.',
-      ],
-    },
-    {
-      id: 'map',
-      title: 'How to update MAP records',
-      steps: [
-        'Go to Keepa Alert Services > Manage MAP.',
-        'Add new MAP rows or upload your list.',
-        'Review and save changes before leaving the page.',
-      ],
-    },
-    {
-      id: 'upc',
-      title: 'How to upload UPCs',
-      steps: [
-        'Go to Keepa Alert Services > Manage UPCs.',
-        'Choose category, then add or upload UPCs.',
-        'Confirm rows appear in the table before running jobs.',
-      ],
-    },
-    {
-      id: 'calendar',
-      title: 'How to check run schedules',
-      steps: [
-        'Go to Keepa Alert Services > Run Calendar.',
-        'Check upcoming schedule times and recent activity.',
-        'Use this before daily execution to confirm timing.',
-      ],
-    },
-  ]
+  const [quickGuides, setQuickGuides] = useState<QuickGuide[]>(INITIAL_QUICK_GUIDES)
   const [tools, setTools] = useState<PublicTool[]>([])
   const [starredTools, setStarredTools] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -67,7 +115,7 @@ export default function PublicTools() {
   const [editingTool, setEditingTool] = useState<PublicTool | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedGuideId, setSelectedGuideId] = useState<string>(quickGuides[0].id)
+  const [selectedGuideId, setSelectedGuideId] = useState<string>(INITIAL_QUICK_GUIDES[0].id)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -205,6 +253,20 @@ export default function PublicTools() {
     }
   }
 
+  const handleAddQuickGuide = () => {
+    const template = quickGuides[0]
+    if (!template) return
+    const nextNumber = quickGuides.length + 1
+    const newGuide: QuickGuide = {
+      id: `quick-guide-${Date.now()}`,
+      title: `How to add or update email recipients (${nextNumber})`,
+      steps: [...template.steps],
+    }
+    setQuickGuides((prev) => [...prev, newGuide])
+    setSelectedGuideId(newGuide.id)
+    setSuccess('New quick start guide item added.')
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -224,7 +286,7 @@ export default function PublicTools() {
         </div>
         {canManageTools && (
           <button
-            onClick={() => setShowAddForm(true)}
+            onClick={handleAddQuickGuide}
             className="btn-primary"
           >
             Add Guide
@@ -594,14 +656,6 @@ export default function PublicTools() {
       {tools.length === 0 && (
         <div className="card p-12 text-center">
           <div className="text-gray-500 mb-4">No saved guides available yet.</div>
-          {canManageTools && (
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="btn-primary"
-            >
-              Add First Guide
-            </button>
-          )}
         </div>
       )}
     </div>
