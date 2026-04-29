@@ -3,14 +3,16 @@ import { useNavigate } from 'react-router-dom'
 import { jobsApi, mapApi } from '../../services/api'
 import EmailRecipientsPicker from './EmailRecipientsPicker'
 
+const SYSTEM_VENDOR_CODES = ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha'] as const
+
 export default function CreateJob() {
   const [jobName, setJobName] = useState('')
   const [upcs, setUpcs] = useState('')
   const [emailRecipients, setEmailRecipients] = useState('')
   const [mapVendorType, setMapVendorType] = useState('dnk')
-  const [keepaOffersLimit, setKeepaOffersLimit] = useState<number>(10)
+  const [keepaOffersLimit, setKeepaOffersLimit] = useState<number>(100)
   const [offPriceScope, setOffPriceScope] = useState<'buybox_only' | 'buybox_and_non_buybox_below_map'>('buybox_only')
-  const [vendorSuggestions, setVendorSuggestions] = useState<string[]>(['dnk', 'clk'])
+  const [vendorSuggestions, setVendorSuggestions] = useState<string[]>([...SYSTEM_VENDOR_CODES])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
@@ -20,8 +22,12 @@ export default function CreateJob() {
     mapApi
       .listVendors()
       .then((res) => {
-        if (!cancelled && res.vendors?.length) {
-          setVendorSuggestions(res.vendors)
+        if (!cancelled) {
+          const mergedVendors = Array.from(new Set([...(res.vendors || []), ...SYSTEM_VENDOR_CODES])).sort()
+          setVendorSuggestions(mergedVendors)
+          if (!mergedVendors.includes(mapVendorType)) {
+            setMapVendorType(mergedVendors[0] || 'dnk')
+          }
         }
       })
       .catch(() => {
@@ -61,7 +67,7 @@ export default function CreateJob() {
         job_name: jobName || `Job ${new Date().toLocaleString()}`,
         upcs: upcList,
         map_vendor_type: mapVendorType.trim().toLowerCase() || 'dnk',
-        keepa_offers_limit: Math.max(0, Math.min(500, Number.isFinite(keepaOffersLimit) ? keepaOffersLimit : 10)),
+        keepa_offers_limit: Math.max(0, Math.min(500, Number.isFinite(keepaOffersLimit) ? keepaOffersLimit : 100)),
         off_price_scope: offPriceScope,
       }
       if (emailRecipients.trim()) {
@@ -98,21 +104,16 @@ export default function CreateJob() {
           <label htmlFor="mapVendorType" className="block text-sm font-medium text-gray-700 mb-2">
             MAP vendor <span className="text-gray-500 font-normal">(must match MAP data)</span>
           </label>
-          <input
-            type="text"
+          <select
             id="mapVendorType"
-            list="map-vendor-suggestions"
             value={mapVendorType}
             onChange={(e) => setMapVendorType(e.target.value)}
             className="w-full max-w-md px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm"
-            placeholder="dnk, clk, obz, …"
-            autoComplete="off"
-          />
-          <datalist id="map-vendor-suggestions">
+          >
             {vendorSuggestions.map((v) => (
               <option key={v} value={v} />
             ))}
-          </datalist>
+          </select>
           <p className="mt-2 text-sm text-gray-500">
             Off-price uses <span className="font-mono text-gray-700">map_prices</span> rows for this vendor code.
             Use <span className="font-mono">obz</span> for OBZ MAP uploads, <span className="font-mono">dnk</span> or{' '}
