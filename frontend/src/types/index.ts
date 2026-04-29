@@ -180,6 +180,7 @@ export interface SchedulerSettings {
   enabled: boolean
   run_mode: 'daily' | 'every_other_day' | 'custom_days'
   input_mode?: 'api' | 'uploaded'
+  uploaded_wait_timeout_seconds?: number
   custom_days: string[]
   anchor_date?: string | null
   email_recipients?: string | null

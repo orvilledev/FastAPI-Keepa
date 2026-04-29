@@ -31,6 +31,7 @@ class SchedulerSettingsUpdate(BaseModel):
     anchor_date: Optional[str] = None
     email_recipients: Optional[str] = None
     input_mode: Optional[str] = None
+    uploaded_wait_timeout_seconds: Optional[int] = None
 
 
 VALID_RUN_MODES = {"daily", "every_other_day", "custom_days"}
@@ -559,6 +560,7 @@ async def get_scheduler_settings(
                 "anchor_date": None,
                 "email_recipients": None,
                 "input_mode": "api",
+                "uploaded_wait_timeout_seconds": 90,
                 "category": category
             }
         settings = response.data[0]
@@ -572,6 +574,7 @@ async def get_scheduler_settings(
             "anchor_date": settings.get("anchor_date"),
             "email_recipients": settings.get("email_recipients"),
             "input_mode": settings.get("input_mode", "api"),
+            "uploaded_wait_timeout_seconds": settings.get("uploaded_wait_timeout_seconds", 90),
             "category": settings.get("category", category)
         }
     except Exception as e:
@@ -586,6 +589,7 @@ async def get_scheduler_settings(
             "anchor_date": None,
             "email_recipients": None,
             "input_mode": "api",
+            "uploaded_wait_timeout_seconds": 90,
             "category": category
         }
 
@@ -753,6 +757,10 @@ async def update_scheduler_settings_endpoint(
         if normalized_input_mode not in VALID_INPUT_MODES:
             raise HTTPException(status_code=400, detail="Invalid input_mode. Use api or uploaded")
         update_data["input_mode"] = normalized_input_mode
+    if settings_data.uploaded_wait_timeout_seconds is not None:
+        if settings_data.uploaded_wait_timeout_seconds < 0 or settings_data.uploaded_wait_timeout_seconds > 900:
+            raise HTTPException(status_code=400, detail="uploaded_wait_timeout_seconds must be between 0 and 900")
+        update_data["uploaded_wait_timeout_seconds"] = settings_data.uploaded_wait_timeout_seconds
     
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -813,6 +821,7 @@ async def update_scheduler_settings_endpoint(
         "anchor_date": updated_settings.get("anchor_date"),
         "email_recipients": updated_settings.get("email_recipients"),
         "input_mode": updated_settings.get("input_mode", "api"),
+        "uploaded_wait_timeout_seconds": updated_settings.get("uploaded_wait_timeout_seconds", 90),
         "category": category,
         "message": f"{category.upper()} scheduler settings updated successfully"
     }

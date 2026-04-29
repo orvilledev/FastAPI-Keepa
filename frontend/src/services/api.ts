@@ -478,6 +478,7 @@ export const schedulerApi = {
       anchor_date?: string | null
       email_recipients?: string | null
       input_mode?: 'api' | 'uploaded'
+      uploaded_wait_timeout_seconds?: number
     },
     category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' = 'dnk'
   ) => {

@@ -77,6 +77,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
     custom_days: [] as string[],
     anchor_date: null as string | null,
     email_recipients: '',
+    uploaded_wait_timeout_seconds: 90,
   })
   const [savingSettings, setSavingSettings] = useState(false)
   const [togglingEnabled, setTogglingEnabled] = useState(false)
@@ -159,6 +160,10 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
         custom_days: settings.custom_days || [],
         anchor_date: settings.anchor_date ?? null,
         email_recipients: settings.email_recipients || '',
+        uploaded_wait_timeout_seconds:
+          typeof settings.uploaded_wait_timeout_seconds === 'number'
+            ? settings.uploaded_wait_timeout_seconds
+            : 90,
       }
       setSchedulerSettings(normalizedSettings)
       setSettingsForm({
@@ -170,6 +175,10 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
         custom_days: normalizedSettings.custom_days,
         anchor_date: normalizedSettings.anchor_date ?? null,
         email_recipients: normalizedSettings.email_recipients ?? '',
+        uploaded_wait_timeout_seconds:
+          typeof normalizedSettings.uploaded_wait_timeout_seconds === 'number'
+            ? normalizedSettings.uploaded_wait_timeout_seconds
+            : 90,
       })
       setUploadEmailRecipients(normalizedSettings.email_recipients || '')
     } catch (err: any) {
@@ -184,6 +193,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
         custom_days: [],
         anchor_date: null,
         email_recipients: '',
+        uploaded_wait_timeout_seconds: 90,
         category: vendor,
       }
       setSchedulerSettings(defaults)
@@ -196,6 +206,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
         custom_days: defaults.custom_days,
         anchor_date: defaults.anchor_date ?? null,
         email_recipients: defaults.email_recipients ?? '',
+        uploaded_wait_timeout_seconds: defaults.uploaded_wait_timeout_seconds ?? 90,
       })
     }
   }
@@ -204,6 +215,13 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
     try {
       setSavingSettings(true)
       setError('')
+      if (
+        settingsForm.uploaded_wait_timeout_seconds < 0 ||
+        settingsForm.uploaded_wait_timeout_seconds > 900
+      ) {
+        setError('Import Mode wait timeout must be between 0 and 900 seconds.')
+        return
+      }
       await schedulerApi.updateSettings(settingsForm, vendor)
       await loadSchedulerSettings()
       await loadNextRun()
@@ -226,6 +244,10 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
         custom_days: schedulerSettings.custom_days || [],
         anchor_date: schedulerSettings.anchor_date || null,
         email_recipients: schedulerSettings.email_recipients || '',
+        uploaded_wait_timeout_seconds:
+          typeof schedulerSettings.uploaded_wait_timeout_seconds === 'number'
+            ? schedulerSettings.uploaded_wait_timeout_seconds
+            : 90,
       })
     }
     setShowSettingsModal(true)
@@ -971,6 +993,32 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                   onChange={(value) => setSettingsForm({ ...settingsForm, email_recipients: value })}
                   disabled={savingSettings}
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Import Mode wait timeout (seconds)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="900"
+                  step="1"
+                  value={settingsForm.uploaded_wait_timeout_seconds}
+                  onChange={(e) =>
+                    setSettingsForm({
+                      ...settingsForm,
+                      uploaded_wait_timeout_seconds: Math.max(
+                        0,
+                        Math.min(900, parseInt(e.target.value, 10) || 0),
+                      ),
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B1020] focus:border-transparent"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  How long the scheduled Import run waits for just-uploaded file parsing to finish before failing.
+                </p>
               </div>
 
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">

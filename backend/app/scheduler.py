@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler()
 
+DEFAULT_UPLOADED_REPORT_WAIT_TIMEOUT_SECONDS = 90
+UPLOADED_REPORT_WAIT_POLL_SECONDS = 3
+
 
 def _normalize_price(value) -> Optional[float]:
     if value is None:
@@ -308,7 +311,7 @@ async def run_daily_job_for_category(category: str = 'dnk'):
         try:
             category_settings_response = (
                 db.table("scheduler_settings")
-                .select("email_recipients, input_mode")
+                .select("email_recipients, input_mode, uploaded_wait_timeout_seconds")
                 .eq("category", category)
                 .limit(1)
                 .execute()
@@ -316,9 +319,18 @@ async def run_daily_job_for_category(category: str = 'dnk'):
             if category_settings_response.data:
                 custom_recipients = category_settings_response.data[0].get("email_recipients")
                 input_mode = (category_settings_response.data[0].get("input_mode") or "api").strip().lower()
+                wait_timeout_raw = category_settings_response.data[0].get("uploaded_wait_timeout_seconds")
+                try:
+                    uploaded_wait_timeout_seconds = int(wait_timeout_raw)
+                except (TypeError, ValueError):
+                    uploaded_wait_timeout_seconds = DEFAULT_UPLOADED_REPORT_WAIT_TIMEOUT_SECONDS
+                uploaded_wait_timeout_seconds = max(0, min(900, uploaded_wait_timeout_seconds))
+            else:
+                uploaded_wait_timeout_seconds = DEFAULT_UPLOADED_REPORT_WAIT_TIMEOUT_SECONDS
 
         except Exception as recipients_err:
             logger.warning(f"Could not load scheduler email recipients for {category.upper()}: {recipients_err}")
+            uploaded_wait_timeout_seconds = DEFAULT_UPLOADED_REPORT_WAIT_TIMEOUT_SECONDS
         
         # Get admin user ID (or system user)
         profiles_response = db.table("profiles").select("id").eq("role", "admin").limit(1).execute()
@@ -352,20 +364,43 @@ async def run_daily_job_for_category(category: str = 'dnk'):
         upcs: List[str] = []
         uploaded_entries: List[dict] = []
         if input_mode == "uploaded":
-            uploaded_response = (
-                db.table("scheduler_uploaded_reports")
-                .select("id, upcs, parsed_rows, parse_status, created_at")
-                .eq("category", category)
-                .order("created_at", desc=True)
-                .limit(1)
-                .execute()
-            )
-            if uploaded_response.data:
-                report = uploaded_response.data[0]
+            report = None
+            deadline = datetime.utcnow().timestamp() + uploaded_wait_timeout_seconds
+            while datetime.utcnow().timestamp() <= deadline:
+                uploaded_response = (
+                    db.table("scheduler_uploaded_reports")
+                    .select("id, upcs, parsed_rows, parse_status, created_at")
+                    .eq("category", category)
+                    .order("created_at", desc=True)
+                    .limit(1)
+                    .execute()
+                )
+                report = uploaded_response.data[0] if uploaded_response.data else None
+                if not report:
+                    break
+
+                parse_status = (report.get("parse_status") or "").strip().lower()
+                if parse_status == "completed":
+                    break
+                if parse_status == "failed":
+                    logger.warning(
+                        "Latest uploaded report for %s parse failed; waiting for replacement report",
+                        category.upper(),
+                    )
+                else:
+                    logger.info(
+                        "Latest uploaded report for %s not ready (status=%s); waiting %ss",
+                        category.upper(),
+                        parse_status or "pending",
+                        UPLOADED_REPORT_WAIT_POLL_SECONDS,
+                    )
+                await asyncio.sleep(UPLOADED_REPORT_WAIT_POLL_SECONDS)
+
+            if report:
                 parse_status = (report.get("parse_status") or "").strip().lower()
                 if parse_status != "completed":
                     logger.warning(
-                        "Latest uploaded report for %s is not ready yet (status=%s); skipping run",
+                        "Latest uploaded report for %s is not ready after waiting (status=%s); skipping run",
                         category.upper(),
                         parse_status or "pending",
                     )
