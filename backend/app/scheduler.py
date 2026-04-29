@@ -11,6 +11,7 @@ from app.repositories.map_repository import MAPRepository
 from app.services.batch_processor import BatchProcessor
 from app.services.email_service import EmailService
 from app.services.report_service import ReportService
+from app.utils.notifications import create_notification
 from typing import List, Optional
 from dataclasses import dataclass
 from datetime import datetime
@@ -330,6 +331,23 @@ async def run_daily_job_for_category(category: str = 'dnk'):
         from uuid import UUID
         admin_uuid = UUID(admin_id)
 
+        def notify_admin(notification_type: str, title: str, message: str, priority: str = "info", related_job_id: Optional[str] = None):
+            try:
+                create_notification(
+                    db=db,
+                    user_id=admin_uuid,
+                    notification_type=notification_type,
+                    title=title,
+                    message=message,
+                    priority=priority,
+                    related_id=UUID(str(related_job_id)) if related_job_id else None,
+                    related_type="job" if related_job_id else None,
+                    action_label="View Dashboard",
+                    action_url="/dashboard",
+                )
+            except Exception as notify_err:
+                logger.warning("Failed to create scheduler notification: %s", notify_err)
+
         # Resolve UPC source for this run mode.
         upcs: List[str] = []
         uploaded_entries: List[dict] = []
@@ -364,6 +382,12 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                         "keepa_offers_limit": settings.keepa_offers_limit,
                         "off_price_scope": "buybox_only",
                     }).execute()
+                    notify_admin(
+                        "import_missing_file",
+                        f"Import Mode blocked: {category.upper()}",
+                        f"Scheduled run skipped because uploaded report parse is {parse_status or 'pending'}.",
+                        "critical",
+                    )
                     return
                 uploaded_payload = report.get("parsed_rows") or []
                 uploaded_entries = _normalize_uploaded_payload(uploaded_payload)
@@ -389,6 +413,12 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                     "keepa_offers_limit": settings.keepa_offers_limit,
                     "off_price_scope": "buybox_only",
                 }).execute()
+                notify_admin(
+                    "import_missing_file",
+                    f"Import Mode blocked: {category.upper()}",
+                    "Scheduled run skipped because no uploaded report was found.",
+                    "critical",
+                )
                 return
         else:
             upc_repo = UPCRepository(db)
@@ -423,6 +453,13 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                         "completed_at": datetime.utcnow().isoformat(),
                         "error_message": "Uploaded Keepa report has no parsed rows for comparison.",
                     }).eq("id", str(job_id)).execute()
+                    notify_admin(
+                        "import_completed_with_errors",
+                        f"Import run failed: {category.upper()}",
+                        "Uploaded Keepa report has no parsed rows for comparison.",
+                        "warning",
+                        str(job_id),
+                    )
                     return
 
                 upc_scope = {str(u).strip() for u in upcs if str(u).strip()}
@@ -444,6 +481,13 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                         "completed_at": datetime.utcnow().isoformat(),
                         "error_message": "No overlapping UPCs between uploaded file and Manage UPCs.",
                     }).eq("id", str(job_id)).execute()
+                    notify_admin(
+                        "import_completed_with_errors",
+                        f"Import run failed: {category.upper()}",
+                        "No overlapping UPCs between uploaded file and Manage UPCs.",
+                        "warning",
+                        str(job_id),
+                    )
                     return
 
                 # Direct UPC vs MAP comparison: ignore buy-box semantics. The
@@ -554,6 +598,13 @@ async def run_daily_job_for_category(category: str = 'dnk'):
                     "completed_batches": total_batches,
                     "completed_at": datetime.utcnow().isoformat(),
                 }).eq("id", str(job_id)).execute()
+                notify_admin(
+                    "run_completed_clean",
+                    f"Run completed: {job_name}",
+                    f"Scheduled import run finished for {category.upper()} ({len(upcs)} UPCs).",
+                    "info",
+                    str(job_id),
+                )
 
                 # Generate the off-price CSV (one row per flagged UPC) and email it.
                 try:

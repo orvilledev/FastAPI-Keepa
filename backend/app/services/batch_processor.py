@@ -13,6 +13,7 @@ from app.database import get_supabase
 from app.repositories.map_repository import MAPRepository
 from app.repositories.supabase_read_all import read_all_paginated
 from app.utils.vendor_code import resolve_map_vendor_type
+from app.utils.notifications import create_notification
 from app.services.keepa_client import KeepaClient, MultiKeyKeepaClient
 from app.services.price_analyzer import PriceAnalyzer
 from app.services.csv_generator import CSVGenerator
@@ -80,6 +81,39 @@ class BatchProcessor:
         except Exception as e:
             logger.warning(f"Could not load job status for {job_id}: {e}")
         return None
+
+    def _notify_job_event(
+        self,
+        *,
+        user_id: str,
+        notification_type: str,
+        title: str,
+        message: str,
+        priority: str = "info",
+        job_id: Optional[UUID] = None,
+        metadata: Optional[Dict] = None,
+        action_label: Optional[str] = None,
+        action_url: Optional[str] = None,
+    ) -> None:
+        """Best-effort notification creation for job lifecycle events."""
+        if not user_id:
+            return
+        try:
+            create_notification(
+                db=self.db,
+                user_id=UUID(str(user_id)),
+                notification_type=notification_type,
+                title=title,
+                message=message,
+                priority=priority,
+                related_id=job_id,
+                related_type="job" if job_id else None,
+                metadata=metadata or {},
+                action_label=action_label,
+                action_url=action_url,
+            )
+        except Exception as notify_err:
+            logger.warning("Failed to create job notification: %s", notify_err)
     
     def split_upcs_into_batches(self, upcs: List[str]) -> List[List[str]]:
         """
@@ -487,6 +521,25 @@ class BatchProcessor:
             final_job_status = self._get_job_status(job_id)
             if final_job_status == "cancelled":
                 logger.info(f"Job {job_id} remains cancelled; skipping completion + report/email")
+                try:
+                    cancelled_job_resp = self._execute_with_retry(
+                        lambda: self.db.table("batch_jobs").select("id, job_name, created_by").eq("id", str(job_id)).limit(1).execute(),
+                        "load cancelled job metadata",
+                    )
+                    if cancelled_job_resp.data:
+                        cancelled_job = cancelled_job_resp.data[0]
+                        self._notify_job_event(
+                            user_id=cancelled_job.get("created_by"),
+                            notification_type="run_cancelled",
+                            title=f"Run cancelled: {cancelled_job.get('job_name', 'Express Job')}",
+                            message="The run was cancelled before completion.",
+                            priority="warning",
+                            job_id=job_id,
+                            action_label="View Dashboard",
+                            action_url="/dashboard",
+                        )
+                except Exception as cancel_notify_err:
+                    logger.warning("Could not notify cancelled run for %s: %s", job_id, cancel_notify_err)
                 return True
 
             # Mark job as completed immediately — email is just notification
@@ -509,6 +562,7 @@ class BatchProcessor:
             )
             job_data = job_response.data[0]
             job_name = job_data["job_name"]
+            job_creator = job_data.get("created_by")
             custom_recipients = job_data.get("email_recipients")
             total_upcs = sum(batch["upc_count"] for batch in batches)
             job_map_vendor = resolve_map_vendor_type(job_data.get("map_vendor_type"))
@@ -561,6 +615,23 @@ class BatchProcessor:
                         logger.error(f"Failed to send email for job {job_id}.")
                         if getattr(self.email_service, "last_error", None):
                             logger.error(f"Email error: {self.email_service.last_error}")
+
+            self._notify_job_event(
+                user_id=job_creator,
+                notification_type="run_completed",
+                title=f"Run completed: {job_name}",
+                message=f"Express job finished successfully ({total_upcs} UPCs processed).",
+                priority="info",
+                job_id=job_id,
+                metadata={
+                    "job_name": job_name,
+                    "total_upcs": total_upcs,
+                    "completed_batches": completed_batches,
+                    "off_price_scope": job_off_price_scope,
+                },
+                action_label="View Dashboard",
+                action_url="/dashboard",
+            )
             
             return True
             
@@ -577,5 +648,25 @@ class BatchProcessor:
                 }).eq("id", str(job_id)).execute(),
                 "mark job failed",
             )
+            try:
+                failed_job_resp = self._execute_with_retry(
+                    lambda: self.db.table("batch_jobs").select("id, job_name, created_by").eq("id", str(job_id)).limit(1).execute(),
+                    "load failed job metadata",
+                )
+                if failed_job_resp.data:
+                    failed_job = failed_job_resp.data[0]
+                    self._notify_job_event(
+                        user_id=failed_job.get("created_by"),
+                        notification_type="run_failed",
+                        title=f"Run failed: {failed_job.get('job_name', 'Express Job')}",
+                        message=f"Express job failed. Reason: {error_message}",
+                        priority="critical",
+                        job_id=job_id,
+                        metadata={"error_message": error_message},
+                        action_label="View Dashboard",
+                        action_url="/dashboard",
+                    )
+            except Exception as fail_notify_err:
+                logger.warning("Could not notify failed run for %s: %s", job_id, fail_notify_err)
             return False
 
