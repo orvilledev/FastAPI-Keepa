@@ -1,0 +1,151 @@
+type VendorCategory = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
+
+type CalendarVendor = {
+  category: string
+  enabled: boolean
+  timezone: string
+  hour: number
+  minute: number
+  run_mode: string
+  custom_days: string[]
+  anchor_date?: string | null
+  input_mode?: 'api' | 'uploaded' | string
+  scheduled_time: string
+  next_run_time: string | null
+  scheduler_job_present: boolean
+  latest_job?: {
+    id: string
+    job_name: string
+    status: string
+    created_at: string
+    completed_at?: string | null
+  } | null
+  is_ongoing: boolean
+}
+
+const LABELS: Record<VendorCategory, string> = {
+  dnk: 'DNK',
+  clk: 'CLK',
+  obz: 'OBZ',
+  ref: 'REF',
+  bor: 'BOR',
+  sff: 'SFF',
+  tev: 'TEV',
+  cha: 'CHA',
+}
+
+export default function VendorRunCard({ vendor, nowMs }: { vendor: CalendarVendor; nowMs: number }) {
+  const category = (vendor.category || '').toLowerCase() as VendorCategory
+  const code = LABELS[category] || String(vendor.category || '').toUpperCase()
+  const inputMode = (vendor.input_mode || 'api') === 'uploaded' ? 'uploaded' : 'api'
+
+  if (!vendor.enabled) {
+    return (
+      <div className="bg-gray-100 rounded-xl shadow p-6 border border-gray-300">
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold mb-2 text-gray-900">{code} Keepa Off Price Daily Run</h3>
+            <p className="text-gray-500 text-sm">Daily run is currently stopped.</p>
+            <div className="mt-2">
+              <span
+                className={`inline-flex items-center rounded-md px-3 py-1.5 text-base font-extrabold uppercase tracking-wide ring-2 ${
+                  inputMode === 'uploaded'
+                    ? 'bg-amber-100 text-amber-900 ring-amber-300'
+                    : 'bg-blue-100 text-blue-900 ring-blue-300'
+                }`}
+              >
+                {inputMode === 'uploaded' ? 'Import Mode' : 'API Mode'}
+              </span>
+            </div>
+          </div>
+          <div className="text-right ml-6">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+              Stopped
+            </span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const nextRunMs = vendor.next_run_time ? new Date(vendor.next_run_time).getTime() : null
+  const secondsUntil = nextRunMs ? Math.max(0, Math.floor((nextRunMs - nowMs) / 1000)) : null
+  const timeLeft = secondsUntil !== null
+    ? {
+        hours: Math.floor(secondsUntil / 3600),
+        minutes: Math.floor((secondsUntil % 3600) / 60),
+        seconds: secondsUntil % 60,
+      }
+    : null
+
+  if (!vendor.next_run_time) {
+    return (
+      <div className="card p-6">
+        <div className="text-center text-gray-500">{code} Scheduler not configured</div>
+      </div>
+    )
+  }
+
+  const nextRunText = new Date(vendor.next_run_time).toLocaleString()
+
+  return (
+    <div
+      className={`rounded-xl shadow-xl p-6 text-white border ${
+        inputMode === 'uploaded'
+          ? 'bg-[#0B1020] border-white/20'
+          : 'bg-[#0B3D91] border-blue-300'
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold mb-2">{code} Keepa Off Price Daily Run</h3>
+          <p className="text-white/70 text-sm mb-4">
+            Scheduled for {vendor.scheduled_time}
+            <span
+              className={`ml-2 inline-flex items-center rounded-md px-3 py-1.5 text-base font-extrabold uppercase tracking-wide ring-2 ${
+                inputMode === 'uploaded'
+                  ? 'bg-amber-300/35 text-amber-100 ring-amber-300/80'
+                  : 'bg-blue-300/35 text-blue-100 ring-blue-300/80'
+              }`}
+            >
+              {inputMode === 'uploaded' ? 'Import Mode' : 'API Mode'}
+            </span>
+          </p>
+          {timeLeft && secondsUntil !== null && secondsUntil > 0 ? (
+            <div className="flex items-center space-x-4">
+              <div className="text-center">
+                <div className="text-4xl font-bold text-[#F97316]">{String(timeLeft.hours).padStart(2, '0')}</div>
+                <div className="text-xs text-white/70 mt-1">Hours</div>
+              </div>
+              <div className="text-3xl font-bold text-[#F97316]">:</div>
+              <div className="text-center">
+                <div className="text-4xl font-bold text-[#F97316]">{String(timeLeft.minutes).padStart(2, '0')}</div>
+                <div className="text-xs text-white/70 mt-1">Minutes</div>
+              </div>
+              <div className="text-3xl font-bold text-[#F97316]">:</div>
+              <div className="text-center">
+                <div className="text-4xl font-bold text-[#F97316]">{String(timeLeft.seconds).padStart(2, '0')}</div>
+                <div className="text-xs text-white/70 mt-1">Seconds</div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-lg font-semibold">Email will be sent soon...</div>
+          )}
+        </div>
+        <div className="text-right ml-6">
+          <div className="text-sm text-white/70 mb-1">Next Run</div>
+          <div className="text-lg font-semibold">{nextRunText}</div>
+          <div className="mt-2">
+            <span
+              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                vendor.is_ongoing ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+              }`}
+            >
+              {vendor.is_ongoing ? '● Running' : '○ Stopped'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

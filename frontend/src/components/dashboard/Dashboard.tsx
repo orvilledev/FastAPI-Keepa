@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
-import DNKSchedulerCountdown from './DNKSchedulerCountdown'
-import CLKSchedulerCountdown from './CLKSchedulerCountdown'
-import OBZSchedulerCountdown from './OBZSchedulerCountdown'
-import REFSchedulerCountdown from './REFSchedulerCountdown'
-import BORSchedulerCountdown from './BORSchedulerCountdown'
-import SFFSchedulerCountdown from './SFFSchedulerCountdown'
-import TEVSchedulerCountdown from './TEVSchedulerCountdown'
-import CHASchedulerCountdown from './CHASchedulerCountdown'
+import VendorRunCard from './VendorRunCard'
 import { schedulerApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
 
 type VendorCategory = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
 const VENDOR_ORDER: VendorCategory[] = ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha']
+type CalendarResponse = Awaited<ReturnType<typeof schedulerApi.getCalendar>>
+type CalendarVendor = CalendarResponse['vendors'][number]
+
+function FallbackVendorCard({ category }: { category: VendorCategory }) {
+  return (
+    <div className="card p-6">
+      <div className="text-center text-gray-500">Loading {category.toUpperCase()} scheduler status...</div>
+    </div>
+  )
+}
 
 export default function Dashboard() {
   const { hasKeepaAccess, displayName, userInfoLoading } = useUser()
@@ -19,6 +22,8 @@ export default function Dashboard() {
   const [statusLoading, setStatusLoading] = useState(true)
   const [statusError, setStatusError] = useState<string | null>(null)
   const [activeCategories, setActiveCategories] = useState<Set<VendorCategory>>(new Set())
+  const [vendorData, setVendorData] = useState<Record<string, CalendarVendor>>({})
+  const [nowMs, setNowMs] = useState(Date.now())
 
   // Set greeting from context
   useEffect(() => {
@@ -27,6 +32,11 @@ export default function Dashboard() {
       setGreeting(`Welcome, ${capitalizedName}!`)
     }
   }, [displayName, userInfoLoading])
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     if (userInfoLoading || !hasKeepaAccess) {
@@ -48,6 +58,12 @@ export default function Dashboard() {
           }
         }
         setActiveCategories(active)
+        const byCategory: Record<string, CalendarVendor> = {}
+        for (const vendor of calendar.vendors || []) {
+          const category = String(vendor.category || '').toLowerCase()
+          if (category) byCategory[category] = vendor
+        }
+        setVendorData(byCategory)
         setStatusError(null)
       } catch (err: any) {
         if (cancelled) return
@@ -70,16 +86,16 @@ export default function Dashboard() {
 
   const vendorWidgetsByCategory = useMemo<Record<VendorCategory, React.ReactNode>>(
     () => ({
-      dnk: <DNKSchedulerCountdown />,
-      clk: <CLKSchedulerCountdown />,
-      obz: <OBZSchedulerCountdown />,
-      ref: <REFSchedulerCountdown />,
-      bor: <BORSchedulerCountdown />,
-      sff: <SFFSchedulerCountdown />,
-      tev: <TEVSchedulerCountdown />,
-      cha: <CHASchedulerCountdown />,
+      dnk: vendorData.dnk ? <VendorRunCard vendor={vendorData.dnk} nowMs={nowMs} /> : <FallbackVendorCard category="dnk" />,
+      clk: vendorData.clk ? <VendorRunCard vendor={vendorData.clk} nowMs={nowMs} /> : <FallbackVendorCard category="clk" />,
+      obz: vendorData.obz ? <VendorRunCard vendor={vendorData.obz} nowMs={nowMs} /> : <FallbackVendorCard category="obz" />,
+      ref: vendorData.ref ? <VendorRunCard vendor={vendorData.ref} nowMs={nowMs} /> : <FallbackVendorCard category="ref" />,
+      bor: vendorData.bor ? <VendorRunCard vendor={vendorData.bor} nowMs={nowMs} /> : <FallbackVendorCard category="bor" />,
+      sff: vendorData.sff ? <VendorRunCard vendor={vendorData.sff} nowMs={nowMs} /> : <FallbackVendorCard category="sff" />,
+      tev: vendorData.tev ? <VendorRunCard vendor={vendorData.tev} nowMs={nowMs} /> : <FallbackVendorCard category="tev" />,
+      cha: vendorData.cha ? <VendorRunCard vendor={vendorData.cha} nowMs={nowMs} /> : <FallbackVendorCard category="cha" />,
     }),
-    []
+    [vendorData, nowMs]
   )
 
   const activeVendorOrder = VENDOR_ORDER.filter((category) => activeCategories.has(category))
