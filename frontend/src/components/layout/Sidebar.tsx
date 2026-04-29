@@ -192,7 +192,7 @@ export default function Sidebar() {
   ]
 
   const toolsMenuItems = [
-    { path: '/trainings', label: 'How To Guide', icon: 'globe' as const },
+    { path: '/howtoguide', label: 'How To Guide', icon: 'globe' as const },
     { path: '/faq', label: 'FAQ', icon: 'wrench' as const },
   ]
 

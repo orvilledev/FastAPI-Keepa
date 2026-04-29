@@ -1,5 +1,5 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useParams } from 'react-router-dom'
-import { lazy, Suspense } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useParams, useLocation } from 'react-router-dom'
+import { lazy, Suspense, useEffect } from 'react'
 import { UserProvider, useUser } from './contexts/UserContext'
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/common/ProtectedRoute'
@@ -33,6 +33,7 @@ const HowToGuide = lazy(() => import('./components/tools/PublicTools'))
 const JobAids = lazy(() => import('./components/tools/JobAids'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
+const LAST_PRIVATE_PATH_KEY = 'last_private_path'
 
 // Loading spinner component
 function LoadingSpinner() {
@@ -50,6 +51,10 @@ function LoadingSpinner() {
 function PublicHome() {
   const { authUser } = useUser()
   if (authUser) {
+    const lastPrivatePath = sessionStorage.getItem(LAST_PRIVATE_PATH_KEY)
+    if (lastPrivatePath && lastPrivatePath !== '/') {
+      return <Navigate to={lastPrivatePath} replace />
+    }
     return <Navigate to="/dashboard" replace />
   }
   return <Landing />
@@ -88,6 +93,26 @@ function PrivateLayout() {
   )
 }
 
+/** Remembers the last in-app private URL for refresh recovery. */
+function RememberLastPrivatePath() {
+  const { authUser } = useUser()
+  const location = useLocation()
+
+  useEffect(() => {
+    if (!authUser) return
+    const path = `${location.pathname}${location.search}${location.hash}`
+    const isGuestRoute =
+      location.pathname === '/' ||
+      location.pathname === '/login' ||
+      location.pathname === '/signup' ||
+      location.pathname === '/reset-password'
+    if (isGuestRoute) return
+    sessionStorage.setItem(LAST_PRIVATE_PATH_KEY, path)
+  }, [authUser, location.pathname, location.search, location.hash])
+
+  return null
+}
+
 // Inner app component that uses the user context
 function AppRoutes() {
   const { authLoading } = useUser()
@@ -97,8 +122,10 @@ function AppRoutes() {
   }
 
   return (
-    <Suspense fallback={<LoadingSpinner />}>
-      <Routes>
+    <>
+      <RememberLastPrivatePath />
+      <Suspense fallback={<LoadingSpinner />}>
+        <Routes>
         <Route path="/reset-password" element={<ResetPassword />} />
 
         <Route path="/" element={<PublicHome />} />
@@ -149,15 +176,17 @@ function AppRoutes() {
 
           <Route path="my-space/notes" element={<Navigate to="/dashboard" replace />} />
           <Route path="notifications" element={<Notifications />} />
-          <Route path="trainings" element={<HowToGuide />} />
+          <Route path="howtoguide" element={<HowToGuide />} />
+          <Route path="trainings" element={<Navigate to="/howtoguide" replace />} />
           <Route path="faq" element={<JobAids />} />
-          <Route path="tools/public" element={<Navigate to="/trainings" replace />} />
+          <Route path="tools/public" element={<Navigate to="/howtoguide" replace />} />
           <Route path="tools/job-aids" element={<Navigate to="/faq" replace />} />
           <Route path="tools/my-toolbox" element={<Navigate to="/dashboard" replace />} />
           <Route path="admin/users" element={<UserManagement />} />
         </Route>
-      </Routes>
-    </Suspense>
+        </Routes>
+      </Suspense>
+    </>
   )
 }
 
