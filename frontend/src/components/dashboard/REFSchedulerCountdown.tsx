@@ -110,7 +110,11 @@ export default function REFSchedulerCountdown() {
           <div className="flex-1">
             <h3 className="text-lg font-semibold mb-2 text-gray-900">REF Keepa Off Price Daily Run</h3>
             <p className="text-gray-500 text-sm">Daily run is currently stopped.</p>
-            <p className="text-gray-500 text-xs mt-1">Mode: {inputMode === 'uploaded' ? 'Upload Mode' : 'API Mode'}</p>
+            <div className="mt-2">
+              <span className="inline-flex items-center rounded-md bg-indigo-200 px-3 py-1.5 text-base font-extrabold uppercase tracking-wide text-indigo-900 ring-2 ring-indigo-300">
+                {inputMode === 'uploaded' ? 'Upload Mode' : 'API Mode'}
+              </span>
+            </div>
           </div>
           <div className="text-right ml-6">
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
@@ -138,7 +142,10 @@ export default function REFSchedulerCountdown() {
         <div className="flex-1">
           <h3 className="text-lg font-semibold mb-2 text-white">REF Keepa Off Price Daily Run</h3>
           <p className="text-white/90 text-sm mb-4">
-            Scheduled for {status.scheduled_time} ({status.timezone}) - {inputMode === 'uploaded' ? 'Upload Mode' : 'API Mode'}
+            Scheduled for {status.scheduled_time} ({status.timezone})
+            <span className="ml-2 inline-flex items-center rounded-md bg-amber-300/35 px-3 py-1.5 text-base font-extrabold uppercase tracking-wide text-amber-100 ring-2 ring-amber-300/80">
+              {inputMode === 'uploaded' ? 'Upload Mode' : 'API Mode'}
+            </span>
           </p>
           {timeLeft && status.seconds_until !== null && status.seconds_until > 0 ? (
             <div className="flex items-center space-x-4">

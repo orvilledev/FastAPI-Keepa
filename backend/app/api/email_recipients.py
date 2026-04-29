@@ -17,6 +17,7 @@ from app.models.email_recipients import (
     EmailListUpdate,
     EmailPoolEntryCreate,
     EmailPoolEntryResponse,
+    EmailPoolEntryUpdate,
     RegisteredEmailsResponse,
 )
 from app.repositories.job_repository import JobRepository
@@ -110,13 +111,14 @@ async def list_email_pool(
     db: Client = Depends(get_supabase),
 ):
     uid = str(current_user["id"])
-    response = db.table("email_recipient_pool").select("id, email").eq("user_id", uid).order("email").execute()
+    response = db.table("email_recipient_pool").select("id, email, display_name").eq("user_id", uid).order("email").execute()
     out: List[EmailPoolEntryResponse] = []
     for row in response.data or []:
         out.append(
             EmailPoolEntryResponse(
                 id=str(row["id"]),
                 email=row["email"],
+                display_name=row.get("display_name"),
             )
         )
     return out
@@ -131,22 +133,56 @@ async def add_email_to_pool(
 ):
     email = _validate_email(body.email)
     uid = str(current_user["id"])
+    display_name = (body.display_name or "").strip() or None
     existing = (
         db.table("email_recipient_pool")
-        .select("id, email")
+        .select("id, email, display_name")
         .eq("user_id", uid)
         .eq("email", email)
         .execute()
     )
     if existing.data:
         row = existing.data[0]
-        return EmailPoolEntryResponse(id=str(row["id"]), email=row["email"])
+        if display_name and row.get("display_name") != display_name:
+            updated = (
+                db.table("email_recipient_pool")
+                .update({"display_name": display_name})
+                .eq("user_id", uid)
+                .eq("id", str(row["id"]))
+                .execute()
+            )
+            if updated.data:
+                row = updated.data[0]
+        return EmailPoolEntryResponse(id=str(row["id"]), email=row["email"], display_name=row.get("display_name"))
 
-    ins = db.table("email_recipient_pool").insert({"user_id": uid, "email": email}).execute()
+    ins = db.table("email_recipient_pool").insert({"user_id": uid, "email": email, "display_name": display_name}).execute()
     if not ins.data:
         raise HTTPException(status_code=500, detail="Failed to save email")
     row = ins.data[0]
-    return EmailPoolEntryResponse(id=str(row["id"]), email=row["email"])
+    return EmailPoolEntryResponse(id=str(row["id"]), email=row["email"], display_name=row.get("display_name"))
+
+
+@router.patch("/email-recipients/pool/{entry_id}", response_model=EmailPoolEntryResponse)
+@handle_api_errors("update email pool entry")
+async def update_email_pool_entry(
+    entry_id: UUID,
+    body: EmailPoolEntryUpdate,
+    current_user: dict = Depends(get_job_runner_user),
+    db: Client = Depends(get_supabase),
+):
+    uid = str(current_user["id"])
+    display_name = (body.display_name or "").strip() or None
+    res = (
+        db.table("email_recipient_pool")
+        .update({"display_name": display_name})
+        .eq("user_id", uid)
+        .eq("id", str(entry_id))
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Email entry not found")
+    row = res.data[0]
+    return EmailPoolEntryResponse(id=str(row["id"]), email=row["email"], display_name=row.get("display_name"))
 
 
 @router.delete("/email-recipients/pool/{entry_id}")

@@ -201,7 +201,7 @@ export const jobsApi = {
   },
 }
 
-export type EmailPoolEntry = { id: string; email: string }
+export type EmailPoolEntry = { id: string; email: string; display_name?: string | null }
 export type EmailSavedList = { id: string; name: string; emails: string[] }
 
 export const emailRecipientsApi = {
@@ -213,8 +213,12 @@ export const emailRecipientsApi = {
     const response = await api.get<EmailPoolEntry[]>('/api/v1/email-recipients/pool')
     return response.data
   },
-  addToPool: async (email: string): Promise<EmailPoolEntry> => {
-    const response = await api.post<EmailPoolEntry>('/api/v1/email-recipients/pool', { email })
+  addToPool: async (email: string, display_name?: string): Promise<EmailPoolEntry> => {
+    const response = await api.post<EmailPoolEntry>('/api/v1/email-recipients/pool', { email, display_name })
+    return response.data
+  },
+  updatePoolEntry: async (entryId: string, display_name?: string): Promise<EmailPoolEntry> => {
+    const response = await api.patch<EmailPoolEntry>(`/api/v1/email-recipients/pool/${entryId}`, { display_name })
     return response.data
   },
   deletePoolEntry: async (entryId: string): Promise<void> => {

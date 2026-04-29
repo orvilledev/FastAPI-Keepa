@@ -1,28 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useAuth } from '../../hooks/useAuth'
-import { emailRecipientsApi, type EmailPoolEntry, type EmailSavedList } from '../../services/api'
-
-const DISMISSED_STORAGE_PREFIX = 'keepa.emailRecipients.dismissed.'
-
-function readDismissedStorage(key: string): Set<string> {
-  try {
-    const raw = localStorage.getItem(key)
-    if (!raw) return new Set()
-    const arr = JSON.parse(raw) as unknown
-    if (!Array.isArray(arr)) return new Set()
-    return new Set(arr.map((e) => String(e).toLowerCase()).filter(Boolean))
-  } catch {
-    return new Set()
-  }
-}
-
-function writeDismissedStorage(key: string, set: Set<string>) {
-  try {
-    localStorage.setItem(key, JSON.stringify([...set].sort()))
-  } catch {
-    // ignore quota / private mode
-  }
-}
+import { Link } from 'react-router-dom'
+import { emailRecipientsApi, type EmailPoolEntry } from '../../services/api'
 
 function parseEmails(value: string): string[] {
   return value
@@ -31,93 +9,37 @@ function parseEmails(value: string): string[] {
     .filter(Boolean)
 }
 
-function isValidEmail(s: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim().toLowerCase())
-}
-
 type Props = {
   id?: string
   value: string
   onChange: (commaSeparated: string) => void
   disabled?: boolean
-  /** Remember directory rows removed via Remove / Remove selected across refresh (Create Job). */
   persistDismissed?: boolean
 }
 
-export default function EmailRecipientsPicker({
-  id,
-  value,
-  onChange,
-  disabled,
-  persistDismissed = false,
-}: Props) {
-  const { user } = useAuth()
-  const dismissedStorageKey =
-    persistDismissed && user?.id ? `${DISMISSED_STORAGE_PREFIX}${user.id}` : null
-
+export default function EmailRecipientsPicker({ id, value, onChange, disabled }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
-  /** Avoid overwriting local selection when parent re-renders after our own onChange. */
   const skipValueSyncRef = useRef(false)
   const [panelOpen, setPanelOpen] = useState(false)
   const [registered, setRegistered] = useState<string[]>([])
   const [pool, setPool] = useState<EmailPoolEntry[]>([])
-  const [savedLists, setSavedLists] = useState<EmailSavedList[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-
   const [selected, setSelected] = useState<Set<string>>(() => new Set(parseEmails(value)))
-
-  const [newEmail, setNewEmail] = useState('')
-  const [saveNewToPool, setSaveNewToPool] = useState(false)
-  const [adding, setAdding] = useState(false)
-  const [addError, setAddError] = useState<string | null>(null)
-
-  const [listName, setListName] = useState('')
-  const [savingList, setSavingList] = useState(false)
-  const [applyListId, setApplyListId] = useState('')
-  const [removingEmail, setRemovingEmail] = useState<string | null>(null)
-  /** Emails marked in the Pick column for bulk removal */
-  const [bulkMarked, setBulkMarked] = useState<Set<string>>(() => new Set())
-  const [removingBulk, setRemovingBulk] = useState(false)
-  /** Hide directory/pool rows after user removes them (until panel reopens, or persist across refresh). */
-  const [dismissedEmails, setDismissedEmails] = useState<Set<string>>(() => new Set())
-
-  useEffect(() => {
-    if (!dismissedStorageKey) return
-    setDismissedEmails(readDismissedStorage(dismissedStorageKey))
-  }, [dismissedStorageKey])
-
-  const patchDismissedEmails = useCallback(
-    (recipe: (prev: Set<string>) => Set<string>) => {
-      setDismissedEmails((prev) => {
-        const next = recipe(prev)
-        if (dismissedStorageKey) writeDismissedStorage(dismissedStorageKey, next)
-        return next
-      })
-    },
-    [dismissedStorageKey]
-  )
 
   const refreshData = useCallback(async () => {
     setLoadError(null)
     try {
-      const [reg, poolRows, lists] = await Promise.all([
+      const [reg, poolRows] = await Promise.all([
         emailRecipientsApi.getRegistered(),
         emailRecipientsApi.getPool(),
-        emailRecipientsApi.getLists(),
       ])
       setRegistered(reg.map((e) => e.toLowerCase()))
       setPool(poolRows)
-      setSavedLists(lists)
-    } catch (e: unknown) {
-      const msg =
-        e && typeof e === 'object' && 'response' in e
-          ? (e as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
-          : undefined
-      setLoadError(typeof msg === 'string' ? msg : 'Could not load email directory')
+    } catch {
+      setLoadError('Could not load email directory')
       setRegistered([])
       setPool([])
-      setSavedLists([])
     } finally {
       setLoading(false)
     }
@@ -146,41 +68,27 @@ export default function EmailRecipientsPicker({
     return () => document.removeEventListener('mousedown', onDoc)
   }, [panelOpen])
 
-  useEffect(() => {
-    if (panelOpen) {
-      if (!persistDismissed) {
-        setDismissedEmails(new Set())
-      }
-    } else {
-      setBulkMarked(new Set())
-    }
-  }, [panelOpen, persistDismissed])
-
-  const poolEmails = useMemo(() => pool.map((p) => p.email.toLowerCase()), [pool])
-
-  const poolIdByEmail = useMemo(() => {
-    const m = new Map<string, string>()
+  const labelByEmail = useMemo(() => {
+    const labels = new Map<string, string>()
     for (const p of pool) {
-      m.set(p.email.toLowerCase(), p.id)
+      const key = p.email.toLowerCase()
+      const label = (p.display_name || '').trim()
+      if (label) labels.set(key, label)
     }
-    return m
+    return labels
   }, [pool])
 
-  const allRows = useMemo(() => {
-    const map = new Map<string, 'registered' | 'pool' | 'extra'>()
-    for (const e of registered) {
-      if (!dismissedEmails.has(e)) map.set(e, 'registered')
-    }
-    for (const e of poolEmails) {
-      if (dismissedEmails.has(e)) continue
-      if (!map.has(e)) map.set(e, 'pool')
-    }
-    for (const e of selected) {
-      if (dismissedEmails.has(e)) continue
-      if (!map.has(e)) map.set(e, 'extra')
-    }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-  }, [registered, poolEmails, selected, dismissedEmails])
+  const options = useMemo(() => {
+    const set = new Set<string>()
+    for (const e of registered) set.add(e)
+    for (const p of pool) set.add(p.email.toLowerCase())
+    for (const e of selected) set.add(e)
+    return [...set].sort((a, b) => {
+      const aLabel = (labelByEmail.get(a) || a).toLowerCase()
+      const bLabel = (labelByEmail.get(b) || b).toLowerCase()
+      return aLabel.localeCompare(bLabel)
+    })
+  }, [registered, pool, selected, labelByEmail])
 
   const commitSelection = useCallback(
     (next: Set<string>) => {
@@ -200,183 +108,8 @@ export default function EmailRecipientsPicker({
     commitSelection(next)
   }
 
-  const handleAddEmail = async () => {
-    const trimmed = newEmail.trim().toLowerCase()
-    if (!trimmed) return
-    if (!isValidEmail(trimmed)) {
-      setAddError('Enter a valid email address')
-      return
-    }
-    setAddError(null)
-    setAdding(true)
-    try {
-      if (saveNewToPool) {
-        const row = await emailRecipientsApi.addToPool(trimmed)
-        setPool((prev) => {
-          if (prev.some((p) => p.id === row.id)) return prev
-          return [...prev, row].sort((a, b) => a.email.localeCompare(b.email))
-        })
-      }
-      const next = new Set(selected)
-      next.add(trimmed)
-      commitSelection(next)
-      patchDismissedEmails((prev) => {
-        const n = new Set(prev)
-        n.delete(trimmed)
-        return n
-      })
-      setNewEmail('')
-      setSaveNewToPool(false)
-    } catch (e: unknown) {
-      const msg =
-        e && typeof e === 'object' && 'response' in e
-          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : undefined
-      setAddError(typeof msg === 'string' ? msg : 'Could not add email')
-    } finally {
-      setAdding(false)
-    }
-  }
-
-  const handleApplyList = () => {
-    const list = savedLists.find((l) => l.id === applyListId)
-    if (!list) return
-    const next = new Set(selected)
-    for (const e of list.emails) {
-      if (isValidEmail(e)) next.add(e.toLowerCase())
-    }
-    commitSelection(next)
-    patchDismissedEmails((prev) => {
-      const n = new Set(prev)
-      for (const e of list.emails) {
-        if (isValidEmail(e)) n.delete(e.toLowerCase())
-      }
-      return n
-    })
-  }
-
-  const handleSaveList = async () => {
-    const name = listName.trim()
-    if (!name) return
-    if (selected.size === 0) return
-    setSavingList(true)
-    try {
-      const created = await emailRecipientsApi.createList(name, [...selected])
-      setSavedLists((prev) => [...prev.filter((p) => p.id !== created.id), created].sort((a, b) => a.name.localeCompare(b.name)))
-      setListName('')
-    } catch (e: unknown) {
-      const msg =
-        e && typeof e === 'object' && 'response' in e
-          ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : undefined
-      alert(typeof msg === 'string' ? msg : 'Could not save list')
-    } finally {
-      setSavingList(false)
-    }
-  }
-
-  const handleDeleteList = async (listId: string) => {
-    if (!window.confirm('Delete this saved list?')) return
-    try {
-      await emailRecipientsApi.deleteList(listId)
-      setSavedLists((prev) => prev.filter((l) => l.id !== listId))
-      if (applyListId === listId) setApplyListId('')
-    } catch {
-      alert('Could not delete list')
-    }
-  }
-
-  /** Remove from this job’s selection; if the address is in your saved pool, delete it there too. */
-  const toggleBulkMark = (email: string) => {
-    const lower = email.toLowerCase()
-    setBulkMarked((prev) => {
-      const next = new Set(prev)
-      if (next.has(lower)) next.delete(lower)
-      else next.add(lower)
-      return next
-    })
-  }
-
-  const handleRemoveBulk = async () => {
-    if (bulkMarked.size === 0) return
-    const emails = [...bulkMarked]
-    const anyPool = emails.some((e) => poolIdByEmail.has(e.toLowerCase()))
-    const msg = anyPool
-      ? `Remove ${emails.length} selected address(es) from this job and from your saved pool where they are saved?`
-      : `Remove ${emails.length} selected address(es) from this job’s recipients?`
-    if (!window.confirm(msg)) return
-
-    setRemovingBulk(true)
-    try {
-      const poolIds = new Set<string>()
-      for (const e of emails) {
-        const pid = poolIdByEmail.get(e.toLowerCase())
-        if (pid) poolIds.add(pid)
-      }
-      for (const pid of poolIds) {
-        await emailRecipientsApi.deletePoolEntry(pid)
-      }
-      setPool((prev) => prev.filter((p) => !poolIds.has(p.id)))
-      const next = new Set(selected)
-      for (const e of emails) {
-        const el = e.toLowerCase()
-        next.delete(el)
-      }
-      commitSelection(next)
-      setBulkMarked(new Set())
-      patchDismissedEmails((prev) => {
-        const n = new Set(prev)
-        for (const e of emails) n.add(e.toLowerCase())
-        return n
-      })
-    } catch {
-      alert('Could not remove selected addresses')
-    } finally {
-      setRemovingBulk(false)
-    }
-  }
-
-  const handleRemoveRow = async (email: string) => {
-    const lower = email.toLowerCase()
-    const poolId = poolIdByEmail.get(lower)
-    if (poolId) {
-      if (
-        !window.confirm(
-          'Remove this address from your saved pool and from the recipients for this job?'
-        )
-      ) {
-        return
-      }
-    }
-    setRemovingEmail(lower)
-    try {
-      if (poolId) {
-        await emailRecipientsApi.deletePoolEntry(poolId)
-        setPool((prev) => prev.filter((p) => p.id !== poolId))
-      }
-      const next = new Set(selected)
-      next.delete(lower)
-      commitSelection(next)
-      setBulkMarked((prev) => {
-        const n = new Set(prev)
-        n.delete(lower)
-        return n
-      })
-      patchDismissedEmails((prev) => {
-        const n = new Set(prev)
-        n.add(lower)
-        return n
-      })
-    } catch {
-      alert('Could not remove this address')
-    } finally {
-      setRemovingEmail(null)
-    }
-  }
-
   const count = selected.size
-  const summary =
-    count === 0 ? 'Default recipients (leave empty)' : `${count} recipient${count === 1 ? '' : 's'} selected`
+  const summary = count === 0 ? 'Default recipients (leave empty)' : `${count} recipient${count === 1 ? '' : 's'} selected`
 
   return (
     <div ref={rootRef} className="space-y-2">
@@ -392,350 +125,46 @@ export default function EmailRecipientsPicker({
       </button>
 
       {panelOpen && (
-        <div className="border border-gray-200 rounded-xl bg-white shadow-lg p-4 space-y-4 max-h-[min(70vh,520px)] overflow-y-auto">
-          {loading && <p className="text-sm text-gray-500">Loading addresses…</p>}
-          {loadError && (
-            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">{loadError}</p>
-          )}
+        <div className="border border-gray-200 rounded-xl bg-white shadow-lg p-4 space-y-3 max-h-[min(70vh,520px)] overflow-y-auto">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-gray-500">Recipients are managed in <Link to="/email-list" className="text-indigo-700 underline">Email List</Link>.</p>
+            <button type="button" className="text-xs text-indigo-700 underline" onClick={() => void refreshData()}>
+              Refresh
+            </button>
+          </div>
 
-          {!loading && (
-            <>
-              <div className="flex flex-col gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50/90 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs text-gray-600">
-                  <span className="font-semibold text-gray-800">Pick</span> (left) — mark addresses to remove in bulk;{' '}
-                  <span className="font-semibold text-gray-800">Recipient</span> (middle) — who gets this job’s report.{' '}
-                  <span className="font-medium">Remove selected</span> uses the Pick column only.
-                </p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={disabled || removingBulk || bulkMarked.size === 0}
-                    onClick={() => void handleRemoveBulk()}
-                    className="whitespace-nowrap rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm hover:bg-red-50 disabled:opacity-50"
-                  >
-                    {removingBulk ? 'Removing…' : `Remove selected (${bulkMarked.size})`}
-                  </button>
-                  {bulkMarked.size > 0 && (
-                    <button
-                      type="button"
-                      className="text-xs font-medium text-gray-600 underline decoration-gray-300 hover:text-gray-900"
-                      onClick={() => setBulkMarked(new Set())}
-                    >
-                      Clear picks
-                    </button>
-                  )}
-                </div>
-              </div>
+          {loading && <p className="text-sm text-gray-500">Loading addresses...</p>}
+          {loadError && <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">{loadError}</p>}
 
-              {selected.size > 0 && (
-                <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-3 shadow-sm">
-                  <p className="text-xs font-medium text-gray-800 mb-1">Save this recipient set</p>
-                  <p className="text-xs text-gray-600 mb-2">
-                    The <span className="font-medium">checked recipients</span> (middle column) — {selected.size} address
-                    {selected.size === 1 ? '' : 'es'} — will be saved. Use a name you’ll recognize later (Advanced also has
-                    apply/delete for saved lists).
-                  </p>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
+          {!loading && options.length === 0 && <p className="text-sm text-gray-400">No email options available yet.</p>}
+
+          {!loading && options.length > 0 && (
+            <ul className="space-y-2">
+              {options.map((email) => {
+                const label = labelByEmail.get(email)
+                return (
+                  <li key={email} className="flex items-center gap-2 border-b border-gray-100 pb-2 last:border-0 last:pb-0">
                     <input
-                      type="text"
-                      value={listName}
-                      onChange={(e) => setListName(e.target.value)}
-                      placeholder="e.g. Metro team weekly"
-                      disabled={disabled || savingList}
-                      className="min-w-0 flex-1 rounded-md border border-indigo-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                      aria-label="Name for saved email list"
+                      type="checkbox"
+                      id={`er-${email}`}
+                      checked={selected.has(email)}
+                      onChange={() => toggleEmail(email)}
+                      className="shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                     />
-                    <button
-                      type="button"
-                      disabled={disabled || savingList || !listName.trim()}
-                      onClick={() => void handleSaveList()}
-                      className="whitespace-nowrap rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
-                    >
-                      {savingList ? 'Saving…' : 'Save list'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Registered recipients</p>
-                <p className="text-xs text-gray-400 mb-2">
-                  MSW accounts, default CSV/report addresses, and emails used on daily-run jobs.
-                </p>
-                {allRows.filter(([, t]) => t === 'registered').length === 0 ? (
-                  <p className="text-sm text-gray-400">No addresses in this list yet.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {allRows
-                      .filter(([, t]) => t === 'registered')
-                      .map(([email]) => (
-                        <li
-                          key={email}
-                          className="flex w-full flex-col gap-2 border-b border-gray-100 pb-2 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
-                        >
-                          <div className="flex min-w-0 flex-1 items-center gap-2">
-                            <input
-                              type="checkbox"
-                              aria-label={`Pick ${email} for bulk removal`}
-                              title="Pick for Remove selected"
-                              disabled={disabled}
-                              checked={bulkMarked.has(email)}
-                              onChange={() => toggleBulkMark(email)}
-                              className="h-4 w-4 shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50"
-                            />
-                            <input
-                              type="checkbox"
-                              id={`er-reg-${email}`}
-                              checked={selected.has(email)}
-                              onChange={() => toggleEmail(email)}
-                              className="shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                            />
-                            <label
-                              htmlFor={`er-reg-${email}`}
-                              className="min-w-0 flex-1 cursor-pointer break-all text-sm text-gray-800 sm:truncate"
-                            >
-                              {email}
-                            </label>
-                          </div>
-                          <div className="flex shrink-0 items-center justify-end gap-2 sm:pl-0">
-                            <span className="text-[10px] text-gray-400 sm:text-xs">Directory</span>
-                            <button
-                              type="button"
-                              disabled={disabled || removingEmail === email}
-                              title={
-                                poolIdByEmail.has(email)
-                                  ? 'Remove from this job and from your saved pool'
-                                  : 'Remove from this job’s recipients'
-                              }
-                              onClick={() => void handleRemoveRow(email)}
-                              className="whitespace-nowrap rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-800 shadow-sm hover:bg-red-100 disabled:opacity-50"
-                            >
-                              {removingEmail === email ? '…' : 'Remove'}
-                            </button>
-                          </div>
-                        </li>
-                      ))}
-                  </ul>
-                )}
-              </div>
-
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Saved pool</p>
-                {allRows.filter(([, t]) => t === 'pool').length === 0 ? (
-                  <p className="text-sm text-gray-400">No extra saved addresses yet. Add one below to build your pool.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {allRows
-                      .filter(([, t]) => t === 'pool')
-                      .map(([email]) => (
-                        <li
-                          key={email}
-                          className="flex w-full flex-col gap-2 border-b border-gray-100 pb-2 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
-                        >
-                          <div className="flex min-w-0 flex-1 items-center gap-2">
-                            <input
-                              type="checkbox"
-                              aria-label={`Pick ${email} for bulk removal`}
-                              title="Pick for Remove selected"
-                              disabled={disabled}
-                              checked={bulkMarked.has(email)}
-                              onChange={() => toggleBulkMark(email)}
-                              className="h-4 w-4 shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50"
-                            />
-                            <input
-                              type="checkbox"
-                              id={`er-pool-${email}`}
-                              checked={selected.has(email)}
-                              onChange={() => toggleEmail(email)}
-                              className="shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                            />
-                            <label
-                              htmlFor={`er-pool-${email}`}
-                              className="min-w-0 flex-1 cursor-pointer break-all text-sm text-gray-800 sm:truncate"
-                            >
-                              {email}
-                            </label>
-                          </div>
-                          <div className="flex shrink-0 items-center justify-end gap-2 sm:pl-0">
-                            <span className="text-[10px] text-gray-400 sm:text-xs">Pool</span>
-                            <button
-                              type="button"
-                              disabled={disabled || removingEmail === email}
-                              title="Remove from this job and from your saved pool"
-                              onClick={() => void handleRemoveRow(email)}
-                              className="whitespace-nowrap rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-800 shadow-sm hover:bg-red-100 disabled:opacity-50"
-                            >
-                              {removingEmail === email ? '…' : 'Remove'}
-                            </button>
-                          </div>
-                        </li>
-                      ))}
-                  </ul>
-                )}
-              </div>
-
-              {allRows.some(([, t]) => t === 'extra') && (
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Also selected</p>
-                  <ul className="space-y-2">
-                    {allRows
-                      .filter(([, t]) => t === 'extra')
-                      .map(([email]) => (
-                        <li
-                          key={email}
-                          className="flex w-full flex-col gap-2 border-b border-gray-100 pb-2 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
-                        >
-                          <div className="flex min-w-0 flex-1 items-center gap-2">
-                            <input
-                              type="checkbox"
-                              aria-label={`Pick ${email} for bulk removal`}
-                              title="Pick for Remove selected"
-                              disabled={disabled}
-                              checked={bulkMarked.has(email)}
-                              onChange={() => toggleBulkMark(email)}
-                              className="h-4 w-4 shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50"
-                            />
-                            <input
-                              type="checkbox"
-                              id={`er-x-${email}`}
-                              checked={selected.has(email)}
-                              onChange={() => toggleEmail(email)}
-                              className="shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                            />
-                            <label
-                              htmlFor={`er-x-${email}`}
-                              className="min-w-0 flex-1 cursor-pointer break-all text-sm text-gray-800 sm:truncate"
-                            >
-                              {email}
-                            </label>
-                          </div>
-                          <div className="flex shrink-0 items-center justify-end gap-2 sm:pl-0">
-                            <span className="text-[10px] text-gray-400 sm:text-xs">Custom</span>
-                            <button
-                              type="button"
-                              disabled={disabled || removingEmail === email}
-                              title={
-                                poolIdByEmail.has(email)
-                                  ? 'Remove from this job and from your saved pool'
-                                  : 'Remove from this job’s recipients'
-                              }
-                              onClick={() => void handleRemoveRow(email)}
-                              className="whitespace-nowrap rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-800 shadow-sm hover:bg-red-100 disabled:opacity-50"
-                            >
-                              {removingEmail === email ? '…' : 'Remove'}
-                            </button>
-                          </div>
-                        </li>
-                      ))}
-                  </ul>
-                </div>
-              )}
-
-              <div className="border-t border-gray-100 pt-4">
-                <p className="text-sm font-medium text-gray-800 mb-2">Add email</p>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <input
-                    type="email"
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    placeholder="name@company.com"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    disabled={disabled}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void handleAddEmail()}
-                    disabled={disabled || adding}
-                    className="px-4 py-2 rounded-lg bg-[#0B1020] text-white text-sm font-medium disabled:opacity-50"
-                  >
-                    {adding ? 'Adding…' : 'Add'}
-                  </button>
-                </div>
-                <label className="mt-2 flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={saveNewToPool}
-                    onChange={(e) => setSaveNewToPool(e.target.checked)}
-                    className="rounded border-gray-300 text-indigo-600"
-                  />
-                  Save this address to my pool for next time
-                </label>
-                {addError && <p className="mt-1 text-sm text-red-600">{addError}</p>}
-              </div>
-
-              <details className="border-t border-gray-100 pt-4 group">
-                <summary className="cursor-pointer text-sm font-semibold text-gray-900 list-none flex items-center gap-2">
-                  <span className="text-gray-400 group-open:rotate-90 transition-transform">▶</span>
-                  Advanced — saved email lists
-                </summary>
-                <div className="mt-3 space-y-3 pl-1">
-                  <p className="text-xs text-gray-500">
-                    Apply a saved list to merge those addresses into your selection, or save your current selection as a reusable list.
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
-                    <div className="flex-1">
-                      <label className="block text-xs text-gray-500 mb-1">Apply saved list</label>
-                      <select
-                        value={applyListId}
-                        onChange={(e) => setApplyListId(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                      >
-                        <option value="">Choose a list…</option>
-                        {savedLists.map((l) => (
-                          <option key={l.id} value={l.id}>
-                            {l.name} ({l.emails.length})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleApplyList}
-                      disabled={!applyListId}
-                      className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Merge into selection
-                    </button>
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      type="text"
-                      value={listName}
-                      onChange={(e) => setListName(e.target.value)}
-                      placeholder="Name for current selection"
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void handleSaveList()}
-                      disabled={savingList || selected.size === 0 || !listName.trim()}
-                      className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium disabled:opacity-50"
-                    >
-                      {savingList ? 'Saving…' : 'Save list'}
-                    </button>
-                  </div>
-                  {savedLists.length > 0 && (
-                    <ul className="text-sm space-y-1">
-                      {savedLists.map((l) => (
-                        <li key={l.id} className="flex items-center justify-between gap-2 text-gray-700">
-                          <span>
-                            <span className="font-medium">{l.name}</span>
-                            <span className="text-gray-400"> — {l.emails.length} email(s)</span>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => void handleDeleteList(l.id)}
-                            className="text-red-600 text-xs hover:underline"
-                          >
-                            Delete
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </details>
-            </>
+                    <label htmlFor={`er-${email}`} className="min-w-0 flex-1 cursor-pointer text-sm text-gray-800">
+                      {label ? (
+                        <span>
+                          <span className="font-medium">{label}</span>
+                          <span className="text-gray-400"> ({email})</span>
+                        </span>
+                      ) : (
+                        email
+                      )}
+                    </label>
+                  </li>
+                )
+              })}
+            </ul>
           )}
         </div>
       )}

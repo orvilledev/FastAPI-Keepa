@@ -80,6 +80,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
     </svg>
   ),
+  mail: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8m-18 8h18a2 2 0 002-2V8a2 2 0 00-2-2H3a2 2 0 00-2 2v6a2 2 0 002 2z" />
+    </svg>
+  ),
   chevronDown: (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -176,6 +181,7 @@ export default function Sidebar() {
     },
     { path: '/map', label: 'Manage MAP', icon: 'dollar' as const },
     { path: '/seller-list', label: 'Seller List', icon: 'users' as const },
+    { path: '/email-list', label: 'Email List', icon: 'mail' as const },
     { path: '/daily-run/calendar', label: 'Run Calendar', icon: 'calendar' as const },
     {
       label: 'Daily Runs',
@@ -376,6 +382,8 @@ export default function Sidebar() {
                           ? 'keepa-map'
                           : item.path === '/seller-list'
                             ? 'keepa-sellers'
+                          : item.path === '/email-list'
+                            ? 'keepa-emails'
                           : item.path === '/daily-run/calendar'
                             ? 'keepa-calendar'
                             : 'keepa-other'

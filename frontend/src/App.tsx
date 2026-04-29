@@ -28,6 +28,7 @@ const ReportView = lazy(() => import('./components/reports/ReportView'))
 const UPCManagement = lazy(() => import('./components/upcs/UPCManagement'))
 const MAPManagement = lazy(() => import('./components/map/MAPManagement'))
 const SellerList = lazy(() => import('./components/sellers/SellerList'))
+const EmailList = lazy(() => import('./components/email/EmailList'))
 const PublicTools = lazy(() => import('./components/tools/PublicTools'))
 const JobAids = lazy(() => import('./components/tools/JobAids'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
@@ -131,6 +132,7 @@ function AppRoutes() {
           <Route path="map" element={<ProtectedRoute requireKeepaAccess={true}><MAPManagement /></ProtectedRoute>} />
           <Route path="vendor-list" element={<Navigate to="/seller-list" replace />} />
           <Route path="seller-list" element={<ProtectedRoute requireKeepaAccess={true}><SellerList /></ProtectedRoute>} />
+          <Route path="email-list" element={<ProtectedRoute requireKeepaAccess={true}><EmailList /></ProtectedRoute>} />
           <Route path="daily-run" element={<ProtectedRoute requireKeepaAccess={true}><DailyRunsMenu /></ProtectedRoute>} />
           <Route path="daily-run/api" element={<Navigate to="/daily-run" replace />} />
           <Route path="daily-run/uploaded" element={<Navigate to="/daily-run" replace />} />

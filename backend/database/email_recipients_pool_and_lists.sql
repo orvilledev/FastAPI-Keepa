@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS email_recipient_pool (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   email TEXT NOT NULL,
+  display_name TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(user_id, email)
 );
@@ -33,3 +34,7 @@ CREATE POLICY "Users manage own email lists"
   ON email_recipient_lists FOR ALL
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
+
+-- Backfill-safe upgrade for existing installations.
+ALTER TABLE email_recipient_pool
+  ADD COLUMN IF NOT EXISTS display_name TEXT;
