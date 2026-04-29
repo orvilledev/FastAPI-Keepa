@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import { useUser } from '../../contexts/UserContext'
+import { APP_NAME, APP_VERSION_LABEL } from '../../constants/app'
 
 // SVG Icon components that inherit text color via currentColor
 const Icons = {
@@ -222,9 +223,9 @@ export default function Sidebar() {
           <img src="/orbit-logo.svg" alt="MSW Overwatch" className="w-8 h-8" />
           <div>
             <h2 className="text-lg font-bold text-[#0B1020]">
-              MSW Overwatch
+              {APP_NAME}
             </h2>
-            <p className="text-xs text-gray-500">Central Workspace</p>
+            <p className="text-xs text-gray-500">Central Workspace • {APP_VERSION_LABEL}</p>
           </div>
         </div>
       </div>

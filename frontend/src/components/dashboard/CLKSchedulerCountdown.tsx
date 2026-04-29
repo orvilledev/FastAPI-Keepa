@@ -153,7 +153,13 @@ export default function CLKSchedulerCountdown() {
   }
 
   return (
-    <div className="bg-[#0F52BA] rounded-xl shadow-xl p-6 text-white border border-blue-300">
+    <div
+      className={`rounded-xl shadow-xl p-6 text-white border ${
+        inputMode === 'uploaded'
+          ? 'bg-[#0B1020] border-white/20'
+          : 'bg-[#0B3D91] border-blue-300'
+      }`}
+    >
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <h3 className="text-lg font-semibold mb-2 text-white">CLK Keepa Off Price Daily Run</h3>

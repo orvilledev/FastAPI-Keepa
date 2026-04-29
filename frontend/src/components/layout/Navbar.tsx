@@ -2,6 +2,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useEffect, useState, useCallback } from 'react'
 import { notificationsApi } from '../../services/api'
+import { APP_NAME, APP_VERSION_LABEL } from '../../constants/app'
 
 export default function Navbar() {
   const { user, signOut } = useAuth()
@@ -49,7 +50,7 @@ export default function Navbar() {
         <div className="flex justify-between h-16 items-center">
           <div className="flex items-center">
             <h1 className="text-xl font-bold text-[#0B1020]">
-              MSW Overwatch
+              {APP_NAME} <span className="text-sm font-semibold text-gray-500">{APP_VERSION_LABEL}</span>
             </h1>
           </div>
           <div className="flex items-center space-x-4">

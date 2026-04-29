@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { APP_COPYRIGHT_OWNER, APP_NAME, APP_VERSION_LABEL } from '../constants/app'
 
 export default function Landing() {
   const [email, setEmail] = useState('')
@@ -52,7 +53,7 @@ export default function Landing() {
       ),
       title: 'Keepa Alert Services',
       description:
-        'Express batch jobs, DNK and CLK daily runs, off-price CSV reports, and email alerts—when your account includes Keepa access',
+        'Signal-first workflows built for speed, clarity, and confident decisions.',
     },
     {
       icon: (
@@ -62,7 +63,7 @@ export default function Landing() {
       ),
       title: 'UPC & MAP management',
       description:
-        'Manage DNK and CLK UPC catalogs and MAP programs from the sidebar, tied into reporting and dashboard stats',
+        'A clean command center for structured inputs and dependable guardrails.',
     },
     {
       icon: (
@@ -72,7 +73,7 @@ export default function Landing() {
       ),
       title: 'Dashboard widgets',
       description:
-        'Reorderable, drag-and-drop widgets: scheduler countdowns and UPC/MAP stats for eligible users—saved to your account',
+        'Live visibility, focused status views, and instant context at a glance.',
     },
     {
       icon: (
@@ -81,7 +82,7 @@ export default function Landing() {
         </svg>
       ),
       title: 'My Notes',
-      description: 'Rich-text notes under My Space for documentation and quick reference',
+      description: 'Capture ideas, preserve context, and keep momentum in one place.',
     },
     {
       icon: (
@@ -91,7 +92,7 @@ export default function Landing() {
       ),
       title: 'Tools & documentation',
       description:
-        'Documentations: Trainings and FAQ; My Toolbox for links and utilities you save for yourself',
+        'Practical guides and curated resources that keep teams aligned.',
     },
     {
       icon: (
@@ -101,7 +102,7 @@ export default function Landing() {
         </svg>
       ),
       title: 'Notifications',
-      description: 'In-app notifications for activity that matters to your account',
+      description: 'Timely nudges so the right people notice the right moment.',
     },
   ]
 
@@ -113,8 +114,9 @@ export default function Landing() {
           <div className="flex items-center space-x-2">
             <img src="/orbit-logo.svg" alt="MSW Overwatch" className="w-10 h-10" />
             <span className="text-2xl font-bold text-[#0B1020]">
-              MSW Overwatch
+              {APP_NAME}
             </span>
+            <span className="text-sm font-semibold text-gray-500">{APP_VERSION_LABEL}</span>
           </div>
           <div className="flex items-center space-x-4">
             <Link
@@ -139,14 +141,12 @@ export default function Landing() {
           <h1 className="text-5xl lg:text-6xl font-extrabold text-gray-900 mb-6">
             Your Central
             <span className="block text-[#0B1020]">
-              MSW Overwatch
+              {APP_NAME}
             </span>
           </h1>
           <p className="text-xl text-gray-600 mb-4 max-w-2xl mx-auto">
-            MSW Overwatch is your MetroShoe Warehouse workspace: a customizable dashboard, My Notes,
-            shared tools and job aids, and in-app notifications. With Keepa access on your account,
-            run express jobs and daily runs, manage DNK/CLK UPCs and MAP, and get off-price CSV
-            reports and alert emails—without leaving one app.
+            {APP_NAME} is your team workspace for focused execution: one place to monitor what matters,
+            coordinate quickly, and move from insight to action with less noise.
           </p>
           <div className="mb-8 max-w-2xl mx-auto">
             <p className="text-lg font-semibold text-gray-800 mb-2">
@@ -209,19 +209,25 @@ export default function Landing() {
                 <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Dashboard, My Notes, Documentations, and notifications</span>
+                <span className="text-gray-700">A streamlined workspace with clarity-first views</span>
               </li>
               <li className="flex items-start">
                 <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Keepa jobs, UPC/MAP, daily runs, and reports when enabled on your account</span>
+                <span className="text-gray-700">Built for repeatable, team-friendly daily operations</span>
               </li>
               <li className="flex items-start">
                 <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Drag-and-drop dashboard widgets (schedulers &amp; stats for eligible users)</span>
+                <span className="text-gray-700">Flexible layout and workflow controls tailored to your role</span>
+              </li>
+              <li className="flex items-start">
+                <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-gray-700">Fast collaboration with reusable communication patterns</span>
               </li>
             </ul>
             <button
@@ -257,19 +263,19 @@ export default function Landing() {
                 <svg className="w-5 h-5 text-[#0B1020] mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Same product areas: dashboard, notes, tools, notifications</span>
+                <span className="text-gray-700">Modern workspace experience across all core areas</span>
               </li>
               <li className="flex items-start">
                 <svg className="w-5 h-5 text-[#0B1020] mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Keepa Alert Services per your organization&apos;s entitlements</span>
+                <span className="text-gray-700">Feature access aligned to organization entitlements</span>
               </li>
               <li className="flex items-start">
                 <svg className="w-5 h-5 text-[#0B1020] mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Onboarding and billing handled with your team (contact sales)</span>
+                <span className="text-gray-700">Onboarding and billing coordinated directly with your team</span>
               </li>
             </ul>
             <button
@@ -285,9 +291,8 @@ export default function Landing() {
         </div>
         <div className="mt-8 text-center">
           <p className="text-sm text-gray-600">
-            <strong>Note:</strong> MetroShoe Warehouse employees receive free access. Keepa Alert
-            features (jobs, UPCs, MAP, daily runs, reports) depend on your account entitlements.
-            External organizations should use Contact Sales for the premium plan.
+            <strong>Note:</strong> Access and feature availability vary by role and organization settings.
+            External organizations should use Contact Sales for premium onboarding.
           </p>
         </div>
       </section>
@@ -296,10 +301,10 @@ export default function Landing() {
       <section className="container mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="text-center mb-16">
           <h2 className="text-4xl font-bold text-gray-900 mb-4">
-            What&apos;s in MSW Overwatch
+            What&apos;s in {APP_NAME}
           </h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            What you can do in the app today—from Keepa monitoring to notes and resources
+            A simple set of essentials designed to keep teams focused and moving
           </p>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -330,8 +335,9 @@ export default function Landing() {
             <div className="text-center mb-8">
               <img src="/orbit-logo.svg" alt="MSW Overwatch" className="w-16 h-16 mx-auto mb-4" />
               <h2 className="text-3xl font-bold text-[#0B1020]">
-                Join MSW Overwatch
+                Join {APP_NAME}
               </h2>
+              <p className="mt-1 text-xs text-gray-500">Current version: {APP_VERSION_LABEL}</p>
               <p className="mt-2 text-sm text-gray-500">
                 Sign in after signup to open your dashboard and sidebar tools
               </p>
@@ -420,7 +426,8 @@ export default function Landing() {
       <footer className="border-t border-gray-200 mt-20">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center text-gray-600">
-            <p>&copy; {new Date().getFullYear()} MSW Overwatch. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} {APP_NAME} {APP_VERSION_LABEL}. All rights reserved.</p>
+            <p className="mt-1 text-sm">{APP_COPYRIGHT_OWNER}</p>
           </div>
         </div>
       </footer>

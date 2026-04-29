@@ -143,7 +143,13 @@ export default function TEVSchedulerCountdown() {
   }
 
   return (
-    <div className="bg-[#1F2937] rounded-xl shadow-xl p-6 text-white border border-gray-400">
+    <div
+      className={`rounded-xl shadow-xl p-6 text-white border ${
+        inputMode === 'uploaded'
+          ? 'bg-[#1F2937] border-gray-400'
+          : 'bg-[#0B3D91] border-blue-300'
+      }`}
+    >
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <h3 className="text-lg font-semibold mb-2 text-white">TEV Keepa Off Price Daily Run</h3>
