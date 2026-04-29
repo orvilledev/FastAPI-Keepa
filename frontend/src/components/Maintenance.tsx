@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 interface MaintenanceProps {
   title?: string
   message?: string
+  expectedEndAt?: string | null
+  durationHours?: number | null
 }
 
 type QuizItem = {
@@ -84,7 +86,12 @@ function randomQuestion(excludeIds: string[] = []): QuizItem {
   return pool[Math.floor(Math.random() * pool.length)]
 }
 
-export default function Maintenance({ title = 'Quick Tune-Up in Progress', message }: MaintenanceProps) {
+export default function Maintenance({
+  title = 'Quick Tune-Up in Progress',
+  message,
+  expectedEndAt,
+  durationHours,
+}: MaintenanceProps) {
   const [askedIds, setAskedIds] = useState<string[]>([])
   const [quiz, setQuiz] = useState<QuizItem>(() => randomQuestion())
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
@@ -112,6 +119,35 @@ export default function Maintenance({ title = 'Quick Tune-Up in Progress', messa
     setSubmitted(false)
   }
 
+  const [nowMs, setNowMs] = useState<number>(Date.now())
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setNowMs(Date.now())
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  const expectedEndMs = expectedEndAt ? new Date(expectedEndAt).getTime() : NaN
+  const hasValidExpectedEnd = Number.isFinite(expectedEndMs)
+  const remainingMs = hasValidExpectedEnd ? expectedEndMs - nowMs : null
+  const countdownFinished = remainingMs !== null && remainingMs <= 0
+  const totalDurationMs =
+    typeof durationHours === 'number' && durationHours > 0 ? durationHours * 60 * 60 * 1000 : null
+  const progressPercent =
+    totalDurationMs && remainingMs !== null
+      ? Math.max(0, Math.min(100, ((totalDurationMs - Math.max(0, remainingMs)) / totalDurationMs) * 100))
+      : null
+
+  const countdownText = useMemo(() => {
+    if (remainingMs === null || remainingMs <= 0) return null
+    const totalSeconds = Math.floor(remainingMs / 1000)
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
+    return `${hours}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`
+  }, [remainingMs])
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="max-w-2xl w-full bg-white border border-gray-200 rounded-xl shadow-sm p-8">
@@ -124,6 +160,30 @@ export default function Maintenance({ title = 'Quick Tune-Up in Progress', messa
         <p className="mt-2 text-sm text-gray-500">
           Thank you for your patience.
         </p>
+        {countdownText && (
+          <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-100 text-amber-800 text-sm font-semibold">
+            <span>Estimated time remaining:</span>
+            <span>{countdownText}</span>
+          </div>
+        )}
+        {!countdownText && hasValidExpectedEnd && countdownFinished && (
+          <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-100 text-blue-800 text-sm font-semibold">
+            Final checks in progress...
+          </div>
+        )}
+        {progressPercent !== null && (
+          <div className="mt-4">
+            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-indigo-600 transition-all duration-700"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              Maintenance progress: {Math.round(progressPercent)}%
+            </p>
+          </div>
+        )}
         </div>
 
         <div className="mt-8 border border-indigo-100 rounded-lg p-5 bg-indigo-50/40">

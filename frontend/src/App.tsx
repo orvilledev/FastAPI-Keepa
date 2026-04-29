@@ -120,6 +120,8 @@ function AppRoutes() {
   const { authLoading, authUser, userInfoLoading, isSuperadmin } = useUser()
   const [maintenanceMode, setMaintenanceMode] = useState(false)
   const [maintenanceMessage, setMaintenanceMessage] = useState<string>('')
+  const [maintenanceExpectedEndAt, setMaintenanceExpectedEndAt] = useState<string | null>(null)
+  const [maintenanceDurationHours, setMaintenanceDurationHours] = useState<number | null>(null)
   const [maintenanceChecked, setMaintenanceChecked] = useState(false)
 
   useEffect(() => {
@@ -130,10 +132,16 @@ function AppRoutes() {
         if (!active) return
         setMaintenanceMode(Boolean(status.maintenance_mode))
         setMaintenanceMessage((status.effective_message || status.message || '').trim())
+        setMaintenanceExpectedEndAt(status.expected_end_at || null)
+        setMaintenanceDurationHours(
+          typeof status.duration_hours === 'number' ? status.duration_hours : null
+        )
       } catch {
         if (!active) return
         setMaintenanceMode(false)
         setMaintenanceMessage('')
+        setMaintenanceExpectedEndAt(null)
+        setMaintenanceDurationHours(null)
       } finally {
         if (active) setMaintenanceChecked(true)
       }
@@ -150,7 +158,13 @@ function AppRoutes() {
 
   if (maintenanceMode && (!authUser || userInfoLoading || !isSuperadmin)) {
     if (authUser && userInfoLoading) return <LoadingSpinner />
-    return <Maintenance message={maintenanceMessage} />
+    return (
+      <Maintenance
+        message={maintenanceMessage}
+        expectedEndAt={maintenanceExpectedEndAt}
+        durationHours={maintenanceDurationHours}
+      />
+    )
   }
 
   return (
