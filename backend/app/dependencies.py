@@ -13,6 +13,38 @@ logger = logging.getLogger(__name__)
 security = HTTPBearer()
 
 
+def _ensure_profile_row_for_access(db: Client, user_data: dict) -> dict:
+    """Ensure a profile exists for access checks; new signups default to inactive pending approval."""
+    from datetime import datetime
+
+    user_id = user_data.get("id")
+    user_email = (user_data.get("email") or "").lower()
+    response = db.table("profiles").select("*").eq("id", user_id).execute()
+    if response.data:
+        return response.data[0]
+
+    is_legacy_superadmin = user_email == "orvillebarba@gmail.com"
+    profile_data = {
+        "id": user_id,
+        "email": user_data.get("email"),
+        "role": "superadmin" if is_legacy_superadmin else "user",
+        "is_active": True if is_legacy_superadmin else False,
+        "has_keepa_access": True if is_legacy_superadmin else False,
+        "can_manage_tools": True if is_legacy_superadmin else False,
+        "can_assign_tasks": True if is_legacy_superadmin else False,
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+    created = db.table("profiles").insert(profile_data).execute()
+    if created.data:
+        return created.data[0]
+
+    retry = db.table("profiles").select("*").eq("id", user_id).execute()
+    if retry.data:
+        return retry.data[0]
+    return profile_data
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Client = Depends(get_supabase)
@@ -46,6 +78,16 @@ async def get_current_user(
                     detail="Invalid authentication credentials",
                 )
             
+            profile = _ensure_profile_row_for_access(db, user_data)
+            is_active = profile.get("is_active", False)
+            user_email = (user_data.get("email") or "").lower()
+            role = (profile.get("role") or "").lower()
+            is_superadmin = user_email == "orvillebarba@gmail.com" or role == "superadmin"
+            if not is_active and not is_superadmin:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Your account is pending superadmin approval.",
+                )
             return user_data
     except HTTPException:
         raise

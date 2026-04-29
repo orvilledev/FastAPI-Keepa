@@ -122,7 +122,11 @@ export const authApi = {
     return response.data
   },
   getAllUsers: async () => {
-    const response = await api.get<{ users: Array<{ id: string; email: string; role: string; display_name?: string; has_keepa_access: boolean; can_manage_tools: boolean; created_at: string }> }>('/api/v1/auth/users')
+    const response = await api.get<{ users: Array<{ id: string; email: string; role: string; display_name?: string; has_keepa_access: boolean; can_manage_tools: boolean; is_active?: boolean; created_at: string }> }>('/api/v1/auth/users')
+    return response.data
+  },
+  approveUser: async (userId: string) => {
+    const response = await api.post<{ user_id: string; message: string }>(`/api/v1/auth/users/${userId}/approve`)
     return response.data
   },
   deactivateUser: async (userId: string) => {

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { authApi } from '../../services/api'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -11,7 +12,16 @@ export default function Login() {
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('')
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false)
   const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false)
+  const [notice, setNotice] = useState('')
   const navigate = useNavigate()
+
+  useEffect(() => {
+    const storedNotice = sessionStorage.getItem('auth_notice')
+    if (storedNotice) {
+      setNotice(storedNotice)
+      sessionStorage.removeItem('auth_notice')
+    }
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -25,6 +35,18 @@ export default function Login() {
       })
 
       if (error) throw error
+      try {
+        await authApi.getCurrentUser()
+      } catch (authError: any) {
+        const status = authError?.response?.status
+        const detail = authError?.response?.data?.detail
+        if (status === 403 && typeof detail === 'string' && detail.toLowerCase().includes('pending superadmin approval')) {
+          await supabase.auth.signOut()
+          setError('Your account is pending superadmin approval.')
+          return
+        }
+        throw authError
+      }
       navigate('/dashboard')
     } catch (error: any) {
       setError(error.message || 'Failed to login')
@@ -73,6 +95,11 @@ export default function Login() {
             <p className="mt-2 text-sm text-gray-500">Sign in to MSW Overwatch</p>
           </div>
           <form className="space-y-6" onSubmit={handleLogin}>
+            {notice && (
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
+                <div className="text-sm text-blue-800 font-medium">{notice}</div>
+              </div>
+            )}
             {error && (
               <div className="rounded-lg bg-red-50 border border-red-200 p-4">
                 <div className="text-sm text-red-800 font-medium">{error}</div>

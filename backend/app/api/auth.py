@@ -19,10 +19,16 @@ def _ensure_profile_row(db: Client, current_user: dict) -> dict:
     if response.data:
         return response.data[0]
 
+    user_email = (current_user.get("email") or "").lower()
+    is_legacy_superadmin = user_email == "orvillebarba@gmail.com"
     profile_data = {
         "id": current_user["id"],
         "email": current_user.get("email"),
-        "role": "user",
+        "role": "superadmin" if is_legacy_superadmin else "user",
+        "is_active": True if is_legacy_superadmin else False,
+        "has_keepa_access": True if is_legacy_superadmin else False,
+        "can_manage_tools": True if is_legacy_superadmin else False,
+        "can_assign_tasks": True if is_legacy_superadmin else False,
         "created_at": datetime.utcnow().isoformat(),
         "updated_at": datetime.utcnow().isoformat(),
     }
@@ -208,7 +214,6 @@ async def get_all_users(
         response = (
             db.table("profiles")
             .select("id, email, role, display_name, has_keepa_access, can_manage_tools, can_assign_tasks, created_at, is_active")
-            .eq("is_active", True)
             .order("created_at", desc=True)
             .execute()
         )
@@ -357,6 +362,27 @@ async def deactivate_user(
         )
 
     return {"user_id": user_id, "message": "User account has been deactivated"}
+
+
+@router.post("/users/{user_id}/approve")
+@handle_api_errors("approve user")
+async def approve_user(
+    user_id: str,
+    current_user: dict = Depends(get_superadmin_user),
+    db: Client = Depends(get_supabase),
+):
+    """Approve a pending user account (superadmin only)."""
+    from datetime import datetime
+
+    response = (
+        db.table("profiles")
+        .update({"is_active": True, "updated_at": datetime.utcnow().isoformat()})
+        .eq("id", user_id)
+        .execute()
+    )
+    if not response.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return {"user_id": user_id, "message": "User approved successfully"}
 
 
 @router.put("/users/{user_id}/tasks-access")

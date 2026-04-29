@@ -33,7 +33,12 @@ export default function Signup() {
       })
 
       if (error) throw error
-      navigate('/dashboard')
+      await supabase.auth.signOut()
+      sessionStorage.setItem(
+        'auth_notice',
+        'Signup submitted. Your account will be active once approved by the superadmin.'
+      )
+      navigate('/login')
     } catch (error: any) {
       setError(error.message || 'Failed to sign up')
     } finally {

@@ -9,6 +9,7 @@ interface User {
   display_name?: string
   has_keepa_access: boolean
   can_manage_tools: boolean
+  is_active?: boolean
   created_at: string
 }
 
@@ -32,6 +33,7 @@ export default function UserManagement() {
   const [error, setError] = useState('')
   const [updating, setUpdating] = useState<string | null>(null)
   const [removing, setRemoving] = useState<string | null>(null)
+  const [showPendingOnly, setShowPendingOnly] = useState(false)
 
   const loadUsers = async () => {
     try {
@@ -132,6 +134,25 @@ export default function UserManagement() {
     }
   }
 
+  const handleApproveUser = async (userId: string, email: string) => {
+    if (!window.confirm(`Approve ${email} so they can access the app?`)) {
+      return
+    }
+    try {
+      setUpdating(userId)
+      await authApi.approveUser(userId)
+      await loadUsers()
+    } catch (err: unknown) {
+      const errorMessage =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined
+      alert(`Error: ${typeof errorMessage === 'string' ? errorMessage : 'Failed to approve user'}`)
+    } finally {
+      setUpdating(null)
+    }
+  }
+
   if (userInfoLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -160,11 +181,39 @@ export default function UserManagement() {
     )
   }
 
+  const pendingUsers = users.filter((user) => user.is_active === false)
+  const visibleUsers = showPendingOnly ? pendingUsers : users
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
         <p className="mt-1 text-sm text-gray-500">Manage user permissions and access</p>
+      </div>
+
+      <div className="card p-4 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setShowPendingOnly(false)}
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            !showPendingOnly
+              ? 'bg-[#0B1020] text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          All Users ({users.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowPendingOnly(true)}
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            showPendingOnly
+              ? 'bg-amber-600 text-white'
+              : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+          }`}
+        >
+          Pending Requests ({pendingUsers.length})
+        </button>
       </div>
 
       {error && (
@@ -185,6 +234,9 @@ export default function UserManagement() {
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Account Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   MSW Overwatch Access
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -196,14 +248,14 @@ export default function UserManagement() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {users.length === 0 ? (
+              {visibleUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                    No users found
+                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                    {showPendingOnly ? 'No pending requests' : 'No users found'}
                   </td>
                 </tr>
               ) : (
-                users.map((user) => (
+                visibleUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -240,6 +292,15 @@ export default function UserManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 py-1 text-xs font-medium rounded ${
+                          user.is_active === false ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
+                        }`}
+                      >
+                        {user.is_active === false ? 'Pending Approval' : 'Approved'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-2 py-1 text-xs font-medium rounded ${
                           user.has_keepa_access ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}
                       >
@@ -257,6 +318,16 @@ export default function UserManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex flex-col gap-2">
+                        {user.is_active === false && (
+                          <button
+                            type="button"
+                            onClick={() => handleApproveUser(user.id, user.email)}
+                            disabled={updating === user.id}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {updating === user.id ? 'Updating...' : 'Approve user'}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleToggleKeepaAccess(user.id, user.has_keepa_access)}

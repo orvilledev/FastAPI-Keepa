@@ -68,6 +68,14 @@ export function UserProvider({ children }: UserProviderProps) {
       })
     } catch (error) {
       console.error('Failed to fetch user info:', error)
+      const status = (error as { response?: { status?: number; data?: { detail?: string } } })?.response?.status
+      const detail = (error as { response?: { status?: number; data?: { detail?: string } } })?.response?.data?.detail
+      if (status === 403 && typeof detail === 'string' && detail.toLowerCase().includes('pending superadmin approval')) {
+        sessionStorage.setItem('auth_notice', 'Your account is pending superadmin approval.')
+        await supabase.auth.signOut()
+        setUserInfo(null)
+        return
+      }
       // Set minimal info from auth user if API fails
       setUserInfo({
         id: authUser.id,
