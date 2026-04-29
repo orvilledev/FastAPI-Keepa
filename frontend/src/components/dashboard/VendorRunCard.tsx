@@ -77,6 +77,7 @@ export default function VendorRunCard({ vendor, nowMs }: { vendor: CalendarVendo
         seconds: secondsUntil % 60,
       }
     : null
+  const hasActiveCountdown = Boolean(vendor.enabled && secondsUntil !== null && secondsUntil > 0)
 
   if (!vendor.next_run_time) {
     return (
@@ -138,10 +139,10 @@ export default function VendorRunCard({ vendor, nowMs }: { vendor: CalendarVendo
           <div className="mt-2">
             <span
               className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                vendor.is_ongoing ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                hasActiveCountdown ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
               }`}
             >
-              {vendor.is_ongoing ? '● Running' : '○ Stopped'}
+              {hasActiveCountdown ? '● Active' : '○ Inactive'}
             </span>
           </div>
         </div>

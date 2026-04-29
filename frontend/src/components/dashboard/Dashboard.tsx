@@ -52,7 +52,13 @@ export default function Dashboard() {
         const active = new Set<VendorCategory>()
         for (const vendor of calendar.vendors || []) {
           const category = String(vendor.category || '').toLowerCase() as VendorCategory
-          const hasActiveCountdown = Boolean(vendor.enabled && vendor.scheduler_job_present && vendor.next_run_time)
+          const nextRunMs = vendor.next_run_time ? new Date(vendor.next_run_time).getTime() : null
+          const hasActiveCountdown = Boolean(
+            vendor.enabled &&
+            vendor.next_run_time &&
+            nextRunMs !== null &&
+            nextRunMs > Date.now()
+          )
           if (VENDOR_ORDER.includes(category) && hasActiveCountdown) {
             active.add(category)
           }
