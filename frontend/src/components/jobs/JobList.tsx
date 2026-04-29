@@ -100,10 +100,6 @@ export default function JobList() {
   }
 
 
-  if (loading) {
-    return <div className="text-center py-8">Loading...</div>
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -171,7 +167,13 @@ export default function JobList() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-100">
-            {jobs.map((job) => (
+            {loading ? (
+              <tr>
+                <td colSpan={8} className="px-6 py-8 text-center text-sm text-gray-500">
+                  Loading jobs...
+                </td>
+              </tr>
+            ) : jobs.map((job) => (
               <tr key={job.id} className="hover:bg-gray-50/50 transition-colors duration-150">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-semibold text-gray-900">{job.job_name}</div>

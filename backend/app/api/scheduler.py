@@ -952,7 +952,10 @@ async def rerun_uploaded_report(
     if parse_status != "completed":
         raise HTTPException(status_code=409, detail=f"Uploaded report is not ready yet (status: {parse_status or 'pending'}).")
 
-    # Queue immediately and return without waiting on the long-running job.
-    asyncio.create_task(run_daily_job_for_category(category))
+    # Run the heavy import job in a worker thread so it does not block the
+    # API event loop while queueing/processing large datasets.
+    asyncio.create_task(
+        asyncio.to_thread(asyncio.run, run_daily_job_for_category(category))
+    )
     return {"message": f"{category.upper()} import run queued"}
 
