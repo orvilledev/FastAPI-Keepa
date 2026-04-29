@@ -48,10 +48,10 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     ),
   },
   {
-    q: 'What is the difference between API Mode and Upload Mode?',
+    q: 'What is the difference between API Mode and Import Mode?',
     a: (
       <>
-        <strong>API Mode</strong> pulls live Keepa data at run time. <strong>Upload Mode</strong> compares the latest
+        <strong>API Mode</strong> pulls live Keepa data at run time. <strong>Import Mode</strong> compares the latest
         uploaded Keepa report file against MAP using Manage UPCs as run scope. Both modes use the same schedule time; the
         selected mode determines which data source is used.
       </>
@@ -61,7 +61,7 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     q: 'Can I switch modes and keep the same scheduled time?',
     a: (
       <>
-        Yes. Use the mode toggle in Vendor Daily Run (<strong>API Mode</strong> / <strong>Upload Mode</strong>). The next
+        Yes. Use the mode toggle in Vendor Daily Run (<strong>API Mode</strong> / <strong>Import Mode</strong>). The next
         scheduled run uses whichever mode is currently selected for that vendor.
       </>
     ),
@@ -85,7 +85,7 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     ),
   },
   {
-    q: 'Why can Upload Mode produce no results even when my file has off-MAP rows?',
+    q: 'Why can Import Mode produce no results even when my file has off-MAP rows?',
     a: (
       <>
         Common causes are: uploaded file parse not completed yet, no overlap between uploaded UPCs and Manage UPCs, missing

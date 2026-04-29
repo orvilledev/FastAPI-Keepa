@@ -432,7 +432,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
         vendor,
       )
       await loadSchedulerSettings()
-      setSuccess('Upload Mode recipients saved.')
+      setSuccess('Import Mode recipients saved.')
     } catch (saveErr: any) {
       setError(saveErr?.response?.data?.detail || 'Failed to save upload recipients.')
     } finally {
@@ -556,7 +556,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                   : 'bg-white text-gray-700 hover:bg-gray-50'
               }`}
             >
-              Upload Mode
+              Import Mode
             </button>
           </div>
           <button

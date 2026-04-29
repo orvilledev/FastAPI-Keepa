@@ -118,7 +118,7 @@ export default function CHASchedulerCountdown() {
                     : 'bg-blue-100 text-blue-900 ring-blue-300'
                 }`}
               >
-                {inputMode === 'uploaded' ? 'Upload Mode' : 'API Mode'}
+                {inputMode === 'uploaded' ? 'Import Mode' : 'API Mode'}
               </span>
             </div>
           </div>
@@ -162,7 +162,7 @@ export default function CHASchedulerCountdown() {
                   : 'bg-blue-300/35 text-blue-100 ring-blue-300/80'
               }`}
             >
-              {inputMode === 'uploaded' ? 'Upload Mode' : 'API Mode'}
+              {inputMode === 'uploaded' ? 'Import Mode' : 'API Mode'}
             </span>
           </p>
           {timeLeft && status.seconds_until !== null && status.seconds_until > 0 ? (

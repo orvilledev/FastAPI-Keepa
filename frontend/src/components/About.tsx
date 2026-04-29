@@ -30,7 +30,7 @@ export default function About() {
               <span className="font-semibold">Daily Runs:</span> Scheduled monitoring with countdowns, grouped by active and inactive runs on the dashboard.
             </li>
             <li>
-              <span className="font-semibold">API Mode and Upload Mode:</span> API Mode uses live Keepa data, while Upload Mode evaluates uploaded Keepa report data against managed MAP/UPC scope.
+              <span className="font-semibold">API Mode and Import Mode:</span> API Mode uses live Keepa data, while Import Mode evaluates uploaded Keepa report data against managed MAP/UPC scope.
             </li>
             <li>
               <span className="font-semibold">Email List and Reporting:</span> Centralized recipient directory with named contacts for runs/jobs, plus CSV/email outputs with seller-aware Amazon links.
