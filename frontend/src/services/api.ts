@@ -142,11 +142,23 @@ export const authApi = {
     return response.data
   },
   getMaintenanceMode: async () => {
-    const response = await api.get<{ maintenance_mode: boolean; message: string }>('/api/v1/auth/maintenance')
+    const response = await api.get<{
+      maintenance_mode: boolean
+      message: string
+      effective_message: string
+      duration_hours?: number | null
+      expected_end_at?: string | null
+    }>('/api/v1/auth/maintenance')
     return response.data
   },
-  updateMaintenanceMode: async (maintenance_mode: boolean, message?: string) => {
-    const response = await api.put<{ maintenance_mode: boolean; message: string }>('/api/v1/auth/maintenance', { maintenance_mode, message })
+  updateMaintenanceMode: async (maintenance_mode: boolean, message?: string, duration_hours?: number) => {
+    const response = await api.put<{
+      maintenance_mode: boolean
+      message: string
+      effective_message: string
+      duration_hours?: number | null
+      expected_end_at?: string | null
+    }>('/api/v1/auth/maintenance', { maintenance_mode, message, duration_hours })
     return response.data
   },
   updateProfile: async (profileData: any) => {
@@ -849,7 +861,13 @@ export const notificationsApi = {
 }
 
 export const systemApi = {
-  getMaintenanceStatus: async (): Promise<{ maintenance_mode: boolean; message: string }> => {
+  getMaintenanceStatus: async (): Promise<{
+    maintenance_mode: boolean
+    message: string
+    effective_message?: string
+    duration_hours?: number | null
+    expected_end_at?: string | null
+  }> => {
     const response = await api.get('/api/v1/system/maintenance-status')
     return response.data
   },

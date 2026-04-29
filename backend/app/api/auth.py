@@ -207,6 +207,7 @@ class UserKeepaAccessUpdate(BaseModel):
 class MaintenanceUpdate(BaseModel):
     maintenance_mode: bool
     message: Optional[str] = None
+    duration_hours: Optional[float] = None
 
 
 @router.get("/users")
@@ -249,7 +250,7 @@ async def update_maintenance_mode(
     current_user: dict = Depends(get_superadmin_user),
 ):
     """Update runtime maintenance mode state (superadmin only)."""
-    return set_maintenance_state(payload.maintenance_mode, payload.message)
+    return set_maintenance_state(payload.maintenance_mode, payload.message, payload.duration_hours)
 
 
 @router.put("/users/{user_id}/keepa-access")

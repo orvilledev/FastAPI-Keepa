@@ -119,6 +119,7 @@ function RememberLastPrivatePath() {
 function AppRoutes() {
   const { authLoading, authUser, userInfoLoading, isSuperadmin } = useUser()
   const [maintenanceMode, setMaintenanceMode] = useState(false)
+  const [maintenanceMessage, setMaintenanceMessage] = useState<string>('')
   const [maintenanceChecked, setMaintenanceChecked] = useState(false)
 
   useEffect(() => {
@@ -128,9 +129,11 @@ function AppRoutes() {
         const status = await systemApi.getMaintenanceStatus()
         if (!active) return
         setMaintenanceMode(Boolean(status.maintenance_mode))
+        setMaintenanceMessage((status.effective_message || status.message || '').trim())
       } catch {
         if (!active) return
         setMaintenanceMode(false)
+        setMaintenanceMessage('')
       } finally {
         if (active) setMaintenanceChecked(true)
       }
@@ -147,7 +150,7 @@ function AppRoutes() {
 
   if (maintenanceMode && (!authUser || userInfoLoading || !isSuperadmin)) {
     if (authUser && userInfoLoading) return <LoadingSpinner />
-    return <Maintenance />
+    return <Maintenance message={maintenanceMessage} />
   }
 
   return (

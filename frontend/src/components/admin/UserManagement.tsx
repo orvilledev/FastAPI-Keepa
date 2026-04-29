@@ -36,6 +36,8 @@ export default function UserManagement() {
   const [showPendingOnly, setShowPendingOnly] = useState(false)
   const [maintenanceMode, setMaintenanceMode] = useState(false)
   const [maintenanceMessage, setMaintenanceMessage] = useState('')
+  const [maintenanceDurationHours, setMaintenanceDurationHours] = useState<number>(0)
+  const [maintenanceExpectedEndAt, setMaintenanceExpectedEndAt] = useState<string | null>(null)
   const [maintenanceSaving, setMaintenanceSaving] = useState(false)
 
   const loadUsers = async () => {
@@ -61,6 +63,10 @@ export default function UserManagement() {
       const state = await authApi.getMaintenanceMode()
       setMaintenanceMode(Boolean(state.maintenance_mode))
       setMaintenanceMessage(state.message || '')
+      setMaintenanceDurationHours(
+        typeof state.duration_hours === 'number' && state.duration_hours > 0 ? state.duration_hours : 0
+      )
+      setMaintenanceExpectedEndAt(state.expected_end_at || null)
     } catch (err) {
       console.error('Failed to load maintenance mode:', err)
     }
@@ -83,15 +89,48 @@ export default function UserManagement() {
     if (!confirmed) return
     try {
       setMaintenanceSaving(true)
-      const updated = await authApi.updateMaintenanceMode(nextMode, maintenanceMessage)
+      const updated = await authApi.updateMaintenanceMode(
+        nextMode,
+        maintenanceMessage,
+        maintenanceDurationHours > 0 ? maintenanceDurationHours : 0
+      )
       setMaintenanceMode(Boolean(updated.maintenance_mode))
       setMaintenanceMessage(updated.message || '')
+      setMaintenanceDurationHours(
+        typeof updated.duration_hours === 'number' && updated.duration_hours > 0 ? updated.duration_hours : 0
+      )
+      setMaintenanceExpectedEndAt(updated.expected_end_at || null)
     } catch (err: unknown) {
       const msg =
         err && typeof err === 'object' && 'response' in err
           ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
           : undefined
       alert(typeof msg === 'string' ? msg : 'Failed to update maintenance mode')
+    } finally {
+      setMaintenanceSaving(false)
+    }
+  }
+
+  const handleSaveMaintenanceDetails = async () => {
+    try {
+      setMaintenanceSaving(true)
+      const updated = await authApi.updateMaintenanceMode(
+        maintenanceMode,
+        maintenanceMessage,
+        maintenanceDurationHours > 0 ? maintenanceDurationHours : 0
+      )
+      setMaintenanceMode(Boolean(updated.maintenance_mode))
+      setMaintenanceMessage(updated.message || '')
+      setMaintenanceDurationHours(
+        typeof updated.duration_hours === 'number' && updated.duration_hours > 0 ? updated.duration_hours : 0
+      )
+      setMaintenanceExpectedEndAt(updated.expected_end_at || null)
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined
+      alert(typeof msg === 'string' ? msg : 'Failed to save maintenance details')
     } finally {
       setMaintenanceSaving(false)
     }
@@ -270,6 +309,36 @@ export default function UserManagement() {
             placeholder="App is currently under maintenance. Please try again later."
           />
         </label>
+        <label className="block text-sm font-medium text-gray-700">
+          Maintenance length (hours)
+          <input
+            type="number"
+            min={0}
+            max={168}
+            step={0.5}
+            value={maintenanceDurationHours}
+            onChange={(e) =>
+              setMaintenanceDurationHours(Math.max(0, Math.min(168, Number(e.target.value) || 0)))
+            }
+            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg"
+            placeholder="e.g. 2"
+          />
+        </label>
+        {maintenanceMode && maintenanceExpectedEndAt && (
+          <p className="text-xs text-gray-600">
+            Expected completion: {new Date(maintenanceExpectedEndAt).toLocaleString()}
+          </p>
+        )}
+        <div>
+          <button
+            type="button"
+            onClick={() => void handleSaveMaintenanceDetails()}
+            disabled={maintenanceSaving}
+            className="px-3 py-1.5 rounded-md bg-[#0B1020] text-white text-sm font-medium disabled:opacity-50"
+          >
+            {maintenanceSaving ? 'Saving...' : 'Save Maintenance Details'}
+          </button>
+        </div>
       </div>
 
       <div className="card p-4 flex flex-wrap items-center gap-3">
