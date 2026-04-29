@@ -21,7 +21,6 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
   const rootRef = useRef<HTMLDivElement>(null)
   const skipValueSyncRef = useRef(false)
   const [panelOpen, setPanelOpen] = useState(false)
-  const [registered, setRegistered] = useState<string[]>([])
   const [pool, setPool] = useState<EmailPoolEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -30,15 +29,10 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
   const refreshData = useCallback(async () => {
     setLoadError(null)
     try {
-      const [reg, poolRows] = await Promise.all([
-        emailRecipientsApi.getRegistered(),
-        emailRecipientsApi.getPool(),
-      ])
-      setRegistered(reg.map((e) => e.toLowerCase()))
+      const poolRows = await emailRecipientsApi.getPool()
       setPool(poolRows)
     } catch {
       setLoadError('Could not load email directory')
-      setRegistered([])
       setPool([])
     } finally {
       setLoading(false)
@@ -80,7 +74,6 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
 
   const options = useMemo(() => {
     const set = new Set<string>()
-    for (const e of registered) set.add(e)
     for (const p of pool) set.add(p.email.toLowerCase())
     for (const e of selected) set.add(e)
     return [...set].sort((a, b) => {
@@ -88,7 +81,7 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
       const bLabel = (labelByEmail.get(b) || b).toLowerCase()
       return aLabel.localeCompare(bLabel)
     })
-  }, [registered, pool, selected, labelByEmail])
+  }, [pool, selected, labelByEmail])
 
   const commitSelection = useCallback(
     (next: Set<string>) => {
