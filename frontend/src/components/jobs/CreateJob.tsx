@@ -111,7 +111,9 @@ export default function CreateJob() {
             className="w-full max-w-md px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm"
           >
             {vendorSuggestions.map((v) => (
-              <option key={v} value={v} />
+              <option key={v} value={v}>
+                {v.toUpperCase()}
+              </option>
             ))}
           </select>
           <p className="mt-2 text-sm text-gray-500">
