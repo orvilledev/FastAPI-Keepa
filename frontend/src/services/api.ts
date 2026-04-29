@@ -173,6 +173,16 @@ export const jobsApi = {
     })
     return response.data
   },
+
+  getJobStats: async () => {
+    const response = await api.get<{
+      total: number
+      processing: number
+      completed: number
+      failed: number
+    }>('/api/v1/jobs/stats')
+    return response.data
+  },
   
   getJob: async (jobId: string) => {
     const response = await api.get<BatchJob>(`/api/v1/jobs/${jobId}`)

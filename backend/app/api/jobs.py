@@ -15,6 +15,18 @@ from supabase import Client
 router = APIRouter()
 
 
+def _count_jobs(
+    db: Client,
+    *,
+    status: str | None = None,
+) -> int:
+    query = db.table("batch_jobs").select("id", count="exact")
+    if status:
+        query = query.eq("status", status)
+    response = query.execute()
+    return int(response.count or 0)
+
+
 @router.post("/jobs", response_model=BatchJobResponse, status_code=201)
 @handle_api_errors("create job")
 async def create_job(
@@ -69,6 +81,25 @@ async def list_jobs(
     jobs = job_repo.enrich_jobs_with_initiated_by(jobs)
     jobs = job_repo.enrich_jobs_with_total_upcs(jobs)
     return [BatchJobResponse(**job) for job in jobs]
+
+
+@router.get("/jobs/stats", response_model=dict)
+@handle_api_errors("get jobs stats")
+async def get_jobs_stats(
+    _current_user: dict = Depends(get_job_runner_user),
+    db: Client = Depends(get_supabase)
+):
+    """Return lightweight aggregate counts for Express Jobs page cards."""
+    total = _count_jobs(db)
+    processing = _count_jobs(db, status="processing")
+    completed = _count_jobs(db, status="completed")
+    failed = _count_jobs(db, status="failed")
+    return {
+        "total": total,
+        "processing": processing,
+        "completed": completed,
+        "failed": failed,
+    }
 
 
 @router.get("/jobs/{job_id}", response_model=BatchJobResponse)

@@ -21,15 +21,8 @@ export default function JobList() {
 
   const loadAllJobsForStats = useCallback(async () => {
     try {
-      // Load all jobs to calculate statistics
-      const allJobs = await jobsApi.listJobs(1000, 0) // Load a large number to get all jobs
-      const newStats = {
-        total: allJobs.length,
-        processing: allJobs.filter((j) => j.status === 'processing').length,
-        completed: allJobs.filter((j) => j.status === 'completed').length,
-        failed: allJobs.filter((j) => j.status === 'failed').length,
-      }
-      setStats(newStats)
+      const data = await jobsApi.getJobStats()
+      setStats(data)
     } catch (error) {
       console.error('Failed to load jobs for stats:', error)
     }
