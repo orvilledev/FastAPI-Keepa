@@ -70,7 +70,7 @@ export default function About() {
         </p>
         <p className="mt-2 text-gray-700">{APP_COPYRIGHT_OWNER}</p>
         <p className="mt-2 text-gray-700">
-          Senior Developer: <span className="font-semibold">Orville Barba</span>
+          Contact the Senior Developer: <span className="font-semibold">Orville Barba via remote@metroshoewarehouse.com</span>
         </p>
       </div>
     </div>
