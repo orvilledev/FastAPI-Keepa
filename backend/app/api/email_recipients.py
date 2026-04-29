@@ -2,7 +2,7 @@
 import logging
 import re
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Set
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -54,6 +54,26 @@ def _parse_recipient_string(raw: str) -> List[str]:
     return out
 
 
+def _insert_pool_emails_for_user(db: Client, user_id: str, emails: Set[str]) -> int:
+    """Insert validated emails into pool; ignore duplicates."""
+    inserted = 0
+    for email in sorted(emails):
+        existing = (
+            db.table("email_recipient_pool")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("email", email)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            continue
+        res = db.table("email_recipient_pool").insert({"user_id": user_id, "email": email}).execute()
+        if res.data:
+            inserted += 1
+    return inserted
+
+
 @router.get("/email-recipients/registered", response_model=RegisteredEmailsResponse)
 @handle_api_errors("list registered emails")
 async def list_registered_emails(
@@ -102,6 +122,53 @@ async def list_registered_emails(
 
     emails = sorted(seen)
     return RegisteredEmailsResponse(emails=emails)
+
+
+@router.post("/email-recipients/pool/sync-used")
+@handle_api_errors("sync used recipients into email pool")
+async def sync_used_recipients_to_pool(
+    current_user: dict = Depends(get_job_runner_user),
+    db: Client = Depends(get_supabase),
+):
+    """
+    Populate the user's pool from recipients used in:
+    - Express Jobs (batch_jobs.email_recipients for current user)
+    - Daily Run settings (scheduler_settings.email_recipients)
+    """
+    uid = str(current_user["id"])
+    discovered: Set[str] = set()
+
+    def fetch_user_jobs_with_recipients(start: int, end: int):
+        return (
+            db.table("batch_jobs")
+            .select("email_recipients")
+            .eq("created_by", uid)
+            .not_.is_("email_recipients", "null")
+            .range(start, end)
+            .execute()
+        )
+
+    for row in read_all_paginated(fetch_user_jobs_with_recipients):
+        raw = row.get("email_recipients")
+        for email in _parse_recipient_string(raw):
+            discovered.add(email)
+
+    try:
+        settings_rows = (
+            db.table("scheduler_settings")
+            .select("email_recipients")
+            .not_.is_("email_recipients", "null")
+            .execute()
+        )
+        for row in settings_rows.data or []:
+            raw = row.get("email_recipients")
+            for email in _parse_recipient_string(raw):
+                discovered.add(email)
+    except Exception as exc:
+        logger.warning("Could not merge scheduler settings recipients into pool sync: %s", exc)
+
+    inserted = _insert_pool_emails_for_user(db, uid, discovered)
+    return {"ok": True, "discovered": len(discovered), "inserted": inserted}
 
 
 @router.get("/email-recipients/pool", response_model=List[EmailPoolEntryResponse])

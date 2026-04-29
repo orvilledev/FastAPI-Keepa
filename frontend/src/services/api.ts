@@ -205,6 +205,12 @@ export type EmailPoolEntry = { id: string; email: string; display_name?: string 
 export type EmailSavedList = { id: string; name: string; emails: string[] }
 
 export const emailRecipientsApi = {
+  syncUsedToPool: async (): Promise<{ ok: boolean; discovered: number; inserted: number }> => {
+    const response = await api.post<{ ok: boolean; discovered: number; inserted: number }>(
+      '/api/v1/email-recipients/pool/sync-used'
+    )
+    return response.data
+  },
   getRegistered: async (): Promise<string[]> => {
     const response = await api.get<{ emails: string[] }>('/api/v1/email-recipients/registered')
     return response.data.emails

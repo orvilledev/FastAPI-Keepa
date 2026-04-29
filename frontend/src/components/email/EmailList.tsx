@@ -39,6 +39,8 @@ export default function EmailList() {
     setLoading(true)
     setError(null)
     try {
+      // Pull in recipients already used in Daily Runs / Express Jobs first.
+      await emailRecipientsApi.syncUsedToPool()
       const data = await emailRecipientsApi.getPool()
       setRows(data)
     } catch {
