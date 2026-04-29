@@ -10,6 +10,7 @@ export default function Notifications() {
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
   const [unreadCount, setUnreadCount] = useState(0)
   const [markingReadIds, setMarkingReadIds] = useState<Set<string>>(new Set())
+  const [clearingAll, setClearingAll] = useState(false)
 
   useEffect(() => {
     loadNotifications()
@@ -130,6 +131,31 @@ export default function Notifications() {
     }
   }
 
+  const handleClearNotifications = async () => {
+    if (!notifications.length) return
+    if (!confirm('Clear all notifications? This cannot be undone.')) {
+      return
+    }
+    setClearingAll(true)
+    const previousNotifications = notifications
+    const previousUnreadCount = unreadCount
+
+    // Optimistic UI update for immediate feedback.
+    setNotifications([])
+    setUnreadCount(0)
+
+    try {
+      await notificationsApi.clearNotifications()
+    } catch (err: any) {
+      console.error('Failed to clear notifications:', err)
+      // Roll back optimistic state on failure.
+      setNotifications(previousNotifications)
+      setUnreadCount(previousUnreadCount)
+    } finally {
+      setClearingAll(false)
+    }
+  }
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'run_completed':
@@ -188,10 +214,20 @@ export default function Notifications() {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Notifications</h1>
         <div className="flex items-center space-x-3">
+          {notifications.length > 0 && (
+            <button
+              onClick={handleClearNotifications}
+              disabled={clearingAll}
+              className="px-4 py-2 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 disabled:opacity-50"
+            >
+              {clearingAll ? 'Clearing...' : 'Clear Notifications'}
+            </button>
+          )}
           {unreadCount > 0 && (
             <button
               onClick={handleMarkAllAsRead}
-              className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+              disabled={clearingAll}
+              className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
             >
               Mark all as read
             </button>

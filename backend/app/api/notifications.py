@@ -208,3 +208,17 @@ async def delete_notification(
     db.table("notifications").delete().eq("id", str(notification_id)).execute()
     
     return {"message": "Notification deleted successfully"}
+
+
+@router.delete("/notifications")
+@handle_api_errors("clear notifications")
+async def clear_notifications(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase)
+):
+    """Delete all notifications for the current user."""
+    user_id = current_user["id"]
+
+    db.table("notifications").delete().eq("user_id", str(user_id)).execute()
+
+    return {"message": "All notifications cleared"}

@@ -833,6 +833,10 @@ export const notificationsApi = {
   deleteNotification: async (notificationId: string): Promise<void> => {
     await api.delete(`/api/v1/notifications/${notificationId}`)
   },
+  
+  clearNotifications: async (): Promise<void> => {
+    await api.delete(`/api/v1/notifications`)
+  },
 }
 
 export default api
