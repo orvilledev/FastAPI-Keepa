@@ -19,11 +19,21 @@ CREATE TABLE IF NOT EXISTS email_recipient_lists (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS email_recipient_pool_exclusions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, email)
+);
+
 CREATE INDEX IF NOT EXISTS idx_email_recipient_pool_user ON email_recipient_pool(user_id);
 CREATE INDEX IF NOT EXISTS idx_email_recipient_lists_user ON email_recipient_lists(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_recipient_pool_exclusions_user ON email_recipient_pool_exclusions(user_id);
 
 ALTER TABLE email_recipient_pool ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_recipient_lists ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_recipient_pool_exclusions ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users manage own email pool"
   ON email_recipient_pool FOR ALL
@@ -32,6 +42,11 @@ CREATE POLICY "Users manage own email pool"
 
 CREATE POLICY "Users manage own email lists"
   ON email_recipient_lists FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users manage own email pool exclusions"
+  ON email_recipient_pool_exclusions FOR ALL
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 

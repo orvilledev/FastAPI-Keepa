@@ -121,7 +121,13 @@ export default function DNKSchedulerCountdown() {
             <h3 className="text-lg font-semibold mb-2 text-gray-900">DNK Keepa Off Price Daily Run</h3>
             <p className="text-gray-500 text-sm">Daily run is currently stopped.</p>
             <div className="mt-2">
-              <span className="inline-flex items-center rounded-md bg-indigo-200 px-3 py-1.5 text-base font-extrabold uppercase tracking-wide text-indigo-900 ring-2 ring-indigo-300">
+              <span
+                className={`inline-flex items-center rounded-md px-3 py-1.5 text-base font-extrabold uppercase tracking-wide ring-2 ${
+                  inputMode === 'uploaded'
+                    ? 'bg-amber-100 text-amber-900 ring-amber-300'
+                    : 'bg-blue-100 text-blue-900 ring-blue-300'
+                }`}
+              >
                 {inputMode === 'uploaded' ? 'Upload Mode' : 'API Mode'}
               </span>
             </div>
@@ -153,7 +159,13 @@ export default function DNKSchedulerCountdown() {
           <h3 className="text-lg font-semibold mb-2">DNK Keepa Off Price Daily Run</h3>
           <p className="text-white/70 text-sm mb-4">
             Scheduled for {status.scheduled_time} ({status.timezone})
-            <span className="ml-2 inline-flex items-center rounded-md bg-amber-300/35 px-3 py-1.5 text-base font-extrabold uppercase tracking-wide text-amber-100 ring-2 ring-amber-300/80">
+            <span
+              className={`ml-2 inline-flex items-center rounded-md px-3 py-1.5 text-base font-extrabold uppercase tracking-wide ring-2 ${
+                inputMode === 'uploaded'
+                  ? 'bg-amber-300/35 text-amber-100 ring-amber-300/80'
+                  : 'bg-blue-300/35 text-blue-100 ring-blue-300/80'
+              }`}
+            >
               {inputMode === 'uploaded' ? 'Upload Mode' : 'API Mode'}
             </span>
           </p>

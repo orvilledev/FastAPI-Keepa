@@ -74,6 +74,27 @@ def _insert_pool_emails_for_user(db: Client, user_id: str, emails: Set[str]) -> 
     return inserted
 
 
+def _get_excluded_emails_for_user(db: Client, user_id: str) -> Set[str]:
+    try:
+        response = (
+            db.table("email_recipient_pool_exclusions")
+            .select("email")
+            .eq("user_id", user_id)
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning("Could not load email pool exclusions: %s", exc)
+        return set()
+    excluded: Set[str] = set()
+    for row in response.data or []:
+        email = row.get("email")
+        if isinstance(email, str):
+            n = _normalize_email(email)
+            if n:
+                excluded.add(n)
+    return excluded
+
+
 @router.get("/email-recipients/registered", response_model=RegisteredEmailsResponse)
 @handle_api_errors("list registered emails")
 async def list_registered_emails(
@@ -167,8 +188,10 @@ async def sync_used_recipients_to_pool(
     except Exception as exc:
         logger.warning("Could not merge scheduler settings recipients into pool sync: %s", exc)
 
-    inserted = _insert_pool_emails_for_user(db, uid, discovered)
-    return {"ok": True, "discovered": len(discovered), "inserted": inserted}
+    excluded = _get_excluded_emails_for_user(db, uid)
+    eligible = {email for email in discovered if email not in excluded}
+    inserted = _insert_pool_emails_for_user(db, uid, eligible)
+    return {"ok": True, "discovered": len(discovered), "eligible": len(eligible), "inserted": inserted}
 
 
 @router.get("/email-recipients/pool", response_model=List[EmailPoolEntryResponse])
@@ -201,6 +224,10 @@ async def add_email_to_pool(
     email = _validate_email(body.email)
     uid = str(current_user["id"])
     display_name = (body.display_name or "").strip() or None
+
+    # Manual add re-enables previously deleted addresses for sync/list usage.
+    db.table("email_recipient_pool_exclusions").delete().eq("user_id", uid).eq("email", email).execute()
+
     existing = (
         db.table("email_recipient_pool")
         .select("id, email, display_name")
@@ -260,7 +287,32 @@ async def delete_email_from_pool(
     db: Client = Depends(get_supabase),
 ):
     uid = str(current_user["id"])
+    row = (
+        db.table("email_recipient_pool")
+        .select("email")
+        .eq("user_id", uid)
+        .eq("id", str(entry_id))
+        .limit(1)
+        .execute()
+    )
+    deleted_email = None
+    if row.data:
+        deleted_email = _normalize_email(str(row.data[0].get("email", "")))
+
     db.table("email_recipient_pool").delete().eq("user_id", uid).eq("id", str(entry_id)).execute()
+
+    if deleted_email:
+        existing_exclusion = (
+            db.table("email_recipient_pool_exclusions")
+            .select("id")
+            .eq("user_id", uid)
+            .eq("email", deleted_email)
+            .limit(1)
+            .execute()
+        )
+        if not existing_exclusion.data:
+            db.table("email_recipient_pool_exclusions").insert({"user_id": uid, "email": deleted_email}).execute()
+
     return {"ok": True}
 
 
