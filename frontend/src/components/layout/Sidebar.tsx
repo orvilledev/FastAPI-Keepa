@@ -206,12 +206,6 @@ export default function Sidebar() {
   useEffect(() => {
     if (hasActiveSubItem || hasActiveDailyRunsSubItem || hasActiveManageUPCsSubItem) {
       setIsKeepaMenuOpen(true)
-      if (hasActiveDailyRunsSubItem) {
-        setIsDailyRunsMenuOpen(true)
-      }
-      if (hasActiveManageUPCsSubItem) {
-        setIsManageUPCsMenuOpen(true)
-      }
     }
   }, [hasActiveSubItem, hasActiveDailyRunsSubItem, hasActiveManageUPCsSubItem])
 
@@ -357,6 +351,16 @@ export default function Sidebar() {
                                         : 'sidebar-link-inactive'
                                     }`}
                                     onClick={() => {
+                                      if (dailyRunsTimeoutRef.current) {
+                                        clearTimeout(dailyRunsTimeoutRef.current)
+                                        dailyRunsTimeoutRef.current = null
+                                      }
+                                      if (manageUPCsTimeoutRef.current) {
+                                        clearTimeout(manageUPCsTimeoutRef.current)
+                                        manageUPCsTimeoutRef.current = null
+                                      }
+                                      setIsDailyRunsMenuOpen(false)
+                                      setIsManageUPCsMenuOpen(false)
                                       if (item.label === 'Daily Runs') {
                                         setIsDailyRunsMenuOpen(false)
                                       } else if (item.label === 'Manage UPCs') {
