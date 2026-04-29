@@ -229,11 +229,15 @@ export interface Notification {
   type: string
   title: string
   message: string
+  priority?: 'critical' | 'warning' | 'info' | string
   related_id?: string
   related_type?: string
   is_read: boolean
   read_at?: string
   metadata?: Record<string, any>
+  action_label?: string
+  action_url?: string
+  expires_at?: string
   created_at: string
 }
 

@@ -11,6 +11,79 @@ from datetime import datetime
 
 router = APIRouter()
 
+NOTIFICATION_CATALOG = [
+    {
+        "type": "run_failed",
+        "priority": "critical",
+        "title_template": "Daily Run failed: {vendor}",
+        "message_template": "Scheduled run at {time} failed. Reason: {error_summary}.",
+    },
+    {
+        "type": "run_missed",
+        "priority": "critical",
+        "title_template": "Missed schedule: {vendor}",
+        "message_template": "No run was executed at {scheduled_time}.",
+    },
+    {
+        "type": "api_quota_low",
+        "priority": "critical",
+        "title_template": "Keepa quota low",
+        "message_template": "{remaining}% quota remaining. Runs may fail soon.",
+    },
+    {
+        "type": "import_missing_file",
+        "priority": "critical",
+        "title_template": "Import Mode blocked: no file",
+        "message_template": "{vendor} is set to Import Mode but no valid report is available.",
+    },
+    {
+        "type": "run_completed_with_violations",
+        "priority": "warning",
+        "title_template": "Run completed with violations: {vendor}",
+        "message_template": "{violations} off-MAP listings detected from {scanned} items.",
+    },
+    {
+        "type": "import_completed_with_errors",
+        "priority": "warning",
+        "title_template": "Import completed with issues",
+        "message_template": "{invalid_rows} invalid rows were skipped; {valid_rows} processed.",
+    },
+    {
+        "type": "recipients_missing",
+        "priority": "warning",
+        "title_template": "No recipients configured",
+        "message_template": "Run reports for {vendor} cannot be emailed until recipients are set.",
+    },
+    {
+        "type": "run_completed_clean",
+        "priority": "info",
+        "title_template": "Run completed: {vendor}",
+        "message_template": "{scanned} items checked, no off-MAP violations found.",
+    },
+    {
+        "type": "schedule_updated",
+        "priority": "info",
+        "title_template": "Schedule updated: {vendor}",
+        "message_template": "Next run set to {next_run_time} ({mode}).",
+    },
+    {
+        "type": "report_sent",
+        "priority": "info",
+        "title_template": "Report sent: {vendor}",
+        "message_template": "Report emailed to {recipient_count} recipients.",
+    },
+]
+
+
+@router.get("/notifications/catalog", response_model=dict)
+@handle_api_errors("get notifications catalog")
+async def get_notifications_catalog(
+    current_user: dict = Depends(get_current_user),
+):
+    """Get recommended notification types and template metadata for clients/admin tooling."""
+    _ = current_user
+    return {"items": NOTIFICATION_CATALOG}
+
 
 @router.get("/notifications", response_model=List[NotificationResponse])
 @handle_api_errors("get notifications")

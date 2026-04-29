@@ -13,9 +13,13 @@ def create_notification(
     notification_type: str,
     title: str,
     message: str,
+    priority: str = "info",
     related_id: Optional[UUID] = None,
     related_type: Optional[str] = None,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
+    action_label: Optional[str] = None,
+    action_url: Optional[str] = None,
+    expires_at: Optional[str] = None,
 ) -> bool:
     """
     Create a notification for a user.
@@ -26,9 +30,13 @@ def create_notification(
         notification_type: Type of notification (e.g., 'task_completed', 'task_assigned')
         title: Notification title
         message: Notification message
+        priority: Severity level ('critical', 'warning', 'info')
         related_id: ID of related entity (task, validation, etc.)
         related_type: Type of related entity ('task', 'validation', etc.)
         metadata: Additional metadata as dictionary
+        action_label: Optional action button text for UI
+        action_url: Optional URL/path to navigate when action is clicked
+        expires_at: Optional ISO timestamp for soft expiration
         
     Returns:
         True if notification created successfully, False otherwise
@@ -39,6 +47,7 @@ def create_notification(
             "type": notification_type,
             "title": title,
             "message": message,
+            "priority": priority,
             "is_read": False
         }
         
@@ -48,6 +57,12 @@ def create_notification(
             notification_data["related_type"] = related_type
         if metadata:
             notification_data["metadata"] = metadata
+        if action_label:
+            notification_data["action_label"] = action_label
+        if action_url:
+            notification_data["action_url"] = action_url
+        if expires_at:
+            notification_data["expires_at"] = expires_at
         
         logger.info(f"Attempting to create notification: {notification_data}")
         

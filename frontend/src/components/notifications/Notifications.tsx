@@ -88,18 +88,32 @@ export default function Notifications() {
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case 'task_completed':
+      case 'run_completed':
         return '✅'
-      case 'task_assigned':
-        return '📋'
-      case 'task_mentioned':
-        return '💬'
-      case 'validation_reviewed':
-        return '✓'
-      case 'subtask_completed':
-        return '☑️'
+      case 'run_failed':
+        return '❌'
+      case 'run_missed':
+        return '⏰'
+      case 'api_quota_low':
+        return '⚠️'
+      case 'import_missing_file':
+      case 'import_completed':
+        return '📥'
+      case 'recipients_missing':
+        return '📧'
       default:
         return '🔔'
+    }
+  }
+
+  const getPriorityStyles = (priority?: string) => {
+    switch (priority) {
+      case 'critical':
+        return 'bg-red-100 text-red-800'
+      case 'warning':
+        return 'bg-amber-100 text-amber-800'
+      default:
+        return 'bg-blue-100 text-blue-800'
     }
   }
 
@@ -174,7 +188,7 @@ export default function Notifications() {
             {filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}
           </div>
           <div className="text-xs text-gray-400 mt-2">
-            Notifications will appear here when tasks are assigned to you, completed, or other activities occur.
+            Notifications will appear here for run outcomes, schedule issues, import updates, and system alerts.
           </div>
         </div>
       ) : (
@@ -197,11 +211,27 @@ export default function Notifications() {
                         <h3 className={`font-semibold ${!notification.is_read ? 'text-gray-900' : 'text-gray-700'}`}>
                           {notification.title}
                         </h3>
+                        {notification.priority && (
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${getPriorityStyles(notification.priority)}`}
+                          >
+                            {notification.priority}
+                          </span>
+                        )}
                         {!notification.is_read && (
                           <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
                         )}
                       </div>
                       <p className="text-sm text-gray-600 mb-2">{notification.message}</p>
+                      {notification.action_label && notification.action_url && (
+                        <a
+                          href={notification.action_url}
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex mb-2 px-2.5 py-1 text-xs rounded-md bg-[#0B1020] text-white hover:opacity-90"
+                        >
+                          {notification.action_label}
+                        </a>
+                      )}
                       <div className="flex items-center space-x-4 text-xs text-gray-500">
                         <span>{formatDate(notification.created_at)}</span>
                         {notification.metadata && (

@@ -11,9 +11,13 @@ class NotificationCreate(BaseModel):
     type: str
     title: str
     message: str
+    priority: str = "info"
     related_id: Optional[UUID] = None
     related_type: Optional[str] = None
     metadata: Optional[dict[str, Any]] = None
+    action_label: Optional[str] = None
+    action_url: Optional[str] = None
+    expires_at: Optional[datetime] = None
 
 
 class NotificationUpdate(BaseModel):
@@ -28,11 +32,15 @@ class NotificationResponse(BaseModel):
     type: str
     title: str
     message: str
+    priority: str = "info"
     related_id: Optional[UUID] = None
     related_type: Optional[str] = None
     is_read: bool
     read_at: Optional[datetime] = None
     metadata: Optional[dict[str, Any]] = None
+    action_label: Optional[str] = None
+    action_url: Optional[str] = None
+    expires_at: Optional[datetime] = None
     created_at: datetime
 
     class Config:

@@ -787,6 +787,18 @@ export const notesApi = {
 }
 
 export const notificationsApi = {
+  getCatalog: async (): Promise<{
+    items: Array<{
+      type: string
+      priority: 'critical' | 'warning' | 'info' | string
+      title_template: string
+      message_template: string
+    }>
+  }> => {
+    const response = await api.get(`/api/v1/notifications/catalog`)
+    return response.data
+  },
+
   getNotifications: async (unreadOnly: boolean = false, limit: number = 50): Promise<Notification[]> => {
     const response = await api.get(`/api/v1/notifications`, {
       params: { unread_only: unreadOnly, limit }

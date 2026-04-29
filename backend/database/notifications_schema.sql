@@ -5,19 +5,30 @@ CREATE TABLE IF NOT EXISTS notifications (
   type TEXT NOT NULL, -- 'task_completed', 'task_assigned', 'task_mentioned', 'validation_reviewed', 'subtask_completed', 'reply', etc.
   title TEXT NOT NULL,
   message TEXT NOT NULL,
+  priority TEXT NOT NULL DEFAULT 'info', -- 'critical', 'warning', 'info'
   related_id UUID, -- ID of related entity (task_id, validation_id, etc.)
   related_type TEXT, -- 'task', 'validation', 'subtask', etc.
   is_read BOOLEAN DEFAULT FALSE,
   read_at TIMESTAMPTZ,
   metadata JSONB, -- Additional data (e.g., task title, user name, etc.)
+  action_label TEXT, -- Optional CTA button label shown in UI
+  action_url TEXT, -- Optional CTA URL/path shown in UI
+  expires_at TIMESTAMPTZ, -- Optional soft-expiry timestamp
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Backfill columns for existing tables (safe to rerun)
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS priority TEXT NOT NULL DEFAULT 'info';
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_label TEXT;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_url TEXT;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
 
 -- Indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
+CREATE INDEX IF NOT EXISTS idx_notifications_priority ON notifications(priority);
 CREATE INDEX IF NOT EXISTS idx_notifications_related ON notifications(related_type, related_id);
 
 -- Enable Row Level Security
