@@ -104,12 +104,12 @@
 
   /* 2nd level menu items hover in dark container - ORANGE text */
   .dark-submenu .sidebar-link:hover {
-    color: #F97316 !important;
+    color: #81B81D !important;
     background: rgba(255, 255, 255, 0.1) !important;
   }
 
   .dark-submenu .sidebar-link:hover span {
-    color: #F97316 !important;
+    color: #81B81D !important;
   }
 
   /* 2nd level menu items hover in light container */
@@ -144,24 +144,24 @@
 
   /* Dashboard link hover when Keepa menu is open - still ORANGE */
   .dark-dropdown .sidebar-link.keepa-open:hover {
-    color: #F97316 !important;
+    color: #81B81D !important;
     background: rgba(249, 115, 22, 0.1) !important;
   }
 
   .dark-dropdown .sidebar-link.keepa-open:hover span {
-    color: #F97316 !important;
+    color: #81B81D !important;
   }
 
   /* When hovering a child item in dark dropdown, highlight with lighter background and ORANGE text */
   .dark-dropdown .sidebar-link-inactive:hover {
     background: rgba(255, 255, 255, 0.15) !important;
-    color: #F97316 !important;
+    color: #81B81D !important;
     box-shadow: none !important;
   }
 
   /* Override span color inside hovered items in dark dropdown - MUST come after general .sidebar-link:hover span */
   .dark-dropdown .sidebar-link:hover span {
-    color: #F97316 !important;
+    color: #81B81D !important;
   }
 
   /* Ensure non-hovered siblings in dark dropdown stay transparent */
@@ -187,12 +187,12 @@
 
   /* 3rd level menu items in flyout menus - ORANGE text on hover */
   .flyout-menu .sidebar-link-inactive:hover {
-    color: #F97316 !important;
+    color: #81B81D !important;
   }
 
   /* Override span color inside hovered 3rd level menu items - MUST come after general .sidebar-link:hover span */
   .flyout-menu .sidebar-link:hover span {
-    color: #F97316 !important;
+    color: #81B81D !important;
   }
   
 }
