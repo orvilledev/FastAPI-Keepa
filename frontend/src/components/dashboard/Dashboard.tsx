@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import VendorRunCard from './VendorRunCard'
 import { schedulerApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
@@ -169,12 +170,13 @@ export default function Dashboard() {
             ) : (
               <div className="flex flex-wrap gap-3">
                 {inactiveVendorOrder.map((category) => (
-                  <div
+                  <Link
                     key={`inactive-${category}`}
+                    to={`/daily-run/${category}`}
                     className="inline-flex items-center rounded-[16px] bg-[#81B81D] text-white font-bold text-lg px-6 py-2 shadow-sm"
                   >
                     {VENDOR_LABELS[category]}
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
