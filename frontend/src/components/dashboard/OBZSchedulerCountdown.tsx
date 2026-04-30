@@ -115,7 +115,7 @@ export default function OBZSchedulerCountdown() {
                 className={`inline-flex items-center rounded-md px-3 py-1.5 text-base font-extrabold uppercase tracking-wide ring-2 ${
                   inputMode === 'uploaded'
                     ? 'bg-[#81B81D]/20 text-[#DDF5B0] ring-[#81B81D]/80'
-                    : 'bg-[#81B81D]/20 text-[#DDF5B0] ring-[#81B81D]/80'
+                    : 'bg-[#F97316]/20 text-[#FFD8B0] ring-[#F97316]/80'
                 }`}
               >
                 {inputMode === 'uploaded' ? 'Import Mode' : 'API Mode'}
@@ -159,7 +159,7 @@ export default function OBZSchedulerCountdown() {
               className={`ml-2 inline-flex items-center rounded-md px-3 py-1.5 text-base font-extrabold uppercase tracking-wide ring-2 ${
                 inputMode === 'uploaded'
                   ? 'bg-[#81B81D]/30 text-[#E8F8C8] ring-[#81B81D]/85'
-                  : 'bg-[#81B81D]/30 text-[#E8F8C8] ring-[#81B81D]/85'
+                  : 'bg-[#F97316]/30 text-[#FFE7CC] ring-[#F97316]/85'
               }`}
             >
               {inputMode === 'uploaded' ? 'Import Mode' : 'API Mode'}
