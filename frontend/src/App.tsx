@@ -35,6 +35,7 @@ const HowToGuide = lazy(() => import('./components/tools/PublicTools'))
 const JobAids = lazy(() => import('./components/tools/JobAids'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
+const MyNotes = lazy(() => import('./components/notes/MyNotes'))
 const LAST_PRIVATE_PATH_KEY = 'last_private_path'
 
 // Loading spinner component
@@ -220,7 +221,8 @@ function AppRoutes() {
           <Route path="daily-run/cha" element={<ProtectedRoute requireKeepaAccess={true}><CHADailyRun /></ProtectedRoute>} />
           <Route path="daily-run/calendar" element={<ProtectedRoute requireKeepaAccess={true}><RunCalendar /></ProtectedRoute>} />
 
-          <Route path="my-space/notes" element={<Navigate to="/dashboard" replace />} />
+          <Route path="reminders" element={<MyNotes />} />
+          <Route path="my-space/notes" element={<Navigate to="/reminders" replace />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="howtoguide" element={<HowToGuide />} />
           <Route path="trainings" element={<Navigate to="/howtoguide" replace />} />

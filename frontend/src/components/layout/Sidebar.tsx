@@ -248,6 +248,19 @@ export default function Sidebar() {
             <span>Dashboard</span>
           </Link>
 
+          <Link
+            to="/reminders"
+            onMouseEnter={() => setHoveredNav('reminders')}
+            className={`sidebar-link ${
+              navHighlighted('reminders', isActive('/reminders') || isActive('/my-space/notes'))
+                ? 'sidebar-link-active'
+                : 'sidebar-link-inactive'
+            }`}
+          >
+            <span className="mr-3">{Icons.notes}</span>
+            <span>Reminders</span>
+          </Link>
+
           {/* Keepa Alert Services - top level (requires Keepa / pricing access) */}
           {hasKeepaAccess && (
             <div>
