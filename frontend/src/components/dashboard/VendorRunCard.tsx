@@ -50,7 +50,7 @@ export default function VendorRunCard({ vendor, nowMs }: { vendor: CalendarVendo
               <span
                 className={`inline-flex items-center rounded-md px-3 py-1.5 text-base font-extrabold uppercase tracking-wide ring-2 ${
                   inputMode === 'uploaded'
-                    ? 'bg-amber-100 text-amber-900 ring-amber-300'
+                    ? 'bg-[#81B81D]/20 text-[#DDF5B0] ring-[#81B81D]/80'
                     : 'bg-blue-100 text-blue-900 ring-blue-300'
                 }`}
               >
@@ -105,7 +105,7 @@ export default function VendorRunCard({ vendor, nowMs }: { vendor: CalendarVendo
             <span
               className={`ml-2 inline-flex items-center rounded-md px-3 py-1.5 text-base font-extrabold uppercase tracking-wide ring-2 ${
                 inputMode === 'uploaded'
-                  ? 'bg-amber-300/35 text-amber-100 ring-amber-300/80'
+                  ? 'bg-[#81B81D]/30 text-[#E8F8C8] ring-[#81B81D]/85'
                   : 'bg-blue-300/35 text-blue-100 ring-blue-300/80'
               }`}
             >
@@ -115,17 +115,17 @@ export default function VendorRunCard({ vendor, nowMs }: { vendor: CalendarVendo
           {timeLeft && secondsUntil !== null && secondsUntil > 0 ? (
             <div className="flex items-center space-x-4">
               <div className="text-center">
-                <div className="text-4xl font-bold text-[#F97316]">{String(timeLeft.hours).padStart(2, '0')}</div>
+                <div className="text-4xl font-bold text-[#81B81D]">{String(timeLeft.hours).padStart(2, '0')}</div>
                 <div className="text-xs text-white/70 mt-1">Hours</div>
               </div>
-              <div className="text-3xl font-bold text-[#F97316]">:</div>
+              <div className="text-3xl font-bold text-[#81B81D]">:</div>
               <div className="text-center">
-                <div className="text-4xl font-bold text-[#F97316]">{String(timeLeft.minutes).padStart(2, '0')}</div>
+                <div className="text-4xl font-bold text-[#81B81D]">{String(timeLeft.minutes).padStart(2, '0')}</div>
                 <div className="text-xs text-white/70 mt-1">Minutes</div>
               </div>
-              <div className="text-3xl font-bold text-[#F97316]">:</div>
+              <div className="text-3xl font-bold text-[#81B81D]">:</div>
               <div className="text-center">
-                <div className="text-4xl font-bold text-[#F97316]">{String(timeLeft.seconds).padStart(2, '0')}</div>
+                <div className="text-4xl font-bold text-[#81B81D]">{String(timeLeft.seconds).padStart(2, '0')}</div>
                 <div className="text-xs text-white/70 mt-1">Seconds</div>
               </div>
             </div>
