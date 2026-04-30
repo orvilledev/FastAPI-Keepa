@@ -1,5 +1,5 @@
 const CACHE_NAME = 'msw-overwatch-v1'
-const APP_SHELL_FILES = ['/', '/index.html', '/manifest.webmanifest', '/favicon.svg', '/orbit-logo.svg']
+const APP_SHELL_FILES = ['/', '/index.html', '/manifest.webmanifest', '/app-icon.svg', '/favicon.svg', '/orbit-logo.svg']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

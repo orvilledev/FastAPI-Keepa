@@ -9,13 +9,13 @@
   "theme_color": "#404040",
   "icons": [
     {
-      "src": "/favicon.svg",
+      "src": "/app-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any"
+      "purpose": "any maskable"
     },
     {
-      "src": "/orbit-logo.svg",
+      "src": "/app-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
