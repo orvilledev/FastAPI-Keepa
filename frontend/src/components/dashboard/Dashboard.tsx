@@ -5,6 +5,16 @@ import { useUser } from '../../contexts/UserContext'
 
 type VendorCategory = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
 const VENDOR_ORDER: VendorCategory[] = ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha']
+const VENDOR_LABELS: Record<VendorCategory, string> = {
+  dnk: 'DNK',
+  clk: 'CLK',
+  obz: 'OBZ',
+  ref: 'REF',
+  bor: 'BOR',
+  sff: 'SFF',
+  tev: 'TEV',
+  cha: 'CHA',
+}
 type CalendarResponse = Awaited<ReturnType<typeof schedulerApi.getCalendar>>
 type CalendarVendor = CalendarResponse['vendors'][number]
 
@@ -157,9 +167,14 @@ export default function Dashboard() {
             {inactiveVendorOrder.length === 0 ? (
               <div className="text-sm text-gray-500">All vendors are currently running.</div>
             ) : (
-              <div className="space-y-4">
+              <div className="flex flex-wrap gap-3">
                 {inactiveVendorOrder.map((category) => (
-                  <div key={`inactive-${category}`}>{vendorWidgetsByCategory[category]}</div>
+                  <div
+                    key={`inactive-${category}`}
+                    className="inline-flex items-center rounded-[16px] bg-[#81B81D] text-white font-bold text-lg px-6 py-2 shadow-sm"
+                  >
+                    {VENDOR_LABELS[category]}
+                  </div>
                 ))}
               </div>
             )}
