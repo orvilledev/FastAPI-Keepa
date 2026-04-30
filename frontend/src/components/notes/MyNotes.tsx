@@ -131,6 +131,7 @@ export default function MyNotes() {
   const [categoryFilter, setCategoryFilter] = useState<string>('')
   const [availableCategories, setAvailableCategories] = useState<string[]>([])
   const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null)
+  const [fullViewNote, setFullViewNote] = useState<Note | null>(null)
 
   // Available colors for note borders
   const noteColors = [
@@ -479,6 +480,10 @@ export default function MyNotes() {
     setSuccess(null)
   }
 
+  const handleOpenFullView = (note: Note) => {
+    setFullViewNote(note)
+  }
+
   // Memoize masked content to avoid expensive recomputation on every render
   const maskedContentCache = useMemo(() => {
     const cache: Record<string, string> = {}
@@ -657,6 +662,58 @@ export default function MyNotes() {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full-page Note Viewer */}
+      {fullViewNote && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-start justify-between">
+              <div className="min-w-0">
+                <h2 className="text-2xl font-bold text-gray-900 truncate">{fullViewNote.title}</h2>
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  {fullViewNote.category && (
+                    <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                      {fullViewNote.category}
+                    </span>
+                  )}
+                  {getImportanceBadge(((fullViewNote as any).importance || 'normal') as string)}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFullViewNote(null)}
+                className="ml-4 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 text-sm font-medium"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1">
+              {fullViewNote.has_password && !isNoteUnlocked(fullViewNote) ? (
+                <div className="text-center py-16">
+                  <div className="text-5xl mb-4">🔐</div>
+                  <p className="text-gray-600 mb-4">This note is password protected</p>
+                  <button
+                    onClick={() => {
+                      setPasswordPrompt({ noteId: fullViewNote.id, show: true, action: 'view' })
+                      setPasswordInput('')
+                      setPasswordError(null)
+                    }}
+                    className="px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors font-medium"
+                  >
+                    Enter Password to View
+                  </button>
+                </div>
+              ) : (
+                <div
+                  className="text-gray-800 select-text leading-7 text-base"
+                  dangerouslySetInnerHTML={{ __html: getNoteDisplayContent(fullViewNote) }}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -1096,6 +1153,13 @@ export default function MyNotes() {
                           title="Edit"
                         >
                           Edit
+                        </button>
+                        <button
+                          onClick={() => handleOpenFullView(note)}
+                          className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
+                          title="View full page"
+                        >
+                          View
                         </button>
                         <button
                           onClick={() => handleCopyNote(note)}
