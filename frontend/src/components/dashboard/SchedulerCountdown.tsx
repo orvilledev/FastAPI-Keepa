@@ -128,17 +128,17 @@ export default function SchedulerCountdown() {
           {timeLeft && status.seconds_until !== null && status.seconds_until > 0 ? (
             <div className="flex items-center space-x-4">
               <div className="text-center">
-                <div className="text-4xl font-bold text-[#81B81D]">{String(timeLeft.hours).padStart(2, '0')}</div>
+                <div className={`text-4xl font-bold ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}>{String(timeLeft.hours).padStart(2, '0')}</div>
                 <div className="text-xs text-white/70 mt-1">Hours</div>
               </div>
-              <div className="text-3xl font-bold text-[#81B81D]">:</div>
+              <div className={`text-3xl font-bold ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}>:</div>
               <div className="text-center">
-                <div className="text-4xl font-bold text-[#81B81D]">{String(timeLeft.minutes).padStart(2, '0')}</div>
+                <div className={`text-4xl font-bold ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}>{String(timeLeft.minutes).padStart(2, '0')}</div>
                 <div className="text-xs text-white/70 mt-1">Minutes</div>
               </div>
-              <div className="text-3xl font-bold text-[#81B81D]">:</div>
+              <div className={`text-3xl font-bold ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}>:</div>
               <div className="text-center">
-                <div className="text-4xl font-bold text-[#81B81D]">{String(timeLeft.seconds).padStart(2, '0')}</div>
+                <div className={`text-4xl font-bold ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}>{String(timeLeft.seconds).padStart(2, '0')}</div>
                 <div className="text-xs text-white/70 mt-1">Seconds</div>
               </div>
             </div>
