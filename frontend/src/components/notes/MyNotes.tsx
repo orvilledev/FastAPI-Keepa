@@ -1338,45 +1338,45 @@ export default function MyNotes() {
                 >
                   {/* Header */}
                   <div className="p-4 border-b border-gray-100 cursor-move note-header">
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900 flex-1">{note.title}</h3>
-                      <div className="flex gap-2 ml-2">
-                        <button
-                          onClick={() => handleEditClick(note)}
-                          className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
-                          title="Edit"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleOpenFullView(note)}
-                          className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
-                          title="View full page"
-                        >
-                          View
-                        </button>
-                        <button
-                          onClick={() => handleCopyNote(note)}
-                          className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
-                          title="Copy note content"
-                        >
-                          {copiedNoteId === note.id ? 'Copied' : 'Copy'}
-                        </button>
-                        <button
-                          onClick={() => handleOpenShareModal(note)}
-                          className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
-                          title="Share note"
-                        >
-                          Share
-                        </button>
-                        <button
-                          onClick={() => handleDeleteNote(note.id)}
-                          className="px-2 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
-                          title="Delete"
-                        >
-                          Delete
-                        </button>
-                      </div>
+                    <h3 className="text-lg font-semibold text-gray-900 leading-tight mb-3 break-words">
+                      {note.title}
+                    </h3>
+                    <div className="flex gap-2 flex-wrap mb-3">
+                      <button
+                        onClick={() => handleEditClick(note)}
+                        className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
+                        title="Edit"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleOpenFullView(note)}
+                        className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
+                        title="View full page"
+                      >
+                        View
+                      </button>
+                      <button
+                        onClick={() => handleCopyNote(note)}
+                        className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
+                        title="Copy note content"
+                      >
+                        {copiedNoteId === note.id ? 'Copied' : 'Copy'}
+                      </button>
+                      <button
+                        onClick={() => handleOpenShareModal(note)}
+                        className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
+                        title="Share note"
+                      >
+                        Share
+                      </button>
+                      <button
+                        onClick={() => handleDeleteNote(note.id)}
+                        className="px-2 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                        title="Delete"
+                      >
+                        Delete
+                      </button>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       {note.category && (
