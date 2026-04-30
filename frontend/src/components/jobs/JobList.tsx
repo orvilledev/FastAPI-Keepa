@@ -7,6 +7,11 @@ import { formatRunDuration } from '../../utils/timeUtils'
 
 const JOBS_PER_PAGE = 15
 
+const getRunMethod = (jobName: string): 'import' | 'api' => {
+  const normalized = (jobName || '').toLowerCase()
+  return normalized.includes('uploaded report') ? 'import' : 'api'
+}
+
 export default function JobList() {
   const [jobs, setJobs] = useState<BatchJob[]>([])
   const [loading, setLoading] = useState(true)
@@ -137,7 +142,7 @@ export default function JobList() {
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="min-w-[1120px] w-full divide-y divide-gray-200">
+        <table className="min-w-[1240px] w-full divide-y divide-gray-200">
           <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50">
             <tr>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
@@ -145,6 +150,9 @@ export default function JobList() {
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                 Status
+              </th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                Run Method
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                 Progress
@@ -169,14 +177,19 @@ export default function JobList() {
           <tbody className="bg-white divide-y divide-gray-100">
             {loading ? (
               <tr>
-                <td colSpan={8} className="px-6 py-8 text-center text-sm text-gray-500">
+                <td colSpan={9} className="px-6 py-8 text-center text-sm text-gray-500">
                   Loading jobs...
                 </td>
               </tr>
-            ) : jobs.map((job) => (
+            ) : jobs.map((job) => {
+              const runMethod = getRunMethod(job.job_name || '')
+              const isImportRun = runMethod === 'import'
+              return (
               <tr key={job.id} className="hover:bg-gray-50/50 transition-colors duration-150">
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-semibold text-gray-900">{job.job_name}</div>
+                  <div className={`text-sm font-semibold ${isImportRun ? 'text-[#2F6F0F]' : 'text-[#0B3D91]'}`}>
+                    {job.job_name}
+                  </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span
@@ -185,6 +198,17 @@ export default function JobList() {
                     )}`}
                   >
                     {job.status}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span
+                    className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      isImportRun
+                        ? 'bg-[#81B81D]/20 text-[#111827]'
+                        : 'bg-blue-100 text-blue-800'
+                    }`}
+                  >
+                    {isImportRun ? 'Import Mode' : 'API Mode'}
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
@@ -227,7 +251,7 @@ export default function JobList() {
                   </div>
                 </td>
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
         </div>
