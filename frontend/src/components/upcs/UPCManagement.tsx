@@ -363,7 +363,7 @@ export default function UPCManagement() {
           </div>
 
           {/* Delete queue */}
-          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/80 p-4">
+          <div className="mb-4 rounded-lg border border-[#81B81D]/40 bg-[#81B81D]/10 p-4">
             <h3 className="text-sm font-semibold text-gray-900 mb-2">Delete list</h3>
             <p className="text-xs text-gray-600 mb-3">
               Add UPCs one at a time, paste many below, or use search + “Add search text.” Duplicates are ignored.
@@ -402,7 +402,7 @@ export default function UPCManagement() {
               </div>
             </div>
 
-            <div className="mt-4 border-t border-amber-200/80 pt-4">
+            <div className="mt-4 border-t border-[#81B81D]/40 pt-4">
               <label htmlFor="queue-bulk-upcs" className="block text-sm font-medium text-gray-800 mb-1">
                 Paste many UPCs (one per line)
               </label>

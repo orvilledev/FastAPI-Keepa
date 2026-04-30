@@ -328,7 +328,7 @@ export default function MyToolbox() {
                       </div>
                       <button
                         onClick={() => handleUnstar(aid.id, true)}
-                        className="text-yellow-500 hover:text-yellow-600 text-2xl transition-transform hover:scale-110"
+                        className="text-[#81B81D] hover:text-[#111827] text-2xl transition-transform hover:scale-110"
                         title="Remove from toolbox"
                       >
                         ⭐
@@ -395,7 +395,7 @@ export default function MyToolbox() {
                       </div>
                       <button
                         onClick={() => handleUnstar(tool.id, false)}
-                        className="text-yellow-500 hover:text-yellow-600 text-2xl transition-transform hover:scale-110"
+                        className="text-[#81B81D] hover:text-[#111827] text-2xl transition-transform hover:scale-110"
                         title="Remove from toolbox"
                       >
                         ⭐

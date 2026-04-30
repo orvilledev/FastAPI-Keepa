@@ -133,7 +133,7 @@ export default function DNKSchedulerCountdown() {
             </div>
           </div>
           <div className="text-right ml-6">
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#81B81D]/20 text-[#111827]">
               Stopped
             </span>
           </div>

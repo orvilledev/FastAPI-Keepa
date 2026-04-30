@@ -530,7 +530,7 @@ export default function HowToGuide() {
                         <button
                           onClick={(e) => handleStarToggle(tool.id, e)}
                           className={`text-2xl transition-transform hover:scale-110 ${
-                            starredTools.has(tool.id) ? 'text-yellow-500' : 'text-gray-400 hover:text-yellow-500'
+                            starredTools.has(tool.id) ? 'text-[#81B81D]' : 'text-gray-400 hover:text-[#81B81D]'
                           }`}
                           title={starredTools.has(tool.id) ? 'Remove from toolbox' : 'Add to toolbox'}
                         >

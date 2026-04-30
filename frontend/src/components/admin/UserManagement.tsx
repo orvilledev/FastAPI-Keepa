@@ -294,7 +294,7 @@ export default function UserManagement() {
         <div className="text-sm">
           <span
             className={`px-2 py-1 rounded font-medium ${
-              maintenanceMode ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
+              maintenanceMode ? 'bg-[#81B81D]/20 text-[#111827]' : 'bg-green-100 text-green-800'
             }`}
           >
             {maintenanceMode ? 'Maintenance ON' : 'Maintenance OFF'}
@@ -358,8 +358,8 @@ export default function UserManagement() {
           onClick={() => setShowPendingOnly(true)}
           className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
             showPendingOnly
-              ? 'bg-amber-600 text-white'
-              : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+              ? 'bg-[#81B81D] text-white'
+              : 'bg-[#81B81D]/20 text-[#111827] hover:bg-[#81B81D]/30'
           }`}
         >
           Pending Requests ({pendingUsers.length})
@@ -442,7 +442,7 @@ export default function UserManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 py-1 text-xs font-medium rounded ${
-                          user.is_active === false ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
+                          user.is_active === false ? 'bg-[#81B81D]/20 text-[#111827]' : 'bg-green-100 text-green-800'
                         }`}
                       >
                         {user.is_active === false ? 'Pending Approval' : 'Approved'}

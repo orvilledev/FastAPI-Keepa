@@ -7,12 +7,12 @@ export type Importance = 'low' | 'normal' | 'high' | 'urgent'
 export const importanceOptions: { value: Importance; label: string; color: string }[] = [
   { value: 'low', label: 'Low', color: 'bg-gray-100 text-gray-700' },
   { value: 'normal', label: 'Normal', color: 'bg-blue-100 text-blue-700' },
-  { value: 'high', label: 'High', color: 'bg-yellow-100 text-yellow-700' },
+  { value: 'high', label: 'High', color: 'bg-[#81B81D]/20 text-[#111827]' },
   { value: 'urgent', label: 'Urgent', color: 'bg-red-100 text-red-700' },
 ]
 
 export const noteColors = [
-  { value: 'yellow', label: 'Yellow', border: 'border-yellow-400' },
+  { value: 'yellow', label: 'Yellow', border: 'border-[#81B81D]/70' },
   { value: 'pink', label: 'Pink', border: 'border-pink-400' },
   { value: 'blue', label: 'Blue', border: 'border-blue-400' },
   { value: 'green', label: 'Green', border: 'border-green-400' },

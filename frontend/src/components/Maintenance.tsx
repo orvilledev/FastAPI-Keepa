@@ -184,7 +184,7 @@ export default function Maintenance({
           Thank you for your patience.
         </p>
         {countdownText && (
-          <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-100 text-amber-800 text-sm font-semibold">
+          <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#81B81D]/20 text-[#111827] text-sm font-semibold">
             <span>Estimated time remaining:</span>
             <span>{countdownText}</span>
           </div>

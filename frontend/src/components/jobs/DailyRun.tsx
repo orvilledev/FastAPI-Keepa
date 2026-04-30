@@ -106,7 +106,7 @@ export default function DailyRun() {
       case 'failed':
         return 'bg-red-100 text-red-800'
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800'
+        return 'bg-[#81B81D]/20 text-[#111827]'
       default:
         return 'bg-gray-100 text-gray-800'
     }
@@ -179,8 +179,8 @@ export default function DailyRun() {
               </div>
             )}
             {nextRun.message && (
-              <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-sm text-yellow-800">{nextRun.message}</p>
+              <div className="mt-2 p-3 bg-[#81B81D]/10 border border-[#81B81D]/40 rounded-lg">
+                <p className="text-sm text-[#111827]">{nextRun.message}</p>
               </div>
             )}
           </div>

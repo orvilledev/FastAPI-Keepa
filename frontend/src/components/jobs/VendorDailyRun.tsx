@@ -493,7 +493,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
       case 'failed':
         return 'bg-red-100 text-red-800'
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800'
+        return 'bg-[#81B81D]/20 text-[#111827]'
       default:
         return 'bg-gray-100 text-gray-800'
     }
@@ -541,7 +541,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
             Input Mode:{' '}
             <span
               className={`px-2 py-0.5 rounded font-semibold ${
-                isUploadMode ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
+                isUploadMode ? 'bg-[#81B81D]/20 text-[#111827]' : 'bg-green-100 text-green-800'
               }`}
             >
               {isUploadMode ? 'Import' : 'API'}
@@ -574,7 +574,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
               aria-pressed={isUploadMode}
               className={`px-3 py-2 text-xs font-semibold transition-colors disabled:opacity-50 ${
                 isUploadMode
-                  ? 'bg-amber-600 text-white'
+                  ? 'bg-[#81B81D] text-white'
                   : 'bg-white text-gray-700 hover:bg-gray-50'
               }`}
             >
@@ -621,14 +621,14 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
       </div>
 
       {schedulerSettings?.enabled === false && (
-        <div className="card p-4 bg-yellow-50 border-yellow-300">
+        <div className="card p-4 bg-[#81B81D]/10 border-[#81B81D]/55">
           <div className="flex items-center gap-3">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-600 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-[#111827] flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
             </svg>
             <div>
-              <p className="font-semibold text-yellow-800">Daily Run is Stopped</p>
-              <p className="text-sm text-yellow-700">
+              <p className="font-semibold text-[#111827]">Daily Run is Stopped</p>
+              <p className="text-sm text-[#111827]">
                 The {VENDOR_UPPER} daily scheduler is currently disabled. Click "Start Daily Run" to resume.
               </p>
             </div>
@@ -667,8 +667,8 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
               </div>
             )}
             {nextRun.message && (
-              <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-sm text-yellow-800">{nextRun.message}</p>
+              <div className="mt-2 p-3 bg-[#81B81D]/10 border border-[#81B81D]/40 rounded-lg">
+                <p className="text-sm text-[#111827]">{nextRun.message}</p>
               </div>
             )}
           </div>
@@ -679,14 +679,14 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
           Switching to API mode automatically hides this and the scheduler reverts
           to Keepa API-driven runs. */}
       {isUploadMode && (
-        <div className="card p-6 border-amber-300 bg-amber-50/50 space-y-5">
+        <div className="card p-6 border-[#81B81D]/55 bg-[#81B81D]/10 space-y-5">
           <div className="flex items-start gap-3">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-amber-700 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-[#111827] flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>
             <div>
-              <h2 className="text-lg font-semibold text-amber-900">Imported Keepa Report</h2>
-              <p className="mt-1 text-sm text-amber-800">
+              <h2 className="text-lg font-semibold text-[#111827]">Imported Keepa Report</h2>
+              <p className="mt-1 text-sm text-[#111827]">
                 Upload a Keepa export file (Excel, CSV, or TXT). The system will parse it and use uploaded rows for
                 MAP/off-price comparison on the next run instead of consuming Keepa API tokens. Run UPC scope still
                 comes from Manage UPCs for this vendor. A current Keepa upload is <strong>required</strong> for

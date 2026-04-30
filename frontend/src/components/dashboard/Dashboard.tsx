@@ -131,7 +131,7 @@ export default function Dashboard() {
       {hasKeepaAccess && (
         <>
           {statusError && (
-            <div className="card p-4 border border-amber-200 bg-amber-50 text-amber-800 text-sm">
+            <div className="card p-4 border border-[#81B81D]/40 bg-[#81B81D]/10 text-[#111827] text-sm">
               Could not refresh active run status. Showing the most recent known grouping.
             </div>
           )}

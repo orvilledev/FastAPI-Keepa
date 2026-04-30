@@ -127,7 +127,7 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
           </div>
 
           {loading && <p className="text-sm text-gray-500">Loading addresses...</p>}
-          {loadError && <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">{loadError}</p>}
+          {loadError && <p className="text-sm text-[#111827] bg-[#81B81D]/10 border border-[#81B81D]/30 rounded-lg px-3 py-2">{loadError}</p>}
 
           {!loading && options.length === 0 && <p className="text-sm text-gray-400">No email options available yet.</p>}
 

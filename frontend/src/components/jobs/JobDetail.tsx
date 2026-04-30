@@ -598,8 +598,8 @@ export default function JobDetail() {
                       )}
                       
                       {!schedulerSettings && (
-                        <div className="bg-yellow-50 rounded-lg p-3">
-                          <p className="text-sm text-yellow-800">
+                        <div className="bg-[#81B81D]/10 rounded-lg p-3">
+                          <p className="text-sm text-[#111827]">
                             Loading scheduler settings...
                           </p>
                         </div>
