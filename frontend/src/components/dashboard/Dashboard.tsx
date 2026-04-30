@@ -4,6 +4,11 @@ import VendorRunCard from './VendorRunCard'
 import { schedulerApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>
+}
+
 type VendorCategory = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
 const VENDOR_ORDER: VendorCategory[] = ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha']
 const VENDOR_LABELS: Record<VendorCategory, string> = {
@@ -35,6 +40,8 @@ export default function Dashboard() {
   const [activeCategories, setActiveCategories] = useState<Set<VendorCategory>>(new Set())
   const [vendorData, setVendorData] = useState<Record<string, CalendarVendor>>({})
   const [nowMs, setNowMs] = useState(Date.now())
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const [isInstalled, setIsInstalled] = useState(false)
 
   // Set greeting from context
   useEffect(() => {
@@ -48,6 +55,38 @@ export default function Dashboard() {
     const timer = setInterval(() => setNowMs(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    const standaloneByMedia = window.matchMedia('(display-mode: standalone)').matches
+    const standaloneByNavigator =
+      typeof (window.navigator as Navigator & { standalone?: boolean }).standalone === 'boolean' &&
+      Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone)
+    setIsInstalled(standaloneByMedia || standaloneByNavigator)
+
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault()
+      setDeferredPrompt(event as BeforeInstallPromptEvent)
+    }
+
+    const handleAppInstalled = () => {
+      setDeferredPrompt(null)
+      setIsInstalled(true)
+    }
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    window.addEventListener('appinstalled', handleAppInstalled)
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+      window.removeEventListener('appinstalled', handleAppInstalled)
+    }
+  }, [])
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) return
+    await deferredPrompt.prompt()
+    await deferredPrompt.userChoice
+    setDeferredPrompt(null)
+  }
 
   useEffect(() => {
     if (userInfoLoading || !hasKeepaAccess) {
@@ -127,6 +166,34 @@ export default function Dashboard() {
           <p className="mt-3 text-lg text-gray-600">Let's get started and make today productive!</p>
         </div>
       )}
+
+      <div className="card p-5 border border-[#81B81D]/40 bg-[#81B81D]/10">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-[#111827]">Install MSW Overwatch</h2>
+            <p className="mt-1 text-sm text-[#111827]">
+              Install this app on your computer for quick access from desktop, taskbar, and start menu.
+            </p>
+          </div>
+          {isInstalled ? (
+            <span className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-semibold bg-green-100 text-green-800">
+              Installed on this device
+            </span>
+          ) : deferredPrompt ? (
+            <button
+              type="button"
+              onClick={handleInstallApp}
+              className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-[#404040] hover:bg-[#3B3B3B] transition-colors"
+            >
+              Install MSW Overwatch
+            </button>
+          ) : (
+            <span className="text-sm font-medium text-[#111827]">
+              Open this app in Edge/Chrome, then use the browser Install App option.
+            </span>
+          )}
+        </div>
+      </div>
 
       {hasKeepaAccess && (
         <>
