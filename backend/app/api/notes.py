@@ -2,7 +2,15 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
 from app.dependencies import get_current_user
-from app.models.note import NoteResponse, NoteCreate, NoteUpdate, NotePasswordVerify, NoteReorder
+from app.models.note import (
+    NoteResponse,
+    NoteCreate,
+    NoteUpdate,
+    NotePasswordVerify,
+    NoteReorder,
+    NoteShareCreate,
+    NoteShareResponse,
+)
 from app.database import get_supabase
 from app.repositories.note_repository import NoteRepository
 from app.utils.error_handler import handle_api_errors
@@ -189,4 +197,57 @@ async def reorder_notes(
     
     repository.reorder_notes(user_id=user_id, note_ids=reorder_data.note_ids)
     return {"message": "Notes reordered successfully"}
+
+
+@router.get("/notes/{note_id}/shares", response_model=List[NoteShareResponse])
+@handle_api_errors("list note shares")
+async def list_note_shares(
+    note_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase)
+):
+    """List users this note is shared with (owner only)."""
+    repository = NoteRepository(db)
+    user_id = UUID(current_user["id"])
+    shares = repository.list_note_shares(note_id=note_id, user_id=user_id)
+    return [NoteShareResponse(**share) for share in shares]
+
+
+@router.post("/notes/{note_id}/share", response_model=NoteShareResponse, status_code=201)
+@handle_api_errors("share note")
+async def share_note(
+    note_id: UUID,
+    share_data: NoteShareCreate,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase)
+):
+    """Share a note with a selected user (owner only)."""
+    repository = NoteRepository(db)
+    user_id = UUID(current_user["id"])
+    share = repository.share_note(
+        note_id=note_id,
+        owner_user_id=user_id,
+        shared_with_user_id=share_data.shared_with_user_id,
+        permission=share_data.permission,
+    )
+    return NoteShareResponse(**share)
+
+
+@router.delete("/notes/{note_id}/shares/{shared_with_user_id}", status_code=204)
+@handle_api_errors("revoke note share")
+async def revoke_note_share(
+    note_id: UUID,
+    shared_with_user_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase)
+):
+    """Revoke sharing for a specific user (owner only)."""
+    repository = NoteRepository(db)
+    user_id = UUID(current_user["id"])
+    repository.revoke_note_share(
+        note_id=note_id,
+        owner_user_id=user_id,
+        shared_with_user_id=shared_with_user_id,
+    )
+    return None
 

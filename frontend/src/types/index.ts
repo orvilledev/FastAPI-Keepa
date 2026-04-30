@@ -224,6 +224,14 @@ export interface Note {
   updated_at: string
 }
 
+export interface NoteShare {
+  shared_with_user_id: string
+  email?: string
+  display_name?: string
+  permission: 'view' | 'edit'
+  created_at: string
+}
+
 export interface Notification {
   id: string
   user_id: string

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react'
 import { Link } from 'react-router-dom'
-import { notesApi } from '../../services/api'
-import type { Note } from '../../types'
+import { authApi, notesApi } from '../../services/api'
+import { useUser } from '../../contexts/UserContext'
+import type { Note, NoteShare } from '../../types'
 
 // Lazy load ReactQuill - only loads when the editor is actually needed
 const ReactQuill = lazy(() => import('react-quill'))
@@ -100,6 +101,7 @@ const maskContent = (content: string): string => {
 }
 
 export default function MyNotes() {
+  const { userInfo } = useUser()
   const [notes, setNotes] = useState<Note[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -132,6 +134,12 @@ export default function MyNotes() {
   const [availableCategories, setAvailableCategories] = useState<string[]>([])
   const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null)
   const [fullViewNote, setFullViewNote] = useState<Note | null>(null)
+  const [shareModalNote, setShareModalNote] = useState<Note | null>(null)
+  const [sharePermission, setSharePermission] = useState<'view' | 'edit'>('view')
+  const [shareTargetUserId, setShareTargetUserId] = useState('')
+  const [shareUsers, setShareUsers] = useState<Array<{ id: string; email: string; display_name?: string }>>([])
+  const [noteShares, setNoteShares] = useState<NoteShare[]>([])
+  const [shareLoading, setShareLoading] = useState(false)
 
   // Available colors for note borders
   const noteColors = [
@@ -484,6 +492,77 @@ export default function MyNotes() {
     setFullViewNote(note)
   }
 
+  const handleOpenShareModal = async (note: Note) => {
+    try {
+      setError(null)
+      setShareModalNote(note)
+      setShareTargetUserId('')
+      setSharePermission('view')
+      setShareLoading(true)
+
+      const [usersResponse, sharesResponse] = await Promise.all([
+        authApi.getAllUsers(),
+        notesApi.listNoteShares(note.id),
+      ])
+
+      const currentUserId = userInfo?.id
+      const filteredUsers = (usersResponse.users || []).filter((user) => user.id !== currentUserId)
+      setShareUsers(filteredUsers)
+      setNoteShares(sharesResponse || [])
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || err?.message || 'Failed to load sharing options')
+    } finally {
+      setShareLoading(false)
+    }
+  }
+
+  const handleCloseShareModal = () => {
+    setShareModalNote(null)
+    setShareUsers([])
+    setNoteShares([])
+    setShareTargetUserId('')
+    setSharePermission('view')
+    setShareLoading(false)
+  }
+
+  const handleShareNote = async () => {
+    if (!shareModalNote) return
+    if (!shareTargetUserId) {
+      setError('Please choose a user to share with')
+      return
+    }
+    try {
+      setError(null)
+      setShareLoading(true)
+      const createdShare = await notesApi.shareNote(shareModalNote.id, shareTargetUserId, sharePermission)
+      setNoteShares((prev) => {
+        const withoutTarget = prev.filter((item) => item.shared_with_user_id !== createdShare.shared_with_user_id)
+        return [...withoutTarget, createdShare]
+      })
+      setShareTargetUserId('')
+      setSuccess('Note shared successfully')
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || err?.message || 'Failed to share note')
+    } finally {
+      setShareLoading(false)
+    }
+  }
+
+  const handleRevokeShare = async (sharedWithUserId: string) => {
+    if (!shareModalNote) return
+    try {
+      setError(null)
+      setShareLoading(true)
+      await notesApi.revokeNoteShare(shareModalNote.id, sharedWithUserId)
+      setNoteShares((prev) => prev.filter((item) => item.shared_with_user_id !== sharedWithUserId))
+      setSuccess('Share access removed')
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || err?.message || 'Failed to revoke sharing')
+    } finally {
+      setShareLoading(false)
+    }
+  }
+
   // Memoize masked content to avoid expensive recomputation on every render
   const maskedContentCache = useMemo(() => {
     const cache: Record<string, string> = {}
@@ -710,10 +789,105 @@ export default function MyNotes() {
                 </div>
               ) : (
                 <div
-                  className="text-gray-800 select-text leading-7 text-base"
+                  className="text-gray-700 note-content select-text"
+                  style={{
+                    lineHeight: '1.6',
+                    userSelect: 'text',
+                    WebkitUserSelect: 'text',
+                    MozUserSelect: 'text',
+                    msUserSelect: 'text',
+                    cursor: 'text',
+                  }}
                   dangerouslySetInnerHTML={{ __html: getNoteDisplayContent(fullViewNote) }}
                 />
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Note Modal */}
+      {shareModalNote && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900">Share Note</h3>
+                <p className="text-sm text-gray-500 mt-1">{shareModalNote.title}</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseShareModal}
+                className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 text-sm font-medium"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <select
+                  value={shareTargetUserId}
+                  onChange={(e) => setShareTargetUserId(e.target.value)}
+                  className="md:col-span-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="">Select user...</option>
+                  {shareUsers.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.display_name?.trim() || user.email}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={sharePermission}
+                  onChange={(e) => setSharePermission(e.target.value as 'view' | 'edit')}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="view">View</option>
+                  <option value="edit">Edit</option>
+                </select>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleShareNote}
+                disabled={shareLoading}
+                className="px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {shareLoading ? 'Saving...' : 'Share Note'}
+              </button>
+
+              <div>
+                <h4 className="text-sm font-semibold text-gray-800 mb-2">Shared With</h4>
+                {shareLoading && noteShares.length === 0 ? (
+                  <p className="text-sm text-gray-500">Loading shares...</p>
+                ) : noteShares.length === 0 ? (
+                  <p className="text-sm text-gray-500">This note is not shared yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {noteShares.map((share) => (
+                      <div
+                        key={share.shared_with_user_id}
+                        className="flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2"
+                      >
+                        <div>
+                          <div className="text-sm font-medium text-gray-800">
+                            {share.display_name?.trim() || share.email || 'Unknown user'}
+                          </div>
+                          <div className="text-xs text-gray-500">{share.permission === 'edit' ? 'Can edit' : 'Can view'}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRevokeShare(share.shared_with_user_id)}
+                          className="px-2 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1167,6 +1341,13 @@ export default function MyNotes() {
                           title="Copy note content"
                         >
                           {copiedNoteId === note.id ? 'Copied' : 'Copy'}
+                        </button>
+                        <button
+                          onClick={() => handleOpenShareModal(note)}
+                          className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
+                          title="Share note"
+                        >
+                          Share
                         </button>
                         <button
                           onClick={() => handleDeleteNote(note.id)}

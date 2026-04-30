@@ -275,3 +275,126 @@ class NoteRepository:
             self.logger.error(f"Error deleting note: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to delete note: {str(e)}")
 
+    def _ensure_note_owner(self, note_id: UUID, user_id: UUID) -> None:
+        """Ensure the note exists and belongs to the current user."""
+        response = (
+            self.db.table(self.table)
+            .select("id")
+            .eq("id", str(note_id))
+            .eq("user_id", str(user_id))
+            .limit(1)
+            .execute()
+        )
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Note not found")
+
+    def list_note_shares(self, note_id: UUID, user_id: UUID) -> List[dict]:
+        """List all users a note is shared with (owner only)."""
+        self._ensure_note_owner(note_id, user_id)
+
+        shares_response = (
+            self.db.table("note_shares")
+            .select("shared_with_user_id, permission, created_at")
+            .eq("note_id", str(note_id))
+            .order("created_at", desc=False)
+            .execute()
+        )
+        shares = shares_response.data or []
+        if not shares:
+            return []
+
+        shared_user_ids = [row["shared_with_user_id"] for row in shares]
+        profiles_response = (
+            self.db.table("profiles")
+            .select("id, email, display_name")
+            .in_("id", shared_user_ids)
+            .execute()
+        )
+        profiles = {row["id"]: row for row in (profiles_response.data or [])}
+
+        result = []
+        for share in shares:
+            user_profile = profiles.get(share["shared_with_user_id"], {})
+            result.append(
+                {
+                    "shared_with_user_id": share["shared_with_user_id"],
+                    "permission": share["permission"],
+                    "created_at": share["created_at"],
+                    "email": user_profile.get("email"),
+                    "display_name": user_profile.get("display_name"),
+                }
+            )
+        return result
+
+    def share_note(self, note_id: UUID, owner_user_id: UUID, shared_with_user_id: UUID, permission: str = "view") -> dict:
+        """Share a note with another user (owner only)."""
+        self._ensure_note_owner(note_id, owner_user_id)
+        if str(owner_user_id) == str(shared_with_user_id):
+            raise HTTPException(status_code=400, detail="You cannot share a note with yourself")
+
+        # Ensure target user exists
+        target_profile = (
+            self.db.table("profiles")
+            .select("id")
+            .eq("id", str(shared_with_user_id))
+            .limit(1)
+            .execute()
+        )
+        if not target_profile.data:
+            raise HTTPException(status_code=404, detail="Target user not found")
+
+        # Upsert-like behavior: update existing share, otherwise insert
+        existing = (
+            self.db.table("note_shares")
+            .select("id")
+            .eq("note_id", str(note_id))
+            .eq("shared_with_user_id", str(shared_with_user_id))
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            share_response = (
+                self.db.table("note_shares")
+                .update({"permission": permission})
+                .eq("note_id", str(note_id))
+                .eq("shared_with_user_id", str(shared_with_user_id))
+                .execute()
+            )
+        else:
+            share_response = (
+                self.db.table("note_shares")
+                .insert(
+                    {
+                        "note_id": str(note_id),
+                        "owner_user_id": str(owner_user_id),
+                        "shared_with_user_id": str(shared_with_user_id),
+                        "permission": permission,
+                    }
+                )
+                .execute()
+            )
+
+        if not share_response.data:
+            raise HTTPException(status_code=500, detail="Failed to share note")
+        profile_response = (
+            self.db.table("profiles")
+            .select("email, display_name")
+            .eq("id", str(shared_with_user_id))
+            .limit(1)
+            .execute()
+        )
+        profile = profile_response.data[0] if profile_response.data else {}
+        share_row = share_response.data[0]
+        return {
+            "shared_with_user_id": share_row["shared_with_user_id"],
+            "permission": share_row["permission"],
+            "created_at": share_row["created_at"],
+            "email": profile.get("email"),
+            "display_name": profile.get("display_name"),
+        }
+
+    def revoke_note_share(self, note_id: UUID, owner_user_id: UUID, shared_with_user_id: UUID) -> None:
+        """Revoke note sharing for a specific user (owner only)."""
+        self._ensure_note_owner(note_id, owner_user_id)
+        self.db.table("note_shares").delete().eq("note_id", str(note_id)).eq("shared_with_user_id", str(shared_with_user_id)).execute()
+

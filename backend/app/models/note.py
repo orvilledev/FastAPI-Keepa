@@ -79,3 +79,26 @@ class NotePasswordVerify(BaseModel):
     """Model for verifying note password."""
     password: str
 
+
+class NoteShareCreate(BaseModel):
+    """Model for sharing a note with another user."""
+    shared_with_user_id: UUID
+    permission: str = "view"  # view | edit
+
+    @field_validator("permission")
+    @classmethod
+    def validate_permission(cls, v: str) -> str:
+        allowed = {"view", "edit"}
+        if v not in allowed:
+            raise ValueError("Permission must be 'view' or 'edit'")
+        return v
+
+
+class NoteShareResponse(BaseModel):
+    """Model for note share response."""
+    shared_with_user_id: UUID
+    email: Optional[str] = None
+    display_name: Optional[str] = None
+    permission: str
+    created_at: datetime
+

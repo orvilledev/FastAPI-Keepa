@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
 import type {
-  MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, Note, JobAid, Notification, ComprehensiveReportRow, SellerName } from '../types'
+  MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, Note, JobAid, Notification, ComprehensiveReportRow, SellerName, NoteShare } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -814,6 +814,20 @@ export const notesApi = {
   deleteNote: async (noteId: string) => {
     const response = await api.delete(`/api/v1/notes/${noteId}`)
     return response.data
+  },
+  listNoteShares: async (noteId: string) => {
+    const response = await api.get<NoteShare[]>(`/api/v1/notes/${noteId}/shares`)
+    return response.data
+  },
+  shareNote: async (noteId: string, shared_with_user_id: string, permission: 'view' | 'edit' = 'view') => {
+    const response = await api.post<NoteShare>(`/api/v1/notes/${noteId}/share`, {
+      shared_with_user_id,
+      permission,
+    })
+    return response.data
+  },
+  revokeNoteShare: async (noteId: string, sharedWithUserId: string) => {
+    await api.delete(`/api/v1/notes/${noteId}/shares/${sharedWithUserId}`)
   },
 }
 
