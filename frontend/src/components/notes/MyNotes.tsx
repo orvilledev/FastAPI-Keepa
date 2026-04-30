@@ -130,6 +130,7 @@ export default function MyNotes() {
   const [showPassword, setShowPassword] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState<string>('')
   const [availableCategories, setAvailableCategories] = useState<string[]>([])
+  const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null)
 
   // Available colors for note borders
   const noteColors = [
@@ -571,6 +572,45 @@ export default function MyNotes() {
         {option.label}
       </span>
     )
+  }
+
+  const extractTextFromHtml = (html: string): string => {
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = html
+    return tempDiv.textContent?.trim() || ''
+  }
+
+  const handleCopyNote = async (note: Note) => {
+    const importance = ((note as any).importance || 'normal') as string
+    const copyText = [
+      note.title,
+      note.category ? `Category: ${note.category}` : '',
+      `Importance: ${importance}`,
+      '',
+      extractTextFromHtml(note.content),
+    ]
+      .filter(Boolean)
+      .join('\n')
+
+    try {
+      await navigator.clipboard.writeText(copyText)
+      setCopiedNoteId(note.id)
+      setTimeout(() => setCopiedNoteId((current) => (current === note.id ? null : current)), 1500)
+    } catch (err) {
+      console.error('Failed to copy note:', err)
+      setError('Failed to copy note content to clipboard')
+    }
+  }
+
+  const handleNoteContentKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+      e.preventDefault()
+      const range = document.createRange()
+      range.selectNodeContents(e.currentTarget)
+      const selection = window.getSelection()
+      selection?.removeAllRanges()
+      selection?.addRange(range)
+    }
   }
 
   return (
@@ -1058,6 +1098,13 @@ export default function MyNotes() {
                           Edit
                         </button>
                         <button
+                          onClick={() => handleCopyNote(note)}
+                          className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
+                          title="Copy note content"
+                        >
+                          {copiedNoteId === note.id ? 'Copied' : 'Copy'}
+                        </button>
+                        <button
                           onClick={() => handleDeleteNote(note.id)}
                           className="px-2 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
                           title="Delete"
@@ -1146,6 +1193,9 @@ export default function MyNotes() {
                         )}
                         <div 
                           className="text-gray-700 note-content select-text"
+                          tabIndex={0}
+                          onClick={(e) => e.currentTarget.focus()}
+                          onKeyDown={handleNoteContentKeyDown}
                           style={{
                             minHeight: '100px',
                             maxHeight: '300px',
