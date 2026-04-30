@@ -152,3 +152,28 @@ async def test_scheduler_honors_latest_mode_after_multiple_switches():
     ]
     assert final_uploaded_inserts, "Final uploaded mode should still execute uploaded-path behavior"
     assert "Uploaded Report" in final_uploaded_inserts[0]["job_name"]
+
+
+@pytest.mark.asyncio
+async def test_forced_uploaded_mode_overrides_api_setting():
+    """Express rerun should force uploaded-mode behavior even if settings say API."""
+    api_db = _FakeDB(input_mode="api")
+    upc_repo = MagicMock()
+    upc_repo.get_all_upc_codes.return_value = []
+
+    with patch("app.scheduler.create_notification", return_value=None), patch(
+        "app.scheduler.BatchProcessor", return_value=SimpleNamespace()
+    ), patch(
+        "app.scheduler.get_supabase", return_value=api_db
+    ), patch(
+        "app.scheduler.UPCRepository", return_value=upc_repo
+    ):
+        await run_daily_job_for_category("dnk", forced_input_mode="uploaded")
+
+    assert "scheduler_uploaded_reports" in api_db.tables_hit
+    upc_repo.get_all_upc_codes.assert_not_called()
+    uploaded_batch_inserts = [
+        payload for table, payload in api_db.inserts if table == "batch_jobs"
+    ]
+    assert uploaded_batch_inserts
+    assert "Uploaded Report" in uploaded_batch_inserts[0]["job_name"]

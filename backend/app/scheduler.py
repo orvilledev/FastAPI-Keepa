@@ -294,7 +294,7 @@ _scheduler_configs = {
 }
 
 
-async def run_daily_job_for_category(category: str = 'dnk'):
+async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: Optional[str] = None):
     """Execute daily batch job for a specific category (DNK or CLK)."""
     try:
         from datetime import datetime
@@ -307,6 +307,14 @@ async def run_daily_job_for_category(category: str = 'dnk'):
         processor = BatchProcessor()
         custom_recipients = None
         input_mode = "api"
+        normalized_forced_mode = (forced_input_mode or "").strip().lower()
+        if normalized_forced_mode and normalized_forced_mode not in {"api", "uploaded"}:
+            logger.warning(
+                "Ignoring invalid forced_input_mode=%s for %s",
+                forced_input_mode,
+                category.upper(),
+            )
+            normalized_forced_mode = ""
 
         try:
             category_settings_response = (
@@ -331,6 +339,14 @@ async def run_daily_job_for_category(category: str = 'dnk'):
         except Exception as recipients_err:
             logger.warning(f"Could not load scheduler email recipients for {category.upper()}: {recipients_err}")
             uploaded_wait_timeout_seconds = DEFAULT_UPLOADED_REPORT_WAIT_TIMEOUT_SECONDS
+
+        if normalized_forced_mode:
+            input_mode = normalized_forced_mode
+            logger.info(
+                "Overriding %s run mode to %s (forced)",
+                category.upper(),
+                input_mode,
+            )
         
         # Get admin user ID (or system user)
         profiles_response = db.table("profiles").select("id").eq("role", "admin").limit(1).execute()

@@ -964,7 +964,7 @@ async def rerun_uploaded_report(
     # Run the heavy import job in a worker thread so it does not block the
     # API event loop while queueing/processing large datasets.
     asyncio.create_task(
-        asyncio.to_thread(asyncio.run, run_daily_job_for_category(category))
+        asyncio.to_thread(asyncio.run, run_daily_job_for_category(category, forced_input_mode="uploaded"))
     )
     return {"message": f"{category.upper()} import run queued"}
 
