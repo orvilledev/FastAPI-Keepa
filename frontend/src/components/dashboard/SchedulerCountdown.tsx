@@ -23,7 +23,7 @@ export default function SchedulerCountdown() {
       )
       
       const data = await Promise.race([
-        schedulerApi.getNextRun(),
+        schedulerApi.getNextRun('dnk'),
         timeoutPromise
       ]) as SchedulerStatus
       

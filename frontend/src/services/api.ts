@@ -479,11 +479,11 @@ export const sellersApi = {
 
 // Scheduler API
 export const schedulerApi = {
-  getNextRun: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' = 'dnk') => {
+  getNextRun: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
     const response = await api.get<SchedulerStatus>(`/api/v1/scheduler/next-run?category=${category}`)
     return response.data
   },
-  getSettings: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' = 'dnk') => {
+  getSettings: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
     const response = await api.get<SchedulerSettings>(`/api/v1/scheduler/settings?category=${category}`)
     return response.data
   },
@@ -500,7 +500,7 @@ export const schedulerApi = {
       input_mode?: 'api' | 'uploaded'
       uploaded_wait_timeout_seconds?: number
     },
-    category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' = 'dnk'
+    category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
   ) => {
     const response = await api.put<SchedulerSettings & { message: string }>(`/api/v1/scheduler/settings?category=${category}`, settings)
     return response.data

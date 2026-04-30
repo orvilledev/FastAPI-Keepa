@@ -7,6 +7,24 @@ import EmailRecipientsPicker from './EmailRecipientsPicker'
 import { getStatusColor } from '../../utils/statusColors'
 import { formatRunDuration } from '../../utils/timeUtils'
 
+type SchedulerCategory = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
+const SCHEDULER_CATEGORIES: SchedulerCategory[] = ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha']
+
+const resolveSchedulerCategory = (jobData: BatchJob): SchedulerCategory => {
+  const fromMapVendor = (jobData.map_vendor_type || '').toLowerCase()
+  if (SCHEDULER_CATEGORIES.includes(fromMapVendor as SchedulerCategory)) {
+    return fromMapVendor as SchedulerCategory
+  }
+
+  const match = /^Daily\s+([A-Za-z0-9_-]+)\s+/i.exec(jobData.job_name || '')
+  const fromJobName = (match?.[1] || '').toLowerCase()
+  if (SCHEDULER_CATEGORIES.includes(fromJobName as SchedulerCategory)) {
+    return fromJobName as SchedulerCategory
+  }
+
+  return 'dnk'
+}
+
 export default function JobDetail() {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
@@ -22,6 +40,7 @@ export default function JobDetail() {
   const [isDailyRun, setIsDailyRun] = useState(false)
   const [schedulerInfo, setSchedulerInfo] = useState<any>(null)
   const [schedulerSettings, setSchedulerSettings] = useState<any>(null)
+  const [schedulerCategory, setSchedulerCategory] = useState<SchedulerCategory>('dnk')
   const [editTimezone, setEditTimezone] = useState('Asia/Taipei')
   const [editHour, setEditHour] = useState(20)
   const [editMinute, setEditMinute] = useState(0)
@@ -59,6 +78,8 @@ export default function JobDetail() {
         /Daily.*Report/i.test(data.job_name)
       )
       setIsDailyRun(isDaily)
+      const category = resolveSchedulerCategory(data)
+      setSchedulerCategory(category)
       console.log('Daily run check:', { jobName: data.job_name, isDaily })
       
       // Always load scheduler settings if it's a daily run (or if we're on the daily run page)
@@ -66,8 +87,8 @@ export default function JobDetail() {
         // Load scheduler info and settings for daily runs
         try {
           const [schedulerData, settings] = await Promise.all([
-            schedulerApi.getNextRun(),
-            schedulerApi.getSettings()
+            schedulerApi.getNextRun(category),
+            schedulerApi.getSettings(category)
           ])
           setSchedulerInfo(schedulerData)
           setSchedulerSettings(settings)
@@ -149,7 +170,7 @@ export default function JobDetail() {
     // Load scheduler settings if it's a daily run and settings haven't been loaded
     if (isDailyRun && !schedulerSettings) {
       try {
-        const settings = await schedulerApi.getSettings()
+        const settings = await schedulerApi.getSettings(schedulerCategory)
         setSchedulerSettings(settings)
         setEditTimezone(settings.timezone || 'Asia/Taipei')
         setEditHour(settings.hour || 20)
@@ -197,11 +218,11 @@ export default function JobDetail() {
               timezone: editTimezone,
               hour: editHour,
               minute: editMinute
-            })
+            }, schedulerCategory)
             // Reload scheduler info
-            const schedulerData = await schedulerApi.getNextRun()
+            const schedulerData = await schedulerApi.getNextRun(schedulerCategory)
             setSchedulerInfo(schedulerData)
-            const updatedSettings = await schedulerApi.getSettings()
+            const updatedSettings = await schedulerApi.getSettings(schedulerCategory)
             setSchedulerSettings(updatedSettings)
           } catch (err: any) {
             console.error('Failed to update scheduler settings:', err)

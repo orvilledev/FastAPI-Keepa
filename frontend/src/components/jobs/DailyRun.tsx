@@ -47,7 +47,7 @@ export default function DailyRun() {
 
   const loadNextRun = async () => {
     try {
-      const data = await schedulerApi.getNextRun()
+      const data = await schedulerApi.getNextRun('dnk')
       setNextRun(data)
     } catch (err: any) {
       console.error('Failed to load next run:', err)
@@ -56,7 +56,7 @@ export default function DailyRun() {
 
   const loadSchedulerSettings = async () => {
     try {
-      const settings = await schedulerApi.getSettings()
+      const settings = await schedulerApi.getSettings('dnk')
       setSchedulerSettings(settings)
     } catch (err: any) {
       console.error('Failed to load scheduler settings:', err)
