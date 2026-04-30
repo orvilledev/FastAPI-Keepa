@@ -541,6 +541,9 @@ class BatchProcessor:
                 except Exception as cancel_notify_err:
                     logger.warning("Could not notify cancelled run for %s: %s", job_id, cancel_notify_err)
                 return True
+            if final_job_status is None:
+                logger.info(f"Job {job_id} no longer exists; skipping completion + report/email")
+                return True
 
             # Mark job as completed immediately — email is just notification
             self._execute_with_retry(
@@ -552,6 +555,14 @@ class BatchProcessor:
             )
             
             logger.info(f"Job {job_id} completed successfully")
+
+            post_complete_status = self._get_job_status(job_id)
+            if post_complete_status != "completed":
+                logger.info(
+                    f"Job {job_id} status is {post_complete_status!r} after completion update; "
+                    "skipping report/email notification"
+                )
+                return True
             
             # Generate report and send email (failures logged separately)
             from app.services.report_service import ReportService

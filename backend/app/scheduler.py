@@ -644,6 +644,19 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                     }).eq("id", batch_id).execute()
 
                 total_batches = len(batches_resp.data or [])
+                latest_job_resp = db.table("batch_jobs").select("status").eq("id", str(job_id)).limit(1).execute()
+                latest_job_status = (
+                    str((latest_job_resp.data or [{}])[0].get("status") or "").strip().lower()
+                    if latest_job_resp.data
+                    else None
+                )
+                if latest_job_status in {None, "cancelled"}:
+                    logger.info(
+                        "Uploaded run for %s was %s before completion finalization; skipping completion/email",
+                        category.upper(),
+                        "deleted" if latest_job_status is None else "cancelled",
+                    )
+                    return
                 db.table("batch_jobs").update({
                     "status": "completed",
                     "completed_batches": total_batches,
@@ -659,6 +672,19 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
 
                 # Generate the off-price CSV (one row per flagged UPC) and email it.
                 try:
+                    latest_job_resp = db.table("batch_jobs").select("status").eq("id", str(job_id)).limit(1).execute()
+                    latest_job_status = (
+                        str((latest_job_resp.data or [{}])[0].get("status") or "").strip().lower()
+                        if latest_job_resp.data
+                        else None
+                    )
+                    if latest_job_status != "completed":
+                        logger.info(
+                            "Uploaded run for %s status changed to %s before email step; skipping email",
+                            category.upper(),
+                            latest_job_status or "missing",
+                        )
+                        return
                     report_service = ReportService(db)
                     csv_bytes, filename, alerts_count = report_service.generate_csv_for_job(
                         job_id,
