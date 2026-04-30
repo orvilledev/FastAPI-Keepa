@@ -125,7 +125,7 @@ export default function DNKSchedulerCountdown() {
                 className={`inline-flex items-center rounded-md px-3 py-1.5 text-base font-extrabold uppercase tracking-wide ring-2 ${
                   inputMode === 'uploaded'
                     ? 'bg-[#81B81D]/20 text-[#DDF5B0] ring-[#81B81D]/80'
-                    : 'bg-blue-100 text-blue-900 ring-blue-300'
+                    : 'bg-blue-100 text-blue-900 ring-[#81B81D]/80'
                 }`}
               >
                 {inputMode === 'uploaded' ? 'Import Mode' : 'API Mode'}
@@ -169,7 +169,7 @@ export default function DNKSchedulerCountdown() {
               className={`ml-2 inline-flex items-center rounded-md px-3 py-1.5 text-base font-extrabold uppercase tracking-wide ring-2 ${
                 inputMode === 'uploaded'
                   ? 'bg-[#81B81D]/30 text-[#E8F8C8] ring-[#81B81D]/85'
-                  : 'bg-blue-300/35 text-blue-100 ring-blue-300/80'
+                  : 'bg-blue-300/35 text-blue-100 ring-[#81B81D]/85'
               }`}
             >
               {inputMode === 'uploaded' ? 'Import Mode' : 'API Mode'}

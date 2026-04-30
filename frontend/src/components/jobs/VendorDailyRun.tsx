@@ -1021,8 +1021,8 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                 </p>
               </div>
 
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-800">
+              <div className="p-4 bg-[#81B81D]/10 border border-[#81B81D]/55 rounded-lg">
+                <p className="text-sm text-[#111827]">
                   <strong>Note:</strong> Schedule timing and email recipients here apply to {VENDOR_UPPER} only.
                 </p>
               </div>
