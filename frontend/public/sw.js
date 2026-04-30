@@ -19,6 +19,10 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event
   if (request.method !== 'GET') return
+  const url = new URL(request.url)
+
+  // Never cache API responses; always hit the network for fresh data.
+  if (url.pathname.startsWith('/api/')) return
 
   // App navigation: network first with cached shell fallback.
   if (request.mode === 'navigate') {
