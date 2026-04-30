@@ -466,7 +466,7 @@ export default function Sidebar() {
             }`}
           >
             <span className="mr-3">{Icons.notes}</span>
-            <span>Reminders</span>
+            <span>Notes</span>
           </Link>
 
           <Link
