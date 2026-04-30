@@ -3,6 +3,15 @@ import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 
+// Ensure installed-app/taskbar icon shows without badge overlays.
+if ('clearAppBadge' in navigator) {
+  ;(navigator as Navigator & { clearAppBadge: () => Promise<void> })
+    .clearAppBadge()
+    .catch(() => {
+      // Ignore unsupported/blocked badge-clear attempts.
+    })
+}
+
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch((error) => {
