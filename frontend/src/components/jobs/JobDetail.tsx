@@ -258,7 +258,7 @@ export default function JobDetail() {
         <div>
           <Link
             to="/jobs"
-            className="text-[#0B1020] hover:text-[#1a2235] text-sm font-medium mb-2 inline-block"
+            className="text-[#404040] hover:text-[#3B3B3B] text-sm font-medium mb-2 inline-block"
           >
             ← Back to Express Jobs
           </Link>
@@ -275,7 +275,7 @@ export default function JobDetail() {
               </button>
               <button
                 onClick={handleTrigger}
-                className="bg-[#0B1020] hover:bg-[#1a2235] text-white px-4 py-2 rounded-md text-sm font-medium"
+                className="bg-[#404040] hover:bg-[#3B3B3B] text-white px-4 py-2 rounded-md text-sm font-medium"
               >
                 Trigger Job
               </button>
@@ -623,7 +623,7 @@ export default function JobDetail() {
                   <button
                     onClick={handleSaveEdit}
                     disabled={saving || !editJobName.trim()}
-                    className="px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {saving ? 'Saving...' : 'Save Changes'}
                   </button>

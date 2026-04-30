@@ -133,7 +133,7 @@ export default function ResetPassword() {
         <div className="card p-8 shadow-xl">
           <div className="text-center mb-8">
             <img src="/orbit-logo.svg" alt="MSW Overwatch" className="w-16 h-16 mx-auto mb-4" />
-            <h2 className="text-3xl font-bold text-[#0B1020]">
+            <h2 className="text-3xl font-bold text-[#404040]">
               Reset Password
             </h2>
             <p className="mt-2 text-sm text-gray-500">Enter your new password</p>
@@ -153,7 +153,7 @@ export default function ResetPassword() {
               </div>
               <Link
                 to="/login"
-                className="text-sm text-[#0B1020] hover:text-[#1a2235] font-medium transition-colors"
+                className="text-sm text-[#404040] hover:text-[#3B3B3B] font-medium transition-colors"
               >
                 Go to login page
               </Link>
@@ -222,7 +222,7 @@ export default function ResetPassword() {
               <div className="text-center">
                 <Link
                   to="/login"
-                  className="text-sm text-[#0B1020] hover:text-[#1a2235] font-medium transition-colors"
+                  className="text-sm text-[#404040] hover:text-[#3B3B3B] font-medium transition-colors"
                 >
                   Back to login
                 </Link>

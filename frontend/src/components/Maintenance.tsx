@@ -272,7 +272,7 @@ export default function Maintenance({
                 type="button"
                 onClick={handleCheckAnswer}
                 disabled={selectedIndex === null || submitted}
-                className="px-4 py-2 rounded-lg bg-[#0B1020] text-white text-sm font-medium disabled:opacity-50"
+                className="px-4 py-2 rounded-lg bg-[#404040] text-white text-sm font-medium disabled:opacity-50"
               >
                 Check Answer
               </button>
@@ -296,7 +296,7 @@ export default function Maintenance({
               <button
                 type="button"
                 onClick={handleRestartQuiz}
-                className="mt-3 px-4 py-2 rounded-lg bg-[#0B1020] text-white text-sm font-medium"
+                className="mt-3 px-4 py-2 rounded-lg bg-[#404040] text-white text-sm font-medium"
               >
                 Play Again
               </button>

@@ -353,7 +353,7 @@ export default function HowToGuide() {
               onClick={() => setSelectedGuideId(guide.id)}
               className={`text-left rounded-lg border p-4 transition-colors ${
                 selectedGuideId === guide.id
-                  ? 'border-[#0B1020] bg-[#0B1020]/5'
+                  ? 'border-[#404040] bg-[#404040]/5'
                   : 'border-gray-200 bg-white hover:bg-gray-50'
               }`}
             >
@@ -364,7 +364,7 @@ export default function HowToGuide() {
         {selectedGuide ? (
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
             <div className="mb-2 flex items-center justify-between gap-3">
-              <h3 className="text-base font-semibold text-[#0B1020]">{selectedGuide.title}</h3>
+              <h3 className="text-base font-semibold text-[#404040]">{selectedGuide.title}</h3>
               {isSuperadmin && (
                 <button
                   type="button"
@@ -478,7 +478,7 @@ export default function HowToGuide() {
                 onClick={() => setSelectedCategory(null)}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   selectedCategory === null
-                    ? 'bg-[#0B1020] text-white shadow-md'
+                    ? 'bg-[#404040] text-white shadow-md'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -490,7 +490,7 @@ export default function HowToGuide() {
                   onClick={() => setSelectedCategory(category)}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                     selectedCategory === category
-                      ? 'bg-[#0B1020] text-white shadow-md'
+                      ? 'bg-[#404040] text-white shadow-md'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -540,7 +540,7 @@ export default function HowToGuide() {
                           <div className="flex items-center space-x-2">
                             <button
                               onClick={() => handleEdit(tool)}
-                              className="text-[#0B1020] hover:text-indigo-800 text-sm"
+                              className="text-[#404040] hover:text-indigo-800 text-sm"
                             >
                               Edit
                             </button>
@@ -564,7 +564,7 @@ export default function HowToGuide() {
                     )}
                     <div className="flex items-center gap-2 mb-4">
                       {tool.category && (
-                        <span className="inline-block px-2 py-1 text-xs font-medium bg-[#0B1020]/10 text-[#0B1020] rounded">
+                        <span className="inline-block px-2 py-1 text-xs font-medium bg-[#404040]/10 text-[#404040] rounded">
                           {tool.category}
                         </span>
                       )}

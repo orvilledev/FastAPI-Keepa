@@ -237,7 +237,7 @@ export default function SellerList() {
             onChange={(e) => setBulkText(e.target.value)}
             rows={8}
             placeholder={'A1HQOHOLTUK58E,Buy DBDeals\nA2EXAMPLE1234567,Another Store'}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono text-gray-900 focus:ring-2 focus:ring-[#0B1020]/20 focus:border-[#0B1020]"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono text-gray-900 focus:ring-2 focus:ring-[#404040]/20 focus:border-[#404040]"
             aria-label="Paste seller list: seller code, comma, then name, one per line"
           />
           <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:items-center">
@@ -245,7 +245,7 @@ export default function SellerList() {
               type="button"
               disabled={importing}
               onClick={() => void onImportText()}
-              className="inline-flex justify-center items-center px-6 py-3 rounded-lg bg-[#0B1020] text-white text-base font-semibold shadow-sm hover:bg-[#1a2235] disabled:opacity-50 min-w-[200px]"
+              className="inline-flex justify-center items-center px-6 py-3 rounded-lg bg-[#404040] text-white text-base font-semibold shadow-sm hover:bg-[#3B3B3B] disabled:opacity-50 min-w-[200px]"
             >
               {importing ? 'Adding…' : 'Add sellers'}
             </button>

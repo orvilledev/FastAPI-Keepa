@@ -344,7 +344,7 @@ export default function UPCManagement() {
             <button
               type="submit"
               disabled={adding}
-              className="bg-[#0B1020] hover:bg-[#1a2235] disabled:bg-gray-400 text-white px-4 py-2 rounded-md text-sm font-medium"
+              className="bg-[#404040] hover:bg-[#3B3B3B] disabled:bg-gray-400 text-white px-4 py-2 rounded-md text-sm font-medium"
             >
               {adding ? 'Adding...' : 'Add UPCs'}
             </button>

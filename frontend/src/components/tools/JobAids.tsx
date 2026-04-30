@@ -8,7 +8,7 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
       <>
         MSW Overwatch is built around the Keepa API workflow: teams monitor product pricing, run checks against Keepa
         data, spot off-price listings, and receive reports they can use right away. See also the{' '}
-        <Link to="/about" className="text-[#0B1020] font-medium underline">
+        <Link to="/about" className="text-[#404040] font-medium underline">
           About
         </Link>{' '}
         page for how this fits together.
@@ -31,7 +31,7 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
       <>
         Express Jobs are on-demand checks: you run batch work against selected UPCs (jobs, status, and cleanup live
         under Express Jobs in the app). They are part of the Keepa Alert Services workflow described on{' '}
-        <Link to="/about" className="text-[#0B1020] font-medium underline">
+        <Link to="/about" className="text-[#404040] font-medium underline">
           About
         </Link>
         .
@@ -147,7 +147,7 @@ export default function JobAids() {
         <h1 className="text-3xl font-bold text-gray-900">FAQ</h1>
         <p className="mt-1 text-sm text-gray-500">
           Questions about the Keepa Alert Services workflow and Documentations (Trainings and this FAQ), aligned with the{' '}
-          <Link to="/about" className="text-[#0B1020] font-medium underline">
+          <Link to="/about" className="text-[#404040] font-medium underline">
             About
           </Link>{' '}
           page.

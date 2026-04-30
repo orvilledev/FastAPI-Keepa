@@ -610,7 +610,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
           </button>
           <button
             onClick={openSettingsModal}
-            className="px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors text-sm font-medium flex items-center gap-2"
+            className="px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors text-sm font-medium flex items-center gap-2"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
@@ -661,7 +661,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
             {nextRun.seconds_until && nextRun.seconds_until > 0 && (
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Time Until Next Run:</span>
-                <span className="font-medium text-[#0B1020]">
+                <span className="font-medium text-[#404040]">
                   {Math.floor(nextRun.seconds_until / 3600)}h {Math.floor((nextRun.seconds_until % 3600) / 60)}m
                 </span>
               </div>
@@ -865,7 +865,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                   </div>
                   <Link
                     to={`/jobs/${run.id}`}
-                    className="ml-4 px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors text-sm font-medium"
+                    className="ml-4 px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors text-sm font-medium"
                   >
                     View Details →
                   </Link>
@@ -899,7 +899,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                 <select
                   value={settingsForm.timezone}
                   onChange={(e) => setSettingsForm({ ...settingsForm, timezone: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B1020] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#404040] focus:border-transparent"
                 >
                   <option value="America/Chicago">America/Chicago (CST/CDT)</option>
                   <option value="America/New_York">America/New_York (EST/EDT)</option>
@@ -919,7 +919,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                     max="23"
                     value={settingsForm.hour}
                     onChange={(e) => setSettingsForm({ ...settingsForm, hour: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B1020] focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#404040] focus:border-transparent"
                   />
                 </div>
                 <div>
@@ -930,7 +930,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                     max="59"
                     value={settingsForm.minute}
                     onChange={(e) => setSettingsForm({ ...settingsForm, minute: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B1020] focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#404040] focus:border-transparent"
                   />
                 </div>
               </div>
@@ -945,7 +945,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                       run_mode: e.target.value as 'daily' | 'every_other_day' | 'custom_days',
                     })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B1020] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#404040] focus:border-transparent"
                 >
                   <option value="daily">Daily</option>
                   <option value="every_other_day">Every other day</option>
@@ -960,7 +960,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                     type="date"
                     value={settingsForm.anchor_date || ''}
                     onChange={(e) => setSettingsForm({ ...settingsForm, anchor_date: e.target.value || null })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B1020] focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#404040] focus:border-transparent"
                   />
                 </div>
               )}
@@ -1014,7 +1014,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                       ),
                     })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B1020] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#404040] focus:border-transparent"
                 />
                 <p className="mt-1 text-xs text-gray-500">
                   How long the scheduled Import run waits for just-uploaded file parsing to finish before failing.
@@ -1039,7 +1039,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
               <button
                 onClick={handleSaveSettings}
                 disabled={savingSettings}
-                className="px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors disabled:bg-gray-400"
+                className="px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors disabled:bg-gray-400"
               >
                 {savingSettings ? 'Saving...' : 'Save Settings'}
               </button>

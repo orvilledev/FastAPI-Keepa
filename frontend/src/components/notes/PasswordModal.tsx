@@ -51,7 +51,7 @@ export default function PasswordModal({
         <div className="flex gap-3">
           <button
             onClick={onSubmit}
-            className="flex-1 px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors font-medium"
+            className="flex-1 px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors font-medium"
           >
             Unlock
           </button>

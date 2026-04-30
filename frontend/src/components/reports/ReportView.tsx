@@ -73,7 +73,7 @@ export default function ReportView() {
         <div>
           <Link
             to="/jobs"
-            className="text-[#0B1020] hover:text-[#1a2235] text-sm font-medium mb-2 inline-block"
+            className="text-[#404040] hover:text-[#3B3B3B] text-sm font-medium mb-2 inline-block"
           >
             ← Back to Express Jobs
           </Link>
@@ -93,7 +93,7 @@ export default function ReportView() {
           <button
             onClick={handleDownloadCSV}
             disabled={downloading}
-            className="bg-[#0B1020] hover:bg-[#1a2235] text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
+            className="bg-[#404040] hover:bg-[#3B3B3B] text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
           >
             {downloading ? 'Downloading...' : 'Download CSV'}
           </button>
@@ -184,7 +184,7 @@ export default function ReportView() {
                           href={row['Amazon URL']}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-[#0B1020] hover:text-[#1a2235] hover:underline"
+                          className="text-[#404040] hover:text-[#3B3B3B] hover:underline"
                         >
                           View
                         </a>

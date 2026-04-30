@@ -83,7 +83,7 @@ export default function Landing() {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <img src="/orbit-logo.svg" alt="MSW Overwatch" className="w-10 h-10" />
-            <span className="text-2xl font-bold text-[#0B1020]">
+            <span className="text-2xl font-bold text-[#404040]">
               {APP_NAME}
             </span>
             <span className="text-sm font-semibold text-gray-500">{APP_VERSION_LABEL}</span>
@@ -91,7 +91,7 @@ export default function Landing() {
           <div className="flex items-center space-x-4">
             <Link
               to="/login"
-              className="text-gray-700 hover:text-[#0B1020] font-medium transition-colors"
+              className="text-gray-700 hover:text-[#404040] font-medium transition-colors"
             >
               Sign In
             </Link>
@@ -110,7 +110,7 @@ export default function Landing() {
         <div className="text-center max-w-4xl mx-auto">
           <h1 className="text-5xl lg:text-6xl font-extrabold text-gray-900 mb-6">
             Your Central
-            <span className="block text-[#0B1020]">
+            <span className="block text-[#404040]">
               {APP_NAME}
             </span>
           </h1>
@@ -212,15 +212,15 @@ export default function Landing() {
           </div>
 
           {/* Paid Plan for Non-Employees */}
-          <div className="card p-8 border-2 border-[#0B1020]/20 relative overflow-hidden">
-            <div className="absolute top-0 right-0 bg-[#0B1020] text-white px-4 py-1 text-sm font-semibold">
+          <div className="card p-8 border-2 border-[#404040]/20 relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-[#404040] text-white px-4 py-1 text-sm font-semibold">
               PREMIUM
             </div>
             <div className="text-center mb-6">
               <h3 className="text-2xl font-bold text-gray-900 mb-2">
                 Non-MetroShoe Warehouse
               </h3>
-              <div className="text-4xl font-extrabold text-[#0B1020] mb-2">
+              <div className="text-4xl font-extrabold text-[#404040] mb-2">
                 $1,000,000
                 <span className="text-lg font-normal text-gray-600">/month</span>
               </div>
@@ -230,19 +230,19 @@ export default function Landing() {
             </div>
             <ul className="space-y-3 mb-6">
               <li className="flex items-start">
-                <svg className="w-5 h-5 text-[#0B1020] mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-5 h-5 text-[#404040] mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
                 <span className="text-gray-700">Modern workspace experience across all core areas</span>
               </li>
               <li className="flex items-start">
-                <svg className="w-5 h-5 text-[#0B1020] mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-5 h-5 text-[#404040] mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
                 <span className="text-gray-700">Feature access aligned to organization entitlements</span>
               </li>
               <li className="flex items-start">
-                <svg className="w-5 h-5 text-[#0B1020] mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-5 h-5 text-[#404040] mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
                 <span className="text-gray-700">Onboarding and billing coordinated directly with your team</span>
@@ -304,7 +304,7 @@ export default function Landing() {
           <div className="card p-8 shadow-xl">
             <div className="text-center mb-8">
               <img src="/orbit-logo.svg" alt="MSW Overwatch" className="w-16 h-16 mx-auto mb-4" />
-              <h2 className="text-3xl font-bold text-[#0B1020]">
+              <h2 className="text-3xl font-bold text-[#404040]">
                 Join {APP_NAME}
               </h2>
               <p className="mt-1 text-xs text-gray-500">Current version: {APP_VERSION_LABEL}</p>
@@ -382,7 +382,7 @@ export default function Landing() {
               <div className="text-center">
                 <Link
                   to="/login"
-                  className="text-sm text-[#0B1020] hover:text-[#1a2235] font-medium transition-colors"
+                  className="text-sm text-[#404040] hover:text-[#3B3B3B] font-medium transition-colors"
                 >
                   Already have an account? <span className="font-semibold">Sign in</span>
                 </Link>

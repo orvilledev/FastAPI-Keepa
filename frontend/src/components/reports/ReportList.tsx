@@ -63,7 +63,7 @@ export default function ReportList() {
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <Link
                     to={`/reports/${job.id}`}
-                    className="text-[#0B1020] hover:text-[#1a2235]"
+                    className="text-[#404040] hover:text-[#3B3B3B]"
                   >
                     View Report
                   </Link>

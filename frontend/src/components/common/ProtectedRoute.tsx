@@ -15,7 +15,7 @@ export default function ProtectedRoute({ children, requireKeepaAccess = false }:
   if (!userInfo || userInfoLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="w-8 h-8 border-4 border-[#0B1020] border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-4 border-[#404040] border-t-transparent rounded-full animate-spin"></div>
       </div>
     )
   }

@@ -10,7 +10,7 @@ const ReactQuill = lazy(() => import('react-quill'))
 const EditorLoading = () => (
   <div className="border border-gray-300 rounded-lg p-4 min-h-[200px] flex items-center justify-center bg-gray-50">
     <div className="flex flex-col items-center space-y-2">
-      <div className="w-8 h-8 border-4 border-[#0B1020] border-t-transparent rounded-full animate-spin"></div>
+      <div className="w-8 h-8 border-4 border-[#404040] border-t-transparent rounded-full animate-spin"></div>
       <span className="text-gray-500 text-sm">Loading editor...</span>
     </div>
   </div>
@@ -607,7 +607,7 @@ export default function MyNotes() {
             <div className="flex gap-3">
               <button
                 onClick={handlePasswordSubmit}
-                className="flex-1 px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors font-medium"
+                className="flex-1 px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors font-medium"
               >
                 Unlock
               </button>
@@ -631,7 +631,7 @@ export default function MyNotes() {
         {!showAddForm && (
           <button
             onClick={() => setShowAddForm(true)}
-            className="px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors font-medium"
+            className="px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors font-medium"
           >
             + Add Note
           </button>
@@ -737,7 +737,7 @@ export default function MyNotes() {
                     type="checkbox"
                     checked={formData.is_protected}
                     onChange={(e) => setFormData({ ...formData, is_protected: e.target.checked })}
-                    className="w-4 h-4 text-[#0B1020] border-gray-300 rounded focus:ring-indigo-500"
+                    className="w-4 h-4 text-[#404040] border-gray-300 rounded focus:ring-indigo-500"
                   />
                   <span className="text-sm font-medium text-gray-700">
                     🔒 Enable Content Masking (mask sensitive content)
@@ -760,7 +760,7 @@ export default function MyNotes() {
                         require_password_always: newUsePassword ? formData.require_password_always : false
                       })
                     }}
-                    className="w-4 h-4 text-[#0B1020] border-gray-300 rounded focus:ring-indigo-500"
+                    className="w-4 h-4 text-[#404040] border-gray-300 rounded focus:ring-indigo-500"
                   />
                   <span className="text-sm font-medium text-gray-700">
                     🔐 Enable Password Protection
@@ -834,7 +834,7 @@ export default function MyNotes() {
                           setShowPassword(true) // Show the generated password
                         }
                       }}
-                      className="px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors font-medium text-sm whitespace-nowrap"
+                      className="px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors font-medium text-sm whitespace-nowrap"
                       title="Generate a strong password"
                     >
                       🔐 Generate
@@ -859,7 +859,7 @@ export default function MyNotes() {
                       type="checkbox"
                       checked={formData.require_password_always}
                       onChange={(e) => setFormData({ ...formData, require_password_always: e.target.checked })}
-                      className="w-4 h-4 text-[#0B1020] border-gray-300 rounded focus:ring-indigo-500"
+                      className="w-4 h-4 text-[#404040] border-gray-300 rounded focus:ring-indigo-500"
                     />
                     <span className="text-sm font-medium text-gray-700">
                       🔐 Require Password Even for Owner (Optional)
@@ -902,7 +902,7 @@ export default function MyNotes() {
               <button
                 onClick={editingNote ? handleUpdateNote : handleAddNote}
                 disabled={submitting}
-                className="px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? 'Saving...' : editingNote ? 'Update Note' : 'Create Note'}
               </button>
@@ -971,7 +971,7 @@ export default function MyNotes() {
           {!searchTerm && (
             <button
               onClick={() => setShowAddForm(true)}
-              className="mt-4 px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors font-medium"
+              className="mt-4 px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors font-medium"
             >
               Create your first note
             </button>
@@ -1052,7 +1052,7 @@ export default function MyNotes() {
                       <div className="flex gap-2 ml-2">
                         <button
                           onClick={() => handleEditClick(note)}
-                          className="px-2 py-1 text-sm text-[#0B1020] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
+                          className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
                           title="Edit"
                         >
                           Edit
@@ -1091,7 +1091,7 @@ export default function MyNotes() {
                             setPasswordInput('')
                             setPasswordError(null)
                           }}
-                          className="px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors font-medium"
+                          className="px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors font-medium"
                         >
                           Enter Password to View
                         </button>
@@ -1105,7 +1105,7 @@ export default function MyNotes() {
                             </span>
                             <button
                               onClick={() => toggleReveal(note.id)}
-                              className="text-xs text-[#0B1020] hover:text-indigo-800 font-medium"
+                              className="text-xs text-[#404040] hover:text-indigo-800 font-medium"
                             >
                               {revealedNotes.has(note.id) ? '👁️ Hide' : '👁️‍🗨️ Reveal'}
                             </button>
@@ -1126,7 +1126,7 @@ export default function MyNotes() {
                                     return newSet
                                   })
                                 }}
-                                className="text-xs text-[#0B1020] hover:text-indigo-800 font-medium"
+                                className="text-xs text-[#404040] hover:text-indigo-800 font-medium"
                               >
                                 👁️ Hide
                               </button>
@@ -1137,7 +1137,7 @@ export default function MyNotes() {
                                   setPasswordInput('')
                                   setPasswordError(null)
                                 }}
-                                className="text-xs text-[#0B1020] hover:text-indigo-800 font-medium"
+                                className="text-xs text-[#404040] hover:text-indigo-800 font-medium"
                               >
                                 👁️ Reveal
                               </button>

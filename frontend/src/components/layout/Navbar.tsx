@@ -49,7 +49,7 @@ export default function Navbar() {
       <div className="px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
           <div className="flex items-center">
-            <h1 className="text-xl font-bold text-[#0B1020]">
+            <h1 className="text-xl font-bold text-[#404040]">
               {APP_NAME} <span className="text-sm font-semibold text-gray-500">{APP_VERSION_LABEL}</span>
             </h1>
           </div>
@@ -70,7 +70,7 @@ export default function Navbar() {
               )}
             </Link>
             <div className="hidden sm:flex items-center space-x-3 px-4 py-2 bg-gray-50 rounded-lg">
-              <div className="w-8 h-8 bg-[#0B1020] rounded-full flex items-center justify-center">
+              <div className="w-8 h-8 bg-[#404040] rounded-full flex items-center justify-center">
                 <span className="text-white text-xs font-semibold">
                   {user?.display_name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase()}
                 </span>

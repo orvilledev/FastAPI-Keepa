@@ -222,7 +222,7 @@ export default function Sidebar() {
         <div className="flex items-center space-x-2">
           <img src="/orbit-logo.svg" alt="MSW Overwatch" className="w-8 h-8" />
           <div>
-            <h2 className="text-lg font-bold text-[#0B1020]">
+            <h2 className="text-lg font-bold text-[#404040]">
               {APP_NAME}
             </h2>
             <p className="text-xs text-gray-500">Central Workspace • {APP_VERSION_LABEL}</p>
@@ -269,7 +269,7 @@ export default function Sidebar() {
               </button>
 
               {isKeepaMenuOpen && (
-                <div className="ml-4 mt-1 space-y-1 bg-[#0B1020] rounded-lg p-2 dark-dropdown">
+                <div className="ml-4 mt-1 space-y-1 bg-[#404040] rounded-lg p-2 dark-dropdown">
                   {keepaMenuItems.map((item) => {
                     if (item.children) {
                       const isOpen =
@@ -329,7 +329,7 @@ export default function Sidebar() {
 
                           {isOpen && (
                             <div
-                              className="flyout-menu absolute left-full top-0 ml-2 bg-[#1a2235] rounded-lg shadow-2xl border border-white/20 min-w-[200px] z-[9999]"
+                              className="flyout-menu absolute left-full top-0 ml-2 bg-[#3B3B3B] rounded-lg shadow-2xl border border-white/20 min-w-[200px] z-[9999]"
                               onMouseEnter={handleMouseEnter}
                               onMouseLeave={handleMouseLeave}
                             >
@@ -433,7 +433,7 @@ export default function Sidebar() {
             </button>
             
             {isToolsMenuOpen && (
-              <div className="ml-4 mt-1 space-y-1 bg-[#0B1020] rounded-lg p-2 dark-dropdown">
+              <div className="ml-4 mt-1 space-y-1 bg-[#404040] rounded-lg p-2 dark-dropdown">
                 {toolsMenuItems.map((item) => {
                   const toolsItemId = `tools-${item.path}`
                   return (

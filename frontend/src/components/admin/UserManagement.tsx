@@ -334,7 +334,7 @@ export default function UserManagement() {
             type="button"
             onClick={() => void handleSaveMaintenanceDetails()}
             disabled={maintenanceSaving}
-            className="px-3 py-1.5 rounded-md bg-[#0B1020] text-white text-sm font-medium disabled:opacity-50"
+            className="px-3 py-1.5 rounded-md bg-[#404040] text-white text-sm font-medium disabled:opacity-50"
           >
             {maintenanceSaving ? 'Saving...' : 'Save Maintenance Details'}
           </button>
@@ -347,7 +347,7 @@ export default function UserManagement() {
           onClick={() => setShowPendingOnly(false)}
           className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
             !showPendingOnly
-              ? 'bg-[#0B1020] text-white'
+              ? 'bg-[#404040] text-white'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
@@ -409,7 +409,7 @@ export default function UserManagement() {
                   <tr key={user.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="w-10 h-10 bg-[#0B1020] rounded-full flex items-center justify-center">
+                        <div className="w-10 h-10 bg-[#404040] rounded-full flex items-center justify-center">
                           <span className="text-white text-sm font-semibold">
                             {userInitial(user)}
                           </span>
@@ -426,7 +426,7 @@ export default function UserManagement() {
                       <span
                         className={`px-2 py-1 text-xs font-medium rounded ${
                           user.role === 'admin'
-                            ? 'bg-[#0B1020]/10 text-[#0B1020]'
+                            ? 'bg-[#404040]/10 text-[#404040]'
                             : user.role === 'superadmin'
                               ? 'bg-purple-100 text-purple-900'
                               : 'bg-gray-100 text-gray-800'

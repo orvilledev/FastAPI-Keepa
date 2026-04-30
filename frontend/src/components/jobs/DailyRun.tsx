@@ -173,7 +173,7 @@ export default function DailyRun() {
             {nextRun.seconds_until && nextRun.seconds_until > 0 && (
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Time Until Next Run:</span>
-                <span className="font-medium text-[#0B1020]">
+                <span className="font-medium text-[#404040]">
                   {Math.floor(nextRun.seconds_until / 3600)}h {Math.floor((nextRun.seconds_until % 3600) / 60)}m
                 </span>
               </div>
@@ -251,7 +251,7 @@ export default function DailyRun() {
                   </div>
                   <Link
                     to={`/jobs/${run.id}`}
-                    className="ml-4 px-4 py-2 bg-[#0B1020] text-white rounded-lg hover:bg-[#1a2235] transition-colors text-sm font-medium"
+                    className="ml-4 px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors text-sm font-medium"
                   >
                     View Details →
                   </Link>

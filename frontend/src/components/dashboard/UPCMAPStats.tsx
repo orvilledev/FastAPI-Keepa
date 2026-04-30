@@ -74,7 +74,7 @@ export default function UPCMAPStats() {
         >
           <div>
             <div className="text-xs text-gray-500 mb-1">DNK UPCs</div>
-            <div className="text-2xl font-bold text-[#0B1020] group-hover:text-[#1a2235]">
+            <div className="text-2xl font-bold text-[#404040] group-hover:text-[#3B3B3B]">
               {dnkUpcCount !== null ? dnkUpcCount.toLocaleString() : '—'}
             </div>
           </div>
@@ -87,7 +87,7 @@ export default function UPCMAPStats() {
         >
           <div>
             <div className="text-xs text-gray-500 mb-1">MAP Entries</div>
-            <div className="text-2xl font-bold text-[#0B1020] group-hover:text-[#1a2235]">
+            <div className="text-2xl font-bold text-[#404040] group-hover:text-[#3B3B3B]">
               {mapCount !== null ? mapCount.toLocaleString() : '—'}
             </div>
           </div>

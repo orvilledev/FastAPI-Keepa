@@ -23,7 +23,7 @@
   }
   
   .btn-primary {
-    @apply bg-[#0B1020] hover:bg-[#1a2235] text-white font-medium px-6 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 transform hover:-translate-y-0.5;
+    @apply bg-[#404040] hover:bg-[#3B3B3B] text-white font-medium px-6 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 transform hover:-translate-y-0.5;
   }
   
   .btn-secondary {
@@ -41,7 +41,7 @@
   }
   
   .sidebar-link-active {
-    @apply bg-[#0B1020] text-white shadow-md;
+    @apply bg-[#404040] text-white shadow-md;
   }
 
   /* Ensure parent buttons with active state (dark bg) use white text */
@@ -61,18 +61,18 @@
   
   /* Hover state - always white text on dark background */
   .sidebar-link-inactive:hover {
-    @apply bg-[#0B1020] shadow-md;
+    @apply bg-[#404040] shadow-md;
     color: white !important;
   }
   
   .sidebar-link-active:hover {
-    @apply bg-[#0B1020] shadow-md;
+    @apply bg-[#404040] shadow-md;
     color: white !important;
   }
   
   /* When hovering any sidebar link, ensure text is white since background becomes dark */
   .sidebar-link:hover {
-    background: #0B1020 !important;
+    background: #404040 !important;
     color: white !important;
     box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
   }
@@ -115,7 +115,7 @@
   /* 2nd level menu items hover in light container */
   .ml-4.mt-1:not(.dark-submenu):not(.dark-dropdown) > .sidebar-link:hover {
     color: white !important;
-    background: #0B1020 !important;
+    background: #404040 !important;
   }
 
   .ml-4.mt-1:not(.dark-submenu):not(.dark-dropdown) > .sidebar-link:hover span {
@@ -267,13 +267,13 @@ code {
 
 /* Links */
 .note-content a {
-  color: #0B1020;
+  color: #404040;
   text-decoration: underline;
   cursor: pointer;
 }
 
 .note-content a:hover {
-  color: #1a2235;
+  color: #3B3B3B;
   text-decoration: underline;
 }
 

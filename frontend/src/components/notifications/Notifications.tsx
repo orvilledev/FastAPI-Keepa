@@ -241,7 +241,7 @@ export default function Notifications() {
           onClick={() => setFilter('all')}
           className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
             filter === 'all'
-              ? 'border-[#0B1020] text-[#0B1020]'
+              ? 'border-[#404040] text-[#404040]'
               : 'border-transparent text-gray-600 hover:text-gray-900'
           }`}
         >
@@ -251,7 +251,7 @@ export default function Notifications() {
           onClick={() => setFilter('unread')}
           className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
             filter === 'unread'
-              ? 'border-[#0B1020] text-[#0B1020]'
+              ? 'border-[#404040] text-[#404040]'
               : 'border-transparent text-gray-600 hover:text-gray-900'
           }`}
         >

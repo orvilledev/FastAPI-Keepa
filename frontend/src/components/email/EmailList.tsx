@@ -167,7 +167,7 @@ export default function EmailList() {
             type="button"
             onClick={() => void handleAdd()}
             disabled={saving}
-            className="px-4 py-2 rounded-lg bg-[#0B1020] text-white font-medium disabled:opacity-60"
+            className="px-4 py-2 rounded-lg bg-[#404040] text-white font-medium disabled:opacity-60"
           >
             {saving ? 'Saving...' : 'Add Recipient'}
           </button>

@@ -118,7 +118,7 @@ export default function SchedulerCountdown() {
   }
 
   return (
-    <div className="bg-[#0B1020] rounded-xl shadow-xl p-6 text-white border border-white/20">
+    <div className="bg-[#404040] rounded-xl shadow-xl p-6 text-white border border-white/20">
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <h3 className="text-lg font-semibold mb-2">Keepa Off Price Daily Run</h3>

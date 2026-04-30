@@ -93,7 +93,7 @@ export default function VendorRunCard({ vendor, nowMs }: { vendor: CalendarVendo
     <div
       className={`rounded-xl shadow-xl p-6 text-white border ${
         inputMode === 'uploaded'
-          ? 'bg-[#0B1020] border-white/20'
+          ? 'bg-[#404040] border-white/20'
           : 'bg-[#0B3D91] border-blue-300'
       }`}
     >
