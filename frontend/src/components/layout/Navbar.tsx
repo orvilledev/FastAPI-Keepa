@@ -4,10 +4,17 @@ import { useEffect, useState, useCallback } from 'react'
 import { notificationsApi } from '../../services/api'
 import { APP_NAME, APP_VERSION_LABEL } from '../../constants/app'
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>
+}
+
 export default function Navbar() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
   const [unreadCount, setUnreadCount] = useState(0)
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const [isInstalled, setIsInstalled] = useState(false)
 
   // Memoize loadUnreadCount to prevent recreating intervals on every render
   const loadUnreadCount = useCallback(async () => {
@@ -39,6 +46,38 @@ export default function Navbar() {
     }
   }, [user, loadUnreadCount])
 
+  useEffect(() => {
+    const standaloneByMedia = window.matchMedia('(display-mode: standalone)').matches
+    const standaloneByNavigator =
+      typeof (window.navigator as Navigator & { standalone?: boolean }).standalone === 'boolean' &&
+      Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone)
+    setIsInstalled(standaloneByMedia || standaloneByNavigator)
+
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault()
+      setDeferredPrompt(event as BeforeInstallPromptEvent)
+    }
+
+    const handleAppInstalled = () => {
+      setDeferredPrompt(null)
+      setIsInstalled(true)
+    }
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    window.addEventListener('appinstalled', handleAppInstalled)
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+      window.removeEventListener('appinstalled', handleAppInstalled)
+    }
+  }, [])
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) return
+    await deferredPrompt.prompt()
+    await deferredPrompt.userChoice
+    setDeferredPrompt(null)
+  }
+
   const handleSignOut = async () => {
     await signOut()
     navigate('/login')
@@ -54,6 +93,14 @@ export default function Navbar() {
             </h1>
           </div>
           <div className="flex items-center space-x-4">
+            {!isInstalled && deferredPrompt && (
+              <button
+                onClick={handleInstallApp}
+                className="px-4 py-2 text-sm font-medium text-white bg-[#404040] hover:bg-[#3B3B3B] rounded-lg transition-colors duration-200"
+              >
+                Install App
+              </button>
+            )}
             {/* Notifications Bell */}
             <Link
               to="/notifications"
