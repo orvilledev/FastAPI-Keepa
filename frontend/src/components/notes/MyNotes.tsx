@@ -788,18 +788,38 @@ export default function MyNotes() {
                   </button>
                 </div>
               ) : (
-                <div
-                  className="text-gray-700 note-content select-text"
-                  style={{
-                    lineHeight: '1.6',
-                    userSelect: 'text',
-                    WebkitUserSelect: 'text',
-                    MozUserSelect: 'text',
-                    msUserSelect: 'text',
-                    cursor: 'text',
-                  }}
-                  dangerouslySetInnerHTML={{ __html: getNoteDisplayContent(fullViewNote) }}
-                />
+                <>
+                  <div
+                    className="ql-editor text-gray-700 note-content select-text px-0"
+                    style={{
+                      userSelect: 'text',
+                      WebkitUserSelect: 'text',
+                      MozUserSelect: 'text',
+                      msUserSelect: 'text',
+                      cursor: 'text',
+                    }}
+                    dangerouslySetInnerHTML={{ __html: getNoteDisplayContent(fullViewNote) }}
+                  />
+                  <style>{`
+                    .ql-editor.note-content {
+                      font-size: 14px;
+                      line-height: 1.42;
+                    }
+                    .ql-editor.note-content p,
+                    .ql-editor.note-content ol,
+                    .ql-editor.note-content ul,
+                    .ql-editor.note-content pre,
+                    .ql-editor.note-content blockquote,
+                    .ql-editor.note-content h1,
+                    .ql-editor.note-content h2,
+                    .ql-editor.note-content h3 {
+                      margin-bottom: 0.5rem;
+                    }
+                    .ql-editor.note-content h1 { font-size: 2em; }
+                    .ql-editor.note-content h2 { font-size: 1.5em; }
+                    .ql-editor.note-content h3 { font-size: 1.17em; }
+                  `}</style>
+                </>
               )}
             </div>
           </div>
