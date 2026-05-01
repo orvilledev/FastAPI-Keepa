@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { authApi, notesApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
 import type { Note, NoteShare } from '../../types'
@@ -104,6 +104,7 @@ type NotesScope = 'my' | 'shared' | 'all'
 
 export default function MyNotes() {
   const location = useLocation()
+  const [searchParams] = useSearchParams()
   const { userInfo } = useUser()
   const [notesScope, setNotesScope] = useState<NotesScope>('my')
   const [notes, setNotes] = useState<Note[]>([])
@@ -163,10 +164,19 @@ export default function MyNotes() {
 
   const pageSize = 20
   const isPopout = location.pathname === '/notes-popout'
+  const popoutNoteId = isPopout ? (searchParams.get('noteId') || '').trim() : ''
   const openPopoutWindow = () => {
     const popup = window.open(
       '/notes-popout',
       'msw-notes-popout',
+      'width=560,height=820,resizable=yes,scrollbars=yes'
+    )
+    popup?.focus()
+  }
+  const openSingleNotePopoutWindow = (noteId: string) => {
+    const popup = window.open(
+      `/notes-popout?noteId=${encodeURIComponent(noteId)}`,
+      `msw-note-popout-${noteId}`,
       'width=560,height=820,resizable=yes,scrollbars=yes'
     )
     popup?.focus()
@@ -224,6 +234,15 @@ export default function MyNotes() {
     try {
       setError(null)
       setLoading(true)
+
+      if (isPopout && popoutNoteId) {
+        const singleNote = await notesApi.getNote(popoutNoteId)
+        setNotes(singleNote ? [singleNote] : [])
+        setTotalNotes(singleNote ? 1 : 0)
+        setTotalPages(singleNote ? 1 : 0)
+        setCurrentPage(0)
+        return
+      }
       
       // Get notes with pagination and filters
       const response = await notesApi.listNotes(
@@ -285,7 +304,7 @@ export default function MyNotes() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, searchTerm, categoryFilter, pageSize, notesScope])
+  }, [currentPage, searchTerm, categoryFilter, pageSize, notesScope, isPopout, popoutNoteId])
 
   useEffect(() => {
     loadNotes()
@@ -737,9 +756,9 @@ export default function MyNotes() {
 
   useEffect(() => {
     if (isPopout) {
-      document.title = 'MSW Notes Popout'
+      document.title = popoutNoteId ? 'MSW Note Popout' : 'MSW Notes Popout'
     }
-  }, [isPopout])
+  }, [isPopout, popoutNoteId])
 
   return (
     <div className={isPopout ? 'min-h-screen bg-slate-50 p-4 space-y-4' : 'space-y-6'}>
@@ -966,6 +985,9 @@ export default function MyNotes() {
           <p className="mt-1 text-sm text-gray-500">
             Create and manage your notes — including items shared with you.
           </p>
+          {isPopout && popoutNoteId && (
+            <p className="mt-1 text-xs text-gray-500">Single-note popout mode</p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {!isPopout && (
@@ -979,13 +1001,23 @@ export default function MyNotes() {
             </button>
           )}
           {isPopout && (
-            <button
-              type="button"
-              onClick={() => window.close()}
-              className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
-            >
-              Close Window
-            </button>
+            <>
+              {popoutNoteId && (
+                <Link
+                  to="/notes-popout"
+                  className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                >
+                  Show All Notes
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={() => window.close()}
+                className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+              >
+                Close Window
+              </button>
+            </>
           )}
           {!showAddForm && (
             <button
@@ -1381,6 +1413,11 @@ export default function MyNotes() {
                   onDragStart={(e) => {
                     // Only allow dragging from the header area, not from content
                     const target = e.target as HTMLElement
+                    const interactiveTarget = target.closest('button, a, input, textarea, select, [role="button"]')
+                    if (interactiveTarget) {
+                      e.preventDefault()
+                      return
+                    }
                     const contentArea = e.currentTarget.querySelector('.note-content')
                     const headerArea = e.currentTarget.querySelector('.note-header')
                     const isInContent = contentArea && (contentArea.contains(target) || contentArea === target)
@@ -1416,10 +1453,11 @@ export default function MyNotes() {
                   onMouseDown={(e) => {
                     // Prevent card dragging when clicking in content area
                     const target = e.target as HTMLElement
+                    const interactiveTarget = target.closest('button, a, input, textarea, select, [role="button"]')
                     const contentArea = e.currentTarget.querySelector('.note-content')
                     const isInContent = contentArea && (contentArea.contains(target) || contentArea === target)
                     
-                    if (isInContent) {
+                    if (isInContent || interactiveTarget) {
                       // Disable dragging for the card when interacting with content
                       e.currentTarget.setAttribute('draggable', 'false')
                     }
@@ -1461,6 +1499,15 @@ export default function MyNotes() {
                       >
                         View
                       </button>
+                      {!isPopout && (
+                        <button
+                          onClick={() => openSingleNotePopoutWindow(note.id)}
+                          className="px-2 py-1 text-sm text-[#404040] hover:text-[#6F9E18] hover:bg-indigo-50 rounded transition-colors"
+                          title="Open this note in a separate window"
+                        >
+                          Pop out
+                        </button>
+                      )}
                       <button
                         onClick={() => handleCopyNote(note)}
                         className="px-2 py-1 text-sm text-[#404040] hover:text-[#6F9E18] hover:bg-indigo-50 rounded transition-colors"
