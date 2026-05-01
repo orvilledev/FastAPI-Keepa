@@ -18,65 +18,66 @@ type QuizItem = {
 const QUIZ_BANK: QuizItem[] = [
   {
     id: 'q1',
-    question: 'Which planet is known as the Red Planet?',
-    choices: ['Earth', 'Mars', 'Jupiter', 'Venus'],
-    correctIndex: 1,
-    explanation: 'Mars appears red because of iron oxide on its surface.',
+    question: 'Which NBA franchise relocated to Oklahoma City and debuted as the Thunder in 2008?',
+    choices: ['Seattle SuperSonics', 'Vancouver Grizzlies', 'Charlotte Hornets', 'New Orleans Hornets'],
+    correctIndex: 0,
+    explanation: 'The SuperSonics moved to OKC after the 2007–08 season and were renamed the Thunder.',
   },
   {
     id: 'q2',
-    question: 'What is the largest ocean on Earth?',
-    choices: ['Atlantic Ocean', 'Indian Ocean', 'Pacific Ocean', 'Arctic Ocean'],
+    question: 'In which season did the Thunder first reach the NBA Finals?',
+    choices: ['2008–09', '2009–10', '2011–12', '2015–16'],
     correctIndex: 2,
-    explanation: 'The Pacific Ocean is the largest and deepest ocean.',
+    explanation: 'OKC faced the Miami Heat in the 2012 NBA Finals.',
   },
   {
     id: 'q3',
-    question: 'Who wrote "Romeo and Juliet"?',
-    choices: ['Charles Dickens', 'William Shakespeare', 'Jane Austen', 'Mark Twain'],
+    question: 'The Thunder lost the 2012 NBA Finals to which team?',
+    choices: ['San Antonio Spurs', 'Miami Heat', 'Dallas Mavericks', 'Boston Celtics'],
     correctIndex: 1,
   },
   {
     id: 'q4',
-    question: 'What is the chemical symbol for gold?',
-    choices: ['Ag', 'Au', 'Gd', 'Go'],
+    question: 'Which Thunder player won NBA MVP for the 2013–14 season?',
+    choices: ['Russell Westbrook', 'Kevin Durant', 'James Harden', 'Paul George'],
     correctIndex: 1,
   },
   {
     id: 'q5',
-    question: 'Which country is home to the Great Pyramid of Giza?',
-    choices: ['Greece', 'Mexico', 'Egypt', 'Jordan'],
+    question: 'Which Thunder player won NBA MVP for the 2016–17 season?',
+    choices: ['Kevin Durant', 'Paul George', 'Russell Westbrook', 'Chris Paul'],
     correctIndex: 2,
   },
   {
     id: 'q6',
-    question: 'How many continents are there?',
-    choices: ['5', '6', '7', '8'],
-    correctIndex: 2,
-  },
-  {
-    id: 'q7',
-    question: 'What is the fastest land animal?',
-    choices: ['Cheetah', 'Lion', 'Horse', 'Greyhound'],
-    correctIndex: 0,
-  },
-  {
-    id: 'q8',
-    question: 'Which instrument has 88 keys?',
-    choices: ['Guitar', 'Violin', 'Piano', 'Trumpet'],
-    correctIndex: 2,
-  },
-  {
-    id: 'q9',
-    question: 'What is the capital of Japan?',
-    choices: ['Seoul', 'Tokyo', 'Kyoto', 'Osaka'],
+    question: 'Who was the Thunder head coach when they went to the 2012 NBA Finals?',
+    choices: ['Billy Donovan', 'Scott Brooks', 'Mark Daigneault', 'Nate McMillan'],
     correctIndex: 1,
   },
   {
+    id: 'q7',
+    question: 'OKC selected which player third overall in the 2009 NBA Draft?',
+    choices: ['Russell Westbrook', 'James Harden', 'Serge Ibaka', 'Steven Adams'],
+    correctIndex: 1,
+    explanation: 'The Thunder took James Harden with the third pick in 2009.',
+  },
+  {
+    id: 'q8',
+    question: 'Which star guard became the face of the Thunder after the Paul George trade (2019)?',
+    choices: ['Jamal Murray', 'Shai Gilgeous-Alexander', 'Andrew Wiggins', 'Fred VanVleet'],
+    correctIndex: 1,
+  },
+  {
+    id: 'q9',
+    question: 'What is the current name of the Thunder home arena in Oklahoma City?',
+    choices: ['Paycom Center', 'Crypto.com Arena', 'Moda Center', 'American Airlines Center'],
+    correctIndex: 0,
+  },
+  {
     id: 'q10',
-    question: 'Which gas do plants absorb from the atmosphere?',
-    choices: ['Oxygen', 'Hydrogen', 'Nitrogen', 'Carbon dioxide'],
-    correctIndex: 3,
+    question: 'Before becoming the Thunder, this franchise won the 1979 NBA title as which team?',
+    choices: ['Buffalo Braves', 'Seattle SuperSonics', 'St. Louis Hawks', 'Washington Bullets'],
+    correctIndex: 1,
   },
 ]
 
@@ -89,7 +90,7 @@ function randomQuestion(excludeIds: string[] = []): QuizItem {
 function getScoreMessage(correctCount: number, total: number): string {
   const ratio = total > 0 ? correctCount / total : 0
   if (ratio >= 0.9) return '🏆 Outstanding! You crushed it — quiz champion status unlocked.'
-  if (ratio >= 0.7) return '🎉 Great job! Strong score. Your general knowledge is sharp.'
+  if (ratio >= 0.7) return '🎉 Great job! Strong score — your Thunder history game is sharp.'
   if (ratio >= 0.5) return '👏 Nice work! Solid effort — keep it up and you will level up fast.'
   return '📚 Good attempt! Keep reading and researching — you will get even better.'
 }
