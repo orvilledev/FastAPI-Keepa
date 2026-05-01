@@ -540,7 +540,7 @@ export default function HowToGuide() {
                           <div className="flex items-center space-x-2">
                             <button
                               onClick={() => handleEdit(tool)}
-                              className="text-[#404040] hover:text-indigo-800 text-sm"
+                              className="text-[#404040] hover:text-[#6F9E18] text-sm"
                             >
                               Edit
                             </button>

@@ -183,7 +183,7 @@ export default function Notifications() {
       case 'warning':
         return 'bg-[#81B81D]/20 text-[#111827]'
       default:
-        return 'bg-blue-100 text-blue-800'
+        return 'bg-blue-100 text-[#81B81D]'
     }
   }
 

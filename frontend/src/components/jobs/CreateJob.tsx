@@ -155,7 +155,7 @@ export default function CreateJob() {
                 value="buybox_only"
                 checked={offPriceScope === 'buybox_only'}
                 onChange={() => setOffPriceScope('buybox_only')}
-                className="mt-0.5 h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
+                className="mt-0.5 h-4 w-4 text-[#81B81D] border-gray-300 focus:ring-indigo-500"
               />
               <span>Flag only buy box winners below MAP</span>
             </label>
@@ -166,7 +166,7 @@ export default function CreateJob() {
                 value="buybox_and_non_buybox_below_map"
                 checked={offPriceScope === 'buybox_and_non_buybox_below_map'}
                 onChange={() => setOffPriceScope('buybox_and_non_buybox_below_map')}
-                className="mt-0.5 h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
+                className="mt-0.5 h-4 w-4 text-[#81B81D] border-gray-300 focus:ring-indigo-500"
               />
               <span>Flag buy box and non-buy-box sellers below MAP</span>
             </label>

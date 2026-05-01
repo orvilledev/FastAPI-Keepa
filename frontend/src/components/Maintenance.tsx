@@ -191,7 +191,7 @@ export default function Maintenance({
           </div>
         )}
         {!countdownText && hasValidExpectedEnd && countdownFinished && (
-          <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-100 text-blue-800 text-sm font-semibold">
+          <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-100 text-[#81B81D] text-sm font-semibold">
             Final checks in progress...
           </div>
         )}
@@ -212,8 +212,8 @@ export default function Maintenance({
 
         <div className="mt-8 border border-indigo-100 rounded-lg p-5 bg-indigo-50/40">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <h2 className="text-lg font-semibold text-indigo-900">While You Wait: Quick Quiz</h2>
-            <span className="text-xs font-medium text-indigo-700 bg-indigo-100 px-2 py-1 rounded">
+            <h2 className="text-lg font-semibold text-[#81B81D]">While You Wait: Quick Quiz</h2>
+            <span className="text-xs font-medium text-[#81B81D] bg-indigo-100 px-2 py-1 rounded">
               Score: {correctCount} / {attemptCount}
             </span>
           </div>
@@ -236,7 +236,7 @@ export default function Maintenance({
                   }
                 } else {
                   className += isSelected
-                    ? 'border-indigo-500 bg-indigo-50 text-indigo-900'
+                    ? 'border-indigo-500 bg-indigo-50 text-[#81B81D]'
                     : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50'
                 }
                 return (
@@ -290,7 +290,7 @@ export default function Maintenance({
 
           {quizComplete && (
             <div className="mt-4 rounded-lg border border-indigo-200 bg-white p-4">
-              <p className="text-lg font-semibold text-indigo-900">
+              <p className="text-lg font-semibold text-[#81B81D]">
                 Quiz complete: {correctCount} / {QUIZ_BANK.length}
               </p>
               <p className="mt-2 text-sm text-gray-700">{scoreMessage}</p>

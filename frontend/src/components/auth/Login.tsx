@@ -97,7 +97,7 @@ export default function Login() {
           <form className="space-y-6" onSubmit={handleLogin}>
             {notice && (
               <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
-                <div className="text-sm text-blue-800 font-medium">{notice}</div>
+                <div className="text-sm text-[#81B81D] font-medium">{notice}</div>
               </div>
             )}
             {error && (

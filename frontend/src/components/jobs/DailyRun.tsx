@@ -102,7 +102,7 @@ export default function DailyRun() {
       case 'completed':
         return 'bg-green-100 text-green-800'
       case 'processing':
-        return 'bg-blue-100 text-blue-800'
+        return 'bg-blue-100 text-[#81B81D]'
       case 'failed':
         return 'bg-red-100 text-red-800'
       case 'pending':

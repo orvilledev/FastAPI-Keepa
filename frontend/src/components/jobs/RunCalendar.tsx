@@ -319,9 +319,9 @@ export default function RunCalendar() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {data?.ongoing_runs.map((run) => (
               <div key={run.id} className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                <p className="text-sm font-semibold text-blue-900">{run.category.toUpperCase()} - {run.status}</p>
-                <p className="text-xs text-blue-800">{run.job_name}</p>
-                <p className="text-xs text-blue-700 mt-1">Started: {formatLocalDateTime(run.created_at)}</p>
+                <p className="text-sm font-semibold text-[#81B81D]">{run.category.toUpperCase()} - {run.status}</p>
+                <p className="text-xs text-[#81B81D]">{run.job_name}</p>
+                <p className="text-xs text-[#81B81D] mt-1">Started: {formatLocalDateTime(run.created_at)}</p>
               </div>
             ))}
           </div>

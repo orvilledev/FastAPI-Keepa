@@ -344,11 +344,11 @@ export default function MyToolbox() {
                     )}
                     <div className="flex items-center gap-2 mb-4">
                       {aid.category && (
-                        <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
+                        <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-100 text-[#81B81D] rounded">
                           {aid.category}
                         </span>
                       )}
-                      <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
+                      <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-100 text-[#81B81D] rounded">
                         Job Aid
                       </span>
                     </div>
@@ -462,7 +462,7 @@ export default function MyToolbox() {
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => handleEdit(tool)}
-                          className="text-[#404040] hover:text-indigo-800 text-sm"
+                          className="text-[#404040] hover:text-[#6F9E18] text-sm"
                           title="Edit"
                         >
                           ✏️

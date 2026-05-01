@@ -489,7 +489,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
       case 'completed':
         return 'bg-green-100 text-green-800'
       case 'processing':
-        return 'bg-blue-100 text-blue-800'
+        return 'bg-blue-100 text-[#81B81D]'
       case 'failed':
         return 'bg-red-100 text-red-800'
       case 'pending':
@@ -732,7 +732,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                   deletingUpload ||
                   !uploadRecipientsDirty
                 }
-                className="px-3 py-1.5 rounded-md border border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50 disabled:opacity-50 text-sm font-medium"
+                className="px-3 py-1.5 rounded-md border border-indigo-300 text-[#81B81D] bg-white hover:bg-indigo-50 disabled:opacity-50 text-sm font-medium"
               >
                 {savingUploadRecipients ? 'Saving...' : 'Save Recipients'}
               </button>
@@ -744,11 +744,11 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
 
           {latestUpload && (
             <div className="rounded-lg border border-blue-200 p-4 bg-blue-50">
-              <p className="text-sm font-semibold text-blue-900">Latest imported report</p>
-              <p className="text-xs text-blue-800 mt-1">
+              <p className="text-sm font-semibold text-[#81B81D]">Latest imported report</p>
+              <p className="text-xs text-[#81B81D] mt-1">
                 {latestUpload.filename} | {latestUpload.upc_count} UPCs | date {latestUpload.uploaded_for_date}
               </p>
-              <p className="text-xs text-blue-800 mt-1">
+              <p className="text-xs text-[#81B81D] mt-1">
                 Parse status:{' '}
                 <span className="font-semibold">{(latestUpload.parse_status || 'pending').toUpperCase()}</span>
                 {latestUpload.row_count ? ` | Parsed rows: ${latestUpload.row_count}` : ''}

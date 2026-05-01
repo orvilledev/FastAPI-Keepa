@@ -120,8 +120,8 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
       {panelOpen && (
         <div className="border border-gray-200 rounded-xl bg-white shadow-lg p-4 space-y-3 max-h-[min(70vh,520px)] overflow-y-auto">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-gray-500">Recipients are managed in <Link to="/email-list" className="text-indigo-700 underline">Email List</Link>.</p>
-            <button type="button" className="text-xs text-indigo-700 underline" onClick={() => void refreshData()}>
+            <p className="text-xs text-gray-500">Recipients are managed in <Link to="/email-list" className="text-[#81B81D] underline">Email List</Link>.</p>
+            <button type="button" className="text-xs text-[#81B81D] underline" onClick={() => void refreshData()}>
               Refresh
             </button>
           </div>
@@ -142,7 +142,7 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
                       id={`er-${email}`}
                       checked={selected.has(email)}
                       onChange={() => toggleEmail(email)}
-                      className="shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      className="shrink-0 rounded border-gray-300 text-[#81B81D] focus:ring-indigo-500"
                     />
                     <label htmlFor={`er-${email}`} className="min-w-0 flex-1 cursor-pointer text-sm text-gray-800">
                       {label ? (

@@ -612,7 +612,7 @@ export default function JobDetail() {
                       {/* Next Run Info */}
                       {schedulerInfo?.next_run_time_taipei && (
                         <div className="bg-blue-50 rounded-lg p-3">
-                          <p className="text-sm text-blue-800">
+                          <p className="text-sm text-[#81B81D]">
                             <span className="font-medium">Next Run:</span> {schedulerInfo.next_run_time_taipei}
                           </p>
                         </div>

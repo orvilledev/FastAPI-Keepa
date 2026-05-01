@@ -99,7 +99,7 @@ export default function NoteCard({
           <div className="flex gap-2 ml-2">
             <button
               onClick={() => onEdit(note)}
-              className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
+              className="px-2 py-1 text-sm text-[#404040] hover:text-[#6F9E18] hover:bg-indigo-50 rounded transition-colors"
               title="Edit"
             >
               Edit
@@ -142,7 +142,7 @@ export default function NoteCard({
                 </span>
                 <button
                   onClick={() => onToggleReveal(note.id)}
-                  className="text-xs text-[#404040] hover:text-indigo-800 font-medium"
+                  className="text-xs text-[#404040] hover:text-[#6F9E18] font-medium"
                 >
                   {isRevealed ? '👁️ Hide' : '👁️‍🗨️ Reveal'}
                 </button>
@@ -158,14 +158,14 @@ export default function NoteCard({
                 {isSessionUnlocked ? (
                   <button
                     onClick={() => onHideSession(note.id)}
-                    className="text-xs text-[#404040] hover:text-indigo-800 font-medium"
+                    className="text-xs text-[#404040] hover:text-[#6F9E18] font-medium"
                   >
                     👁️ Hide
                   </button>
                 ) : (
                   <button
                     onClick={() => onShowPasswordPrompt(note.id, 'view')}
-                    className="text-xs text-[#404040] hover:text-indigo-800 font-medium"
+                    className="text-xs text-[#404040] hover:text-[#6F9E18] font-medium"
                   >
                     👁️ Reveal
                   </button>

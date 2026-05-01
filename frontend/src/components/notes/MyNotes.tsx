@@ -47,7 +47,7 @@ type Importance = 'low' | 'normal' | 'high' | 'urgent'
 
 const importanceOptions: { value: Importance; label: string; color: string }[] = [
   { value: 'low', label: 'Low', color: 'bg-gray-100 text-gray-700' },
-  { value: 'normal', label: 'Normal', color: 'bg-blue-100 text-blue-700' },
+  { value: 'normal', label: 'Normal', color: 'bg-blue-100 text-[#81B81D]' },
   { value: 'high', label: 'High', color: 'bg-[#81B81D]/20 text-[#111827]' },
   { value: 'urgent', label: 'Urgent', color: 'bg-red-100 text-red-700' },
 ]
@@ -1409,7 +1409,7 @@ export default function MyNotes() {
                       {canEditNote(note) && (
                         <button
                           onClick={() => handleEditClick(note)}
-                          className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
+                          className="px-2 py-1 text-sm text-[#404040] hover:text-[#6F9E18] hover:bg-indigo-50 rounded transition-colors"
                           title="Edit"
                         >
                           Edit
@@ -1417,14 +1417,14 @@ export default function MyNotes() {
                       )}
                       <button
                         onClick={() => handleOpenFullView(note)}
-                        className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
+                        className="px-2 py-1 text-sm text-[#404040] hover:text-[#6F9E18] hover:bg-indigo-50 rounded transition-colors"
                         title="View full page"
                       >
                         View
                       </button>
                       <button
                         onClick={() => handleCopyNote(note)}
-                        className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
+                        className="px-2 py-1 text-sm text-[#404040] hover:text-[#6F9E18] hover:bg-indigo-50 rounded transition-colors"
                         title="Copy note content"
                       >
                         {copiedNoteId === note.id ? 'Copied' : 'Copy'}
@@ -1432,7 +1432,7 @@ export default function MyNotes() {
                       {owned && (
                         <button
                           onClick={() => handleOpenShareModal(note)}
-                          className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
+                          className="px-2 py-1 text-sm text-[#404040] hover:text-[#6F9E18] hover:bg-indigo-50 rounded transition-colors"
                           title="Share note"
                         >
                           Share
@@ -1456,7 +1456,7 @@ export default function MyNotes() {
                       )}
                       {getImportanceBadge(importance)}
                       {note.access_type === 'shared' && (
-                        <span className="px-2 py-1 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+                        <span className="px-2 py-1 rounded text-xs font-medium bg-indigo-100 text-[#81B81D]">
                           Shared ({note.shared_permission === 'edit' ? 'Can edit' : 'View only'})
                         </span>
                       )}
@@ -1492,7 +1492,7 @@ export default function MyNotes() {
                             </span>
                             <button
                               onClick={() => toggleReveal(note.id)}
-                              className="text-xs text-[#404040] hover:text-indigo-800 font-medium"
+                              className="text-xs text-[#404040] hover:text-[#6F9E18] font-medium"
                             >
                               {revealedNotes.has(note.id) ? '👁️ Hide' : '👁️‍🗨️ Reveal'}
                             </button>
@@ -1513,7 +1513,7 @@ export default function MyNotes() {
                                     return newSet
                                   })
                                 }}
-                                className="text-xs text-[#404040] hover:text-indigo-800 font-medium"
+                                className="text-xs text-[#404040] hover:text-[#6F9E18] font-medium"
                               >
                                 👁️ Hide
                               </button>
@@ -1524,7 +1524,7 @@ export default function MyNotes() {
                                   setPasswordInput('')
                                   setPasswordError(null)
                                 }}
-                                className="text-xs text-[#404040] hover:text-indigo-800 font-medium"
+                                className="text-xs text-[#404040] hover:text-[#6F9E18] font-medium"
                               >
                                 👁️ Reveal
                               </button>

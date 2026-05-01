@@ -8,7 +8,7 @@ export default function About() {
           <img src="/app-icon.svg" alt={`${APP_NAME} logo`} className="w-14 h-14" />
         </div>
         <h1 className="text-3xl font-bold text-gray-900">About This Project</h1>
-        <p className="mt-2 text-sm font-medium text-indigo-700">
+        <p className="mt-2 text-sm font-medium text-[#81B81D]">
           Application Version: {APP_VERSION_LABEL}
         </p>
         <p className="mt-3 text-gray-600 max-w-4xl">

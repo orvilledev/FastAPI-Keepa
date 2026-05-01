@@ -197,7 +197,7 @@ export default function JobList() {
         </div>
         <div className="stat-card border-blue-200/50 bg-gradient-to-br from-blue-50/50 to-white">
           <div className="text-sm font-medium text-gray-500 mb-1">Processing</div>
-          <div className="text-3xl font-bold text-blue-600">{stats.processing}</div>
+          <div className="text-3xl font-bold text-[#81B81D]">{stats.processing}</div>
         </div>
         <div className="stat-card border-green-200/50 bg-gradient-to-br from-green-50/50 to-white">
           <div className="text-sm font-medium text-gray-500 mb-1">Completed</div>
@@ -278,7 +278,7 @@ export default function JobList() {
                     className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       isImportRun
                         ? 'bg-[#81B81D]/20 text-[#111827]'
-                        : 'bg-blue-100 text-blue-800'
+                        : 'bg-blue-100 text-[#81B81D]'
                     }`}
                   >
                     {isImportRun ? 'Import Mode' : 'API Mode'}
