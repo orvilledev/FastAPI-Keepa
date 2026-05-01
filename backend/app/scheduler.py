@@ -23,6 +23,19 @@ scheduler = AsyncIOScheduler()
 
 DEFAULT_UPLOADED_REPORT_WAIT_TIMEOUT_SECONDS = 90
 UPLOADED_REPORT_WAIT_POLL_SECONDS = 3
+VALID_INPUT_MODES = {"api", "uploaded"}
+# In-memory fail-safe used only when scheduler_settings cannot be read reliably.
+# This avoids surprising mode flips to API during transient DB/read issues.
+_last_known_input_mode: dict[str, str] = {}
+
+
+def remember_input_mode(category: str, mode: str) -> None:
+    """Persist the latest valid scheduler input mode in-memory for fallback use."""
+    normalized_category = str(category or "").strip().lower()
+    normalized_mode = str(mode or "").strip().lower()
+    if not normalized_category or normalized_mode not in VALID_INPUT_MODES:
+        return
+    _last_known_input_mode[normalized_category] = normalized_mode
 
 
 def _normalize_price(value) -> Optional[float]:
@@ -326,7 +339,19 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
             )
             if category_settings_response.data:
                 custom_recipients = category_settings_response.data[0].get("email_recipients")
-                input_mode = (category_settings_response.data[0].get("input_mode") or "api").strip().lower()
+                raw_mode = str(category_settings_response.data[0].get("input_mode") or "").strip().lower()
+                if raw_mode in VALID_INPUT_MODES:
+                    input_mode = raw_mode
+                    remember_input_mode(category, raw_mode)
+                else:
+                    fallback_mode = _last_known_input_mode.get(category, "api")
+                    logger.warning(
+                        "Invalid/missing input_mode for %s (value=%r); using last-known mode=%s",
+                        category.upper(),
+                        raw_mode or None,
+                        fallback_mode,
+                    )
+                    input_mode = fallback_mode
                 wait_timeout_raw = category_settings_response.data[0].get("uploaded_wait_timeout_seconds")
                 try:
                     uploaded_wait_timeout_seconds = int(wait_timeout_raw)
@@ -335,10 +360,24 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                 uploaded_wait_timeout_seconds = max(0, min(900, uploaded_wait_timeout_seconds))
             else:
                 uploaded_wait_timeout_seconds = DEFAULT_UPLOADED_REPORT_WAIT_TIMEOUT_SECONDS
+                fallback_mode = _last_known_input_mode.get(category, "api")
+                logger.warning(
+                    "No scheduler_settings row found for %s; using last-known mode=%s",
+                    category.upper(),
+                    fallback_mode,
+                )
+                input_mode = fallback_mode
 
         except Exception as recipients_err:
             logger.warning(f"Could not load scheduler email recipients for {category.upper()}: {recipients_err}")
             uploaded_wait_timeout_seconds = DEFAULT_UPLOADED_REPORT_WAIT_TIMEOUT_SECONDS
+            fallback_mode = _last_known_input_mode.get(category, "api")
+            logger.warning(
+                "Falling back to last-known input mode for %s: %s",
+                category.upper(),
+                fallback_mode,
+            )
+            input_mode = fallback_mode
 
         if normalized_forced_mode:
             input_mode = normalized_forced_mode

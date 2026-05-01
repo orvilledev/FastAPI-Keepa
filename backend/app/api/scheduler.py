@@ -1,7 +1,13 @@
 """Scheduler API endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, BackgroundTasks
 from app.dependencies import get_current_user
-from app.scheduler import scheduler, update_scheduler_settings, pause_scheduler, run_daily_job_for_category
+from app.scheduler import (
+    scheduler,
+    update_scheduler_settings,
+    pause_scheduler,
+    run_daily_job_for_category,
+    remember_input_mode,
+)
 from app.database import get_supabase
 from app.utils.error_handler import handle_api_errors
 from datetime import datetime, timedelta, timezone as dt_timezone
@@ -797,6 +803,7 @@ async def update_scheduler_settings_endpoint(
     # Update the actual scheduler
     try:
         is_enabled = updated_settings.get("enabled", True)
+        remember_input_mode(category, updated_settings.get("input_mode", "api"))
         update_scheduler_settings(
             timezone_str=updated_settings.get("timezone", "America/Chicago"),
             hour=updated_settings.get("hour", 6),
