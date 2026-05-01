@@ -165,6 +165,9 @@ export default function MyNotes() {
   const pageSize = 20
   const isPopout = location.pathname === '/notes-popout'
   const popoutNoteId = isPopout ? (searchParams.get('noteId') || '').trim() : ''
+  const popoutMode = isPopout ? (searchParams.get('mode') || '').trim().toLowerCase() : ''
+  const isEditPopout = popoutMode === 'edit'
+  const [autoEditAttempted, setAutoEditAttempted] = useState(false)
   const openPopoutWindow = () => {
     const popup = window.open(
       '/notes-popout',
@@ -178,6 +181,14 @@ export default function MyNotes() {
       `/notes-popout?noteId=${encodeURIComponent(noteId)}`,
       `msw-note-popout-${noteId}`,
       'width=560,height=820,resizable=yes,scrollbars=yes'
+    )
+    popup?.focus()
+  }
+  const openEditNotePopoutWindow = (noteId: string) => {
+    const popup = window.open(
+      `/notes-popout?noteId=${encodeURIComponent(noteId)}&mode=edit`,
+      `msw-note-edit-popout-${noteId}`,
+      'width=640,height=900,resizable=yes,scrollbars=yes'
     )
     popup?.focus()
   }
@@ -409,6 +420,9 @@ export default function MyNotes() {
       setShowAddForm(false)
       setSuccess('Note updated!')
       await loadNotes()
+      if (isEditPopout) {
+        window.close()
+      }
     } catch (err: any) {
       console.error('Failed to update note:', err)
       setError(err?.response?.data?.detail || err?.message || 'Failed to update note')
@@ -447,6 +461,10 @@ export default function MyNotes() {
       setError('You do not have permission to edit this note.')
       return
     }
+    if (!isPopout) {
+      openEditNotePopoutWindow(note.id)
+      return
+    }
     // Check if note has password protection and requires password always
     const isUnlocked = note.require_password_always 
       ? sessionUnlockedNotes.has(note.id)
@@ -473,6 +491,17 @@ export default function MyNotes() {
     })
     setShowAddForm(true)
   }
+
+  useEffect(() => {
+    setAutoEditAttempted(false)
+  }, [popoutNoteId, popoutMode])
+
+  useEffect(() => {
+    if (!isEditPopout || autoEditAttempted || loading) return
+    if (notes.length !== 1) return
+    setAutoEditAttempted(true)
+    void handleEditClick(notes[0])
+  }, [isEditPopout, autoEditAttempted, loading, notes])
 
   const handlePasswordSubmit = async () => {
     if (!passwordPrompt) return
@@ -754,6 +783,21 @@ export default function MyNotes() {
     }
   }
 
+  const groupedNotes = useMemo(() => {
+    const groups = new Map<string, Note[]>()
+    notes.forEach((note) => {
+      const key = (note.category || '').trim() || 'Uncategorized'
+      const existing = groups.get(key) || []
+      existing.push(note)
+      groups.set(key, existing)
+    })
+    return Array.from(groups.entries()).sort((a, b) => {
+      if (a[0] === 'Uncategorized') return 1
+      if (b[0] === 'Uncategorized') return -1
+      return a[0].localeCompare(b[0])
+    })
+  }, [notes])
+
   useEffect(() => {
     if (isPopout) {
       document.title = popoutNoteId ? 'MSW Note Popout' : 'MSW Notes Popout'
@@ -980,7 +1024,7 @@ export default function MyNotes() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
-            {isPopout ? 'Notes Reference' : 'My Notes'}
+            {isEditPopout ? 'Edit Note' : isPopout ? 'Notes Reference' : 'My Notes'}
           </h1>
           <p className="mt-1 text-sm text-gray-500">
             Create and manage your notes — including items shared with you.
@@ -1398,8 +1442,20 @@ export default function MyNotes() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {notes.map((note, index) => {
+          <div className="space-y-5">
+            {groupedNotes.map(([categoryName, categoryNotes], groupIndex) => (
+              <section
+                key={categoryName}
+                className="rounded-xl border border-gray-200 bg-white/90 shadow-sm p-4"
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-base font-semibold text-gray-900">{categoryName}</h3>
+                  <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded-full">
+                    {categoryNotes.length} note{categoryNotes.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {categoryNotes.map((note, index) => {
               const importance = (note as any).importance || 'normal'
               const color = getNoteColor(note.color)
               const owned = isNoteOwner(note)
@@ -1469,7 +1525,7 @@ export default function MyNotes() {
                   className={`bg-white ${color.border} border-4 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 note-box`}
                   style={{
                     animation: 'fadeIn 0.3s ease-out',
-                    animationDelay: `${index * 0.05}s`,
+                    animationDelay: `${(groupIndex * 0.02) + (index * 0.04)}s`,
                     animationFillMode: 'both',
                   }}
                 >
@@ -1479,7 +1535,7 @@ export default function MyNotes() {
                       cardDraggable ? 'cursor-move' : 'cursor-default'
                     }`}
                   >
-                    <h3 className="text-lg font-semibold text-gray-900 leading-tight mb-3 break-words">
+                    <h3 className="text-base font-semibold text-gray-900 leading-tight mb-3 break-words">
                       {note.title}
                     </h3>
                     <div className="flex gap-2 flex-wrap mb-3">
@@ -1623,8 +1679,8 @@ export default function MyNotes() {
                           onClick={(e) => e.currentTarget.focus()}
                           onKeyDown={handleNoteContentKeyDown}
                           style={{
-                            minHeight: '100px',
-                            maxHeight: '300px',
+                            minHeight: '70px',
+                            maxHeight: '180px',
                             overflowY: 'auto',
                             lineHeight: '1.6',
                             userSelect: 'text',
@@ -1653,6 +1709,9 @@ export default function MyNotes() {
                 </div>
               )
             })}
+                </div>
+              </section>
+            ))}
           </div>
 
           {/* Pagination */}
