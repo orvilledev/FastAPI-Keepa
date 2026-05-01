@@ -96,6 +96,19 @@ function PrivateLayout() {
   )
 }
 
+/** Dedicated notes window without sidebar/header layout chrome. */
+function NotesPopoutRoute() {
+  const { authUser } = useUser()
+  if (!authUser) {
+    return <Navigate to="/login" replace />
+  }
+  return (
+    <ProtectedRoute>
+      <MyNotes />
+    </ProtectedRoute>
+  )
+}
+
 /** Remembers the last in-app private URL for refresh recovery. */
 function RememberLastPrivatePath() {
   const { authUser } = useUser()
@@ -192,6 +205,7 @@ function AppRoutes() {
             </GuestRoute>
           }
         />
+        <Route path="/notes-popout" element={<NotesPopoutRoute />} />
 
         <Route element={<PrivateLayout />}>
           <Route path="dashboard" element={<Dashboard />} />

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { authApi, notesApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
 import type { Note, NoteShare } from '../../types'
@@ -103,6 +103,7 @@ const maskContent = (content: string): string => {
 type NotesScope = 'my' | 'shared' | 'all'
 
 export default function MyNotes() {
+  const location = useLocation()
   const { userInfo } = useUser()
   const [notesScope, setNotesScope] = useState<NotesScope>('my')
   const [notes, setNotes] = useState<Note[]>([])
@@ -161,6 +162,15 @@ export default function MyNotes() {
   const quillRef = useRef<ReactQuill>(null)
 
   const pageSize = 20
+  const isPopout = location.pathname === '/notes-popout'
+  const openPopoutWindow = () => {
+    const popup = window.open(
+      '/notes-popout',
+      'msw-notes-popout',
+      'width=560,height=820,resizable=yes,scrollbars=yes'
+    )
+    popup?.focus()
+  }
 
   // Dynamically load Quill CSS only when the editor is needed
   useEffect(() => {
@@ -725,8 +735,14 @@ export default function MyNotes() {
     }
   }
 
+  useEffect(() => {
+    if (isPopout) {
+      document.title = 'MSW Notes Popout'
+    }
+  }, [isPopout])
+
   return (
-    <div className="space-y-6">
+    <div className={isPopout ? 'min-h-screen bg-slate-50 p-4 space-y-4' : 'space-y-6'}>
       {/* Password Prompt Modal */}
       {passwordPrompt && passwordPrompt.show && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -944,19 +960,42 @@ export default function MyNotes() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">My Notes</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {isPopout ? 'Notes Reference' : 'My Notes'}
+          </h1>
           <p className="mt-1 text-sm text-gray-500">
             Create and manage your notes — including items shared with you.
           </p>
         </div>
-        {!showAddForm && (
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors font-medium"
-          >
-            + Add Note
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {!isPopout && (
+            <button
+              type="button"
+              onClick={openPopoutWindow}
+              className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+              title="Open notes in a separate window"
+            >
+              Pop out Notes
+            </button>
+          )}
+          {isPopout && (
+            <button
+              type="button"
+              onClick={() => window.close()}
+              className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+            >
+              Close Window
+            </button>
+          )}
+          {!showAddForm && (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors font-medium"
+            >
+              + Add Note
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -994,7 +1033,7 @@ export default function MyNotes() {
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
           {success}{' '}
           <Link
-            to="/my-space/notes"
+            to={isPopout ? '/notes-popout' : '/my-space/notes'}
             onClick={handleBackToNotes}
             className="text-green-800 font-medium underline hover:text-green-900"
           >
