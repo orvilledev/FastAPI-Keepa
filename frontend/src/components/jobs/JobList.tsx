@@ -210,35 +210,23 @@ export default function JobList() {
       </div>
 
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-        <table className="min-w-[1240px] w-full divide-y divide-gray-200">
+        <div className="overflow-x-auto lg:overflow-x-visible">
+        <table className="w-full table-fixed divide-y divide-gray-200">
           <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50">
             <tr>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+              <th className="w-[38%] px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                 Job Name
               </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+              <th className="w-[14%] px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                 Status
               </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+              <th className="w-[14%] px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                 Run Method
               </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+              <th className="w-[20%] px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                 Progress
               </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Total UPCs
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Initiated By
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Completed
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Duration
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+              <th className="w-[14%] px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -246,7 +234,7 @@ export default function JobList() {
           <tbody className="bg-white divide-y divide-gray-100">
             {loading ? (
               <tr>
-                <td colSpan={9} className="px-6 py-8 text-center text-sm text-gray-500">
+                <td colSpan={5} className="px-6 py-8 text-center text-sm text-gray-500">
                   Loading jobs...
                 </td>
               </tr>
@@ -265,12 +253,17 @@ export default function JobList() {
                 key={job.id}
                 className={`transition-colors duration-150 ${isSynthetic ? 'bg-amber-50/30 hover:bg-amber-50/40' : 'hover:bg-gray-50/50'}`}
               >
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className={`text-sm font-semibold ${isImportRun ? 'text-[#2F6F0F]' : 'text-[#0B3D91]'}`}>
+                <td className="px-4 py-3">
+                  <div className={`text-sm font-semibold truncate ${isImportRun ? 'text-[#2F6F0F]' : 'text-[#0B3D91]'}`}>
                     {job.job_name}
                   </div>
+                  <div className="mt-1 text-xs text-gray-500 truncate">
+                    UPCs: {job.total_upcs.toLocaleString()} • By: {job.initiated_by || 'Unknown'} • Done:{' '}
+                    {job.completed_at ? new Date(job.completed_at).toLocaleDateString() : '-'} • Duration:{' '}
+                    {isSynthetic ? '-' : formatRunDuration(job.created_at, job.completed_at)}
+                  </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-3 py-3 whitespace-nowrap">
                   <span
                     className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       isSynthetic ? SCHEDULED_STATUS_CLASS : getStatusColor(job.status)
@@ -280,7 +273,7 @@ export default function JobList() {
                     {displayStatus}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-3 py-3 whitespace-nowrap">
                   <span
                     className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       isImportRun
@@ -291,26 +284,12 @@ export default function JobList() {
                     {isImportRun ? 'Import Mode' : 'API Mode'}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600">
                   {isSynthetic
                     ? 'Waiting for countdown'
                     : `${job.completed_batches} / ${job.total_batches} batches`}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                  {job.total_upcs.toLocaleString()}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                  {job.initiated_by || 'Unknown'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                  {job.completed_at
-                    ? new Date(job.completed_at).toLocaleDateString()
-                    : '-'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                  {isSynthetic ? '-' : formatRunDuration(job.created_at, job.completed_at)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                <td className="px-3 py-3 whitespace-nowrap text-sm font-medium">
                   {isSynthetic ? (
                     <span className="text-xs text-amber-700 font-medium">Auto-run placeholder</span>
                   ) : (
