@@ -4,6 +4,9 @@ export default function About() {
   return (
     <div className="space-y-6">
       <div className="card p-8">
+        <div className="mb-4">
+          <img src="/app-icon.svg" alt={`${APP_NAME} logo`} className="w-14 h-14" />
+        </div>
         <h1 className="text-3xl font-bold text-gray-900">About This Project</h1>
         <p className="mt-2 text-sm font-medium text-indigo-700">
           Application Version: {APP_VERSION_LABEL}
