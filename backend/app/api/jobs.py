@@ -80,6 +80,7 @@ async def list_jobs(
     )
     jobs = job_repo.enrich_jobs_with_initiated_by(jobs)
     jobs = job_repo.enrich_jobs_with_total_upcs(jobs)
+    jobs = job_repo.enrich_jobs_with_live_completed_batches(jobs)
     return [BatchJobResponse(**job) for job in jobs]
 
 
@@ -112,6 +113,7 @@ async def get_job(
     job_repo = JobRepository(db)
     enriched_jobs = job_repo.enrich_jobs_with_initiated_by([job])
     enriched_jobs = job_repo.enrich_jobs_with_total_upcs(enriched_jobs)
+    enriched_jobs = job_repo.enrich_jobs_with_live_completed_batches(enriched_jobs)
     return BatchJobResponse(**enriched_jobs[0])
 
 

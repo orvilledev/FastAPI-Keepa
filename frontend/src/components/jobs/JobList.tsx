@@ -126,10 +126,12 @@ export default function JobList() {
       clearInterval(intervalRef.current)
     }
     
-    // Auto-refresh stats: Poll every 5 seconds if there are processing jobs, otherwise every 30 seconds
+    // Auto-refresh stats + rows: Poll every 5 seconds if there are processing jobs,
+    // otherwise every 30 seconds so row progress stays aligned with details view.
     const pollInterval = stats.processing > 0 ? 5000 : 30000
     intervalRef.current = setInterval(() => {
       loadAllJobsForStats()
+      loadJobs(currentPage)
     }, pollInterval)
     
     return () => {
@@ -138,7 +140,7 @@ export default function JobList() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stats.processing, loadAllJobsForStats])
+  }, [stats.processing, currentPage, loadAllJobsForStats, loadJobs])
 
   const handlePreviousPage = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault()

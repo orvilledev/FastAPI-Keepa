@@ -164,6 +164,41 @@ class JobRepository:
             jc["total_upcs"] = totals.get(str(jc["id"]), 0)
             enriched.append(jc)
         return enriched
+
+    def enrich_jobs_with_live_completed_batches(self, jobs: List[dict]) -> List[dict]:
+        """
+        Add completed_batches from live upc_batches status counts.
+
+        This keeps list/detail progress consistent even when batch_jobs.completed_batches
+        lags behind while workers are still updating batch rows.
+        """
+        if not jobs:
+            return jobs
+
+        job_ids = [str(j["id"]) for j in jobs]
+        completed_counts: dict[str, int] = {jid: 0 for jid in job_ids}
+
+        rows = read_all_paginated(
+            lambda start, end: self.db.table("upc_batches")
+            .select("batch_job_id, status")
+            .in_("batch_job_id", job_ids)
+            .order("batch_job_id")
+            .range(start, end)
+            .execute()
+        )
+
+        for row in rows:
+            jid = str(row.get("batch_job_id"))
+            status = str(row.get("status") or "").strip().lower()
+            if status in {"completed", "cancelled"}:
+                completed_counts[jid] = completed_counts.get(jid, 0) + 1
+
+        enriched: List[dict] = []
+        for job in jobs:
+            jc = dict(job)
+            jc["completed_batches"] = completed_counts.get(str(jc["id"]), 0)
+            enriched.append(jc)
+        return enriched
     
     def create_job(
         self, 
