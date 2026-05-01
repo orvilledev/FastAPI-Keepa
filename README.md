@@ -537,6 +537,28 @@ WHERE role = 'admin';
 
 4. **Deploy**: Click "Deploy"
 
+### Frontend Cache-Safe Headers (Vercel)
+
+To prevent service worker/update cache issues in production, ensure these headers are set:
+
+- `/sw.js` -> `Cache-Control: no-cache, no-store, must-revalidate`
+- `/index.html` -> `Cache-Control: no-cache`
+- `/assets/*` -> `Cache-Control: public, max-age=31536000, immutable`
+
+This repo already includes these rules in `vercel.json` and `frontend/vercel.json`.
+
+**Verification after deploy:**
+
+```bash
+curl -I https://your-frontend-domain.vercel.app/sw.js
+curl -I https://your-frontend-domain.vercel.app/index.html
+curl -I https://your-frontend-domain.vercel.app/assets/<some-built-file>.js
+```
+
+Expected:
+- `sw.js` and `index.html` return no-cache headers
+- hashed assets return long-lived immutable caching
+
 ### Post-Deployment Steps
 
 1. **Update Backend CORS:**

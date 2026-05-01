@@ -11,3 +11,6 @@ services:
     # Required: KEEPA_API_KEY, KEEPA_API_URL, SUPABASE_URL, SUPABASE_KEY,
     #   EMAIL_FROM, EMAIL_FROM_NAME, EMAIL_PASSWORD, EMAIL_TO,
     #   CORS_ORIGINS (e.g. https://your-frontend.vercel.app)
+    # Note: cache headers for /sw.js, /index.html, and /assets/* belong on the
+    # frontend host (Vercel in this setup). This backend service does not serve
+    # the frontend static files.

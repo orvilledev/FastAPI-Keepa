@@ -24,7 +24,17 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/sw.js')
-      .then(() => clearAppBadge())
+      .then((registration) => {
+        clearAppBadge()
+
+        navigator.serviceWorker.addEventListener('message', (event) => {
+          if (event.data?.type === 'SW_ACTIVATED') {
+            window.location.reload()
+          }
+        })
+
+        return registration.update()
+      })
       .catch((error) => {
         console.warn('Service worker registration failed:', error)
       })
