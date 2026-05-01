@@ -56,6 +56,11 @@ async def list_notes(
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     search: Optional[str] = Query(None, description="Search term for title or content"),
     category: Optional[str] = Query(None, description="Filter by category"),
+    scope: str = Query(
+        "my",
+        description="Notes scope: my (owned only), shared (shared with me), all (combined)",
+        pattern="^(my|shared|all)$",
+    ),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -70,10 +75,13 @@ async def list_notes(
         limit=page_size,
         offset=offset,
         search=search,
-        category=category
+        category=category,
+        scope=scope,
     )
-    
-    total_count = repository.get_notes_count(user_id=user_id, search=search, category=category)
+
+    total_count = repository.get_notes_count(
+        user_id=user_id, search=search, category=category, scope=scope
+    )
     
     try:
         note_responses = []
@@ -189,11 +197,8 @@ async def reorder_notes(
     repository = NoteRepository(db)
     user_id = UUID(current_user["id"])
     
-    # Verify all notes belong to the user
     for note_id in reorder_data.note_ids:
-        note = repository.get_note_by_id(note_id, user_id)
-        if not note:
-            raise HTTPException(status_code=404, detail=f"Note {note_id} not found")
+        repository.ensure_note_owner(note_id, user_id)
     
     repository.reorder_notes(user_id=user_id, note_ids=reorder_data.note_ids)
     return {"message": "Notes reordered successfully"}

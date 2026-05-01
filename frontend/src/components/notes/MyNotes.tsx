@@ -100,8 +100,11 @@ const maskContent = (content: string): string => {
   return tempDiv.innerHTML
 }
 
+type NotesScope = 'my' | 'shared' | 'all'
+
 export default function MyNotes() {
   const { userInfo } = useUser()
+  const [notesScope, setNotesScope] = useState<NotesScope>('my')
   const [notes, setNotes] = useState<Note[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -182,15 +185,20 @@ export default function MyNotes() {
   // Load categories only once on mount (separate from pagination)
   const loadCategories = useCallback(async () => {
     if (availableCategories.length > 0) return // Already loaded
-    
+
     try {
-      // Fetch a larger set of notes just once to extract categories
-      const response = await notesApi.listNotes(0, 100, undefined, undefined)
-      const categories = Array.from(new Set(
-        response.notes
-          .map(note => note.category)
-          .filter((cat): cat is string => !!cat && cat.trim() !== '')
-      )).sort()
+      const [mine, sharedInto] = await Promise.all([
+        notesApi.listNotes(0, 100, undefined, undefined, 'my'),
+        notesApi.listNotes(0, 100, undefined, undefined, 'shared'),
+      ])
+      const combined = [...(mine.notes || []), ...(sharedInto.notes || [])]
+      const categories = Array.from(
+        new Set(
+          combined
+            .map((note) => note.category)
+            .filter((cat): cat is string => !!cat && cat.trim() !== '')
+        )
+      ).sort()
       setAvailableCategories(categories)
     } catch (err) {
       console.warn('Failed to load categories:', err)
@@ -209,10 +217,11 @@ export default function MyNotes() {
       
       // Get notes with pagination and filters
       const response = await notesApi.listNotes(
-        currentPage, 
-        pageSize, 
+        currentPage,
+        pageSize,
         searchTerm || undefined,
-        categoryFilter || undefined
+        categoryFilter || undefined,
+        notesScope
       )
       
       setNotes(response.notes || [])
@@ -266,11 +275,15 @@ export default function MyNotes() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, searchTerm, categoryFilter, pageSize])
+  }, [currentPage, searchTerm, categoryFilter, pageSize, notesScope])
 
   useEffect(() => {
     loadNotes()
   }, [loadNotes])
+
+  useEffect(() => {
+    setCurrentPage(0)
+  }, [notesScope])
 
   // Reset to first page when search term or category filter changes
   useEffect(() => {
@@ -376,7 +389,18 @@ export default function MyNotes() {
     }
   }
 
+  const isNoteOwner = (note: Note) => Boolean(userInfo?.id && note.user_id === userInfo.id)
+
+  const canEditNote = (note: Note) =>
+    isNoteOwner(note) || note.shared_permission === 'edit'
+
   const handleDeleteNote = async (noteId: string) => {
+    const note = notes.find((n) => n.id === noteId)
+    if (note && !isNoteOwner(note)) {
+      setError('Only the owner can delete this note.')
+      return
+    }
+
     if (!confirm('Are you sure you want to delete this note?')) return
 
     try {
@@ -390,6 +414,10 @@ export default function MyNotes() {
   }
 
   const handleEditClick = async (note: Note) => {
+    if (!canEditNote(note)) {
+      setError('You do not have permission to edit this note.')
+      return
+    }
     // Check if note has password protection and requires password always
     const isUnlocked = note.require_password_always 
       ? sessionUnlockedNotes.has(note.id)
@@ -917,7 +945,9 @@ export default function MyNotes() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">My Notes</h1>
-          <p className="mt-1 text-sm text-gray-500">Create and manage your personal notes with rich text formatting</p>
+          <p className="mt-1 text-sm text-gray-500">
+            Create and manage your notes — including items shared with you.
+          </p>
         </div>
         {!showAddForm && (
           <button
@@ -927,6 +957,29 @@ export default function MyNotes() {
             + Add Note
           </button>
         )}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            { key: 'my', label: 'My notes' },
+            { key: 'shared', label: 'Shared with me' },
+            { key: 'all', label: 'All' },
+          ] as const
+        ).map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setNotesScope(key)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              notesScope === key
+                ? 'bg-[#404040] text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Error Message */}
@@ -1257,9 +1310,13 @@ export default function MyNotes() {
       ) : notes.length === 0 ? (
         <div className="card p-12 text-center">
           <div className="text-gray-500 text-lg mb-2">
-            {searchTerm ? 'No notes found matching your search' : 'No notes yet'}
+            {searchTerm
+              ? 'No notes found matching your search'
+              : notesScope === 'shared'
+                ? 'Nothing shared with you yet.'
+                : 'No notes yet'}
           </div>
-          {!searchTerm && (
+          {!searchTerm && notesScope === 'my' && (
             <button
               onClick={() => setShowAddForm(true)}
               className="mt-4 px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors font-medium"
@@ -1274,11 +1331,14 @@ export default function MyNotes() {
             {notes.map((note, index) => {
               const importance = (note as any).importance || 'normal'
               const color = getNoteColor(note.color)
+              const owned = isNoteOwner(note)
+              const cardDraggable =
+                owned && notesScope !== 'shared'
 
               return (
                 <div
                   key={note.id}
-                  draggable
+                  draggable={cardDraggable}
                   onDragStart={(e) => {
                     // Only allow dragging from the header area, not from content
                     const target = e.target as HTMLElement
@@ -1337,18 +1397,24 @@ export default function MyNotes() {
                   }}
                 >
                   {/* Header */}
-                  <div className="p-4 border-b border-gray-100 cursor-move note-header">
+                  <div
+                    className={`p-4 border-b border-gray-100 note-header ${
+                      cardDraggable ? 'cursor-move' : 'cursor-default'
+                    }`}
+                  >
                     <h3 className="text-lg font-semibold text-gray-900 leading-tight mb-3 break-words">
                       {note.title}
                     </h3>
                     <div className="flex gap-2 flex-wrap mb-3">
-                      <button
-                        onClick={() => handleEditClick(note)}
-                        className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
-                        title="Edit"
-                      >
-                        Edit
-                      </button>
+                      {canEditNote(note) && (
+                        <button
+                          onClick={() => handleEditClick(note)}
+                          className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
+                          title="Edit"
+                        >
+                          Edit
+                        </button>
+                      )}
                       <button
                         onClick={() => handleOpenFullView(note)}
                         className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
@@ -1363,20 +1429,24 @@ export default function MyNotes() {
                       >
                         {copiedNoteId === note.id ? 'Copied' : 'Copy'}
                       </button>
-                      <button
-                        onClick={() => handleOpenShareModal(note)}
-                        className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
-                        title="Share note"
-                      >
-                        Share
-                      </button>
-                      <button
-                        onClick={() => handleDeleteNote(note.id)}
-                        className="px-2 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
-                        title="Delete"
-                      >
-                        Delete
-                      </button>
+                      {owned && (
+                        <button
+                          onClick={() => handleOpenShareModal(note)}
+                          className="px-2 py-1 text-sm text-[#404040] hover:text-indigo-800 hover:bg-indigo-50 rounded transition-colors"
+                          title="Share note"
+                        >
+                          Share
+                        </button>
+                      )}
+                      {owned && (
+                        <button
+                          onClick={() => handleDeleteNote(note.id)}
+                          className="px-2 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                          title="Delete"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       {note.category && (
@@ -1385,6 +1455,11 @@ export default function MyNotes() {
                         </span>
                       )}
                       {getImportanceBadge(importance)}
+                      {note.access_type === 'shared' && (
+                        <span className="px-2 py-1 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+                          Shared ({note.shared_permission === 'edit' ? 'Can edit' : 'View only'})
+                        </span>
+                      )}
                     </div>
                   </div>
                   

@@ -65,6 +65,10 @@ class NoteResponse(BaseModel):
     position: Optional[int] = 0
     created_at: datetime
     updated_at: datetime
+    #: "owner" for your notes; "shared" when another user granted access via note_shares
+    access_type: str = "owner"
+    #: Set when access_type == "shared" — view | edit
+    shared_permission: Optional[str] = None
 
     class Config:
         from_attributes = True

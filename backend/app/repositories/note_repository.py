@@ -6,7 +6,6 @@ import logging
 from uuid import UUID
 from passlib.context import CryptContext
 import hashlib
-import base64
 
 # Password hashing context
 # We pre-hash all passwords with SHA-256 before passing to bcrypt
@@ -33,96 +32,290 @@ class NoteRepository:
         hex_string = sha256_hash_bytes.hex()
         return hex_string
     
-    def list_notes(self, user_id: UUID, limit: int = 100, offset: int = 0, search: Optional[str] = None, category: Optional[str] = None) -> List[dict]:
-        """List notes for a user with pagination and optional search."""
+    def _sanitize_note_row(
+        self, note: dict, access_type: str = "owner", shared_permission: Optional[str] = None
+    ) -> dict:
+        """Strip secrets and attach access markers for API responses."""
+        note_dict = dict(note)
+        note_dict["has_password"] = bool(note_dict.get("password_hash"))
+        if "password_hash" in note_dict:
+            del note_dict["password_hash"]
+        if "position" not in note_dict or note_dict["position"] is None:
+            note_dict["position"] = 0
+        note_dict["access_type"] = access_type
+        note_dict["shared_permission"] = shared_permission if access_type == "shared" else None
+        return note_dict
+
+    def _note_matches_search_category(
+        self, note: dict, search: Optional[str], category: Optional[str]
+    ) -> bool:
+        if category and category.strip():
+            if (note.get("category") or "").strip() != category.strip():
+                return False
+        if search and search.strip():
+            search_lower = search.strip().lower()
+            if search_lower not in note.get("title", "").lower() and search_lower not in note.get(
+                "content", ""
+            ).lower():
+                return False
+        return True
+
+    def _sort_notes_created_desc(self, notes: List[dict]) -> List[dict]:
+        """Sort newest first."""
+
+        def _key(row: dict) -> str:
+            return str(row.get("created_at") or "")
+
+        return sorted(notes, key=_key, reverse=True)
+
+    def get_note_access(self, note_id: UUID, user_id: UUID) -> dict:
+        """Return access flags or 404 when user cannot access the note."""
+        row_resp = (
+            self.db.table(self.table)
+            .select("user_id")
+            .eq("id", str(note_id))
+            .limit(1)
+            .execute()
+        )
+        if not row_resp.data:
+            raise HTTPException(status_code=404, detail="Note not found")
+        owner_id_str = str(row_resp.data[0]["user_id"])
+        if owner_id_str == str(user_id):
+            return {"is_owner": True, "can_view": True, "can_edit": True, "shared_permission": None}
+
+        share_resp = (
+            self.db.table("note_shares")
+            .select("permission")
+            .eq("note_id", str(note_id))
+            .eq("shared_with_user_id", str(user_id))
+            .limit(1)
+            .execute()
+        )
+        if not share_resp.data:
+            raise HTTPException(status_code=404, detail="Note not found")
+
+        permission = share_resp.data[0]["permission"]
+        return {
+            "is_owner": False,
+            "can_view": True,
+            "can_edit": permission == "edit",
+            "shared_permission": permission,
+        }
+
+    def _list_my_notes_filtered(
+        self, user_id: UUID, search: Optional[str], category: Optional[str]
+    ) -> List[dict]:
+        """All notes owned by user (possibly filtered client-side like existing search semantics)."""
         query = self.db.table(self.table).select("*").eq("user_id", str(user_id))
-        
-        # If search term provided, filter by title or content (case-insensitive partial match)
         if search and search.strip():
             search_term = f"%{search.strip()}%"
-            # Search in title (can be extended to search in content with a DB function)
             query = query.ilike("title", search_term)
-        
-        # Filter by category if provided
         if category and category.strip():
             query = query.eq("category", category.strip())
-        
-        # Order by position first, then by created_at
-        # If position column doesn't exist yet, this will fall back to created_at ordering
+
         try:
-            # Try to order by position, but if column doesn't exist, fall back
-            response = query.order("position", desc=False).order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+            response = (
+                query.order("position", desc=False).order("created_at", desc=True).execute()
+            )
         except Exception as e:
-            # Fallback if position column doesn't exist (migration not run yet)
-            self.logger.warning(f"Position column may not exist, falling back to created_at ordering: {str(e)}")
+            self.logger.warning(
+                "Position column may not exist, falling back to created_at ordering: %s",
+                str(e),
+            )
             try:
-                response = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+                response = query.order("created_at", desc=True).execute()
             except Exception as e2:
-                # If that also fails, try without ordering
-                self.logger.error(f"Error ordering notes: {str(e2)}")
-                response = query.range(offset, offset + limit - 1).execute()
-        
-        # If search provided, also filter by content in the results (client-side for OR logic)
+                self.logger.error("Error ordering notes: %s", str(e2))
+                response = query.execute()
+
         if search and search.strip():
             search_lower = search.strip().lower()
             response.data = [
-                note for note in response.data
-                if search_lower in note.get("title", "").lower() or search_lower in note.get("content", "").lower()
+                note
+                for note in (response.data or [])
+                if search_lower in note.get("title", "").lower()
+                or search_lower in note.get("content", "").lower()
             ]
-        
-        # Don't return password hashes, but indicate if password exists
-        # Also ensure position field exists
-        notes_list = []
-        for note in response.data:
-            # Create a copy to avoid modifying the original
-            note_dict = dict(note)
-            note_dict["has_password"] = bool(note_dict.get("password_hash"))
-            if "password_hash" in note_dict:
-                del note_dict["password_hash"]
-            # Ensure position field exists, default to 0 if not
-            if "position" not in note_dict or note_dict["position"] is None:
-                note_dict["position"] = 0
-            notes_list.append(note_dict)
-        
-        return notes_list
-    
-    def get_notes_count(self, user_id: UUID, search: Optional[str] = None, category: Optional[str] = None) -> int:
-        """Get count of notes for a user matching search criteria."""
-        query = self.db.table(self.table).select("id", count="exact").eq("user_id", str(user_id))
-        
-        # Filter by category if provided
+
+        notes_list: List[dict] = []
+        for note in response.data or []:
+            notes_list.append(self._sanitize_note_row(note, "owner", None))
+        return self._sort_notes_created_desc(notes_list)
+
+    def _list_shared_notes_filtered(
+        self, user_id: UUID, search: Optional[str], category: Optional[str]
+    ) -> List[dict]:
+        """Notes granted via note_shares for the current user."""
+        shr = (
+            self.db.table("note_shares")
+            .select("note_id, permission")
+            .eq("shared_with_user_id", str(user_id))
+            .execute()
+        )
+        share_rows = shr.data or []
+        if not share_rows:
+            return []
+
+        perm_by_id: dict[str, str] = {
+            str(r["note_id"]): r["permission"] for r in share_rows if r.get("note_id")
+        }
+        note_ids = list(perm_by_id.keys())
+        merged: List[dict] = []
+        chunk_size = 75
+        for i in range(0, len(note_ids), chunk_size):
+            chunk = note_ids[i : i + chunk_size]
+            fetched = (
+                self.db.table(self.table)
+                .select("*")
+                .in_("id", chunk)
+                .execute()
+            )
+            for n in fetched.data or []:
+                nd = dict(n)
+                nid = str(nd["id"])
+                perm = perm_by_id.get(nid, "view")
+                if not self._note_matches_search_category(nd, search, category):
+                    continue
+                merged.append(self._sanitize_note_row(nd, "shared", perm))
+
+        return self._sort_notes_created_desc(merged)
+
+    def list_notes(
+        self,
+        user_id: UUID,
+        limit: int = 100,
+        offset: int = 0,
+        search: Optional[str] = None,
+        category: Optional[str] = None,
+        scope: str = "my",
+    ) -> List[dict]:
+        """List notes with pagination; scope my | shared | all."""
+        scope = (scope or "my").strip().lower()
+        if scope not in {"my", "shared", "all"}:
+            raise HTTPException(status_code=400, detail="scope must be 'my', 'shared', or 'all'")
+
+        if scope == "shared":
+            all_shared = self._list_shared_notes_filtered(user_id, search, category)
+            return all_shared[offset : offset + limit]
+
+        if scope == "all":
+            owned = self._list_my_notes_filtered(user_id, search, category)
+            shared = self._list_shared_notes_filtered(user_id, search, category)
+            merged: dict = {}
+            for n in owned:
+                merged[str(n["id"])] = n
+            for n in shared:
+                if str(n["id"]) not in merged:
+                    merged[str(n["id"])] = n
+            combined_sorted = self._sort_notes_created_desc(list(merged.values()))
+            return combined_sorted[offset : offset + limit]
+
+        # scope == "my" — keep DB-side pagination behavior (matches pre-sharing semantics)
+        query = self.db.table(self.table).select("*").eq("user_id", str(user_id))
+
+        if search and search.strip():
+            search_term = f"%{search.strip()}%"
+            query = query.ilike("title", search_term)
+
         if category and category.strip():
             query = query.eq("category", category.strip())
-        
-        # For search, we need to get all notes and filter client-side for accurate count
-        # This is less efficient but necessary for OR conditions with Supabase
+
+        try:
+            response = (
+                query.order("position", desc=False)
+                .order("created_at", desc=True)
+                .range(offset, offset + limit - 1)
+                .execute()
+            )
+        except Exception as e:
+            self.logger.warning(
+                "Position column may not exist, falling back to created_at ordering: %s", str(e)
+            )
+            try:
+                response = (
+                    query.order("created_at", desc=True)
+                    .range(offset, offset + limit - 1)
+                    .execute()
+                )
+            except Exception as e2:
+                self.logger.error(f"Error ordering notes: {str(e2)}")
+                response = query.range(offset, offset + limit - 1).execute()
+
         if search and search.strip():
-            # Get all user notes and filter
+            search_lower = search.strip().lower()
+            response.data = [
+                note
+                for note in (response.data or [])
+                if search_lower in note.get("title", "").lower()
+                or search_lower in note.get("content", "").lower()
+            ]
+
+        return [self._sanitize_note_row(dict(note), "owner", None) for note in response.data or []]
+
+    def get_notes_count(
+        self,
+        user_id: UUID,
+        search: Optional[str] = None,
+        category: Optional[str] = None,
+        scope: str = "my",
+    ) -> int:
+        """Count notes for list pagination."""
+        scope = (scope or "my").strip().lower()
+        if scope not in {"my", "shared", "all"}:
+            raise HTTPException(status_code=400, detail="scope must be 'my', 'shared', or 'all'")
+
+        if scope == "shared":
+            return len(self._list_shared_notes_filtered(user_id, search, category))
+
+        if scope == "all":
+            owned = self._list_my_notes_filtered(user_id, search, category)
+            shared = self._list_shared_notes_filtered(user_id, search, category)
+            merged_ids = set()
+            for n in owned:
+                merged_ids.add(str(n["id"]))
+            for n in shared:
+                merged_ids.add(str(n["id"]))
+            return len(merged_ids)
+
+        query = self.db.table(self.table).select("id", count="exact").eq("user_id", str(user_id))
+        if category and category.strip():
+            query = query.eq("category", category.strip())
+
+        if search and search.strip():
             all_notes_query = self.db.table(self.table).select("*").eq("user_id", str(user_id))
             if category and category.strip():
                 all_notes_query = all_notes_query.eq("category", category.strip())
             all_notes = all_notes_query.execute()
             search_lower = search.strip().lower()
             filtered = [
-                note for note in all_notes.data
-                if search_lower in note.get("title", "").lower() or search_lower in note.get("content", "").lower()
+                note
+                for note in (all_notes.data or [])
+                if search_lower in note.get("title", "").lower()
+                or search_lower in note.get("content", "").lower()
             ]
             return len(filtered)
-        else:
-            response = query.limit(0).execute()
-            return response.count if hasattr(response, 'count') else len(response.data)
-    
+
+        response = query.limit(0).execute()
+        return response.count if hasattr(response, "count") else len(response.data)
+
     def get_note_by_id(self, note_id: UUID, user_id: UUID) -> dict:
-        """Get a note by ID, ensuring it belongs to the user."""
-        response = self.db.table(self.table).select("*").eq("id", str(note_id)).eq("user_id", str(user_id)).execute()
-        if not response.data:
+        """Get one note when current user owns it or it is shared with them."""
+        access = self.get_note_access(note_id, user_id)
+
+        row = (
+            self.db.table(self.table)
+            .select("*")
+            .eq("id", str(note_id))
+            .limit(1)
+            .execute()
+        )
+        if not row.data:
             raise HTTPException(status_code=404, detail="Note not found")
-        note = response.data[0]
-        # Don't return the password hash
-        note["has_password"] = bool(note.get("password_hash"))
-        if "password_hash" in note:
-            del note["password_hash"]
-        return note
+        note = row.data[0]
+
+        if access["is_owner"]:
+            return self._sanitize_note_row(dict(note), "owner", None)
+        return self._sanitize_note_row(dict(note), "shared", access["shared_permission"])
     
     def create_note(self, user_id: UUID, title: str, content: str, category: Optional[str] = None, color: Optional[str] = "yellow", importance: str = "normal", is_protected: bool = False, password: Optional[str] = None, require_password_always: bool = False, position: Optional[int] = None) -> dict:
         """Create a new note."""
@@ -173,18 +366,27 @@ class NoteRepository:
             response = self.db.table(self.table).insert(note_data).execute()
             if not response.data:
                 raise HTTPException(status_code=500, detail="Failed to create note")
-            # Don't return the password hash
-            note = response.data[0]
-            note["has_password"] = bool(note.get("password_hash"))
-            if "password_hash" in note:
-                del note["password_hash"]
-            return note
+            return self._sanitize_note_row(dict(response.data[0]), "owner", None)
         except Exception as e:
             self.logger.error(f"Error creating note: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to create note: {str(e)}")
     
     def update_note(self, note_id: UUID, user_id: UUID, title: Optional[str] = None, content: Optional[str] = None, category: Optional[str] = None, color: Optional[str] = None, importance: Optional[str] = None, is_protected: Optional[bool] = None, password: Optional[str] = None, remove_password: bool = False, require_password_always: Optional[bool] = None) -> dict:
-        """Update a note."""
+        """Update a note (owner or shared collaborator with edit permission)."""
+        access = self.get_note_access(note_id, user_id)
+
+        if not access["is_owner"]:
+            if (
+                password is not None
+                or remove_password
+                or is_protected is not None
+                or require_password_always is not None
+            ):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Shared collaborators cannot change password or protection settings",
+                )
+
         update_data = {}
         if title is not None:
             update_data["title"] = title
@@ -224,29 +426,48 @@ class NoteRepository:
                         status_code=400, 
                         detail="Password processing error. Please try a different password or contact support."
                     )
-                raise HTTPException(status_code=400, detail=f"Password processing error: {error_str}")
+                    raise HTTPException(status_code=400, detail=f"Password processing error: {error_str}")
         
         if not update_data:
             raise HTTPException(status_code=400, detail="No fields to update")
+
+        if not access["can_edit"]:
+            raise HTTPException(status_code=403, detail="You do not have permission to edit this note")
         
         try:
-            response = self.db.table(self.table).update(update_data).eq("id", str(note_id)).eq("user_id", str(user_id)).execute()
+            response = (
+                self.db.table(self.table)
+                .update(update_data)
+                .eq("id", str(note_id))
+                .execute()
+            )
             if not response.data:
                 raise HTTPException(status_code=404, detail="Note not found")
-            # Don't return the password hash
-            note = response.data[0]
-            note["has_password"] = bool(note.get("password_hash"))
-            if "password_hash" in note:
-                del note["password_hash"]
-            return note
+
+            fetched = dict(response.data[0])
+            if access["is_owner"]:
+                return self._sanitize_note_row(fetched, "owner", None)
+            return self._sanitize_note_row(
+                fetched, "shared", access.get("shared_permission")
+            )
+        except HTTPException:
+            raise
         except Exception as e:
             self.logger.error(f"Error updating note: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to update note: {str(e)}")
     
     def verify_note_password(self, note_id: UUID, user_id: UUID, password: str) -> bool:
-        """Verify password for a protected note."""
+        """Verify password for a protected note (owner or collaborator with shared access)."""
         try:
-            response = self.db.table(self.table).select("password_hash").eq("id", str(note_id)).eq("user_id", str(user_id)).execute()
+            self.get_note_access(note_id, user_id)
+
+            response = (
+                self.db.table(self.table)
+                .select("password_hash")
+                .eq("id", str(note_id))
+                .limit(1)
+                .execute()
+            )
             if not response.data or not response.data[0].get("password_hash"):
                 return False
             password_hash = response.data[0]["password_hash"]
@@ -267,15 +488,18 @@ class NoteRepository:
             raise HTTPException(status_code=500, detail=f"Failed to reorder notes: {str(e)}")
     
     def delete_note(self, note_id: UUID, user_id: UUID) -> bool:
-        """Delete a note."""
+        """Delete a note (owner only)."""
+        access = self.get_note_access(note_id, user_id)
+        if not access["is_owner"]:
+            raise HTTPException(status_code=403, detail="Only the note owner can delete this note")
         try:
-            response = self.db.table(self.table).delete().eq("id", str(note_id)).eq("user_id", str(user_id)).execute()
+            self.db.table(self.table).delete().eq("id", str(note_id)).eq("user_id", str(user_id)).execute()
             return True
         except Exception as e:
             self.logger.error(f"Error deleting note: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to delete note: {str(e)}")
 
-    def _ensure_note_owner(self, note_id: UUID, user_id: UUID) -> None:
+    def ensure_note_owner(self, note_id: UUID, user_id: UUID) -> None:
         """Ensure the note exists and belongs to the current user."""
         response = (
             self.db.table(self.table)
@@ -290,7 +514,7 @@ class NoteRepository:
 
     def list_note_shares(self, note_id: UUID, user_id: UUID) -> List[dict]:
         """List all users a note is shared with (owner only)."""
-        self._ensure_note_owner(note_id, user_id)
+        self.ensure_note_owner(note_id, user_id)
 
         shares_response = (
             self.db.table("note_shares")
@@ -328,7 +552,7 @@ class NoteRepository:
 
     def share_note(self, note_id: UUID, owner_user_id: UUID, shared_with_user_id: UUID, permission: str = "view") -> dict:
         """Share a note with another user (owner only)."""
-        self._ensure_note_owner(note_id, owner_user_id)
+        self.ensure_note_owner(note_id, owner_user_id)
         if str(owner_user_id) == str(shared_with_user_id):
             raise HTTPException(status_code=400, detail="You cannot share a note with yourself")
 
@@ -395,6 +619,6 @@ class NoteRepository:
 
     def revoke_note_share(self, note_id: UUID, owner_user_id: UUID, shared_with_user_id: UUID) -> None:
         """Revoke note sharing for a specific user (owner only)."""
-        self._ensure_note_owner(note_id, owner_user_id)
+        self.ensure_note_owner(note_id, owner_user_id)
         self.db.table("note_shares").delete().eq("note_id", str(note_id)).eq("shared_with_user_id", str(shared_with_user_id)).execute()
 

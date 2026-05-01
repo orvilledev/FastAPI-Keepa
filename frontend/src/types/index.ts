@@ -220,6 +220,10 @@ export interface Note {
   has_password?: boolean
   require_password_always?: boolean
   position?: number
+  /** From API — 'owner' (your note) vs 'shared' (shared_with_me listing) */
+  access_type?: 'owner' | 'shared'
+  /** When viewing as recipient — view | edit */
+  shared_permission?: 'view' | 'edit'
   created_at: string
   updated_at: string
 }

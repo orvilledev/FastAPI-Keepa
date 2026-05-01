@@ -778,8 +778,14 @@ export const dashboardApi = {
 
 // Notes API
 export const notesApi = {
-  listNotes: async (page: number = 0, pageSize: number = 20, search?: string, category?: string) => {
-    const params: any = { page, page_size: pageSize }
+  listNotes: async (
+    page: number = 0,
+    pageSize: number = 20,
+    search?: string,
+    category?: string,
+    scope: 'my' | 'shared' | 'all' = 'my'
+  ) => {
+    const params: any = { page, page_size: pageSize, scope }
     if (search) params.search = search
     if (category) params.category = category
     const response = await api.get<{
