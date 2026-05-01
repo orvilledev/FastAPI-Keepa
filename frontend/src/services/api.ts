@@ -514,6 +514,7 @@ export const schedulerApi = {
         timezone: string
         hour: number
         minute: number
+        input_mode?: 'api' | 'uploaded'
         run_mode: 'daily' | 'every_other_day' | 'custom_days' | string
         custom_days: string[]
         anchor_date?: string | null

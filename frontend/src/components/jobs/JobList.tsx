@@ -1,15 +1,60 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { jobsApi } from '../../services/api'
+import { jobsApi, schedulerApi } from '../../services/api'
 import type { BatchJob } from '../../types'
 import { getStatusColor } from '../../utils/statusColors'
 import { formatRunDuration } from '../../utils/timeUtils'
 
 const JOBS_PER_PAGE = 15
 
+type SchedulerCalendar = Awaited<ReturnType<typeof schedulerApi.getCalendar>>
+type SchedulerVendor = SchedulerCalendar['vendors'][number]
+type SyntheticScheduledJob = BatchJob & {
+  is_synthetic: true
+  synthetic_type: 'daily_scheduled'
+  scheduler_category: string
+  scheduler_input_mode: 'api' | 'uploaded'
+}
+
+const SCHEDULED_STATUS_CLASS = 'bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200'
+
 const getRunMethod = (jobName: string): 'import' | 'api' => {
   const normalized = (jobName || '').toLowerCase()
   return normalized.includes('uploaded report') ? 'import' : 'api'
+}
+
+const extractDailyCategory = (jobName: string): string | null => {
+  const normalized = (jobName || '').trim().toLowerCase()
+  const match = normalized.match(/^daily\s+([a-z0-9_-]+)/i)
+  return match?.[1]?.toLowerCase() ?? null
+}
+
+const hasActiveDailyJobForCategory = (jobs: BatchJob[], category: string): boolean =>
+  jobs.some((job) => {
+    const parsedCategory = extractDailyCategory(job.job_name || '')
+    return parsedCategory === category && (job.status === 'pending' || job.status === 'processing')
+  })
+
+const buildSyntheticScheduledJob = (vendor: SchedulerVendor): SyntheticScheduledJob => {
+  const mode: 'api' | 'uploaded' = vendor.input_mode === 'uploaded' ? 'uploaded' : 'api'
+  const nextRun = vendor.next_run_time || new Date().toISOString()
+  const modeLabel = mode === 'uploaded' ? 'Import Mode' : 'API Mode'
+
+  return {
+    id: `scheduled-${vendor.category}-${nextRun}`,
+    job_name: `Daily ${vendor.category.toUpperCase()} Scheduled Run`,
+    status: 'pending',
+    total_batches: 0,
+    completed_batches: 0,
+    total_upcs: 0,
+    created_at: nextRun,
+    initiated_by: 'Daily Run',
+    description: `Auto-scheduled (${modeLabel}); countdown not yet over`,
+    is_synthetic: true,
+    synthetic_type: 'daily_scheduled',
+    scheduler_category: vendor.category,
+    scheduler_input_mode: mode,
+  }
 }
 
 export default function JobList() {
@@ -37,8 +82,32 @@ export default function JobList() {
     try {
       setLoading(true)
       const offset = page * JOBS_PER_PAGE
-      const data = await jobsApi.listJobs(JOBS_PER_PAGE, offset)
-      setJobs(data)
+      const [data, calendar] = await Promise.all([
+        jobsApi.listJobs(JOBS_PER_PAGE, offset),
+        schedulerApi.getCalendar(),
+      ])
+
+      // Keep placeholders only on the first page to avoid pagination duplication.
+      if (page > 0) {
+        setJobs(data)
+        return
+      }
+
+      const nowMs = Date.now()
+      const scheduledRows: SyntheticScheduledJob[] = calendar.vendors
+        .filter((vendor) => {
+          if (!vendor.enabled || !vendor.next_run_time) return false
+          const nextRunMs = new Date(vendor.next_run_time).getTime()
+          if (!Number.isFinite(nextRunMs) || nextRunMs <= nowMs) return false
+          if (hasActiveDailyJobForCategory(data, vendor.category)) return false
+          return true
+        })
+        .map(buildSyntheticScheduledJob)
+
+      const mergedJobs: BatchJob[] = [...scheduledRows, ...data].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+      setJobs(mergedJobs)
     } catch (error) {
       console.error('Failed to load jobs:', error)
     } finally {
@@ -182,10 +251,20 @@ export default function JobList() {
                 </td>
               </tr>
             ) : jobs.map((job) => {
-              const runMethod = getRunMethod(job.job_name || '')
+              const syntheticJob = job as BatchJob & Partial<SyntheticScheduledJob>
+              const isSynthetic = syntheticJob.is_synthetic === true
+              const displayStatus = isSynthetic ? 'scheduled' : job.status
+              const runMethod = isSynthetic
+                ? syntheticJob.scheduler_input_mode === 'uploaded'
+                  ? 'import'
+                  : 'api'
+                : getRunMethod(job.job_name || '')
               const isImportRun = runMethod === 'import'
               return (
-              <tr key={job.id} className="hover:bg-gray-50/50 transition-colors duration-150">
+              <tr
+                key={job.id}
+                className={`transition-colors duration-150 ${isSynthetic ? 'bg-amber-50/30 hover:bg-amber-50/40' : 'hover:bg-gray-50/50'}`}
+              >
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className={`text-sm font-semibold ${isImportRun ? 'text-[#2F6F0F]' : 'text-[#0B3D91]'}`}>
                     {job.job_name}
@@ -193,11 +272,12 @@ export default function JobList() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span
-                    className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                      job.status
-                    )}`}
+                    className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      isSynthetic ? SCHEDULED_STATUS_CLASS : getStatusColor(job.status)
+                    }`}
+                    title={isSynthetic ? 'Scheduled daily run; waiting for countdown' : undefined}
                   >
-                    {job.status}
+                    {displayStatus}
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -212,7 +292,9 @@ export default function JobList() {
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                  {job.completed_batches} / {job.total_batches} batches
+                  {isSynthetic
+                    ? 'Waiting for countdown'
+                    : `${job.completed_batches} / ${job.total_batches} batches`}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                   {job.total_upcs.toLocaleString()}
@@ -226,29 +308,33 @@ export default function JobList() {
                     : '-'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                  {formatRunDuration(job.created_at, job.completed_at)}
+                  {isSynthetic ? '-' : formatRunDuration(job.created_at, job.completed_at)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <div className="flex items-center gap-3">
-                    <Link
-                      to={`/jobs/${job.id}`}
-                      className="text-[#404040] hover:text-[#3B3B3B] font-semibold hover:underline transition-colors"
-                    >
-                      View →
-                    </Link>
-                    <button
-                      onClick={() => handleDeleteJob(job.id, job.job_name)}
-                      disabled={job.status === 'processing'}
-                      className={`text-red-600 hover:text-red-700 font-medium transition-colors ${
-                        job.status === 'processing'
-                          ? 'opacity-50 cursor-not-allowed'
-                          : 'hover:underline'
-                      }`}
-                      title={job.status === 'processing' ? 'Cannot delete a job that is currently processing' : 'Delete job'}
-                    >
-                      Delete
-                    </button>
-                  </div>
+                  {isSynthetic ? (
+                    <span className="text-xs text-amber-700 font-medium">Auto-run placeholder</span>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <Link
+                        to={`/jobs/${job.id}`}
+                        className="text-[#404040] hover:text-[#3B3B3B] font-semibold hover:underline transition-colors"
+                      >
+                        View →
+                      </Link>
+                      <button
+                        onClick={() => handleDeleteJob(job.id, job.job_name)}
+                        disabled={job.status === 'processing'}
+                        className={`text-red-600 hover:text-red-700 font-medium transition-colors ${
+                          job.status === 'processing'
+                            ? 'opacity-50 cursor-not-allowed'
+                            : 'hover:underline'
+                        }`}
+                        title={job.status === 'processing' ? 'Cannot delete a job that is currently processing' : 'Delete job'}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </td>
               </tr>
             )})}
