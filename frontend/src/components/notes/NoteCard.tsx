@@ -37,7 +37,7 @@ export default function NoteCard({
   onShowPasswordPrompt,
   onHideSession,
 }: NoteCardProps) {
-  const importance = (note as any).importance || 'normal'
+  const importance = note.importance ?? 'normal'
   const color = getNoteColor(note.color)
   const importanceOption = getImportanceOption(importance)
 

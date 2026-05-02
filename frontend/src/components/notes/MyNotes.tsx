@@ -3,6 +3,10 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { authApi, notesApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
 import type { Note, NoteShare } from '../../types'
+import {
+  importanceOptions,
+  type Importance,
+} from '../../utils/noteUtils'
 
 // Lazy load ReactQuill - only loads when the editor is actually needed
 const ReactQuill = lazy(() => import('react-quill'))
@@ -41,15 +45,6 @@ const formats = [
   'indent',
   'link',
   'color', 'background',
-]
-
-type Importance = 'low' | 'normal' | 'high' | 'urgent'
-
-const importanceOptions: { value: Importance; label: string; color: string }[] = [
-  { value: 'low', label: 'Low', color: 'bg-gray-100 text-gray-700' },
-  { value: 'normal', label: 'Normal', color: 'bg-blue-100 text-[#81B81D]' },
-  { value: 'high', label: 'High', color: 'bg-[#81B81D]/20 text-[#111827]' },
-  { value: 'urgent', label: 'Urgent', color: 'bg-red-100 text-red-700' },
 ]
 
 // Move maskContent outside component to prevent recreation on every render
@@ -483,7 +478,7 @@ export default function MyNotes() {
       content: note.content,
       category: note.category || '',
       color: note.color || 'yellow',
-      importance: (note as any).importance || 'normal',
+      importance: note.importance ?? 'normal',
       is_protected: note.is_protected || false,
       password: '',
       use_password: note.has_password || false,
@@ -544,7 +539,7 @@ export default function MyNotes() {
             content: note.content,
             category: note.category || '',
             color: note.color || 'yellow',
-            importance: (note as any).importance || 'normal',
+            importance: note.importance ?? 'normal',
             is_protected: note.is_protected || false,
             password: '',
             use_password: note.has_password || false,
@@ -751,7 +746,7 @@ export default function MyNotes() {
   }
 
   const handleCopyNote = async (note: Note) => {
-    const importance = ((note as any).importance || 'normal') as string
+    const importance = (note.importance ?? 'normal') as string
     const copyText = [
       note.title,
       note.category ? `Category: ${note.category}` : '',
@@ -866,7 +861,7 @@ export default function MyNotes() {
                       {fullViewNote.category}
                     </span>
                   )}
-                  {getImportanceBadge(((fullViewNote as any).importance || 'normal') as string)}
+                  {getImportanceBadge((fullViewNote.importance ?? 'normal') as string)}
                 </div>
               </div>
               <button
@@ -1456,7 +1451,7 @@ export default function MyNotes() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {categoryNotes.map((note, index) => {
-              const importance = (note as any).importance || 'normal'
+              const importance = note.importance ?? 'normal'
               const color = getNoteColor(note.color)
               const owned = isNoteOwner(note)
               const cardDraggable =
