@@ -93,7 +93,7 @@ export default function NoteCard({
       }}
     >
       {/* Header */}
-      <div className="p-4 border-b border-gray-100 cursor-move note-header">
+      <div className="p-4 bg-gray-50 border-b border-gray-200 cursor-move note-header">
         <div className="flex justify-between items-start mb-2">
           <h3 className="text-lg font-semibold text-gray-900 flex-1">{note.title}</h3>
           <div className="flex gap-2 ml-2">
@@ -115,7 +115,7 @@ export default function NoteCard({
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {note.category && (
-            <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">
+            <span className="px-2 py-1 rounded text-xs font-medium bg-white text-gray-700 border border-gray-200">
               {note.category}
             </span>
           )}
