@@ -1,4 +1,9 @@
-import { APP_COPYRIGHT_OWNER, APP_NAME, APP_VERSION_LABEL } from '../constants/app'
+import {
+  APP_COPYRIGHT_OWNER,
+  APP_GIT_COMMIT_SHORT,
+  APP_NAME,
+  APP_VERSION_LABEL,
+} from '../constants/app'
 
 export default function About() {
   return (
@@ -10,6 +15,12 @@ export default function About() {
         <h1 className="text-3xl font-bold text-gray-900">About This Project</h1>
         <p className="mt-2 text-sm font-medium text-[#81B81D]">
           Application Version: {APP_VERSION_LABEL}
+        </p>
+        <p className="mt-1 text-sm text-gray-600">
+          Build:{' '}
+          <code className="rounded bg-gray-100 px-2 py-0.5 text-gray-800 font-mono text-xs">
+            {APP_GIT_COMMIT_SHORT}
+          </code>
         </p>
         <p className="mt-3 text-gray-600 max-w-4xl">
           {APP_NAME} is a workspace built to help teams monitor product pricing and act quickly.
