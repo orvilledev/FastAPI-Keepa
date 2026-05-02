@@ -1,4 +1,6 @@
 """APScheduler setup for daily automated job execution."""
+import asyncio
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -19,7 +21,16 @@ import hashlib
 
 logger = logging.getLogger(__name__)
 
-scheduler = AsyncIOScheduler()
+# Daily/import runs must not disappear when APScheduler wakes seconds or minutes late
+# (restart, overload, clustered cron). Default grace is tight; ~7min misses were skipping runs.
+_scheduler_misfire_grace_seconds = 3600
+
+scheduler = AsyncIOScheduler(
+    job_defaults={
+        "misfire_grace_time": _scheduler_misfire_grace_seconds,
+        "coalesce": True,
+    },
+)
 
 DEFAULT_UPLOADED_REPORT_WAIT_TIMEOUT_SECONDS = 90
 UPLOADED_REPORT_WAIT_POLL_SECONDS = 3
