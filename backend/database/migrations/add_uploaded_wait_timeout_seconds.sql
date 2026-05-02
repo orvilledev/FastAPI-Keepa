@@ -1,5 +1,7 @@
 -- Configurable wait window for uploaded-mode daily runs.
 -- Allows scheduler to wait for just-uploaded file parsing near countdown end.
+-- Run this on existing Supabase projects if PGRST204 complains about missing column.
+-- (Same DDL is included in database/scheduler_uploaded_reports.sql for new installs.)
 
 ALTER TABLE scheduler_settings
 ADD COLUMN IF NOT EXISTS uploaded_wait_timeout_seconds INTEGER NOT NULL DEFAULT 90;

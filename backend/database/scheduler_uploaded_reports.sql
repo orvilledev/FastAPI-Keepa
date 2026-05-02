@@ -8,6 +8,26 @@ UPDATE scheduler_settings
 SET input_mode = 'api'
 WHERE input_mode IS NULL;
 
+-- Wait window for uploaded-mode runs (also in migrations/add_uploaded_wait_timeout_seconds.sql for existing DBs)
+ALTER TABLE scheduler_settings
+ADD COLUMN IF NOT EXISTS uploaded_wait_timeout_seconds INTEGER NOT NULL DEFAULT 90;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'scheduler_settings_uploaded_wait_timeout_seconds_range'
+  ) THEN
+    ALTER TABLE scheduler_settings
+    ADD CONSTRAINT scheduler_settings_uploaded_wait_timeout_seconds_range
+    CHECK (uploaded_wait_timeout_seconds >= 0 AND uploaded_wait_timeout_seconds <= 900);
+  END IF;
+END $$;
+
+COMMENT ON COLUMN scheduler_settings.uploaded_wait_timeout_seconds IS
+'How many seconds uploaded-mode daily run waits for parse completion before failing (0-900).';
+
 CREATE TABLE IF NOT EXISTS scheduler_uploaded_reports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   category TEXT NOT NULL,
