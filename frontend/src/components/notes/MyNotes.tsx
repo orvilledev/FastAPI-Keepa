@@ -46,7 +46,7 @@ const formats = [
 type Importance = 'low' | 'normal' | 'high' | 'urgent'
 
 const importanceOptions: { value: Importance; label: string; color: string }[] = [
-  { value: 'low', label: 'Low', color: 'bg-white text-gray-700 border border-gray-200' },
+  { value: 'low', label: 'Low', color: 'bg-gray-100 text-gray-700' },
   { value: 'normal', label: 'Normal', color: 'bg-blue-100 text-[#81B81D]' },
   { value: 'high', label: 'High', color: 'bg-[#81B81D]/20 text-[#111827]' },
   { value: 'urgent', label: 'Urgent', color: 'bg-red-100 text-red-700' },
@@ -1531,7 +1531,7 @@ export default function MyNotes() {
                 >
                   {/* Header */}
                   <div
-                    className={`p-4 bg-gray-50 border-b border-gray-200 note-header ${
+                    className={`p-4 border-b border-gray-100 note-header ${
                       cardDraggable ? 'cursor-move' : 'cursor-default'
                     }`}
                   >
@@ -1592,7 +1592,7 @@ export default function MyNotes() {
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       {note.category && (
-                        <span className="px-2 py-1 rounded text-xs font-medium bg-white text-gray-700 border border-gray-200">
+                        <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">
                           {note.category}
                         </span>
                       )}

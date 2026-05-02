@@ -5,7 +5,7 @@
 export type Importance = 'low' | 'normal' | 'high' | 'urgent'
 
 export const importanceOptions: { value: Importance; label: string; color: string }[] = [
-  { value: 'low', label: 'Low', color: 'bg-white text-gray-700 border border-gray-200' },
+  { value: 'low', label: 'Low', color: 'bg-gray-100 text-gray-700' },
   { value: 'normal', label: 'Normal', color: 'bg-blue-100 text-[#81B81D]' },
   { value: 'high', label: 'High', color: 'bg-[#81B81D]/20 text-[#111827]' },
   { value: 'urgent', label: 'Urgent', color: 'bg-red-100 text-red-700' },
