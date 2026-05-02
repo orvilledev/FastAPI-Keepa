@@ -46,7 +46,6 @@ VALID_INPUT_MODES = {"api", "uploaded"}
 DAILY_JOB_NAME_RE = re.compile(r"^Daily\s+([A-Za-z0-9_-]+)\s+", re.IGNORECASE)
 UPC_RE = re.compile(r"\b\d{8,14}\b")
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-_SCHEDULER_CATEGORIES = ("dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha")
 
 
 def _normalize_email(raw: str) -> str:
@@ -83,34 +82,6 @@ def _load_allowed_pool_emails(db: Client, user_id: str) -> set[str]:
         if email and _EMAIL_RE.match(email):
             allowed.add(email)
     return allowed
-
-
-def _sanitize_scheduler_recipients_for_all_categories(db: Client, user_id: str) -> None:
-    """
-    Ensure daily-run recipients exist in the caller's Email List pool.
-    Any recipient not in `email_recipient_pool` is removed for all categories.
-    """
-    allowed = _load_allowed_pool_emails(db, user_id)
-    settings_response = (
-        db.table("scheduler_settings")
-        .select("category, email_recipients")
-        .in_("category", list(_SCHEDULER_CATEGORIES))
-        .execute()
-    )
-    for row in settings_response.data or []:
-        category = str(row.get("category") or "").strip().lower()
-        if category not in _SCHEDULER_CATEGORIES:
-            continue
-        raw = row.get("email_recipients")
-        if raw is None:
-            continue
-        current = _parse_recipients_csv(raw)
-        filtered = [email for email in current if email in allowed]
-        filtered_csv = ",".join(filtered) if filtered else None
-        current_csv = ",".join(current) if current else None
-        if filtered_csv == current_csv:
-            continue
-        db.table("scheduler_settings").update({"email_recipients": filtered_csv}).eq("category", category).execute()
 
 
 def _parse_utc_naive_timestamp(value: Optional[str]) -> Optional[datetime]:
@@ -552,7 +523,6 @@ async def get_scheduler_settings(
 ):
     """Get current scheduler settings for a specific category."""
     try:
-        _sanitize_scheduler_recipients_for_all_categories(db, str(current_user["id"]))
         response = db.table("scheduler_settings").select("*").eq("category", category).execute()
         if not response.data:
             # Return default settings if not found
