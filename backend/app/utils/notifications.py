@@ -1,10 +1,15 @@
 """Utility functions for creating notifications."""
 from uuid import UUID
 from supabase import Client
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Types shown in the in-app Notifications feed (completed Express + Daily runs only).
+COMPLETION_NOTIFICATION_TYPES = frozenset(
+    {"run_completed", "run_completed_clean", "run_completed_with_violations"}
+)
 
 
 def create_notification(
@@ -98,3 +103,80 @@ def create_notification(
             logger.error("Notifications table does not exist. Please run: backend/database/notifications_schema.sql")
         
         return False
+
+
+def create_completion_notifications_for_all_profiles(
+    db: Client,
+    notification_type: str,
+    title: str,
+    message: str,
+    priority: str = "info",
+    related_id: Optional[UUID] = None,
+    related_type: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    action_label: Optional[str] = None,
+    action_url: Optional[str] = None,
+    expires_at: Optional[str] = None,
+) -> int:
+    """
+    Insert the same completion notification once per profile so every user sees completed runs.
+
+    notification_type must be one of COMPLETION_NOTIFICATION_TYPES.
+    Returns number of rows inserted (0 on failure / no profiles).
+    """
+    if notification_type not in COMPLETION_NOTIFICATION_TYPES:
+        logger.error(
+            "create_completion_notifications_for_all_profiles: invalid type %r (expected one of %s)",
+            notification_type,
+            sorted(COMPLETION_NOTIFICATION_TYPES),
+        )
+        return 0
+    try:
+        prof = db.table("profiles").select("id").execute()
+        user_ids: List[str] = [str(p["id"]) for p in (prof.data or []) if p.get("id")]
+        if not user_ids:
+            logger.warning("No profiles found; skipping team completion notifications")
+            return 0
+
+        base: Dict[str, Any] = {
+            "type": notification_type,
+            "title": title,
+            "message": message,
+            "priority": priority,
+            "is_read": False,
+        }
+        if related_id:
+            base["related_id"] = str(related_id)
+        if related_type:
+            base["related_type"] = related_type
+        if metadata:
+            base["metadata"] = metadata
+        if action_label:
+            base["action_label"] = action_label
+        if action_url:
+            base["action_url"] = action_url
+        if expires_at:
+            base["expires_at"] = expires_at
+
+        inserted = 0
+        chunk_size = 150
+        for i in range(0, len(user_ids), chunk_size):
+            chunk = user_ids[i : i + chunk_size]
+            rows = [{**base, "user_id": uid} for uid in chunk]
+            resp = db.table("notifications").insert(rows).execute()
+            inserted += len(resp.data or [])
+
+        logger.info(
+            "Team completion notifications inserted: type=%s title=%r recipients=%s",
+            notification_type,
+            title,
+            inserted,
+        )
+        return inserted
+    except Exception as e:
+        logger.error(
+            "create_completion_notifications_for_all_profiles failed: %s",
+            e,
+            exc_info=True,
+        )
+        return 0

@@ -188,6 +188,9 @@ export default function Notifications() {
   }
 
   const getNotificationLink = (notification: Notification) => {
+    if (notification.related_type === 'job' && notification.related_id) {
+      return `/jobs/${notification.related_id}`
+    }
     if (notification.related_type === 'task' && notification.related_id) {
       return `/dashboard`
     }
@@ -211,8 +214,11 @@ export default function Notifications() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Notifications</h1>
+      <div className="flex justify-between items-start gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Notifications</h1>
+          <p className="mt-1 text-sm text-gray-500">Completed Express Jobs and Daily Runs (shared with your team)</p>
+        </div>
         <div className="flex items-center space-x-3">
           {notifications.length > 0 && (
             <button
@@ -268,7 +274,8 @@ export default function Notifications() {
             {filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}
           </div>
           <div className="text-xs text-gray-400 mt-2">
-            Notifications will appear here for run outcomes, schedule issues, import updates, and system alerts.
+            This feed lists completed Express Jobs and completed Daily Runs for everyone on the team. Each person can
+            mark items read or clear their own copy.
           </div>
         </div>
       ) : (

@@ -13,7 +13,7 @@ from app.repositories.map_repository import MAPRepository
 from app.services.batch_processor import BatchProcessor
 from app.services.email_service import EmailService
 from app.services.report_service import ReportService
-from app.utils.notifications import create_notification
+from app.utils.notifications import create_notification, create_completion_notifications_for_all_profiles
 from typing import List, Optional
 from dataclasses import dataclass
 from datetime import datetime
@@ -712,12 +712,17 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                     "completed_batches": total_batches,
                     "completed_at": datetime.utcnow().isoformat(),
                 }).eq("id", str(job_id)).execute()
-                notify_admin(
-                    "run_completed_clean",
-                    f"Run completed: {job_name}",
-                    f"Scheduled import run finished for {category.upper()} ({len(upcs)} UPCs).",
-                    "info",
-                    str(job_id),
+                create_completion_notifications_for_all_profiles(
+                    db,
+                    notification_type="run_completed_clean",
+                    title=f"Run completed: {job_name}",
+                    message=f"Daily import run finished for {category.upper()} ({len(upcs)} UPCs). Visible to the whole team.",
+                    priority="info",
+                    related_id=UUID(str(job_id)),
+                    related_type="job",
+                    metadata={"job_name": job_name, "vendor": category, "total_upcs": len(upcs), "input_mode": "uploaded"},
+                    action_label="View Express Jobs",
+                    action_url="/jobs",
                 )
 
                 # Generate the off-price CSV (one row per flagged UPC) and email it.

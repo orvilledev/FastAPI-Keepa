@@ -6,10 +6,13 @@ from app.dependencies import get_current_user
 from app.models.notification import NotificationResponse, NotificationUpdate
 from app.database import get_supabase
 from app.utils.error_handler import handle_api_errors
+from app.utils.notifications import COMPLETION_NOTIFICATION_TYPES
 from supabase import Client
 from datetime import datetime
 
 router = APIRouter()
+
+_COMPLETION_TYPES_LIST = list(COMPLETION_NOTIFICATION_TYPES)
 
 NOTIFICATION_CATALOG = [
     {
@@ -93,10 +96,15 @@ async def get_notifications(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
-    """Get all notifications for the current user."""
+    """Get completed run notifications for the current user (Express + Daily completions; team-wide)."""
     user_id = current_user["id"]
-    
-    query = db.table("notifications").select("*").eq("user_id", str(user_id))
+
+    query = (
+        db.table("notifications")
+        .select("*")
+        .eq("user_id", str(user_id))
+        .in_("type", _COMPLETION_TYPES_LIST)
+    )
     
     if unread_only:
         query = query.eq("is_read", False)
@@ -123,10 +131,17 @@ async def get_unread_count(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
-    """Get count of unread notifications for the current user."""
+    """Get count of unread completed-run notifications for the current user."""
     user_id = current_user["id"]
-    
-    response = db.table("notifications").select("id", count="exact").eq("user_id", str(user_id)).eq("is_read", False).execute()
+
+    response = (
+        db.table("notifications")
+        .select("id", count="exact")
+        .eq("user_id", str(user_id))
+        .eq("is_read", False)
+        .in_("type", _COMPLETION_TYPES_LIST)
+        .execute()
+    )
     
     count = response.count if hasattr(response, 'count') else len(response.data or [])
     
@@ -143,10 +158,10 @@ async def mark_notification_read(
     """Mark a notification as read."""
     user_id = current_user["id"]
     
-    # Verify notification belongs to user
+    # Verify notification belongs to user and is a completed-run feed item
     check_response = db.table("notifications").select("*").eq("id", str(notification_id)).eq("user_id", str(user_id)).execute()
-    
-    if not check_response.data:
+
+    if not check_response.data or check_response.data[0].get("type") not in COMPLETION_NOTIFICATION_TYPES:
         raise HTTPException(status_code=404, detail="Notification not found")
     
     # Update notification
@@ -176,15 +191,17 @@ async def mark_all_notifications_read(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
-    """Mark all notifications as read for the current user."""
+    """Mark all completed-run notifications as read for the current user."""
     user_id = current_user["id"]
-    
+
     update_data = {
         "is_read": True,
         "read_at": datetime.utcnow().isoformat()
     }
-    
-    db.table("notifications").update(update_data).eq("user_id", str(user_id)).eq("is_read", False).execute()
+
+    db.table("notifications").update(update_data).eq("user_id", str(user_id)).eq("is_read", False).in_(
+        "type", _COMPLETION_TYPES_LIST
+    ).execute()
     
     return {"message": "All notifications marked as read"}
 
@@ -196,13 +213,18 @@ async def delete_notification(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
-    """Delete a notification."""
+    """Delete a completed-run notification for the current user."""
     user_id = current_user["id"]
-    
-    # Verify notification belongs to user
-    check_response = db.table("notifications").select("id").eq("id", str(notification_id)).eq("user_id", str(user_id)).execute()
-    
-    if not check_response.data:
+
+    check_response = (
+        db.table("notifications")
+        .select("id, type")
+        .eq("id", str(notification_id))
+        .eq("user_id", str(user_id))
+        .execute()
+    )
+
+    if not check_response.data or check_response.data[0].get("type") not in COMPLETION_NOTIFICATION_TYPES:
         raise HTTPException(status_code=404, detail="Notification not found")
     
     db.table("notifications").delete().eq("id", str(notification_id)).execute()
@@ -216,9 +238,9 @@ async def clear_notifications(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
-    """Delete all notifications for the current user."""
+    """Delete all completed-run notifications for the current user (other types are left unchanged)."""
     user_id = current_user["id"]
 
-    db.table("notifications").delete().eq("user_id", str(user_id)).execute()
+    db.table("notifications").delete().eq("user_id", str(user_id)).in_("type", _COMPLETION_TYPES_LIST).execute()
 
     return {"message": "All notifications cleared"}

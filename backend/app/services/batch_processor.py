@@ -13,7 +13,7 @@ from app.database import get_supabase
 from app.repositories.map_repository import MAPRepository
 from app.repositories.supabase_read_all import read_all_paginated
 from app.utils.vendor_code import resolve_map_vendor_type
-from app.utils.notifications import create_notification
+from app.utils.notifications import create_notification, create_completion_notifications_for_all_profiles
 from app.services.keepa_client import KeepaClient, MultiKeyKeepaClient
 from app.services.price_analyzer import PriceAnalyzer
 from app.services.csv_generator import CSVGenerator
@@ -627,21 +627,27 @@ class BatchProcessor:
                         if getattr(self.email_service, "last_error", None):
                             logger.error(f"Email error: {self.email_service.last_error}")
 
-            self._notify_job_event(
-                user_id=job_creator,
+            completion_meta = {
+                "job_name": job_name,
+                "total_upcs": total_upcs,
+                "completed_batches": completed_batches,
+                "off_price_scope": job_off_price_scope,
+                "created_by": str(job_creator) if job_creator else None,
+            }
+            initiated = job_data.get("initiated_by")
+            if initiated:
+                completion_meta["initiated_by"] = initiated
+            create_completion_notifications_for_all_profiles(
+                self.db,
                 notification_type="run_completed",
                 title=f"Run completed: {job_name}",
-                message=f"Express job finished successfully ({total_upcs} UPCs processed).",
+                message=f"Run finished successfully ({total_upcs} UPCs processed). Visible to the whole team.",
                 priority="info",
-                job_id=job_id,
-                metadata={
-                    "job_name": job_name,
-                    "total_upcs": total_upcs,
-                    "completed_batches": completed_batches,
-                    "off_price_scope": job_off_price_scope,
-                },
-                action_label="View Dashboard",
-                action_url="/dashboard",
+                related_id=job_id,
+                related_type="job",
+                metadata=completion_meta,
+                action_label="View Express Jobs",
+                action_url="/jobs",
             )
             
             return True
