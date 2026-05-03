@@ -1,4 +1,4 @@
--- Micro Tools: per-user external shortcuts (Micro Tools page CRUD)
+-- Micro Tools: shared catalog (all authenticated users can read; writes scoped in API/RLS)
 -- Run in Supabase SQL Editor after review.
 
 CREATE TABLE IF NOT EXISTS micro_tools (
@@ -19,9 +19,9 @@ CREATE INDEX IF NOT EXISTS idx_micro_tools_user_created ON micro_tools(user_id, 
 
 ALTER TABLE micro_tools ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view their own micro tools"
+CREATE POLICY "Authenticated users can view all micro tools"
   ON micro_tools FOR SELECT
-  USING (auth.uid() = user_id);
+  USING (true);
 
 CREATE POLICY "Users can insert their own micro tools"
   ON micro_tools FOR INSERT

@@ -3,6 +3,7 @@ import { toolsApi } from '../../services/api'
 import type { MicroToolRecord } from '../../types'
 import { MICRO_TOOLS } from '../../constants/microTools'
 import type { MicroTool as StaticMicroTool } from '../../constants/microTools'
+import { useUser } from '../../contexts/UserContext'
 
 const DEFAULT_ACTION = 'Open tool'
 
@@ -18,6 +19,8 @@ const emptyForm = () => ({
 })
 
 export default function MicroTools() {
+  const { userInfo } = useUser()
+  const currentUserId = userInfo?.id ?? null
   const [apiTools, setApiTools] = useState<MicroToolRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -34,7 +37,7 @@ export default function MicroTools() {
       setApiTools(data)
     } catch (e: unknown) {
       console.error(e)
-      setLoadError('Could not load your Micro Tools. If this persists, confirm the database migration has been applied.')
+      setLoadError('Could not load Micro Tools. If this persists, confirm the database migration has been applied.')
       setApiTools([])
     } finally {
       setLoading(false)
@@ -211,6 +214,7 @@ export default function MicroTools() {
   const renderApiCard = (t: MicroToolRecord) => {
     const tags = t.tags ?? []
     const links = t.extra_links ?? []
+    const isOwner = currentUserId !== null && t.user_id === currentUserId
     return (
       <article
         key={t.id}
@@ -218,23 +222,30 @@ export default function MicroTools() {
       >
         <div className="flex-1">
           <div className="flex items-start justify-between gap-2">
-            <h2 className="text-xl font-semibold text-gray-900">{t.name}</h2>
-            <div className="flex shrink-0 gap-2">
-              <button
-                type="button"
-                onClick={() => openEdit(t)}
-                className="text-sm font-medium text-[#81B81D] hover:underline"
-              >
-                Edit
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleDelete(t.id)}
-                className="text-sm font-medium text-red-600 hover:underline"
-              >
-                Delete
-              </button>
+            <div className="min-w-0">
+              <h2 className="text-xl font-semibold text-gray-900">{t.name}</h2>
+              {!isOwner && (
+                <p className="mt-1 text-xs text-gray-500">Added by a teammate</p>
+              )}
             </div>
+            {isOwner && (
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  onClick={() => openEdit(t)}
+                  className="text-sm font-medium text-[#81B81D] hover:underline"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDelete(t.id)}
+                  className="text-sm font-medium text-red-600 hover:underline"
+                >
+                  Delete
+                </button>
+              </div>
+            )}
           </div>
           {t.description && (
             <p className="mt-2 text-sm text-gray-600 leading-relaxed">{t.description}</p>
@@ -292,8 +303,8 @@ export default function MicroTools() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Micro Tools</h1>
             <p className="mt-2 text-gray-600 max-w-3xl">
-              Save shortcuts to external utilities with a name, description, and link. Your tools are stored for your
-              account. Optional built-in entries can still be defined in{' '}
+              Shared shortcuts to external utilities—everyone signed in can see them. You can edit or delete only tools
+              you created. Optional built-in entries can still be defined in{' '}
               <code className="rounded bg-gray-100 px-2 py-0.5 text-sm font-mono text-gray-800">
                 frontend/src/constants/microTools.ts
               </code>
@@ -446,7 +457,7 @@ export default function MicroTools() {
 
       {!loading && hasApi && (
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Your tools</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Team tools</h2>
           <div className="grid gap-6 md:grid-cols-2">{apiTools.map((t) => renderApiCard(t))}</div>
         </div>
       )}
@@ -465,8 +476,8 @@ export default function MicroTools() {
         <div className="card p-8 border border-dashed border-gray-300 bg-gray-50/80">
           <h2 className="text-lg font-semibold text-gray-900">No tools yet</h2>
           <p className="mt-2 text-gray-600">
-            Click <strong>Add tool</strong> to save your first shortcut, or ask your team about optional built-in entries
-            in the codebase constants file.
+            Click <strong>Add tool</strong> to add the first team shortcut, or ask your team about optional built-in
+            entries in the codebase constants file.
           </p>
         </div>
       )}

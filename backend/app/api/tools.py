@@ -432,8 +432,8 @@ async def get_micro_tools(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
-    """List Micro Tools for the current user."""
-    response = db.table("micro_tools").select("*").eq("user_id", current_user["id"]).order("created_at", desc=True).execute()
+    """List all Micro Tools (shared catalog for authenticated users)."""
+    response = db.table("micro_tools").select("*").order("created_at", desc=True).execute()
     out = []
     for tool in response.data or []:
         out.append(MicroToolResponse(**_normalize_micro_tool_row(tool)))
