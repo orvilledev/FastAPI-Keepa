@@ -78,9 +78,12 @@ export default function JobList() {
     }
   }, [])
 
-  const loadJobs = useCallback(async (page: number) => {
-    try {
+  const loadJobs = useCallback(async (page: number, options?: { silent?: boolean }) => {
+    const silent = options?.silent === true
+    if (!silent) {
       setLoading(true)
+    }
+    try {
       const offset = page * JOBS_PER_PAGE
       const [data, calendar] = await Promise.all([
         jobsApi.listJobs(JOBS_PER_PAGE, offset),
@@ -111,7 +114,9 @@ export default function JobList() {
     } catch (error) {
       console.error('Failed to load jobs:', error)
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }, [])
 
@@ -131,7 +136,7 @@ export default function JobList() {
     const pollInterval = stats.processing > 0 ? 5000 : 30000
     intervalRef.current = setInterval(() => {
       loadAllJobsForStats()
-      loadJobs(currentPage)
+      void loadJobs(currentPage, { silent: true })
     }, pollInterval)
     
     return () => {
@@ -165,9 +170,9 @@ export default function JobList() {
 
     try {
       await jobsApi.deleteJob(jobId)
-      // Reload jobs and stats
-      loadJobs(currentPage)
-      loadAllJobsForStats()
+      // Reload jobs and stats (silent: avoid full-table loading flicker)
+      void loadJobs(currentPage, { silent: true })
+      void loadAllJobsForStats()
     } catch (error: any) {
       const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to delete job'
       alert(`Error: ${errorMessage}`)
