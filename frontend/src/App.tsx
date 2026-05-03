@@ -33,6 +33,7 @@ const SellerList = lazy(() => import('./components/sellers/SellerList'))
 const EmailList = lazy(() => import('./components/email/EmailList'))
 const HowToGuide = lazy(() => import('./components/tools/PublicTools'))
 const JobAids = lazy(() => import('./components/tools/JobAids'))
+const MicroTools = lazy(() => import('./components/tools/MicroTools'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
 const MyNotes = lazy(() => import('./components/notes/MyNotes'))
@@ -241,6 +242,7 @@ function AppRoutes() {
           <Route path="howtoguide" element={<HowToGuide />} />
           <Route path="trainings" element={<Navigate to="/howtoguide" replace />} />
           <Route path="faq" element={<JobAids />} />
+          <Route path="micro-tools" element={<MicroTools />} />
           <Route path="tools/public" element={<Navigate to="/howtoguide" replace />} />
           <Route path="tools/job-aids" element={<Navigate to="/faq" replace />} />
           <Route path="tools/my-toolbox" element={<Navigate to="/dashboard" replace />} />

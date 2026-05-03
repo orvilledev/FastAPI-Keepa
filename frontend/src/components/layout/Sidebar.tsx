@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import { useUser } from '../../contexts/UserContext'
 import { APP_NAME, APP_VERSION_LABEL } from '../../constants/app'
+import { MICRO_TOOLS } from '../../constants/microTools'
 
 // SVG Icon components that inherit text color via currentColor
 const Icons = {
@@ -96,6 +97,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
     </svg>
   ),
+  externalLink: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+    </svg>
+  ),
 }
 
 export default function Sidebar() {
@@ -105,6 +111,7 @@ export default function Sidebar() {
   const [isDailyRunsMenuOpen, setIsDailyRunsMenuOpen] = useState(false)
   const [isManageUPCsMenuOpen, setIsManageUPCsMenuOpen] = useState(false)
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false)
+  const [isMicroToolsMenuOpen, setIsMicroToolsMenuOpen] = useState(false)
   /** Only one sidebar row shows “highlight” while hovering; route highlight defers to hover target. */
   const [hoveredNav, setHoveredNav] = useState<string | null>(null)
 
@@ -202,6 +209,7 @@ export default function Sidebar() {
     item.path ? isActive(item.path) : (item.children && item.children.some(child => isActive(child.path)))
   )
   const hasActiveToolsSubItem = toolsMenuItems.some(item => isActive(item.path))
+  const hasActiveMicroToolsSubItem = isActive('/micro-tools')
 
   // Auto-open Keepa submenu / flyouts when a child route is active
   useEffect(() => {
@@ -215,6 +223,12 @@ export default function Sidebar() {
       setIsToolsMenuOpen(true)
     }
   }, [hasActiveToolsSubItem])
+
+  useEffect(() => {
+    if (hasActiveMicroToolsSubItem) {
+      setIsMicroToolsMenuOpen(true)
+    }
+  }, [hasActiveMicroToolsSubItem])
 
   return (
     <aside className="w-64 bg-white/80 backdrop-blur-lg border-r border-gray-200/80 shadow-lg h-screen sticky top-0 z-50">
@@ -450,6 +464,60 @@ export default function Sidebar() {
                     <span className="mr-3">{Icons[item.icon]}</span>
                     <span>{item.label}</span>
                   </Link>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Micro Tools — external utilities (config: frontend/src/constants/microTools.ts) */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setIsMicroToolsMenuOpen(!isMicroToolsMenuOpen)}
+              onMouseEnter={() => setHoveredNav('micro-tools')}
+              className={`sidebar-link w-full text-left text-black ${
+                navHighlighted('micro-tools', isActive('/micro-tools'))
+                  ? 'sidebar-link-active'
+                  : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="mr-3">{Icons.toolbox}</span>
+              <span className="flex-1">Micro Tools</span>
+              <span>{isMicroToolsMenuOpen ? Icons.chevronDown : Icons.chevronRight}</span>
+            </button>
+
+            {isMicroToolsMenuOpen && (
+              <div className="ml-4 mt-1 space-y-1 bg-[#404040] rounded-lg p-2 dark-dropdown">
+                <Link
+                  to="/micro-tools"
+                  onMouseEnter={() => setHoveredNav('micro-overview')}
+                  className={`sidebar-link ${
+                    navHighlighted('micro-overview', isActive('/micro-tools'))
+                      ? 'sidebar-link-active'
+                      : 'sidebar-link-inactive'
+                  }`}
+                >
+                  <span className="mr-3">{Icons.globe}</span>
+                  <span>Overview</span>
+                </Link>
+                {MICRO_TOOLS.map((tool) => {
+                  const microItemId = `micro-ext-${tool.id}`
+                  return (
+                    <a
+                      key={tool.id}
+                      href={tool.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={tool.description}
+                      onMouseEnter={() => setHoveredNav(microItemId)}
+                      className={`sidebar-link ${
+                        navHighlighted(microItemId, false) ? 'sidebar-link-active' : 'sidebar-link-inactive'
+                      }`}
+                    >
+                      <span className="mr-3">{Icons.externalLink}</span>
+                      <span className="truncate">{tool.name}</span>
+                    </a>
                   )
                 })}
               </div>
