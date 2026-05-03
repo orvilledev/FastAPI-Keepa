@@ -312,6 +312,32 @@ export default function Notifications() {
                         )}
                       </div>
                       <p className="text-sm text-gray-600 mb-2">{notification.message}</p>
+                      {notification.action_label && notification.action_url && (
+                        <div className="mb-2">
+                          {/^https?:\/\//i.test(notification.action_url) ? (
+                            <a
+                              href={notification.action_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center rounded-lg bg-[#404040] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#2d2d2d] transition-colors"
+                            >
+                              {notification.action_label}
+                            </a>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                navigate(notification.action_url!)
+                              }}
+                              className="inline-flex items-center rounded-lg bg-[#404040] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#2d2d2d] transition-colors"
+                            >
+                              {notification.action_label}
+                            </button>
+                          )}
+                        </div>
+                      )}
                       <div className="flex items-center space-x-4 text-xs text-gray-500">
                         <span>{formatDate(notification.created_at)}</span>
                         {notification.metadata && (
