@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
 import type {
-  MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, Note, JobAid, Notification, ComprehensiveReportRow, SellerName, NoteShare } from '../types'
+  MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, MicroToolRecord, Note, JobAid, Notification, ComprehensiveReportRow, SellerName, NoteShare } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -686,6 +686,39 @@ export const toolsApi = {
   },
   deleteUserTool: async (toolId: string) => {
     const response = await api.delete(`/api/v1/tools/user/${toolId}`)
+    return response.data
+  },
+  getMicroTools: async () => {
+    const response = await api.get<MicroToolRecord[]>('/api/v1/tools/micro-tools')
+    return response.data
+  },
+  createMicroTool: async (toolData: {
+    name: string
+    description?: string
+    url: string
+    action_label?: string
+    tags?: string[]
+    extra_links?: { label: string; url: string }[]
+  }) => {
+    const response = await api.post<MicroToolRecord>('/api/v1/tools/micro-tools', toolData)
+    return response.data
+  },
+  updateMicroTool: async (
+    toolId: string,
+    toolData: {
+      name?: string
+      description?: string
+      url?: string
+      action_label?: string
+      tags?: string[]
+      extra_links?: { label: string; url: string }[]
+    }
+  ) => {
+    const response = await api.put<MicroToolRecord>(`/api/v1/tools/micro-tools/${toolId}`, toolData)
+    return response.data
+  },
+  deleteMicroTool: async (toolId: string) => {
+    const response = await api.delete(`/api/v1/tools/micro-tools/${toolId}`)
     return response.data
   },
   // Job Aids

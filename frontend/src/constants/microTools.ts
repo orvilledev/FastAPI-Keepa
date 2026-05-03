@@ -1,7 +1,6 @@
 /**
- * Micro Tools — external utilities linked from the sidebar and /micro-tools.
- * Edit this list to add name, description, URL, optional tags, and extra links.
- * No backend or deploy step required for static entries.
+ * Optional built-in Micro Tools (read-only in the UI). Shown under “Built-in shortcuts”.
+ * Per-user tools are created on the Micro Tools page and stored in the database.
  */
 
 export interface MicroToolLink {

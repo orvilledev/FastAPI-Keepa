@@ -65,6 +65,20 @@ export interface UserTool {
   updated_at: string
 }
 
+/** Persisted Micro Tool (user-owned), API snake_case. */
+export interface MicroToolRecord {
+  id: string
+  user_id: string
+  name: string
+  description?: string | null
+  url: string
+  action_label?: string | null
+  tags?: string[] | null
+  extra_links?: { label: string; url: string }[] | null
+  created_at: string
+  updated_at: string
+}
+
 export interface BatchJob {
   id: string
   job_name: string

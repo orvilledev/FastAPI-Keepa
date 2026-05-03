@@ -1,76 +1,473 @@
+import { useCallback, useEffect, useState } from 'react'
+import { toolsApi } from '../../services/api'
+import type { MicroToolRecord } from '../../types'
 import { MICRO_TOOLS } from '../../constants/microTools'
+import type { MicroTool as StaticMicroTool } from '../../constants/microTools'
 
 const DEFAULT_ACTION = 'Open tool'
 
+type ExtraLinkRow = { label: string; url: string }
+
+const emptyForm = () => ({
+  name: '',
+  description: '',
+  url: '',
+  actionLabel: '',
+  tagsStr: '',
+  extraLinks: [] as ExtraLinkRow[],
+})
+
 export default function MicroTools() {
+  const [apiTools, setApiTools] = useState<MicroToolRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [form, setForm] = useState(emptyForm)
+
+  const loadTools = useCallback(async () => {
+    setLoadError(null)
+    try {
+      const data = await toolsApi.getMicroTools()
+      setApiTools(data)
+    } catch (e: unknown) {
+      console.error(e)
+      setLoadError('Could not load your Micro Tools. If this persists, confirm the database migration has been applied.')
+      setApiTools([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadTools()
+  }, [loadTools])
+
+  const resetForm = () => {
+    setForm(emptyForm())
+    setEditingId(null)
+    setFormError(null)
+    setShowForm(false)
+  }
+
+  const openCreate = () => {
+    setEditingId(null)
+    setForm(emptyForm())
+    setFormError(null)
+    setShowForm(true)
+  }
+
+  const openEdit = (t: MicroToolRecord) => {
+    setEditingId(t.id)
+    setForm({
+      name: t.name,
+      description: t.description ?? '',
+      url: t.url,
+      actionLabel: t.action_label ?? '',
+      tagsStr: (t.tags ?? []).join(', '),
+      extraLinks:
+        t.extra_links && t.extra_links.length > 0
+          ? t.extra_links.map((l) => ({ label: l.label, url: l.url }))
+          : [],
+    })
+    setFormError(null)
+    setShowForm(true)
+  }
+
+  const parsePayload = () => {
+    const tags = form.tagsStr
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    const extra_links = form.extraLinks
+      .map((r) => ({
+        label: r.label.trim(),
+        url: r.url.trim(),
+      }))
+      .filter((r) => r.label && r.url)
+    return {
+      name: form.name.trim(),
+      description: form.description.trim() || undefined,
+      url: form.url.trim(),
+      action_label: form.actionLabel.trim() || undefined,
+      tags,
+      extra_links,
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setFormError(null)
+    const payload = parsePayload()
+    if (!payload.name) {
+      setFormError('Name is required.')
+      return
+    }
+    if (!payload.url) {
+      setFormError('Link URL is required.')
+      return
+    }
+
+    setSaving(true)
+    try {
+      if (editingId) {
+        await toolsApi.updateMicroTool(editingId, payload)
+      } else {
+        await toolsApi.createMicroTool(payload)
+      }
+      await loadTools()
+      resetForm()
+    } catch (err: unknown) {
+      console.error(err)
+      setFormError('Save failed. Check your connection and try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Delete this Micro Tool?')) return
+    try {
+      await toolsApi.deleteMicroTool(id)
+      if (editingId === id) resetForm()
+      await loadTools()
+    } catch (err) {
+      console.error(err)
+      window.alert('Could not delete this tool.')
+    }
+  }
+
+  const addLinkRow = () => {
+    setForm((f) => ({ ...f, extraLinks: [...f.extraLinks, { label: '', url: '' }] }))
+  }
+
+  const updateLinkRow = (index: number, field: keyof ExtraLinkRow, value: string) => {
+    setForm((f) => {
+      const next = [...f.extraLinks]
+      next[index] = { ...next[index], [field]: value }
+      return { ...f, extraLinks: next }
+    })
+  }
+
+  const removeLinkRow = (index: number) => {
+    setForm((f) => ({
+      ...f,
+      extraLinks: f.extraLinks.filter((_, i) => i !== index),
+    }))
+  }
+
+  const renderCard = (tool: StaticMicroTool) => (
+    <article
+      key={`static-${tool.id}`}
+      className="card p-6 flex flex-col h-full border border-gray-200/80 shadow-sm"
+    >
+      <div className="flex-1">
+        <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Built-in</p>
+        <h2 className="text-xl font-semibold text-gray-900 mt-1">{tool.name}</h2>
+        <p className="mt-2 text-sm text-gray-600 leading-relaxed">{tool.description}</p>
+        {tool.tags && tool.tags.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {tool.tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <a
+          href={tool.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex justify-center items-center rounded-lg bg-[#404040] px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-[#2d2d2d] transition-colors"
+        >
+          {tool.actionLabel ?? DEFAULT_ACTION}
+        </a>
+        {tool.links && tool.links.length > 0 && (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {tool.links.map((link) => (
+              <a
+                key={link.url + link.label}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#81B81D] font-medium hover:underline"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
+    </article>
+  )
+
+  const renderApiCard = (t: MicroToolRecord) => {
+    const tags = t.tags ?? []
+    const links = t.extra_links ?? []
+    return (
+      <article
+        key={t.id}
+        className="card p-6 flex flex-col h-full border border-gray-200/80 shadow-sm"
+      >
+        <div className="flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <h2 className="text-xl font-semibold text-gray-900">{t.name}</h2>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={() => openEdit(t)}
+                className="text-sm font-medium text-[#81B81D] hover:underline"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDelete(t.id)}
+                className="text-sm font-medium text-red-600 hover:underline"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+          {t.description && (
+            <p className="mt-2 text-sm text-gray-600 leading-relaxed">{t.description}</p>
+          )}
+          {tags.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <a
+            href={t.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex justify-center items-center rounded-lg bg-[#404040] px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-[#2d2d2d] transition-colors"
+          >
+            {t.action_label ?? DEFAULT_ACTION}
+          </a>
+          {links.length > 0 && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+              {links.map((link) => (
+                <a
+                  key={link.url + link.label}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#81B81D] font-medium hover:underline"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      </article>
+    )
+  }
+
+  const hasStatic = MICRO_TOOLS.length > 0
+  const hasApi = apiTools.length > 0
+  const showEmpty = !loading && !hasStatic && !hasApi && !loadError
+
   return (
     <div className="space-y-6">
       <div className="card p-8">
-        <h1 className="text-3xl font-bold text-gray-900">Micro Tools</h1>
-        <p className="mt-2 text-gray-600 max-w-3xl">
-          Shortcuts to external utilities you maintain—open in a new browser tab. Configure the list in{' '}
-          <code className="rounded bg-gray-100 px-2 py-0.5 text-sm font-mono text-gray-800">
-            frontend/src/constants/microTools.ts
-          </code>
-          .
-        </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Micro Tools</h1>
+            <p className="mt-2 text-gray-600 max-w-3xl">
+              Save shortcuts to external utilities with a name, description, and link. Your tools are stored for your
+              account. Optional built-in entries can still be defined in{' '}
+              <code className="rounded bg-gray-100 px-2 py-0.5 text-sm font-mono text-gray-800">
+                frontend/src/constants/microTools.ts
+              </code>
+              .
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => (showForm ? resetForm() : openCreate())}
+            className="shrink-0 rounded-lg bg-[#404040] px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-[#2d2d2d] transition-colors"
+          >
+            {showForm ? 'Cancel' : 'Add tool'}
+          </button>
+        </div>
       </div>
 
-      {MICRO_TOOLS.length === 0 ? (
-        <div className="card p-8 border border-dashed border-gray-300 bg-gray-50/80">
-          <h2 className="text-lg font-semibold text-gray-900">No tools configured yet</h2>
-          <p className="mt-2 text-gray-600">
-            Add objects to the <code className="font-mono text-sm">MICRO_TOOLS</code> array. See the commented example
-            in the same file for all supported fields (name, description, URL, tags, extra links).
-          </p>
+      {loadError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{loadError}</div>
+      )}
+
+      {showForm && (
+        <form onSubmit={(e) => void handleSubmit(e)} className="card p-6 border border-[#81B81D]/40 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900">{editingId ? 'Edit tool' : 'New tool'}</h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <label className="block sm:col-span-2">
+              <span className="text-sm font-medium text-gray-700">Name *</span>
+              <input
+                type="text"
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-[#81B81D] focus:outline-none focus:ring-1 focus:ring-[#81B81D]"
+                placeholder="e.g. Price checker"
+                required
+              />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="text-sm font-medium text-gray-700">Description</span>
+              <textarea
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                rows={3}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-[#81B81D] focus:outline-none focus:ring-1 focus:ring-[#81B81D]"
+                placeholder="Short summary shown on the card"
+              />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="text-sm font-medium text-gray-700">Tool URL *</span>
+              <input
+                type="text"
+                value={form.url}
+                onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-[#81B81D] focus:outline-none focus:ring-1 focus:ring-[#81B81D]"
+                placeholder="https://..."
+                required
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium text-gray-700">Button label</span>
+              <input
+                type="text"
+                value={form.actionLabel}
+                onChange={(e) => setForm((f) => ({ ...f, actionLabel: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-[#81B81D] focus:outline-none focus:ring-1 focus:ring-[#81B81D]"
+                placeholder={`Default: ${DEFAULT_ACTION}`}
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium text-gray-700">Tags</span>
+              <input
+                type="text"
+                value={form.tagsStr}
+                onChange={(e) => setForm((f) => ({ ...f, tagsStr: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-[#81B81D] focus:outline-none focus:ring-1 focus:ring-[#81B81D]"
+                placeholder="Comma-separated, e.g. pricing, internal"
+              />
+            </label>
+          </div>
+
+          <div className="mt-6">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium text-gray-700">Extra links</span>
+              <button
+                type="button"
+                onClick={addLinkRow}
+                className="text-sm font-medium text-[#81B81D] hover:underline"
+              >
+                + Add link
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">Optional documentation or repo links next to the main button.</p>
+            <div className="mt-3 space-y-3">
+              {form.extraLinks.map((row, index) => (
+                <div key={index} className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <label className="flex-1">
+                    <span className="text-xs text-gray-600">Label</span>
+                    <input
+                      type="text"
+                      value={row.label}
+                      onChange={(e) => updateLinkRow(index, 'label', e.target.value)}
+                      className="mt-0.5 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
+                      placeholder="Documentation"
+                    />
+                  </label>
+                  <label className="flex-[2]">
+                    <span className="text-xs text-gray-600">URL</span>
+                    <input
+                      type="url"
+                      value={row.url}
+                      onChange={(e) => updateLinkRow(index, 'url', e.target.value)}
+                      className="mt-0.5 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
+                      placeholder="https://..."
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => removeLinkRow(index)}
+                    className="text-sm text-red-600 hover:underline sm:mb-2"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {formError && <p className="mt-4 text-sm text-red-600">{formError}</p>}
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-[#81B81D] px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:opacity-95 disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : editingId ? 'Save changes' : 'Create tool'}
+            </button>
+            <button
+              type="button"
+              onClick={resetForm}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Discard
+            </button>
+          </div>
+        </form>
+      )}
+
+      {loading && (
+        <div className="text-center py-12 text-gray-500">Loading tools…</div>
+      )}
+
+      {!loading && hasApi && (
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Your tools</h2>
+          <div className="grid gap-6 md:grid-cols-2">{apiTools.map((t) => renderApiCard(t))}</div>
         </div>
-      ) : (
-        <div className="grid gap-6 md:grid-cols-2">
-          {MICRO_TOOLS.map((tool) => (
-            <article key={tool.id} className="card p-6 flex flex-col h-full border border-gray-200/80 shadow-sm">
-              <div className="flex-1">
-                <h2 className="text-xl font-semibold text-gray-900">{tool.name}</h2>
-                <p className="mt-2 text-sm text-gray-600 leading-relaxed">{tool.description}</p>
-                {tool.tags && tool.tags.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {tool.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <a
-                  href={tool.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex justify-center items-center rounded-lg bg-[#404040] px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-[#2d2d2d] transition-colors"
-                >
-                  {tool.actionLabel ?? DEFAULT_ACTION}
-                </a>
-                {tool.links && tool.links.length > 0 && (
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                    {tool.links.map((link) => (
-                      <a
-                        key={link.url + link.label}
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[#81B81D] font-medium hover:underline"
-                      >
-                        {link.label}
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </article>
-          ))}
+      )}
+
+      {!loading && hasStatic && (
+        <div>
+          {hasApi && <h2 className="text-lg font-semibold text-gray-900 mb-4 mt-8">Built-in shortcuts</h2>}
+          {!hasApi && <h2 className="text-lg font-semibold text-gray-900 mb-4">Built-in shortcuts</h2>}
+          <div className="grid gap-6 md:grid-cols-2">
+            {MICRO_TOOLS.map((tool) => renderCard(tool))}
+          </div>
+        </div>
+      )}
+
+      {showEmpty && (
+        <div className="card p-8 border border-dashed border-gray-300 bg-gray-50/80">
+          <h2 className="text-lg font-semibold text-gray-900">No tools yet</h2>
+          <p className="mt-2 text-gray-600">
+            Click <strong>Add tool</strong> to save your first shortcut, or ask your team about optional built-in entries
+            in the codebase constants file.
+          </p>
         </div>
       )}
     </div>
