@@ -1,5 +1,14 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useParams, useLocation } from 'react-router-dom'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import {
+  BrowserRouter,
+  HashRouter,
+  Routes,
+  Route,
+  Navigate,
+  Outlet,
+  useParams,
+  useLocation,
+} from 'react-router-dom'
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { UserProvider, useUser } from './contexts/UserContext'
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/common/ProtectedRoute'
@@ -38,6 +47,15 @@ const Notifications = lazy(() => import('./components/notifications/Notification
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
 const MyNotes = lazy(() => import('./components/notes/MyNotes'))
 const LAST_PRIVATE_PATH_KEY = 'last_private_path'
+
+/** Packaged Electron loads `index.html` over `file:`; BrowserRouter cannot match routes there. */
+function AppRouter({ children }: { children: ReactNode }) {
+  const useHash = typeof window !== 'undefined' && window.location.protocol === 'file:'
+  if (useHash) {
+    return <HashRouter>{children}</HashRouter>
+  }
+  return <BrowserRouter>{children}</BrowserRouter>
+}
 
 // Loading spinner component
 function LoadingSpinner() {
@@ -259,11 +277,11 @@ function AppRoutes() {
 // Main App component wrapped with providers
 function App() {
   return (
-    <Router>
+    <AppRouter>
       <UserProvider>
         <AppRoutes />
       </UserProvider>
-    </Router>
+    </AppRouter>
   )
 }
 

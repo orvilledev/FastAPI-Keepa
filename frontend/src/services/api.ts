@@ -5,6 +5,16 @@ import type {
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
+/** Packaged Electron uses HashRouter (`#/...`); plain `/login` breaks on `file:` URLs. */
+function redirectToLogin(): void {
+  if (typeof window === 'undefined') return
+  if (window.location.protocol === 'file:') {
+    window.location.hash = '#/login'
+  } else {
+    window.location.href = '/login'
+  }
+}
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -85,13 +95,13 @@ api.interceptors.response.use(
         } else {
           // No valid session, redirect to login
           console.error('No valid session found, redirecting to login')
-          window.location.href = '/login'
+          redirectToLogin()
           return Promise.reject(error)
         }
       } catch (refreshError) {
         // Failed to refresh, redirect to login
         console.error('Failed to refresh token:', refreshError)
-        window.location.href = '/login'
+        redirectToLogin()
         return Promise.reject(error)
       }
     }
