@@ -27,6 +27,16 @@ This runs:
 1. `vite build --mode electron` (uses relative asset paths for `file://` loading)
 2. `electron-builder` (creates an NSIS installer)
 
+After a successful build, the installer is written next to the web bundle, for example:
+
+`frontend/dist/MSW Overwatch Setup 1.0.0.exe`
+
+(The version in the filename follows `package.json` `version`.)
+
+### Windows: unsigned local builds
+
+This repo disables automatic Windows code signing so builds work without symlink privileges from the `winCodeSign` tool extract (`CSC_IDENTITY_AUTO_DISCOVERY=false` and `build.win.signAndEditExecutable: false`). For production releases you will usually replace that with real code signing.
+
 ## Notes
 
 - API calls still use `VITE_API_URL`, so keep your backend reachable from desktop clients.
