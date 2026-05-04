@@ -80,6 +80,11 @@ class Settings(BaseSettings):
     # This guard prevents accidentally running against very old files.
     scheduler_uploaded_report_max_age_days: int = 7
 
+    # CLI chat (OpenAI + Supabase session memory); optional until OPENAI_API_KEY is set
+    openai_api_key: str = ""
+    cli_chat_model: str = "gpt-4o-mini"
+    cli_chat_history_limit: int = 30
+
     # Maintenance mode controls
     maintenance_mode: bool = False
     maintenance_message: str = "App is currently under maintenance. Please try again later."
