@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
 import type {
-  MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, MicroToolRecord, Note, JobAid, Notification, ComprehensiveReportRow, SellerName, NoteShare } from '../types'
+  MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, MicroToolRecord, Note, JobAid, Notification, ComprehensiveReportRow, SellerName, NoteShare, CliChatSession, CliChatMessage } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -911,6 +911,30 @@ export const notificationsApi = {
   
   clearNotifications: async (): Promise<void> => {
     await api.delete(`/api/v1/notifications`)
+  },
+}
+
+export const cliChatApi = {
+  sendTurn: async (
+    message: string,
+    sessionId?: string | null
+  ): Promise<{ session_id: string; reply: string }> => {
+    const body: { message: string; session_id?: string } = { message }
+    if (sessionId) body.session_id = sessionId
+    const response = await api.post('/api/v1/cli-chat/turn', body)
+    return response.data
+  },
+
+  listSessions: async (): Promise<CliChatSession[]> => {
+    const response = await api.get<{ sessions: CliChatSession[] }>('/api/v1/cli-chat/sessions')
+    return response.data.sessions ?? []
+  },
+
+  getHistory: async (sessionId: string): Promise<CliChatMessage[]> => {
+    const response = await api.get<{ messages: CliChatMessage[] }>(
+      `/api/v1/cli-chat/sessions/${sessionId}/messages`
+    )
+    return response.data.messages ?? []
   },
 }
 

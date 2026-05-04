@@ -79,6 +79,21 @@ export interface MicroToolRecord {
   updated_at: string
 }
 
+/** CLI / Assistant chat session (API returns snake_case dates). */
+export interface CliChatSession {
+  id: string
+  title?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CliChatMessage {
+  id: string
+  role: string
+  content: string
+  created_at: string
+}
+
 export interface BatchJob {
   id: string
   job_name: string
