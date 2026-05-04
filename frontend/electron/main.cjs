@@ -4,12 +4,14 @@ const { app, BrowserWindow, shell } = require('electron')
 const isDev = !app.isPackaged
 
 function createWindow() {
+  const iconPath = path.join(__dirname, 'icon.ico')
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1100,
     minHeight: 700,
     autoHideMenuBar: true,
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,

@@ -18,6 +18,12 @@ This starts Vite on `http://localhost:5173` and launches Electron.
 
 ## 3) Build desktop installer (Windows)
 
+The build regenerates `electron/icon.ico` from `public/app-icon.svg` (Windows `.exe` / window / taskbar icon). To refresh only the icon:
+
+```bash
+npm run icons:win
+```
+
 ```bash
 npm run electron:build
 ```
