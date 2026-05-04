@@ -11,7 +11,8 @@ function gitCommitShort(): string {
 }
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  base: mode === 'electron' ? './' : '/',
   define: {
     __GIT_COMMIT_SHORT__: JSON.stringify(gitCommitShort()),
   },
@@ -27,5 +28,5 @@ export default defineConfig({
       },
     },
   },
-})
+}))
 

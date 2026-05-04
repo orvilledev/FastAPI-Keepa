@@ -21,7 +21,13 @@ document.addEventListener('visibilitychange', () => {
 })
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  const isElectron =
+    navigator.userAgent.toLowerCase().includes('electron') ||
+    Boolean((window as Window & { desktop?: { isElectron?: boolean } }).desktop?.isElectron)
+
   window.addEventListener('load', () => {
+    if (isElectron) return
+
     navigator.serviceWorker
       .register('/sw.js')
       .then((registration) => {
