@@ -327,7 +327,7 @@ def _extract_uploaded_rows(filename: str, raw: bytes) -> tuple[List[dict], dict]
         except Exception:
             # Fallback: one-column text, still interpreted as col A UPCs.
             df = pd.DataFrame(text.splitlines(), columns=[0], dtype=str)
-        rows = _extract_rows_from_dataframe(df)
+        rows = _extract_rows_from_dataframe(df, _FULL_COLUMN_INDICES)
         return rows, {"file_kind": "text", "sheet_count": 1}
 
     # Excel-like files: read all sheets without assuming headers.
