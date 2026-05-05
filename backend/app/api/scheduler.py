@@ -166,8 +166,8 @@ def _parse_price_token(raw: str) -> Optional[float]:
 
 
 # Original Excel column positions for the uploaded Keepa schema:
-#   A=UPC, C=Product Title, D=ASIN, F=Seller, H=Price, U=Amazon Link
-_FULL_COLUMN_INDICES = (0, 2, 3, 5, 7, 20)
+#   A=UPC, C=Product Title, L=ASIN, F=Seller, H=Price, U=Amazon Link
+_FULL_COLUMN_INDICES = (0, 2, 11, 5, 7, 20)
 # When a reader is given an explicit usecols subset (Excel/CSV fast paths) the
 # resulting DataFrame is compacted to one column per requested field, so the
 # extractor must use sequential indices instead of the original column letters.
@@ -180,7 +180,7 @@ def _extract_rows_from_dataframe(
 ) -> List[dict]:
     """
     Fixed uploaded schema (1-based columns):
-      A=UPC, C=Product Title, D=ASIN, F=Seller, H=Price, U=Amazon Link
+      A=UPC, C=Product Title, L=ASIN, F=Seller, H=Price, U=Amazon Link
 
     Uploaded daily runs ignore buy-box semantics. The price in column H is used
     as the uploaded comparison price vs system MAP per UPC.
