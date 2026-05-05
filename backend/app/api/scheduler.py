@@ -290,7 +290,7 @@ def _extract_uploaded_rows(filename: str, raw: bytes) -> tuple[List[dict], dict]
 
     if lower_name.endswith((".csv", ".txt", ".tsv")):
         # Fast path: parse bytes directly with pandas C engine + known delimiters.
-        csv_usecols = [0, 2, 3, 5, 7, 20]
+        csv_usecols = [0, 2, 11, 5, 7, 20]
         sep_candidates = ["\t"] if lower_name.endswith(".tsv") else [",", "\t", ";", "|"]
         for enc in ("utf-8-sig", "utf-16", "latin-1", "cp1252"):
             for sep in sep_candidates:
@@ -341,7 +341,7 @@ def _extract_uploaded_rows(filename: str, raw: bytes) -> tuple[List[dict], dict]
                 sheet_name=None,
                 header=None,
                 dtype=str,
-                usecols="A,C,D,F,H,U",
+                usecols="A,C,L,F,H,U",
             )
         except Exception as first_err:
             # Some files masquerade as Excel but are csv-ish; fallback to text parse.
