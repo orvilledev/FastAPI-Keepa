@@ -169,9 +169,13 @@ def _parse_price_token(raw: str) -> Optional[float]:
 #   A=UPC, C=Product Title, L=ASIN, F=Seller, H=Price, U=Amazon Link
 _FULL_COLUMN_INDICES = (0, 2, 11, 5, 7, 20)
 # When a reader is given an explicit usecols subset (Excel/CSV fast paths) the
-# resulting DataFrame is compacted to one column per requested field, so the
-# extractor must use sequential indices instead of the original column letters.
-_COMPACT_COLUMN_INDICES = (0, 1, 2, 3, 4, 5)
+# resulting DataFrame is compacted to one column per requested field. Pandas
+# always returns those compact columns in ascending source order regardless of
+# the order specified, so the mapping must reflect the sorted order:
+#   sorted source columns: A(0)=UPC, C(2)=Title, F(5)=Seller, H(7)=Price,
+#                          L(11)=ASIN, U(20)=Link
+# Compact tuple order is (idx_upc, idx_title, idx_asin, idx_seller, idx_price, idx_link).
+_COMPACT_COLUMN_INDICES = (0, 1, 4, 2, 3, 5)
 
 
 def _extract_rows_from_dataframe(
