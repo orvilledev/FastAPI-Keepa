@@ -7,3 +7,8 @@ export const APP_GIT_COMMIT_SHORT = __GIT_COMMIT_SHORT__
 
 export const APP_COPYRIGHT_OWNER =
   'Owned and managed by MetroShoe Warehouse.'
+
+/** Set `VITE_DESKTOP_APP_DOWNLOAD_URL` at build time; empty string hides the navbar download control. */
+export const DESKTOP_APP_DOWNLOAD_URL = (
+  import.meta.env.VITE_DESKTOP_APP_DOWNLOAD_URL ?? ''
+).trim()

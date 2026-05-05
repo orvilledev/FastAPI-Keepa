@@ -2,7 +2,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useEffect, useState, useCallback } from 'react'
 import { notificationsApi } from '../../services/api'
-import { APP_NAME, APP_VERSION_LABEL } from '../../constants/app'
+import { APP_NAME, APP_VERSION_LABEL, DESKTOP_APP_DOWNLOAD_URL } from '../../constants/app'
 
 export default function Navbar() {
   const { user, signOut } = useAuth()
@@ -54,6 +54,20 @@ export default function Navbar() {
             </h1>
           </div>
           <div className="flex items-center space-x-4">
+            {DESKTOP_APP_DOWNLOAD_URL ? (
+              <a
+                href={DESKTOP_APP_DOWNLOAD_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg transition-colors duration-200"
+                title="Download Windows desktop app (.exe)"
+              >
+                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span className="hidden sm:inline">Download app</span>
+              </a>
+            ) : null}
             {/* Notifications Bell */}
             <Link
               to="/notifications"
