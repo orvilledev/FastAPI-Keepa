@@ -4,10 +4,13 @@ import { useEffect, useState, useCallback } from 'react'
 import { notificationsApi } from '../../services/api'
 import { APP_NAME, APP_VERSION_LABEL, DESKTOP_APP_DOWNLOAD_URL } from '../../constants/app'
 
+const VITE_DESKTOP_URL = DESKTOP_APP_DOWNLOAD_URL
+
 export default function Navbar() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
   const [unreadCount, setUnreadCount] = useState(0)
+  const [desktopDownloadUrl, setDesktopDownloadUrl] = useState(VITE_DESKTOP_URL)
 
   // Memoize loadUnreadCount to prevent recreating intervals on every render
   const loadUnreadCount = useCallback(async () => {
@@ -39,6 +42,22 @@ export default function Navbar() {
     }
   }, [user, loadUnreadCount])
 
+  useEffect(() => {
+    const base = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+    let cancelled = false
+    fetch(`${base}/api/v1/public/client-config`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { desktop_app_download_url?: string } | null) => {
+        if (cancelled || !data) return
+        const fromApi = (data.desktop_app_download_url || '').trim()
+        setDesktopDownloadUrl(fromApi || VITE_DESKTOP_URL)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const handleSignOut = async () => {
     await signOut()
     navigate('/login')
@@ -54,9 +73,9 @@ export default function Navbar() {
             </h1>
           </div>
           <div className="flex items-center space-x-4">
-            {DESKTOP_APP_DOWNLOAD_URL ? (
+            {desktopDownloadUrl ? (
               <a
-                href={DESKTOP_APP_DOWNLOAD_URL}
+                href={desktopDownloadUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg transition-colors duration-200"

@@ -8,7 +8,12 @@ export const APP_GIT_COMMIT_SHORT = __GIT_COMMIT_SHORT__
 export const APP_COPYRIGHT_OWNER =
   'Owned and managed by MetroShoe Warehouse.'
 
-/** Set `VITE_DESKTOP_APP_DOWNLOAD_URL` at build time; empty string hides the navbar download control. */
+/**
+ * Build-time fallback for the Windows installer URL. The navbar also loads
+ * `GET /api/v1/public/client-config` and prefers `desktop_app_download_url` from the
+ * backend (set `DESKTOP_APP_DOWNLOAD_URL` on the API host) so production can change
+ * the link without rebuilding the frontend.
+ */
 export const DESKTOP_APP_DOWNLOAD_URL = (
   import.meta.env.VITE_DESKTOP_APP_DOWNLOAD_URL ?? ''
 ).trim()

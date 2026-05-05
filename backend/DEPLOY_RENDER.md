@@ -43,6 +43,7 @@ Optional (have defaults):
 - `EMAIL_SMTP_PORT` — default `587`
 - `ENVIRONMENT` — e.g. `production`
 - `PYTHON_VERSION` — e.g. `3.11.0` (Render uses this for runtime)
+- `DESKTOP_APP_DOWNLOAD_URL` — public HTTPS URL to the Windows desktop `.exe` installer. The frontend fetches this from `GET /api/v1/public/client-config` so the **Download app** navbar link works without redeploying Vercel. Leave unset to hide the link (unless the frontend sets `VITE_DESKTOP_APP_DOWNLOAD_URL` at build time).
 
 Do **not** set `PORT`; Render sets it automatically.
 

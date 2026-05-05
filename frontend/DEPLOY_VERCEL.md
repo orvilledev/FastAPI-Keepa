@@ -19,7 +19,10 @@
    - `VITE_SUPABASE_URL` – your Supabase project URL
    - `VITE_SUPABASE_ANON_KEY` – your Supabase anonymous/public key
    - `VITE_API_URL` – your backend API URL (e.g. `https://your-api.onrender.com` or your production API)
+   - (Optional) `VITE_DESKTOP_APP_DOWNLOAD_URL` – direct HTTPS link to the Windows desktop `.exe` if you are not using the backend value below.
 6. Click **Deploy**. Vercel will build and deploy; you’ll get a URL like `https://your-project.vercel.app`.
+
+**Desktop app download link:** On load, the app calls your backend at `GET /api/v1/public/client-config` and uses `desktop_app_download_url` when set (configure **`DESKTOP_APP_DOWNLOAD_URL`** on Render). That avoids a Vercel rebuild when you change the installer URL. If the API returns empty, the build-time `VITE_DESKTOP_APP_DOWNLOAD_URL` is used when present.
 
 ### After first deploy
 
@@ -51,6 +54,7 @@
    npx vercel env add VITE_SUPABASE_ANON_KEY
    npx vercel env add VITE_API_URL
    ```
+   Optional: `npx vercel env add VITE_DESKTOP_APP_DOWNLOAD_URL` if you host the installer URL only at build time (usually prefer **`DESKTOP_APP_DOWNLOAD_URL`** on the backend instead).
    Add them for **Production** (and Preview if you want). Then redeploy:
    ```bash
    npx vercel --prod

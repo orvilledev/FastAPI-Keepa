@@ -69,6 +69,11 @@ class Settings(BaseSettings):
     # Application Configuration
     environment: str = "development"
     api_v1_str: str = "/api/v1"
+
+    # Optional: HTTPS URL to the Windows desktop installer (.exe). Exposed via
+    # GET /api/v1/public/client-config so the navbar download link works without
+    # rebuilding the frontend (set on Render/host env as DESKTOP_APP_DOWNLOAD_URL).
+    desktop_app_download_url: str = ""
     
     # CORS Configuration
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
