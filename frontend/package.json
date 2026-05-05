@@ -14,11 +14,13 @@
     "electron:dev": "concurrently \"vite\" \"wait-on tcp:5173 && electron .\"",
     "electron:start": "electron .",
     "icons:win": "node scripts/build-win-icon.mjs",
-    "electron:build": "npm run icons:win && npm run build:electron && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder"
+    "electron:build": "npm run icons:win && npm run build:electron && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
+    "electron:release": "npm run icons:win && npm run build:electron && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --publish always"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.5",
     "axios": "^1.6.2",
+    "electron-updater": "^6.8.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-draggable": "^4.5.0",
@@ -40,13 +42,13 @@
     "eslint": "^8.55.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
+    "png-to-ico": "^2.1.8",
     "postcss": "^8.4.32",
+    "sharp": "^0.33.5",
     "tailwindcss": "^3.3.6",
     "typescript": "^5.2.2",
     "vite": "^5.0.8",
-    "wait-on": "^8.0.5",
-    "png-to-ico": "^2.1.8",
-    "sharp": "^0.33.5"
+    "wait-on": "^8.0.5"
   },
   "main": "electron/main.cjs",
   "build": {
@@ -69,6 +71,11 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "orvilledev",
+      "repo": "FastAPI-Keepa"
     }
   }
 }

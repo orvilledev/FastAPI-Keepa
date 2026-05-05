@@ -3,6 +3,19 @@ const { app, BrowserWindow, shell } = require('electron')
 
 const isDev = !app.isPackaged
 
+/** GitHub Releases feed is embedded at build time via `build.publish` in package.json. */
+function setupAutoUpdater() {
+  if (isDev) return
+  try {
+    const { autoUpdater } = require('electron-updater')
+    autoUpdater.checkForUpdatesAndNotify()
+    const DAY_MS = 24 * 60 * 60 * 1000
+    setInterval(() => autoUpdater.checkForUpdatesAndNotify(), DAY_MS)
+  } catch (err) {
+    console.error('[autoUpdater]', err)
+  }
+}
+
 function createWindow() {
   const iconPath = path.join(__dirname, 'icon.ico')
   const win = new BrowserWindow({
@@ -33,6 +46,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  setupAutoUpdater()
   createWindow()
 
   app.on('activate', () => {
