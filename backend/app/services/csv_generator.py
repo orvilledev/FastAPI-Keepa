@@ -628,10 +628,9 @@ class CSVGenerator:
         Build the URL written to the report's `Amazon URL` column.
 
         Prefers the seller-filtered URL when the seller id is a real Amazon
-        merchant id. Falls back to `fallback_url` (e.g. uploaded amazon_link
-        from column U) or the plain ASIN page when the id is missing or is a
-        synthetic uploaded id, so the link target is consistent with the
-        displayed seller for that row.
+        merchant id. For missing/synthetic uploaded ids, prefer the plain ASIN
+        page first so Import Mode links stay on the uploaded child ASIN; only
+        fall back to `fallback_url` when ASIN is unavailable.
         """
         clean_fallback = (fallback_url or "").strip()
 
@@ -642,8 +641,6 @@ class CSVGenerator:
         if sid and not CSVGenerator._is_synthetic_uploaded_seller_id(sid):
             return f"https://www.amazon.com/dp/{asin}?smid={sid}&th=1&psc=1"
 
-        if clean_fallback:
-            return clean_fallback
         return f"https://www.amazon.com/dp/{asin}?th=1&psc=1"
 
     @staticmethod
