@@ -11,6 +11,11 @@ class FeedbackCreate(BaseModel):
     message: Optional[str] = Field(None, max_length=10_000, description="Optional feedback details")
 
 
-class FeedbackResponse(BaseModel):
+class FeedbackItem(BaseModel):
+    """Saved feedback row returned to clients."""
+
     id: str
+    submitted_name: str
+    position: str
+    message: Optional[str] = None
     created_at: str

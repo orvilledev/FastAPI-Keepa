@@ -901,9 +901,22 @@ export const notesApi = {
   },
 }
 
+export interface FeedbackItem {
+  id: string
+  submitted_name: string
+  position: string
+  message: string | null
+  created_at: string
+}
+
 export const feedbackApi = {
+  listMine: async (): Promise<FeedbackItem[]> => {
+    const response = await api.get<FeedbackItem[]>('/api/v1/feedback/me')
+    return response.data
+  },
+
   submit: async (body: { position: string; message?: string }) => {
-    const response = await api.post<{ id: string; created_at: string }>('/api/v1/feedback', body)
+    const response = await api.post<FeedbackItem>('/api/v1/feedback', body)
     return response.data
   },
 }
