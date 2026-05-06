@@ -6,6 +6,9 @@ import { getStatusColor } from '../../utils/statusColors'
 import { formatRunDuration } from '../../utils/timeUtils'
 
 const JOBS_PER_PAGE = 15
+const POLL_INTERVAL_BUSY_MS = 10000
+const POLL_INTERVAL_IDLE_MS = 30000
+const CALENDAR_REFRESH_MS = 60000
 
 type SchedulerCalendar = Awaited<ReturnType<typeof schedulerApi.getCalendar>>
 type SchedulerVendor = SchedulerCalendar['vendors'][number]
@@ -68,27 +71,36 @@ export default function JobList() {
     failed: 0,
   })
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const calendarCacheRef = useRef<SchedulerCalendar | null>(null)
+  const lastCalendarFetchAtRef = useRef<number>(0)
+  const jobsRequestInFlightRef = useRef(false)
+  const statsRequestInFlightRef = useRef(false)
 
   const loadAllJobsForStats = useCallback(async () => {
+    if (statsRequestInFlightRef.current) return
+    statsRequestInFlightRef.current = true
     try {
       const data = await jobsApi.getJobStats()
       setStats(data)
     } catch (error) {
       console.error('Failed to load jobs for stats:', error)
+    } finally {
+      statsRequestInFlightRef.current = false
     }
   }, [])
 
   const loadJobs = useCallback(async (page: number, options?: { silent?: boolean }) => {
+    if (jobsRequestInFlightRef.current) return
+    jobsRequestInFlightRef.current = true
     const silent = options?.silent === true
     if (!silent) {
       setLoading(true)
     }
     try {
       const offset = page * JOBS_PER_PAGE
-      const [data, calendar] = await Promise.all([
-        jobsApi.listJobs(JOBS_PER_PAGE, offset),
-        schedulerApi.getCalendar(),
-      ])
+      const data = await jobsApi.listJobs(JOBS_PER_PAGE, offset, {
+        includeEnrichment: !silent,
+      })
 
       // Keep placeholders only on the first page to avoid pagination duplication.
       if (page > 0) {
@@ -96,7 +108,26 @@ export default function JobList() {
         return
       }
 
-      const nowMs = Date.now()
+      const now = Date.now()
+      const shouldRefreshCalendar =
+        !calendarCacheRef.current || now - lastCalendarFetchAtRef.current >= CALENDAR_REFRESH_MS
+
+      if (shouldRefreshCalendar) {
+        try {
+          calendarCacheRef.current = await schedulerApi.getCalendar()
+          lastCalendarFetchAtRef.current = now
+        } catch (calendarError) {
+          console.error('Failed to load scheduler calendar:', calendarError)
+        }
+      }
+
+      const calendar = calendarCacheRef.current
+      if (!calendar) {
+        setJobs(data)
+        return
+      }
+
+      const nowMs = now
       const scheduledRows: SyntheticScheduledJob[] = calendar.vendors
         .filter((vendor) => {
           if (!vendor.enabled || !vendor.next_run_time) return false
@@ -114,6 +145,7 @@ export default function JobList() {
     } catch (error) {
       console.error('Failed to load jobs:', error)
     } finally {
+      jobsRequestInFlightRef.current = false
       if (!silent) {
         setLoading(false)
       }
@@ -131,9 +163,8 @@ export default function JobList() {
       clearInterval(intervalRef.current)
     }
     
-    // Auto-refresh stats + rows: Poll every 5 seconds if there are processing jobs,
-    // otherwise every 30 seconds so row progress stays aligned with details view.
-    const pollInterval = stats.processing > 0 ? 5000 : 30000
+    // Auto-refresh stats + rows: poll faster while jobs are actively processing.
+    const pollInterval = stats.processing > 0 ? POLL_INTERVAL_BUSY_MS : POLL_INTERVAL_IDLE_MS
     intervalRef.current = setInterval(() => {
       loadAllJobsForStats()
       void loadJobs(currentPage, { silent: true })
@@ -187,6 +218,14 @@ export default function JobList() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Express Jobs</h1>
           <p className="mt-1 text-sm text-gray-500">Manage and monitor your batch processing jobs</p>
+          {stats.processing > 0 && (
+            <p
+              className="mt-2 inline-flex items-center rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800 border border-amber-200"
+              title="While jobs are processing, list auto-refresh uses a lighter data path for better responsiveness. Open a job to see fully detailed live progress."
+            >
+              Live updates are optimized while processing; open a job for full-detail progress.
+            </p>
+          )}
         </div>
         <Link
           to="/jobs/new"

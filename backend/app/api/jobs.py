@@ -62,6 +62,7 @@ async def create_job(
 async def list_jobs(
     limit: int = 15,
     offset: int = 0,
+    include_enrichment: bool = True,
     _current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase)
 ):
@@ -79,8 +80,9 @@ async def list_jobs(
         is_admin=True
     )
     jobs = job_repo.enrich_jobs_with_initiated_by(jobs)
-    jobs = job_repo.enrich_jobs_with_total_upcs(jobs)
-    jobs = job_repo.enrich_jobs_with_live_completed_batches(jobs)
+    if include_enrichment:
+        jobs = job_repo.enrich_jobs_with_total_upcs(jobs)
+        jobs = job_repo.enrich_jobs_with_live_completed_batches(jobs)
     return [BatchJobResponse(**job) for job in jobs]
 
 

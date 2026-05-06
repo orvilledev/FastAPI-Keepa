@@ -197,9 +197,14 @@ export const jobsApi = {
     return response.data
   },
   
-  listJobs: async (limit: number = 20, offset: number = 0) => {
+  listJobs: async (
+    limit: number = 20,
+    offset: number = 0,
+    options?: { includeEnrichment?: boolean }
+  ) => {
+    const includeEnrichment = options?.includeEnrichment ?? true
     const response = await api.get<BatchJob[]>('/api/v1/jobs', {
-      params: { limit, offset }
+      params: { limit, offset, include_enrichment: includeEnrichment }
     })
     return response.data
   },
