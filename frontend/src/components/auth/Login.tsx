@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { authApi } from '../../services/api'
+import { APP_ICON_URL } from '../../constants/app'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -88,7 +89,7 @@ export default function Login() {
       <div className="max-w-md w-full">
         <div className="card p-8 shadow-xl">
           <div className="text-center mb-8">
-            <img src="/app-icon.svg" alt="MSW Overwatch" className="w-16 h-16 mx-auto mb-4" />
+            <img src={APP_ICON_URL} alt="MSW Overwatch" className="w-16 h-16 mx-auto mb-4" />
             <h2 className="text-3xl font-bold text-[#404040]">
               Welcome to MSW Overwatch
             </h2>

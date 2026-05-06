@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { APP_COPYRIGHT_OWNER, APP_NAME, APP_VERSION_LABEL } from '../constants/app'
+import { APP_COPYRIGHT_OWNER, APP_ICON_URL, APP_NAME, APP_VERSION_LABEL } from '../constants/app'
 
 export default function Landing() {
   const [email, setEmail] = useState('')
@@ -82,7 +82,7 @@ export default function Landing() {
       <nav className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <img src="/app-icon.svg" alt="MSW Overwatch" className="w-10 h-10" />
+            <img src={APP_ICON_URL} alt="MSW Overwatch" className="w-10 h-10" />
             <span className="text-2xl font-bold text-[#404040]">
               {APP_NAME}
             </span>
@@ -303,7 +303,7 @@ export default function Landing() {
         <div className="max-w-md mx-auto">
           <div className="card p-8 shadow-xl">
             <div className="text-center mb-8">
-              <img src="/app-icon.svg" alt="MSW Overwatch" className="w-16 h-16 mx-auto mb-4" />
+              <img src={APP_ICON_URL} alt="MSW Overwatch" className="w-16 h-16 mx-auto mb-4" />
               <h2 className="text-3xl font-bold text-[#404040]">
                 Join {APP_NAME}
               </h2>

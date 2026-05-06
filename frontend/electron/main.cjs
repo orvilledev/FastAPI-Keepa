@@ -1,7 +1,17 @@
 const path = require('node:path')
+const os = require('node:os')
 const { app, BrowserWindow, shell } = require('electron')
 
 const isDev = !app.isPackaged
+
+if (isDev) {
+  const devDataDir = path.join(os.tmpdir(), 'msw-overwatch-electron-dev')
+  app.commandLine.appendSwitch('user-data-dir', devDataDir)
+  app.setPath('userData', devDataDir)
+  app.commandLine.appendSwitch('disk-cache-dir', path.join(devDataDir, 'Cache'))
+  app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
+  app.commandLine.appendSwitch('disable-http-cache')
+}
 
 /** GitHub Releases feed is embedded at build time via `build.publish` in package.json. */
 function setupAutoUpdater() {

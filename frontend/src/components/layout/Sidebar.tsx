@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import { useUser } from '../../contexts/UserContext'
-import { APP_NAME, APP_VERSION_LABEL } from '../../constants/app'
+import { APP_ICON_URL, APP_NAME, APP_VERSION_LABEL } from '../../constants/app'
 
 const DEV_MD_OWNER_EMAIL = 'orvillebarba@gmail.com'
 
@@ -229,7 +229,7 @@ export default function Sidebar() {
     <aside className="w-64 bg-white/80 backdrop-blur-lg border-r border-gray-200/80 shadow-lg h-screen sticky top-0 z-50">
       <div className="p-6 border-b border-gray-200/80">
         <div className="flex items-center space-x-2">
-          <img src="/app-icon.svg" alt="MSW Overwatch" className="w-8 h-8" />
+          <img src={APP_ICON_URL} alt="MSW Overwatch" className="w-8 h-8" />
           <div>
             <h2 className="text-lg font-bold text-[#404040]">
               {APP_NAME}

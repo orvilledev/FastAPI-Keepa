@@ -1,4 +1,5 @@
 export const APP_NAME = 'MSW Overwatch'
+export const APP_ICON_URL = `${import.meta.env.BASE_URL}app-icon.svg`
 export const APP_VERSION = '1.0.0'
 export const APP_VERSION_LABEL = `v${APP_VERSION}`
 
