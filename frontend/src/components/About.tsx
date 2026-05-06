@@ -70,7 +70,7 @@ export default function About() {
               type="button"
               onClick={handleCheckUpdates}
               disabled={isCheckingUpdates}
-              className="mt-3 inline-flex items-center rounded-md bg-[#404040] px-3 py-2 text-sm font-medium text-white hover:bg-[#2f2f2f] disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-3 inline-flex items-center rounded-md bg-[#F97316] px-3 py-2 text-sm font-medium text-white hover:bg-[#EA580C] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isCheckingUpdates ? 'Checking...' : 'Check for Updates'}
             </button>

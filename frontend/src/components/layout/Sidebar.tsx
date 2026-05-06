@@ -572,7 +572,7 @@ export default function Sidebar() {
             type="button"
             onClick={handleCheckUpdates}
             disabled={isCheckingUpdates}
-            className="mt-2 w-full rounded-md bg-[#404040] px-2 py-1.5 text-xs font-medium text-white hover:bg-[#2f2f2f] disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-2 w-full rounded-md bg-[#F97316] px-2 py-1.5 text-xs font-medium text-white hover:bg-[#EA580C] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isCheckingUpdates ? 'Checking...' : 'Check for Updates'}
           </button>
