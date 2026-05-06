@@ -15,3 +15,14 @@ interface ImportMeta {
   readonly env: ImportMetaEnv
 }
 
+interface DesktopBridge {
+  platform: string
+  isElectron: boolean
+  getVersion: () => Promise<string>
+  checkForUpdates: () => Promise<{ ok: boolean; message: string }>
+}
+
+interface Window {
+  desktop?: DesktopBridge
+}
+

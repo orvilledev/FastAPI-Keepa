@@ -109,10 +109,14 @@ const Icons = {
 export default function Sidebar() {
   const location = useLocation()
   const { hasKeepaAccess, isSuperadmin, userInfo } = useUser()
+  const isElectron = Boolean(window.desktop?.isElectron)
   const [isKeepaMenuOpen, setIsKeepaMenuOpen] = useState(false)
   const [isDailyRunsMenuOpen, setIsDailyRunsMenuOpen] = useState(false)
   const [isManageUPCsMenuOpen, setIsManageUPCsMenuOpen] = useState(false)
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false)
+  const [desktopVersion, setDesktopVersion] = useState<string | null>(null)
+  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false)
+  const [updateMessage, setUpdateMessage] = useState('')
   /** Only one sidebar row shows “highlight” while hovering; route highlight defers to hover target. */
   const [hoveredNav, setHoveredNav] = useState<string | null>(null)
 
@@ -224,6 +228,28 @@ export default function Sidebar() {
       setIsToolsMenuOpen(true)
     }
   }, [hasActiveToolsSubItem])
+
+  useEffect(() => {
+    if (!isElectron || !window.desktop?.getVersion) return
+    window.desktop
+      .getVersion()
+      .then((version) => setDesktopVersion(version))
+      .catch(() => setDesktopVersion(null))
+  }, [isElectron])
+
+  const handleCheckUpdates = async () => {
+    if (!window.desktop?.checkForUpdates) return
+    setIsCheckingUpdates(true)
+    setUpdateMessage('')
+    try {
+      const result = await window.desktop.checkForUpdates()
+      setUpdateMessage(result.message)
+    } catch {
+      setUpdateMessage('Failed to check for updates.')
+    } finally {
+      setIsCheckingUpdates(false)
+    }
+  }
 
   return (
     <aside className="w-64 bg-white/80 backdrop-blur-lg border-r border-gray-200/80 shadow-lg h-screen sticky top-0 z-50">
@@ -536,6 +562,23 @@ export default function Sidebar() {
           )}
         </div>
       </nav>
+      {isElectron && (
+        <div className="mx-4 mb-4 mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <p className="text-xs font-semibold text-gray-700">Desktop</p>
+          <p className="mt-1 text-xs text-gray-600">
+            Version: <span className="font-mono text-[11px]">{desktopVersion ?? 'loading...'}</span>
+          </p>
+          <button
+            type="button"
+            onClick={handleCheckUpdates}
+            disabled={isCheckingUpdates}
+            className="mt-2 w-full rounded-md bg-[#404040] px-2 py-1.5 text-xs font-medium text-white hover:bg-[#2f2f2f] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isCheckingUpdates ? 'Checking...' : 'Check for Updates'}
+          </button>
+          {updateMessage && <p className="mt-2 text-[11px] text-gray-600">{updateMessage}</p>}
+        </div>
+      )}
     </aside>
   )
 }

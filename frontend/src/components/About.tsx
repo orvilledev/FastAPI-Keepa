@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import {
   APP_COPYRIGHT_OWNER,
   APP_GIT_COMMIT_SHORT,
@@ -7,6 +8,33 @@ import {
 } from '../constants/app'
 
 export default function About() {
+  const isElectron = Boolean(window.desktop?.isElectron)
+  const [desktopVersion, setDesktopVersion] = useState<string | null>(null)
+  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false)
+  const [updateMessage, setUpdateMessage] = useState<string>('')
+
+  useEffect(() => {
+    if (!isElectron || !window.desktop?.getVersion) return
+    window.desktop
+      .getVersion()
+      .then((version) => setDesktopVersion(version))
+      .catch(() => setDesktopVersion(null))
+  }, [isElectron])
+
+  const handleCheckUpdates = async () => {
+    if (!window.desktop?.checkForUpdates) return
+    setIsCheckingUpdates(true)
+    setUpdateMessage('')
+    try {
+      const result = await window.desktop.checkForUpdates()
+      setUpdateMessage(result.message)
+    } catch {
+      setUpdateMessage('Failed to check for updates.')
+    } finally {
+      setIsCheckingUpdates(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="card p-8">
@@ -28,6 +56,27 @@ export default function About() {
           Its core purpose is Keepa-based compliance monitoring across vendors, with API and Upload workflows,
           shared recipient management, and report delivery that teams can use immediately.
         </p>
+
+        {isElectron && (
+          <div className="mt-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <h3 className="text-sm font-semibold text-gray-800">Desktop App Controls</h3>
+            <p className="mt-1 text-sm text-gray-600">
+              App version:{' '}
+              <code className="rounded bg-white px-2 py-0.5 text-xs text-gray-800">
+                {desktopVersion ?? 'loading...'}
+              </code>
+            </p>
+            <button
+              type="button"
+              onClick={handleCheckUpdates}
+              disabled={isCheckingUpdates}
+              className="mt-3 inline-flex items-center rounded-md bg-[#404040] px-3 py-2 text-sm font-medium text-white hover:bg-[#2f2f2f] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isCheckingUpdates ? 'Checking...' : 'Check for Updates'}
+            </button>
+            {updateMessage && <p className="mt-2 text-sm text-gray-600">{updateMessage}</p>}
+          </div>
+        )}
       </div>
 
       <div className="card p-8">

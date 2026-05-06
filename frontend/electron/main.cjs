@@ -1,6 +1,6 @@
 const path = require('node:path')
 const os = require('node:os')
-const { app, BrowserWindow, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, shell } = require('electron')
 
 const isDev = !app.isPackaged
 
@@ -54,6 +54,31 @@ function createWindow() {
     win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
   }
 }
+
+ipcMain.handle('app:getVersion', () => app.getVersion())
+
+ipcMain.handle('app:checkForUpdates', async () => {
+  if (isDev) {
+    return {
+      ok: false,
+      message: 'Update checks are only available in installed desktop builds.',
+    }
+  }
+
+  try {
+    const { autoUpdater } = require('electron-updater')
+    await autoUpdater.checkForUpdatesAndNotify()
+    return {
+      ok: true,
+      message: 'Update check started. You will be notified if an update is available.',
+    }
+  } catch (err) {
+    return {
+      ok: false,
+      message: err?.message || 'Failed to check for updates.',
+    }
+  }
+})
 
 app.whenReady().then(() => {
   setupAutoUpdater()
