@@ -41,16 +41,25 @@ export default function About() {
               <span className="font-semibold">Express Jobs:</span> On-demand checks with report output and recipient selection.
             </li>
             <li>
-              <span className="font-semibold">Daily Runs:</span> Scheduled monitoring with countdowns, grouped by active and inactive runs on the dashboard.
+              <span className="font-semibold">Daily Runs:</span> Scheduled monitoring per vendor category (DNK, CLK, OBZ, REF, BOR, SFF, TEV, CHA), grouped by active and inactive runs on the dashboard.
             </li>
             <li>
               <span className="font-semibold">API Mode and Import Mode:</span> API Mode uses live Keepa data, while Import Mode evaluates uploaded Keepa report data against managed MAP/UPC scope.
             </li>
             <li>
+              <span className="font-semibold">Mode Switching:</span> Vendors can switch between API and Import modes while keeping the same scheduled run time.
+            </li>
+            <li>
               <span className="font-semibold">Email List and Reporting:</span> Centralized recipient directory with named contacts for runs/jobs, plus CSV/email outputs with seller-aware Amazon links.
             </li>
             <li>
+              <span className="font-semibold">Alert Reporting:</span> Findings are converted into downloadable and email-ready outputs when reporting and SMTP settings are configured.
+            </li>
+            <li>
               <span className="font-semibold">UPC and MAP Support:</span> Uses managed UPC and MAP data per vendor category to evaluate pricing accurately.
+            </li>
+            <li>
+              <span className="font-semibold">Access by Role:</span> Keepa, UPC/MAP, and related workflows are permission-based, so visibility can vary by account role.
             </li>
           </ul>
         </div>
