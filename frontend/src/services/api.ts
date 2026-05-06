@@ -3,7 +3,22 @@ import { supabase } from '../lib/supabase'
 import type {
   MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, MicroToolRecord, Note, JobAid, Notification, ComprehensiveReportRow, SellerName, NoteShare, CliChatSession, CliChatMessage } from '../types'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+/** All request paths begin with `/api/v1`. Strip a mistaken `/api/v1` suffix from env to avoid doubled paths (404 Not Found). */
+function normalizeApiBaseUrl(raw: string): string {
+  let base = raw.trim().replace(/\/+$/, '')
+  const lower = base.toLowerCase()
+  const suffix = '/api/v1'
+  if (lower.endsWith(suffix)) {
+    base = base.slice(0, base.length - suffix.length).replace(/\/+$/, '')
+  }
+  return base || 'http://localhost:8000'
+}
+
+const API_URL = normalizeApiBaseUrl(
+  typeof import.meta.env.VITE_API_URL === 'string' && import.meta.env.VITE_API_URL.length > 0
+    ? import.meta.env.VITE_API_URL
+    : 'http://localhost:8000'
+)
 
 /** Packaged Electron uses HashRouter (`#/...`); plain `/login` breaks on `file:` URLs. */
 function redirectToLogin(): void {

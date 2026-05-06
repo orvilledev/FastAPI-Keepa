@@ -28,13 +28,23 @@ export default function Feedback() {
       setPosition('')
       setMessage('')
     } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: string | unknown } } })?.response?.data?.detail
-      const msg =
+      const ax = err as {
+        response?: { status?: number; data?: { detail?: string | unknown } }
+      }
+      const status = ax.response?.status
+      const detail = ax.response?.data?.detail
+
+      let msg =
         typeof detail === 'string'
           ? detail
           : Array.isArray(detail)
             ? 'Please check your input and try again.'
             : 'Failed to submit feedback. Please try again.'
+
+      if (status === 404) {
+        msg =
+          'Feedback API was not found (404). Deploy the latest backend, or fix VITE_API_URL: it must be the API root without /api/v1 (e.g. https://metro-api.onrender.com).'
+      }
       setError(msg)
     } finally {
       setLoading(false)
