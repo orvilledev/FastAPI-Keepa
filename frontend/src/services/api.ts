@@ -886,6 +886,13 @@ export const notesApi = {
   },
 }
 
+export const feedbackApi = {
+  submit: async (body: { position: string; message?: string }) => {
+    const response = await api.post<{ id: string; created_at: string }>('/api/v1/feedback', body)
+    return response.data
+  },
+}
+
 export const notificationsApi = {
   getCatalog: async (): Promise<{
     items: Array<{

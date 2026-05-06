@@ -104,6 +104,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
     </svg>
   ),
+  feedback: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.018c8.836 0 16 8.058 16 9.036v7.964a1 1 0 01-1.618.794L17 21" />
+    </svg>
+  ),
 }
 
 export default function Sidebar() {
@@ -528,6 +533,19 @@ export default function Sidebar() {
           >
             <span className="mr-3">{Icons.info}</span>
             <span>About</span>
+          </Link>
+
+          <Link
+            to="/feedback"
+            onMouseEnter={() => setHoveredNav('feedback')}
+            className={`sidebar-link ${
+              navHighlighted('feedback', isActive('/feedback'))
+                ? 'sidebar-link-active'
+                : 'sidebar-link-inactive'
+            }`}
+          >
+            <span className="mr-3">{Icons.feedback}</span>
+            <span>Feedback</span>
           </Link>
 
           {canViewDevMd && (

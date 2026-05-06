@@ -47,6 +47,7 @@ const MicroTools = lazy(() => import('./components/tools/MicroTools'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
 const MyNotes = lazy(() => import('./components/notes/MyNotes'))
+const Feedback = lazy(() => import('./components/feedback/Feedback'))
 const LAST_PRIVATE_PATH_KEY = 'last_private_path'
 const DEV_MD_OWNER_EMAIL = 'orvillebarba@gmail.com'
 
@@ -233,6 +234,7 @@ function AppRoutes() {
         <Route element={<PrivateLayout />}>
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="about" element={<About />} />
+          <Route path="feedback" element={<Feedback />} />
           <Route
             path="dev-md"
             element={canViewDevMd ? <DevMd /> : <Navigate to="/dashboard" replace />}
