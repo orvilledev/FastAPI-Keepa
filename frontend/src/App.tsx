@@ -13,6 +13,7 @@ import { UserProvider, useUser } from './contexts/UserContext'
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/common/ProtectedRoute'
 import About from './components/About'
+import DevMd from './components/DevMd'
 import Maintenance from './components/Maintenance'
 import { systemApi } from './services/api'
 
@@ -47,6 +48,7 @@ const Notifications = lazy(() => import('./components/notifications/Notification
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
 const MyNotes = lazy(() => import('./components/notes/MyNotes'))
 const LAST_PRIVATE_PATH_KEY = 'last_private_path'
+const DEV_MD_OWNER_EMAIL = 'orvillebarba@gmail.com'
 
 /** Packaged Electron loads `index.html` over `file:`; BrowserRouter cannot match routes there. */
 function AppRouter({ children }: { children: ReactNode }) {
@@ -150,7 +152,7 @@ function RememberLastPrivatePath() {
 
 // Inner app component that uses the user context
 function AppRoutes() {
-  const { authLoading, authUser, userInfoLoading, isSuperadmin } = useUser()
+  const { authLoading, authUser, userInfoLoading, isSuperadmin, userInfo } = useUser()
   const [maintenanceMode, setMaintenanceMode] = useState(false)
   const [maintenanceMessage, setMaintenanceMessage] = useState<string>('')
   const [maintenanceExpectedEndAt, setMaintenanceExpectedEndAt] = useState<string | null>(null)
@@ -200,6 +202,8 @@ function AppRoutes() {
     )
   }
 
+  const canViewDevMd = userInfo?.email?.toLowerCase() === DEV_MD_OWNER_EMAIL
+
   return (
     <>
       <RememberLastPrivatePath />
@@ -229,6 +233,10 @@ function AppRoutes() {
         <Route element={<PrivateLayout />}>
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="about" element={<About />} />
+          <Route
+            path="dev-md"
+            element={canViewDevMd ? <DevMd /> : <Navigate to="/dashboard" replace />}
+          />
 
           <Route path="jobs" element={<ProtectedRoute requireKeepaAccess={true}><JobList /></ProtectedRoute>} />
           <Route path="jobs/new" element={<ProtectedRoute requireKeepaAccess={true}><CreateJob /></ProtectedRoute>} />
