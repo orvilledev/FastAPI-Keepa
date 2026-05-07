@@ -110,6 +110,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.018c8.836 0 16 8.058 16 9.036v7.964a1 1 0 01-1.618.794L17 21" />
     </svg>
   ),
+  scanner: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7V5a1 1 0 011-1h2m10 0h2a1 1 0 011 1v2M4 17v2a1 1 0 001 1h2m10 0h2a1 1 0 001-1v-2M7 8v8m3-8v8m3-8v8m3-8v8" />
+    </svg>
+  ),
 }
 
 export default function Sidebar() {
@@ -518,6 +523,19 @@ export default function Sidebar() {
           >
             <span className="mr-3">{Icons.toolbox}</span>
             <span>Micro Tools</span>
+          </Link>
+
+          <Link
+            to="/tracking-scanner"
+            onMouseEnter={() => setHoveredNav('tracking-scanner')}
+            className={`sidebar-link ${
+              navHighlighted('tracking-scanner', isActive('/tracking-scanner'))
+                ? 'sidebar-link-active'
+                : 'sidebar-link-inactive'
+            }`}
+          >
+            <span className="mr-3">{Icons.scanner}</span>
+            <span>Tracking Extractor</span>
           </Link>
 
           <Link

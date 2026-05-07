@@ -18,6 +18,11 @@ slowapi==0.1.9
 # Security dependencies
 bleach==6.1.0
 
+# Tracking Extractor (PDF text + OCR for shipping labels)
+PyMuPDF>=1.24.10
+pytesseract>=0.3.13
+Pillow>=10.4.0
+
 # Monitoring dependencies
 sentry-sdk[fastapi]==2.19.2
 
