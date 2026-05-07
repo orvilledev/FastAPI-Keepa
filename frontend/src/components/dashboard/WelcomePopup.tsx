@@ -161,7 +161,7 @@ export default function WelcomePopup() {
         </button>
 
         <div className="px-7 pt-14 pb-7 text-center">
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#81B81D]">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#81B81D] sm:text-base sm:tracking-[0.14em]">
             Congratulations, {friendlyName}!
           </p>
           <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
@@ -207,9 +207,9 @@ export default function WelcomePopup() {
                   We'd love your feedback
                 </p>
                 <p className="mt-1 text-sm leading-relaxed text-stone-600">
-                  Tell us what's working, what isn't, and what would make your
-                  day easier. It only takes a moment, and every submission goes
-                  straight to the team.
+                  In a few words: your experience using MSW Overwatch, how useful it is
+                  in your workflow, and any honest feedback for the developer—we read
+                  every submission.
                 </p>
               </div>
             </div>
