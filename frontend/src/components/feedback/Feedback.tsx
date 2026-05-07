@@ -209,6 +209,30 @@ export default function Feedback() {
             </div>
 
             <form className="mt-4 space-y-5" onSubmit={handleSubmit}>
+              <section
+                className="rounded-lg border border-gray-300 bg-gray-100 p-4 shadow-inner"
+                aria-label="Organization"
+              >
+                <label
+                  htmlFor="feedback-company"
+                  className="mb-2 block text-sm font-semibold text-gray-900"
+                >
+                  Company <span className="text-red-600">*</span>
+                </label>
+                <input
+                  id="feedback-company"
+                  type="text"
+                  readOnly
+                  aria-readonly="true"
+                  value={FEEDBACK_COMPANY}
+                  title="Organization is preset and cannot be changed"
+                  className="w-full cursor-not-allowed rounded-md border border-gray-400 bg-gray-50 px-4 py-3 font-semibold text-gray-800 shadow-sm"
+                />
+                <p className="mt-2 text-xs text-gray-600">
+                  Cannot be edited; applies to everyone using this submission form.
+                </p>
+              </section>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label
@@ -265,24 +289,6 @@ export default function Feedback() {
                   placeholder="e.g. Operations Analyst"
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="feedback-company"
-                  className="mb-2 block text-sm font-medium text-gray-700"
-                >
-                  Company <span className="text-red-600">*</span>
-                </label>
-                <input
-                  id="feedback-company"
-                  type="text"
-                  readOnly
-                  aria-readonly="true"
-                  value={FEEDBACK_COMPANY}
-                  className="w-full cursor-not-allowed rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-gray-600"
-                />
-                <p className="mt-1 text-xs text-gray-500">Assigned for all submissions.</p>
               </div>
 
               <div>
