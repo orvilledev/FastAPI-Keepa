@@ -902,6 +902,7 @@ export const notesApi = {
 }
 
 export interface FeedbackItem {
+  user_id: string
   id: string
   company: string
   first_name: string
@@ -923,8 +924,21 @@ export const feedbackApi = {
     return response.data
   },
 
-  deleteForAdmin: async (feedbackId: string): Promise<void> => {
+  delete: async (feedbackId: string): Promise<void> => {
     await api.delete(`/api/v1/feedback/${feedbackId}`)
+  },
+
+  patch: async (
+    feedbackId: string,
+    body: {
+      first_name: string
+      last_name: string
+      position: string
+      message?: string
+    },
+  ) => {
+    const response = await api.patch<FeedbackItem>(`/api/v1/feedback/${feedbackId}`, body)
+    return response.data
   },
 
   submit: async (body: {

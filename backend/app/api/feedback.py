@@ -8,8 +8,8 @@ from supabase import Client
 
 from app.api.auth import _ensure_profile_row
 from app.database import get_supabase
-from app.dependencies import get_current_user, get_superadmin_user
-from app.models.feedback import FeedbackCreate, FeedbackItem
+from app.dependencies import get_current_user, get_superadmin_user, is_superadmin_user
+from app.models.feedback import FeedbackCreate, FeedbackItem, FeedbackUpdate
 from app.utils.error_handler import handle_api_errors
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,9 @@ def _row_to_item(rec: dict) -> FeedbackItem:
     merged = f"{first_name} {last_name}".strip()
     submitted_name = str(rec.get("submitted_name") or merged).strip()
     company = str(rec.get("company") or FEEDBACK_COMPANY).strip() or FEEDBACK_COMPANY
+    uid = rec.get("user_id")
     return FeedbackItem(
+        user_id=str(uid) if uid is not None else "",
         id=str(rec["id"]),
         company=company,
         first_name=first_name,
@@ -35,6 +37,12 @@ def _row_to_item(rec: dict) -> FeedbackItem:
         message=rec.get("message"),
         created_at=str(rec["created_at"]),
     )
+
+
+def _fetch_feedback_row(db: Client, fid: str) -> dict | None:
+    res = db.table("app_feedback").select("id, user_id").eq("id", fid).limit(1).execute()
+    rows = getattr(res, "data", None) or []
+    return rows[0] if rows else None
 
 
 @router.get("/feedback/me", response_model=list[FeedbackItem])
@@ -48,7 +56,7 @@ async def list_my_feedback(
     response = (
         db.table("app_feedback")
         .select(
-            "id, company, first_name, last_name, submitted_name, position, message, created_at",
+            "id, user_id, company, first_name, last_name, submitted_name, position, message, created_at",
         )
         .eq("user_id", current_user["id"])
         .order("created_at", desc=True)
@@ -70,7 +78,7 @@ async def list_all_feedback(
     response = (
         db.table("app_feedback")
         .select(
-            "id, company, first_name, last_name, submitted_name, position, message, created_at",
+            "id, user_id, company, first_name, last_name, submitted_name, position, message, created_at",
         )
         .order("created_at", desc=True)
         .limit(limit)
@@ -84,18 +92,71 @@ async def list_all_feedback(
 @handle_api_errors("delete feedback")
 async def delete_feedback(
     feedback_id: UUID,
-    current_user: dict = Depends(get_superadmin_user),
+    current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
-    """Remove a feedback row. Superadmin only."""
+    """Remove feedback. Allowed for superadmin (any row) or the submitter (own rows only)."""
     fid = str(feedback_id)
-    check = db.table("app_feedback").select("id").eq("id", fid).limit(1).execute()
-    rows = getattr(check, "data", None) or []
-    if not rows:
+    row_meta = _fetch_feedback_row(db, fid)
+    if not row_meta:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feedback not found")
+
+    owner_id = str(row_meta.get("user_id") or "")
+    is_owner = owner_id == str(current_user["id"])
+    if not is_superadmin_user(current_user, db) and not is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete your own feedback.",
+        )
 
     db.table("app_feedback").delete().eq("id", fid).execute()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/feedback/{feedback_id}", response_model=FeedbackItem)
+@handle_api_errors("update feedback")
+async def update_feedback(
+    feedback_id: UUID,
+    payload: FeedbackUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Update editable fields on own feedback only."""
+    fid = str(feedback_id)
+    row_meta = _fetch_feedback_row(db, fid)
+    if not row_meta:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feedback not found")
+
+    if str(row_meta.get("user_id") or "") != str(current_user["id"]):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only edit your own feedback.",
+        )
+
+    first_name = payload.first_name.strip()
+    last_name = payload.last_name.strip()
+    submitted_name = f"{first_name} {last_name}".strip()
+
+    patch = {
+        "first_name": first_name,
+        "last_name": last_name,
+        "submitted_name": submitted_name,
+        "position": payload.position.strip(),
+        "message": (payload.message or "").strip() or None,
+    }
+
+    res = db.table("app_feedback").update(patch).eq("id", fid).execute()
+    data = getattr(res, "data", None) or []
+    if not data:
+        logger.error("app_feedback patch returned no row for id=%s", fid)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not update feedback",
+        )
+
+    rec = data[0]
+    rec.setdefault("user_id", current_user["id"])
+    return _row_to_item(rec)
 
 
 @router.post("/feedback", response_model=FeedbackItem, status_code=201)
@@ -134,4 +195,5 @@ async def submit_feedback(
         )
 
     rec = data[0]
+    rec.setdefault("user_id", current_user["id"])
     return _row_to_item(rec)

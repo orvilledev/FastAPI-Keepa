@@ -26,9 +26,15 @@ function displayCompany(row: FeedbackItem): string {
   return raw || FEEDBACK_COMPANY
 }
 
+function isMyFeedback(row: FeedbackItem, userId?: string | null): boolean {
+  const uid = (userId || '').trim()
+  return Boolean(uid && row.user_id === uid)
+}
+
 export default function Feedback() {
-  const { userInfoLoading, isSuperadmin } = useUser()
+  const { userInfoLoading, isSuperadmin, userInfo } = useUser()
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
+  const [editingFeedbackId, setEditingFeedbackId] = useState<string | null>(null)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [position, setPosition] = useState('')
@@ -42,6 +48,7 @@ export default function Feedback() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const openFeedbackModal = useCallback(() => {
+    setEditingFeedbackId(null)
     setError('')
     setFirstName('')
     setLastName('')
@@ -50,9 +57,21 @@ export default function Feedback() {
     setShowFeedbackModal(true)
   }, [])
 
+  const openEditFeedbackModal = useCallback((row: FeedbackItem) => {
+    if (!isMyFeedback(row, userInfo?.id)) return
+    setEditingFeedbackId(row.id)
+    setError('')
+    setFirstName(row.first_name ?? '')
+    setLastName(row.last_name ?? '')
+    setPosition(row.position ?? '')
+    setMessage(row.message ?? '')
+    setShowFeedbackModal(true)
+  }, [userInfo?.id])
+
   const closeFeedbackModal = useCallback(() => {
     if (loading) return
     setError('')
+    setEditingFeedbackId(null)
     setShowFeedbackModal(false)
   }, [loading])
 
@@ -119,20 +138,33 @@ export default function Feedback() {
     }
     setLoading(true)
     try {
-      const created = await feedbackApi.submit({
-        first_name: trimmedFirst,
-        last_name: trimmedLast,
-        position: trimmedPosition,
-        message: message.trim() || undefined,
-      })
-      setItems((prev) => {
-        const withoutDup = prev.filter((row) => row.id !== created.id)
-        return [created, ...withoutDup]
-      })
+      if (editingFeedbackId) {
+        const updated = await feedbackApi.patch(editingFeedbackId, {
+          first_name: trimmedFirst,
+          last_name: trimmedLast,
+          position: trimmedPosition,
+          message: message.trim() || undefined,
+        })
+        setItems((prev) =>
+          prev.map((row) => (row.id === updated.id ? updated : row)),
+        )
+      } else {
+        const created = await feedbackApi.submit({
+          first_name: trimmedFirst,
+          last_name: trimmedLast,
+          position: trimmedPosition,
+          message: message.trim() || undefined,
+        })
+        setItems((prev) => {
+          const withoutDup = prev.filter((row) => row.id !== created.id)
+          return [created, ...withoutDup]
+        })
+      }
       setFirstName('')
       setLastName('')
       setPosition('')
       setMessage('')
+      setEditingFeedbackId(null)
       setShowFeedbackModal(false)
       setJustSubmitted(true)
       window.setTimeout(() => setJustSubmitted(false), 5000)
@@ -161,12 +193,13 @@ export default function Feedback() {
   }
 
   const handleDeleteFeedback = async (row: FeedbackItem) => {
-    if (!isSuperadmin) return
+    const canDelete = isSuperadmin || isMyFeedback(row, userInfo?.id)
+    if (!canDelete) return
     if (!window.confirm('Delete this feedback? This cannot be undone.')) return
     setDeletingId(row.id)
     setListError('')
     try {
-      await feedbackApi.deleteForAdmin(row.id)
+      await feedbackApi.delete(row.id)
       setItems((prev) => prev.filter((item) => item.id !== row.id))
     } catch {
       setListError('Could not delete feedback.')
@@ -191,11 +224,11 @@ export default function Feedback() {
           Share ideas, issues, or suggestions about MSW Overwatch.
         </p>
 
-        {isSuperadmin ? (
-          <p className="mt-3 text-xs text-gray-500">
-            Administrator view — you can delete any feedback shown below (via the delete control on hover).
-          </p>
-        ) : null}
+        <p className="mt-3 text-xs text-gray-500">
+          {isSuperadmin
+            ? 'Administrator view — delete any feedback on hover. You can edit or delete only your own submissions.'
+            : 'Hover your submission to edit or delete it.'}
+        </p>
 
         {justSubmitted && (
           <div className="mt-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
@@ -215,37 +248,62 @@ export default function Feedback() {
             </p>
           ) : (
             <ul className="grid list-none grid-cols-1 gap-4 md:grid-cols-2">
-              {items.map((row) => (
+              {items.map((row) => {
+                const mine = isMyFeedback(row, userInfo?.id)
+                const showEdit = mine
+                const showDelete = isSuperadmin || mine
+                const quotePad =
+                  showEdit && showDelete ? 'pr-44' : showDelete ? 'pr-24' : showEdit ? 'pr-20' : ''
+                const busyHover = deletingId === row.id
+                const hoverReveal =
+                  busyHover ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
+                return (
                 <li
                   key={row.id}
                   className="group relative flex h-full flex-col rounded-lg border border-stone-200 bg-stone-50/90 p-5 text-left shadow-sm"
                 >
-                  {isSuperadmin ? (
-                    <button
-                      type="button"
-                      disabled={deletingId === row.id}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        void handleDeleteFeedback(row)
-                      }}
-                      className={`absolute right-3 top-3 z-10 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 ${
-                        deletingId === row.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
-                      } border-red-300 bg-white text-red-700 shadow-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60`}
-                      aria-label="Delete feedback"
+                  {(showEdit || showDelete) ? (
+                    <div
+                      className={`absolute right-3 top-3 z-10 flex items-center gap-2 transition-opacity ${hoverReveal}`}
                     >
-                      {deletingId === row.id ? 'Deleting…' : 'Delete'}
-                    </button>
+                      {showEdit ? (
+                        <button
+                          type="button"
+                          disabled={busyHover}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openEditFeedbackModal(row)
+                          }}
+                          className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                          aria-label="Edit feedback"
+                        >
+                          Edit
+                        </button>
+                      ) : null}
+                      {showDelete ? (
+                        <button
+                          type="button"
+                          disabled={busyHover}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void handleDeleteFeedback(row)
+                          }}
+                          className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 shadow-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+                          aria-label="Delete feedback"
+                        >
+                          {deletingId === row.id ? 'Deleting…' : 'Delete'}
+                        </button>
+                      ) : null}
+                    </div>
                   ) : null}
                   {row.message ? (
                     <p
-                      className={`whitespace-pre-wrap text-lg font-bold leading-snug text-stone-800 md:text-xl ${isSuperadmin ? 'pr-20' : ''}`}
+                      className={`whitespace-pre-wrap text-lg font-bold leading-snug text-stone-800 md:text-xl ${quotePad}`}
                     >
                       &ldquo;{row.message}&rdquo;
                     </p>
                   ) : (
-                    <p
-                      className={`text-base italic leading-snug text-stone-500 ${isSuperadmin ? 'pr-20' : ''}`}
-                    >
+                    <p className={`text-base italic leading-snug text-stone-500 ${quotePad}`}>
                       (No message)
                     </p>
                   )}
@@ -260,7 +318,8 @@ export default function Feedback() {
                     <p className="mt-auto pt-3 text-xs text-gray-400">{formatSubmittedAt(row.created_at)}</p>
                   </div>
                 </li>
-              ))}
+                )
+              })}
             </ul>
           )}
         </div>
@@ -290,7 +349,7 @@ export default function Feedback() {
           >
             <div className="flex items-start justify-between gap-4">
               <h2 id="feedback-modal-title" className="text-xl font-semibold text-gray-900">
-                New feedback
+                {editingFeedbackId ? 'Edit feedback' : 'New feedback'}
               </h2>
               <button
                 type="button"
@@ -417,7 +476,11 @@ export default function Feedback() {
                   disabled={loading}
                   className="inline-flex rounded-lg bg-[#F97316] px-6 py-3 font-semibold text-white hover:bg-[#EA580C] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {loading ? 'Submitting…' : 'Submit feedback'}
+                  {loading
+                    ? 'Saving…'
+                    : editingFeedbackId
+                      ? 'Save changes'
+                      : 'Submit feedback'}
                 </button>
                 <button
                   type="button"

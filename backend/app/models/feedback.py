@@ -13,9 +13,14 @@ class FeedbackCreate(BaseModel):
     message: Optional[str] = Field(None, max_length=10_000, description="Optional feedback details")
 
 
+class FeedbackUpdate(FeedbackCreate):
+    """Full replace of editable fields when updating feedback (PATCH)."""
+
+
 class FeedbackItem(BaseModel):
     """Saved feedback row returned to clients."""
 
+    user_id: str
     id: str
     company: str
     first_name: str
