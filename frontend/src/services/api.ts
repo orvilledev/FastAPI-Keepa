@@ -909,6 +909,7 @@ export interface FeedbackItem {
   last_name: string
   submitted_name: string
   position: string
+  signature: string
   message: string | null
   created_at: string
 }
@@ -934,6 +935,7 @@ export const feedbackApi = {
       first_name: string
       last_name: string
       position: string
+      signature: string
       message?: string
     },
   ) => {
@@ -945,6 +947,7 @@ export const feedbackApi = {
     first_name: string
     last_name: string
     position: string
+    signature: string
     message?: string
   }) => {
     const response = await api.post<FeedbackItem>('/api/v1/feedback', body)

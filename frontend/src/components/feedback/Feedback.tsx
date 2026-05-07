@@ -38,6 +38,7 @@ export default function Feedback() {
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [position, setPosition] = useState('')
+  const [signature, setSignature] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -55,6 +56,7 @@ export default function Feedback() {
     setFirstName('')
     setLastName('')
     setPosition('')
+    setSignature('')
     setMessage('')
     setShowFeedbackModal(true)
   }, [items, userInfo?.id])
@@ -66,6 +68,7 @@ export default function Feedback() {
     setFirstName(row.first_name ?? '')
     setLastName(row.last_name ?? '')
     setPosition(row.position ?? '')
+    setSignature((row.signature ?? '').trim() || displayFullName(row))
     setMessage(row.message ?? '')
     setShowFeedbackModal(true)
   }, [userInfo?.id])
@@ -126,6 +129,7 @@ export default function Feedback() {
     const trimmedFirst = firstName.trim()
     const trimmedLast = lastName.trim()
     const trimmedPosition = position.trim()
+    const trimmedSig = signature.trim()
     if (!trimmedFirst) {
       setError('First name is required.')
       return
@@ -138,6 +142,10 @@ export default function Feedback() {
       setError('Position is required.')
       return
     }
+    if (!trimmedSig) {
+      setError('Signature is required.')
+      return
+    }
     setLoading(true)
     try {
       if (editingFeedbackId) {
@@ -145,6 +153,7 @@ export default function Feedback() {
           first_name: trimmedFirst,
           last_name: trimmedLast,
           position: trimmedPosition,
+          signature: trimmedSig,
           message: message.trim() || undefined,
         })
         setItems((prev) =>
@@ -155,6 +164,7 @@ export default function Feedback() {
           first_name: trimmedFirst,
           last_name: trimmedLast,
           position: trimmedPosition,
+          signature: trimmedSig,
           message: message.trim() || undefined,
         })
         setItems((prev) => {
@@ -165,6 +175,7 @@ export default function Feedback() {
       setFirstName('')
       setLastName('')
       setPosition('')
+      setSignature('')
       setMessage('')
       setEditingFeedbackId(null)
       setShowFeedbackModal(false)
@@ -339,6 +350,11 @@ export default function Feedback() {
                       <span className="mt-2 inline-flex max-w-full items-center justify-end rounded-full border border-[#81B81D]/25 bg-gradient-to-r from-stone-50 to-[#81B81D]/12 px-3.5 py-1.5 text-right text-xs font-medium text-gray-600">
                         {displayCompany(row)}
                       </span>
+                      {row.signature ? (
+                        <p className="mt-3 border-t border-dashed border-stone-200 pt-3 text-right text-[0.8125rem] italic text-stone-700">
+                          Signed: {(row.signature || '').trim()}
+                        </p>
+                      ) : null}
                     </div>
                   </footer>
                 </li>
@@ -493,6 +509,30 @@ export default function Feedback() {
                   placeholder="Describe your feedback in as much detail as you like."
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="feedback-signature"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
+                  Signature <span className="text-red-600">*</span>
+                </label>
+                <input
+                  id="feedback-signature"
+                  type="text"
+                  required
+                  autoComplete="name"
+                  maxLength={280}
+                  value={signature}
+                  onChange={(e) => setSignature(e.target.value)}
+                  placeholder="Type your full name as your electronic signature"
+                  className="w-full rounded-lg border-b-2 border-x border-t border-gray-300 border-b-stone-600 bg-[#fdfcfa] px-4 py-3 font-serif text-xl italic text-stone-900 shadow-inner focus:border-transparent focus:border-b-[#81B81D] focus:outline-none focus:ring-2 focus:ring-[#81B81D]/35"
+                  aria-required="true"
+                />
+                <p className="mt-2 text-xs text-gray-600">
+                  Required acknowledgement — matches how you certify this feedback.
+                </p>
               </div>
 
               {error && (

@@ -67,4 +67,9 @@ WHERE id IN (
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_app_feedback_user_one ON app_feedback (user_id);
 
+ALTER TABLE app_feedback ADD COLUMN IF NOT EXISTS signature TEXT;
+UPDATE app_feedback SET signature = trim(COALESCE(submitted_name, '')) WHERE trim(COALESCE(signature, '')) = '';
+UPDATE app_feedback SET signature = '—' WHERE trim(COALESCE(signature, '')) = '';
+ALTER TABLE app_feedback ALTER COLUMN signature SET NOT NULL;
+
 COMMENT ON TABLE app_feedback IS 'User-submitted product feedback.';

@@ -27,6 +27,9 @@ def _row_to_item(rec: dict) -> FeedbackItem:
     submitted_name = str(rec.get("submitted_name") or merged).strip()
     company = str(rec.get("company") or FEEDBACK_COMPANY).strip() or FEEDBACK_COMPANY
     uid = rec.get("user_id")
+    sig = str(rec.get("signature") or "").strip()
+    if not sig:
+        sig = submitted_name or "—"
     return FeedbackItem(
         user_id=str(uid) if uid is not None else "",
         id=str(rec["id"]),
@@ -35,6 +38,7 @@ def _row_to_item(rec: dict) -> FeedbackItem:
         last_name=last_name,
         submitted_name=submitted_name,
         position=str(rec.get("position") or "").strip(),
+        signature=sig,
         message=rec.get("message"),
         created_at=str(rec["created_at"]),
     )
@@ -90,7 +94,7 @@ async def list_my_feedback(
     response = (
         db.table("app_feedback")
         .select(
-            "id, user_id, company, first_name, last_name, submitted_name, position, message, created_at",
+            "id, user_id, company, first_name, last_name, submitted_name, position, signature, message, created_at",
         )
         .eq("user_id", current_user["id"])
         .order("created_at", desc=True)
@@ -112,7 +116,7 @@ async def list_all_feedback(
     response = (
         db.table("app_feedback")
         .select(
-            "id, user_id, company, first_name, last_name, submitted_name, position, message, created_at",
+            "id, user_id, company, first_name, last_name, submitted_name, position, signature, message, created_at",
         )
         .order("created_at", desc=True)
         .limit(limit)
@@ -176,6 +180,7 @@ async def update_feedback(
         "last_name": last_name,
         "submitted_name": submitted_name,
         "position": payload.position.strip(),
+        "signature": payload.signature.strip(),
         "message": (payload.message or "").strip() or None,
     }
 
@@ -228,6 +233,7 @@ async def submit_feedback(
         "last_name": last_name,
         "submitted_name": submitted_name,
         "position": payload.position.strip(),
+        "signature": payload.signature.strip(),
         "message": (payload.message or "").strip() or None,
     }
 
@@ -235,7 +241,7 @@ async def submit_feedback(
     data = getattr(inserted, "data", None) or []
 
     if not data:
-        logger.error("app_feedback insert returned no row (check DB schema: first_name, last_name, company)")
+        logger.error("app_feedback insert returned no row (check DB schema includes signature)")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not save feedback. If this persists, run database migrations for app_feedback.",
