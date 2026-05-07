@@ -190,7 +190,7 @@ export default function Feedback() {
               <span className="font-medium text-gray-800">Add a Feedback</span> to send one.
             </p>
           ) : (
-            <ul className="grid list-none grid-cols-1 gap-4 lg:grid-cols-2">
+            <ul className="grid list-none grid-cols-1 gap-4 md:grid-cols-2">
               {items.map((row) => (
                 <li
                   key={row.id}
