@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import {
-  trackingScannerApi,
+  exportRowsToCsvBlob,
+  scanPdfInBrowser,
   type TrackingScannerRow,
   type TrackingScannerScanResponse,
-} from '../../services/api'
+} from '../../utils/trackingExtractor'
 
 type Stats = {
   filename: string
@@ -55,7 +56,7 @@ export default function TrackingScanner() {
     setError(null)
     setSuccess(null)
     try {
-      const result: TrackingScannerScanResponse = await trackingScannerApi.scanPdf(file)
+      const result: TrackingScannerScanResponse = await scanPdfInBrowser(file)
       setRows(result.rows)
       setStats({
         filename: result.filename,
@@ -89,7 +90,7 @@ export default function TrackingScanner() {
     setExporting(true)
     setError(null)
     try {
-      const blob = await trackingScannerApi.exportCsv(rows, stats?.filename || file?.name)
+      const blob = exportRowsToCsvBlob(rows)
       const filename = suggestedCsvFilename(stats?.filename || file?.name || 'tracking_extract')
       downloadBlob(blob, filename)
       setSuccess(`Exported ${rows.length} row(s) to ${filename}.`)
@@ -338,7 +339,7 @@ export default function TrackingScanner() {
           <li>Pages 1, 3, 5, … (odd): text extraction reads the FBA shipment ID and box code.</li>
           <li>Pages 2, 4, 6, … (even): each page is rendered and OCR’d to read the UPS Tracking # (1Z…).</li>
           <li>Each odd–even pair becomes one CSV row. Missing values are flagged as <em>Needs review</em>.</li>
-          <li>OCR requires the Tesseract binary on the server PATH (free).</li>
+          <li>OCR runs fully in your browser using Tesseract.js (no backend OCR server required).</li>
         </ul>
       </section>
     </div>

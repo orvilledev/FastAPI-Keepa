@@ -1022,53 +1022,6 @@ export const cliChatApi = {
   },
 }
 
-export interface TrackingScannerRow {
-  source_file: string
-  odd_page: number | null
-  even_page: number | null
-  vendor: string
-  shipment_id: string
-  box_code: string
-  tracking_number: string
-  tracking_number_raw: string
-  carrier: string
-  status: string
-  notes: string
-}
-
-export interface TrackingScannerScanResponse {
-  filename: string
-  page_count_estimate: number
-  pair_count: number
-  matched_count: number
-  needs_review_count: number
-  rows: TrackingScannerRow[]
-}
-
-export const trackingScannerApi = {
-  scanPdf: async (file: File): Promise<TrackingScannerScanResponse> => {
-    const formData = new FormData()
-    formData.append('file', file)
-    const response = await api.post<TrackingScannerScanResponse>(
-      '/api/v1/tracking-scanner/scan',
-      formData
-    )
-    return response.data
-  },
-
-  exportCsv: async (
-    rows: TrackingScannerRow[],
-    filename?: string
-  ): Promise<Blob> => {
-    const response = await api.post(
-      '/api/v1/tracking-scanner/export-csv',
-      { filename, rows },
-      { responseType: 'blob' }
-    )
-    return response.data as Blob
-  },
-}
-
 export const systemApi = {
   getMaintenanceStatus: async (): Promise<{
     maintenance_mode: boolean
