@@ -545,7 +545,7 @@ export default function Sidebar() {
             }`}
           >
             <span className="mr-3">{Icons.feedback}</span>
-            <span>Feedback</span>
+            <span>Feedback From Users</span>
           </Link>
 
           {canViewDevMd && (

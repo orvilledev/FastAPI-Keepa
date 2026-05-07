@@ -126,7 +126,7 @@ export default function Feedback() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="card p-8">
-        <h1 className="text-3xl font-bold text-gray-900">Feedback</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Feedback From Users</h1>
         <p className="mt-2 text-gray-600">
           Share ideas, issues, or suggestions about MSW Overwatch.
         </p>
