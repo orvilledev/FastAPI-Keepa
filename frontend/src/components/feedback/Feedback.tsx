@@ -254,30 +254,34 @@ export default function Feedback() {
           ) : listError ? (
             <p className="text-sm text-amber-800">{listError}</p>
           ) : items.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-600">
+            <p className="rounded-2xl border border-dashed border-stone-200/90 bg-gradient-to-b from-white to-stone-50/50 px-8 py-12 text-center text-sm leading-relaxed text-gray-600 shadow-inner">
               {isSuperadmin
                 ? 'No feedback in the system yet.'
                 : 'You have not submitted feedback yet. Use Add a Feedback when you are ready (one submission per account).'}
             </p>
           ) : (
-            <ul className="grid list-none grid-cols-1 gap-4 md:grid-cols-2">
+            <ul className="grid list-none grid-cols-1 gap-6 md:grid-cols-2 md:gap-7">
               {items.map((row) => {
                 const mine = isMyFeedback(row, userInfo?.id)
                 const showEdit = mine
                 const showDelete = isSuperadmin || mine
                 const quotePad =
-                  showEdit && showDelete ? 'pr-44' : showDelete ? 'pr-24' : showEdit ? 'pr-20' : ''
+                  showEdit && showDelete ? 'pr-44' : showDelete ? 'pr-28' : showEdit ? 'pr-24' : ''
                 const busyHover = deletingId === row.id
                 const hoverReveal =
                   busyHover ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
                 return (
                 <li
                   key={row.id}
-                  className="group relative flex h-full flex-col rounded-lg border border-stone-200 bg-stone-50/90 p-5 text-left shadow-sm"
+                  className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-stone-200/70 bg-white p-6 text-left shadow-sm ring-1 ring-stone-900/[0.04] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-stone-300/90 hover:shadow-lg hover:shadow-stone-200/40 hover:ring-stone-900/[0.06] sm:p-7"
                 >
+                  <div
+                    className="pointer-events-none absolute inset-x-0 top-0 z-0 h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-400 opacity-95"
+                    aria-hidden
+                  />
                   {(showEdit || showDelete) ? (
                     <div
-                      className={`absolute right-3 top-3 z-10 flex items-center gap-2 transition-opacity ${hoverReveal}`}
+                      className={`absolute right-3 top-4 z-10 flex items-center gap-2 transition-opacity duration-200 ${hoverReveal}`}
                     >
                       {showEdit ? (
                         <button
@@ -287,7 +291,7 @@ export default function Feedback() {
                             e.stopPropagation()
                             openEditFeedbackModal(row)
                           }}
-                          className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                          className="rounded-lg border border-stone-200 bg-white/95 px-3 py-1.5 text-xs font-semibold text-stone-800 shadow-sm backdrop-blur-sm hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/70"
                           aria-label="Edit feedback"
                         >
                           Edit
@@ -301,7 +305,7 @@ export default function Feedback() {
                             e.stopPropagation()
                             void handleDeleteFeedback(row)
                           }}
-                          className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 shadow-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+                          className="rounded-lg border border-red-200/90 bg-white/95 px-3 py-1.5 text-xs font-semibold text-red-700 shadow-sm backdrop-blur-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
                           aria-label="Delete feedback"
                         >
                           {deletingId === row.id ? 'Deleting…' : 'Delete'}
@@ -309,27 +313,31 @@ export default function Feedback() {
                       ) : null}
                     </div>
                   ) : null}
-                  {row.message ? (
-                    <p
-                      className={`whitespace-pre-wrap text-lg font-bold leading-snug text-stone-800 md:text-xl ${quotePad}`}
-                    >
-                      &ldquo;{row.message}&rdquo;
+                  <blockquote
+                    className={`relative z-0 min-h-[2.75rem] border-l-[3px] border-orange-400/55 pl-4 md:pl-5 ${quotePad}`}
+                  >
+                    {row.message ? (
+                      <p className="whitespace-pre-wrap text-lg font-semibold leading-relaxed tracking-tight text-stone-800 md:text-xl">
+                        &ldquo;{row.message}&rdquo;
+                      </p>
+                    ) : (
+                      <p className="italic leading-relaxed text-stone-400">No message provided</p>
+                    )}
+                  </blockquote>
+                  <footer className="relative z-0 mt-6 flex grow flex-col border-t border-stone-100 bg-gradient-to-b from-transparent to-stone-50/[0.35] pb-px pt-6">
+                    <p className="text-base font-semibold tracking-tight text-gray-950 sm:text-[1.0625rem]">
+                      {displayFullName(row)}
                     </p>
-                  ) : (
-                    <p className={`text-base italic leading-snug text-stone-500 ${quotePad}`}>
-                      (No message)
-                    </p>
-                  )}
-                  <div className="mt-5 flex grow flex-col">
-                    <p className="text-base font-bold text-gray-900">{displayFullName(row)}</p>
                     {row.position ? (
-                      <p className="mt-0.5 text-sm font-normal text-gray-600">{row.position}</p>
+                      <p className="mt-1 text-[0.8125rem] leading-snug text-gray-600">{row.position}</p>
                     ) : null}
-                    <p className="mt-1 rounded-md bg-gray-100/90 px-2 py-1 text-xs font-medium text-gray-500">
+                    <span className="mt-3 inline-flex w-fit items-center rounded-full border border-stone-200/80 bg-gradient-to-r from-stone-50 to-orange-50/35 px-3.5 py-1.5 text-xs font-medium text-gray-600">
                       {displayCompany(row)}
+                    </span>
+                    <p className="mt-auto pt-5 text-[11px] font-medium tracking-wide text-stone-400 tabular-nums">
+                      {formatSubmittedAt(row.created_at)}
                     </p>
-                    <p className="mt-auto pt-3 text-xs text-gray-400">{formatSubmittedAt(row.created_at)}</p>
-                  </div>
+                  </footer>
                 </li>
                 )
               })}
