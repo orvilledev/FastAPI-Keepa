@@ -276,7 +276,7 @@ export default function Feedback() {
                   className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-stone-200/70 bg-white p-6 text-left shadow-sm ring-1 ring-stone-900/[0.04] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-stone-300/90 hover:shadow-lg hover:shadow-stone-200/40 hover:ring-stone-900/[0.06] sm:p-7"
                 >
                   <div
-                    className="pointer-events-none absolute inset-x-0 top-0 z-0 h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-400 opacity-95"
+                    className="pointer-events-none absolute inset-x-0 top-0 z-0 h-1 bg-gradient-to-r from-[#81B81D]/90 via-[#81B81D] to-[#81B81D]/85"
                     aria-hidden
                   />
                   {(showEdit || showDelete) ? (
@@ -291,7 +291,7 @@ export default function Feedback() {
                             e.stopPropagation()
                             openEditFeedbackModal(row)
                           }}
-                          className="rounded-lg border border-stone-200 bg-white/95 px-3 py-1.5 text-xs font-semibold text-stone-800 shadow-sm backdrop-blur-sm hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/70"
+                          className="rounded-lg border border-stone-200 bg-white/95 px-3 py-1.5 text-xs font-semibold text-stone-800 shadow-sm backdrop-blur-sm hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#81B81D]/50"
                           aria-label="Edit feedback"
                         >
                           Edit
@@ -314,7 +314,7 @@ export default function Feedback() {
                     </div>
                   ) : null}
                   <blockquote
-                    className={`relative z-0 min-h-[2.75rem] border-l-[3px] border-orange-400/55 pl-4 md:pl-5 ${quotePad}`}
+                    className={`relative z-0 min-h-[2.75rem] border-l-[3px] border-[#81B81D]/60 pl-4 md:pl-5 ${quotePad}`}
                   >
                     {row.message ? (
                       <p className="whitespace-pre-wrap text-lg font-semibold leading-relaxed tracking-tight text-stone-800 md:text-xl">
@@ -331,7 +331,7 @@ export default function Feedback() {
                     {row.position ? (
                       <p className="mt-1 text-[0.8125rem] leading-snug text-gray-600">{row.position}</p>
                     ) : null}
-                    <span className="mt-3 inline-flex w-fit items-center rounded-full border border-stone-200/80 bg-gradient-to-r from-stone-50 to-orange-50/35 px-3.5 py-1.5 text-xs font-medium text-gray-600">
+                    <span className="mt-3 inline-flex w-fit items-center rounded-full border border-[#81B81D]/25 bg-gradient-to-r from-stone-50 to-[#81B81D]/12 px-3.5 py-1.5 text-xs font-medium text-gray-600">
                       {displayCompany(row)}
                     </span>
                     <p className="mt-auto pt-5 text-[11px] font-medium tracking-wide text-stone-400 tabular-nums">
