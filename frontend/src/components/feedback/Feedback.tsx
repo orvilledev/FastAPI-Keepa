@@ -265,78 +265,81 @@ export default function Feedback() {
                 const mine = isMyFeedback(row, userInfo?.id)
                 const showEdit = mine
                 const showDelete = isSuperadmin || mine
-                const quotePad =
-                  showEdit && showDelete ? 'pr-44' : showDelete ? 'pr-28' : showEdit ? 'pr-24' : ''
                 const busyHover = deletingId === row.id
                 const hoverReveal =
                   busyHover ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
+                const hasHoverActions = showEdit || showDelete
                 return (
                 <li
                   key={row.id}
-                  className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-stone-200/70 bg-white p-6 text-left shadow-sm ring-1 ring-stone-900/[0.04] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-stone-300/90 hover:shadow-lg hover:shadow-stone-200/40 hover:ring-stone-900/[0.06] sm:p-7"
+                  className="group relative flex min-w-0 h-full flex-col overflow-hidden rounded-2xl border border-stone-200/70 bg-white p-6 text-left shadow-sm ring-1 ring-stone-900/[0.04] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-stone-300/90 hover:shadow-lg hover:shadow-stone-200/40 hover:ring-stone-900/[0.06] sm:p-7"
                 >
                   <div
                     className="pointer-events-none absolute inset-x-0 top-0 z-0 h-1 bg-gradient-to-r from-[#81B81D]/90 via-[#81B81D] to-[#81B81D]/85"
                     aria-hidden
                   />
-                  {(showEdit || showDelete) ? (
-                    <div
-                      className={`absolute right-3 top-4 z-10 flex items-center gap-2 transition-opacity duration-200 ${hoverReveal}`}
-                    >
-                      {showEdit ? (
-                        <button
-                          type="button"
-                          disabled={busyHover}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            openEditFeedbackModal(row)
-                          }}
-                          className="rounded-lg border border-stone-200 bg-white/95 px-3 py-1.5 text-xs font-semibold text-stone-800 shadow-sm backdrop-blur-sm hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#81B81D]/50"
-                          aria-label="Edit feedback"
-                        >
-                          Edit
-                        </button>
-                      ) : null}
-                      {showDelete ? (
-                        <button
-                          type="button"
-                          disabled={busyHover}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            void handleDeleteFeedback(row)
-                          }}
-                          className="rounded-lg border border-red-200/90 bg-white/95 px-3 py-1.5 text-xs font-semibold text-red-700 shadow-sm backdrop-blur-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
-                          aria-label="Delete feedback"
-                        >
-                          {deletingId === row.id ? 'Deleting…' : 'Delete'}
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <blockquote
-                    className={`relative z-0 min-h-[2.75rem] border-l-[3px] border-[#81B81D]/60 pl-4 md:pl-5 ${quotePad}`}
-                  >
-                    {row.message ? (
-                      <p className="whitespace-pre-wrap text-lg font-semibold leading-relaxed tracking-tight text-stone-800 md:text-xl">
-                        &ldquo;{row.message}&rdquo;
-                      </p>
-                    ) : (
-                      <p className="italic leading-relaxed text-stone-400">No message provided</p>
-                    )}
-                  </blockquote>
-                  <footer className="relative z-0 mt-6 flex grow flex-col border-t border-stone-100 bg-gradient-to-b from-transparent to-stone-50/[0.35] pb-px pt-6">
-                    <p className="text-base font-semibold tracking-tight text-gray-950 sm:text-[1.0625rem]">
-                      {displayFullName(row)}
-                    </p>
-                    {row.position ? (
-                      <p className="mt-1 text-[0.8125rem] leading-snug text-gray-600">{row.position}</p>
+                  <div className="relative z-10 w-full min-w-0">
+                    {hasHoverActions ? (
+                      <div
+                        className={`absolute right-0 top-0 z-10 flex items-center gap-2 transition-opacity duration-200 ${hoverReveal}`}
+                      >
+                        {showEdit ? (
+                          <button
+                            type="button"
+                            disabled={busyHover}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openEditFeedbackModal(row)
+                            }}
+                            className="rounded-lg border border-stone-200 bg-white/95 px-3 py-1.5 text-xs font-semibold text-stone-800 shadow-sm backdrop-blur-sm hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#81B81D]/50"
+                            aria-label="Edit feedback"
+                          >
+                            Edit
+                          </button>
+                        ) : null}
+                        {showDelete ? (
+                          <button
+                            type="button"
+                            disabled={busyHover}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void handleDeleteFeedback(row)
+                            }}
+                            className="rounded-lg border border-red-200/90 bg-white/95 px-3 py-1.5 text-xs font-semibold text-red-700 shadow-sm backdrop-blur-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+                            aria-label="Delete feedback"
+                          >
+                            {deletingId === row.id ? 'Deleting…' : 'Delete'}
+                          </button>
+                        ) : null}
+                      </div>
                     ) : null}
-                    <span className="mt-3 inline-flex w-fit items-center rounded-full border border-[#81B81D]/25 bg-gradient-to-r from-stone-50 to-[#81B81D]/12 px-3.5 py-1.5 text-xs font-medium text-gray-600">
-                      {displayCompany(row)}
-                    </span>
-                    <p className="mt-auto pt-5 text-[11px] font-medium tracking-wide text-stone-400 tabular-nums">
+                    <blockquote
+                      className={`relative z-0 w-full min-w-0 border-l-[3px] border-[#81B81D]/60 pr-2 pl-4 md:pl-5 ${hasHoverActions ? 'pt-11' : ''}`}
+                    >
+                      {row.message ? (
+                        <p className="whitespace-pre-wrap break-words text-lg font-semibold leading-relaxed tracking-tight text-stone-800 md:text-xl">
+                          &ldquo;{row.message}&rdquo;
+                        </p>
+                      ) : (
+                        <p className="italic leading-relaxed text-stone-400">No message provided</p>
+                      )}
+                    </blockquote>
+                  </div>
+                  <footer className="relative z-0 mt-auto flex grow flex-row flex-wrap items-end justify-between gap-x-6 gap-y-4 border-t border-stone-100 bg-gradient-to-b from-transparent to-stone-50/[0.35] pb-px pt-6">
+                    <p className="max-w-[min(100%,16rem)] text-left text-[11px] font-medium leading-snug tracking-wide text-stone-400 tabular-nums">
                       {formatSubmittedAt(row.created_at)}
                     </p>
+                    <div className="flex min-w-[10rem] max-w-[min(100%,22rem)] flex-col items-end gap-1 text-right">
+                      <p className="text-base font-semibold tracking-tight text-gray-950 sm:text-[1.0625rem]">
+                        {displayFullName(row)}
+                      </p>
+                      {row.position ? (
+                        <p className="text-[0.8125rem] leading-snug text-gray-600">{row.position}</p>
+                      ) : null}
+                      <span className="mt-2 inline-flex max-w-full items-center justify-end rounded-full border border-[#81B81D]/25 bg-gradient-to-r from-stone-50 to-[#81B81D]/12 px-3.5 py-1.5 text-right text-xs font-medium text-gray-600">
+                        {displayCompany(row)}
+                      </span>
+                    </div>
                   </footer>
                 </li>
                 )
