@@ -23,7 +23,7 @@ function displayFullName(row: FeedbackItem): string {
 
 export default function Feedback() {
   const { userInfoLoading } = useUser()
-  const [showForm, setShowForm] = useState(false)
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [position, setPosition] = useState('')
@@ -34,6 +34,41 @@ export default function Feedback() {
   const [listLoading, setListLoading] = useState(true)
   const [listError, setListError] = useState('')
   const [justSubmitted, setJustSubmitted] = useState(false)
+
+  const openFeedbackModal = useCallback(() => {
+    setError('')
+    setFirstName('')
+    setLastName('')
+    setPosition('')
+    setMessage('')
+    setShowFeedbackModal(true)
+  }, [])
+
+  const closeFeedbackModal = useCallback(() => {
+    if (loading) return
+    setError('')
+    setShowFeedbackModal(false)
+  }, [loading])
+
+  useEffect(() => {
+    if (!showFeedbackModal) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !loading) {
+        closeFeedbackModal()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [showFeedbackModal, loading, closeFeedbackModal])
+
+  useEffect(() => {
+    if (!showFeedbackModal) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [showFeedbackModal])
 
   const loadMyFeedback = useCallback(async () => {
     setListError('')
@@ -90,7 +125,7 @@ export default function Feedback() {
       setLastName('')
       setPosition('')
       setMessage('')
-      setShowForm(false)
+      setShowFeedbackModal(false)
       setJustSubmitted(true)
       window.setTimeout(() => setJustSubmitted(false), 5000)
     } catch (err: unknown) {
@@ -179,36 +214,45 @@ export default function Feedback() {
           )}
         </div>
 
-        {!showForm ? (
-          <div className="mt-8">
-            <button
-              type="button"
-              className="inline-flex rounded-lg bg-[#F97316] px-6 py-3 font-semibold text-white hover:bg-[#EA580C]"
-              onClick={() => {
-                setError('')
-                setShowForm(true)
-              }}
-            >
-              Add a Feedback
-            </button>
-          </div>
-        ) : (
-          <>
-            <div className="mt-8 flex items-center justify-between gap-4 border-t border-gray-200 pt-8">
-              <h2 className="text-lg font-semibold text-gray-900">New feedback</h2>
+        <div className="mt-8">
+          <button
+            type="button"
+            className="inline-flex rounded-lg bg-[#F97316] px-6 py-3 font-semibold text-white hover:bg-[#EA580C]"
+            onClick={openFeedbackModal}
+          >
+            Add a Feedback
+          </button>
+        </div>
+      </div>
+
+      {showFeedbackModal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="feedback-modal-title"
+          onClick={() => !loading && closeFeedbackModal()}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <h2 id="feedback-modal-title" className="text-xl font-semibold text-gray-900">
+                New feedback
+              </h2>
               <button
                 type="button"
-                className="text-sm font-medium text-gray-600 underline hover:text-gray-900"
-                onClick={() => {
-                  setError('')
-                  setShowForm(false)
-                }}
+                disabled={loading}
+                className="shrink-0 text-2xl leading-none text-gray-400 hover:text-gray-700 disabled:pointer-events-none disabled:opacity-50"
+                onClick={closeFeedbackModal}
+                aria-label="Close"
               >
-                Cancel
+                ×
               </button>
             </div>
 
-            <form className="mt-4 space-y-5" onSubmit={handleSubmit}>
+            <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
               <section
                 className="rounded-lg border border-gray-300 bg-gray-100 p-4 shadow-inner"
                 aria-label="Organization"
@@ -249,6 +293,7 @@ export default function Feedback() {
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
                     placeholder="Jane"
+                    autoFocus
                     className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
@@ -315,17 +360,27 @@ export default function Feedback() {
                 </div>
               )}
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="inline-flex rounded-lg bg-[#F97316] px-6 py-3 font-semibold text-white hover:bg-[#EA580C] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loading ? 'Submitting…' : 'Submit feedback'}
-              </button>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="inline-flex rounded-lg bg-[#F97316] px-6 py-3 font-semibold text-white hover:bg-[#EA580C] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loading ? 'Submitting…' : 'Submit feedback'}
+                </button>
+                <button
+                  type="button"
+                  disabled={loading}
+                  className="rounded-lg px-4 py-3 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:pointer-events-none disabled:opacity-50"
+                  onClick={closeFeedbackModal}
+                >
+                  Cancel
+                </button>
+              </div>
             </form>
-          </>
-        )}
-      </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
