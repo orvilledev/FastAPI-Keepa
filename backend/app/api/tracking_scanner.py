@@ -4,8 +4,6 @@ Accepts a multi-page PDF whose odd pages carry a text-based FBA shipment
 label and whose even pages carry an image-based UPS shipping label, and
 returns either a JSON list of extracted rows or a CSV file.
 """
-from __future__ import annotations
-
 import io
 import logging
 from datetime import datetime
