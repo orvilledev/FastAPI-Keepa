@@ -170,8 +170,11 @@ export default function WelcomePopup() {
             Welcome to MSW Overwatch
           </h2>
           <p className="mt-3 text-[0.9375rem] leading-relaxed text-stone-600">
-            You're now part of the MSW Overwatch family — a milestone worth
-            celebrating. Your perspective helps us shape what comes next.
+            You're onboard with{' '}
+            <span className="font-semibold text-stone-700">MSW Overwatch</span>
+            —a state-of-the-art, one-of-a-kind, powerful platform built for the way
+            you work. Tell us how it lands for you; your perspective shapes what we
+            build next.
           </p>
 
           <div className="mt-5 rounded-2xl border border-[#81B81D]/25 bg-gradient-to-br from-[#81B81D]/10 via-white to-[#FFB347]/15 p-4 text-left shadow-inner">
