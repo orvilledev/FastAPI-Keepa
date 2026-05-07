@@ -4,9 +4,8 @@ services:
   - type: web
     name: metro-api
     rootDir: backend
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    runtime: docker
+    dockerfilePath: ./Dockerfile
     # Add all required env vars in Render Dashboard (Environment) or link as secret files.
     # Required: KEEPA_API_KEY, KEEPA_API_URL, SUPABASE_URL, SUPABASE_KEY,
     #   EMAIL_FROM, EMAIL_FROM_NAME, EMAIL_PASSWORD, EMAIL_TO,
