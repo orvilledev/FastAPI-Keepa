@@ -153,7 +153,7 @@ function RememberLastPrivatePath() {
 }
 
 function FeedbackRoute() {
-  const { userInfoLoading, userInfo } = useUser()
+  const { userInfoLoading, userInfo, authUser } = useUser()
   if (userInfoLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
@@ -161,7 +161,9 @@ function FeedbackRoute() {
       </div>
     )
   }
-  if (isUserHiddenFromFeedbackPage(userInfo?.display_name, userInfo?.email)) {
+  if (
+    isUserHiddenFromFeedbackPage(userInfo?.display_name, userInfo?.email, authUser?.email)
+  ) {
     return <Navigate to="/dashboard" replace />
   }
   return <Feedback />

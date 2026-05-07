@@ -11,9 +11,11 @@ const FEEDBACK_HIDDEN_PATTERNS: RegExp[] = [
 ]
 
 export function isUserHiddenFromFeedbackPage(
-  displayName: string | undefined,
-  email: string | undefined,
+  profileDisplayName: string | undefined,
+  profileEmail: string | undefined,
+  authSessionEmail?: string | undefined,
 ): boolean {
-  const hay = `${displayName || ''} ${email || ''}`.toLowerCase()
+  const email = profileEmail?.trim() || authSessionEmail?.trim() || ''
+  const hay = `${profileDisplayName || ''} ${email} ${authSessionEmail || ''}`.toLowerCase()
   return FEEDBACK_HIDDEN_PATTERNS.some((re) => re.test(hay))
 }

@@ -114,7 +114,7 @@ const Icons = {
 
 export default function Sidebar() {
   const location = useLocation()
-  const { hasKeepaAccess, isSuperadmin, userInfo } = useUser()
+  const { hasKeepaAccess, isSuperadmin, userInfo, authUser, userInfoLoading } = useUser()
   const isElectron = Boolean(window.desktop?.isElectron)
   const [isKeepaMenuOpen, setIsKeepaMenuOpen] = useState(false)
   const [isDailyRunsMenuOpen, setIsDailyRunsMenuOpen] = useState(false)
@@ -221,6 +221,16 @@ export default function Sidebar() {
   )
   const hasActiveToolsSubItem = toolsMenuItems.some(item => isActive(item.path))
   const canViewDevMd = userInfo?.email?.toLowerCase() === DEV_MD_OWNER_EMAIL
+
+  /** Blocklist hides nav item entirely once user profile / session is resolved. */
+  const showFeedbackNav =
+    authUser !== null &&
+    !userInfoLoading &&
+    !isUserHiddenFromFeedbackPage(
+      userInfo?.display_name,
+      userInfo?.email,
+      authUser?.email,
+    )
 
   // Auto-open Keepa submenu / flyouts when a child route is active
   useEffect(() => {
