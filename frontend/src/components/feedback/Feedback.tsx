@@ -21,6 +21,11 @@ function displayFullName(row: FeedbackItem): string {
   return merged || row.submitted_name.trim() || ''
 }
 
+function displayCompany(row: FeedbackItem): string {
+  const raw = typeof row.company === 'string' ? row.company.trim() : ''
+  return raw || FEEDBACK_COMPANY
+}
+
 export default function Feedback() {
   const { userInfoLoading } = useUser()
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
@@ -161,7 +166,7 @@ export default function Feedback() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="mx-auto w-full max-w-6xl space-y-6">
       <div className="card p-8">
         <h1 className="text-3xl font-bold text-gray-900">Feedback From Users</h1>
         <p className="mt-2 text-gray-600">
@@ -185,11 +190,11 @@ export default function Feedback() {
               <span className="font-medium text-gray-800">Add a Feedback</span> to send one.
             </p>
           ) : (
-            <ul className="space-y-4">
+            <ul className="grid list-none grid-cols-1 gap-4 lg:grid-cols-2">
               {items.map((row) => (
                 <li
                   key={row.id}
-                  className="rounded-lg border border-stone-200 bg-stone-50/90 p-5 text-left shadow-sm"
+                  className="flex h-full flex-col rounded-lg border border-stone-200 bg-stone-50/90 p-5 text-left shadow-sm"
                 >
                   {row.message ? (
                     <p className="whitespace-pre-wrap text-lg font-bold leading-snug text-stone-800 md:text-xl">
@@ -198,12 +203,15 @@ export default function Feedback() {
                   ) : (
                     <p className="text-base italic leading-snug text-stone-500">(No message)</p>
                   )}
-                  <div className="mt-1.5">
+                  <div className="mt-1 flex grow flex-col">
                     <p className="text-base font-bold text-gray-900">{displayFullName(row)}</p>
                     {row.position ? (
                       <p className="mt-0.5 text-sm font-normal text-gray-600">{row.position}</p>
                     ) : null}
-                    <p className="mt-2 text-xs text-gray-400">{formatSubmittedAt(row.created_at)}</p>
+                    <p className="mt-1 rounded-md bg-gray-100/90 px-2 py-1 text-xs font-medium text-gray-500">
+                      {displayCompany(row)}
+                    </p>
+                    <p className="mt-auto pt-3 text-xs text-gray-400">{formatSubmittedAt(row.created_at)}</p>
                   </div>
                 </li>
               ))}
