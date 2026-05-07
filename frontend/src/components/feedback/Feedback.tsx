@@ -27,7 +27,7 @@ function displayCompany(row: FeedbackItem): string {
 }
 
 export default function Feedback() {
-  const { userInfoLoading } = useUser()
+  const { userInfoLoading, isSuperadmin } = useUser()
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -39,6 +39,7 @@ export default function Feedback() {
   const [listLoading, setListLoading] = useState(true)
   const [listError, setListError] = useState('')
   const [justSubmitted, setJustSubmitted] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const openFeedbackModal = useCallback(() => {
     setError('')
@@ -75,11 +76,13 @@ export default function Feedback() {
     }
   }, [showFeedbackModal])
 
-  const loadMyFeedback = useCallback(async () => {
+  const loadFeedback = useCallback(async () => {
     setListError('')
     setListLoading(true)
     try {
-      const rows = await feedbackApi.listMine()
+      const rows = isSuperadmin
+        ? await feedbackApi.listAllForAdmin()
+        : await feedbackApi.listMine()
       setItems(rows)
     } catch {
       setListError(
@@ -89,12 +92,12 @@ export default function Feedback() {
     } finally {
       setListLoading(false)
     }
-  }, [])
+  }, [isSuperadmin])
 
   useEffect(() => {
     if (userInfoLoading) return
-    void loadMyFeedback()
-  }, [userInfoLoading, loadMyFeedback])
+    void loadFeedback()
+  }, [userInfoLoading, loadFeedback])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -157,6 +160,21 @@ export default function Feedback() {
     }
   }
 
+  const handleDeleteFeedback = async (row: FeedbackItem) => {
+    if (!isSuperadmin) return
+    if (!window.confirm('Delete this feedback? This cannot be undone.')) return
+    setDeletingId(row.id)
+    setListError('')
+    try {
+      await feedbackApi.deleteForAdmin(row.id)
+      setItems((prev) => prev.filter((item) => item.id !== row.id))
+    } catch {
+      setListError('Could not delete feedback.')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   if (userInfoLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-gray-600">
@@ -172,6 +190,12 @@ export default function Feedback() {
         <p className="mt-2 text-gray-600">
           Share ideas, issues, or suggestions about MSW Overwatch.
         </p>
+
+        {isSuperadmin ? (
+          <p className="mt-3 text-xs text-gray-500">
+            Administrator view — you can delete any feedback shown below (via the delete control on hover).
+          </p>
+        ) : null}
 
         {justSubmitted && (
           <div className="mt-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
@@ -194,14 +218,36 @@ export default function Feedback() {
               {items.map((row) => (
                 <li
                   key={row.id}
-                  className="flex h-full flex-col rounded-lg border border-stone-200 bg-stone-50/90 p-5 text-left shadow-sm"
+                  className="group relative flex h-full flex-col rounded-lg border border-stone-200 bg-stone-50/90 p-5 text-left shadow-sm"
                 >
+                  {isSuperadmin ? (
+                    <button
+                      type="button"
+                      disabled={deletingId === row.id}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void handleDeleteFeedback(row)
+                      }}
+                      className={`absolute right-3 top-3 z-10 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 ${
+                        deletingId === row.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
+                      } border-red-300 bg-white text-red-700 shadow-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60`}
+                      aria-label="Delete feedback"
+                    >
+                      {deletingId === row.id ? 'Deleting…' : 'Delete'}
+                    </button>
+                  ) : null}
                   {row.message ? (
-                    <p className="whitespace-pre-wrap text-lg font-bold leading-snug text-stone-800 md:text-xl">
+                    <p
+                      className={`whitespace-pre-wrap text-lg font-bold leading-snug text-stone-800 md:text-xl ${isSuperadmin ? 'pr-20' : ''}`}
+                    >
                       &ldquo;{row.message}&rdquo;
                     </p>
                   ) : (
-                    <p className="text-base italic leading-snug text-stone-500">(No message)</p>
+                    <p
+                      className={`text-base italic leading-snug text-stone-500 ${isSuperadmin ? 'pr-20' : ''}`}
+                    >
+                      (No message)
+                    </p>
                   )}
                   <div className="mt-1 flex grow flex-col">
                     <p className="text-base font-bold text-gray-900">{displayFullName(row)}</p>

@@ -918,6 +918,15 @@ export const feedbackApi = {
     return response.data
   },
 
+  listAllForAdmin: async (): Promise<FeedbackItem[]> => {
+    const response = await api.get<FeedbackItem[]>('/api/v1/feedback/all')
+    return response.data
+  },
+
+  deleteForAdmin: async (feedbackId: string): Promise<void> => {
+    await api.delete(`/api/v1/feedback/${feedbackId}`)
+  },
+
   submit: async (body: {
     first_name: string
     last_name: string

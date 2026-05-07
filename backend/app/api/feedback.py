@@ -1,13 +1,14 @@
 """Submit and list in-app feedback (authenticated users)."""
 
 import logging
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from supabase import Client
 
 from app.api.auth import _ensure_profile_row
 from app.database import get_supabase
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_superadmin_user
 from app.models.feedback import FeedbackCreate, FeedbackItem
 from app.utils.error_handler import handle_api_errors
 
@@ -56,6 +57,45 @@ async def list_my_feedback(
     )
     rows = getattr(response, "data", None) or []
     return [_row_to_item(r) for r in rows]
+
+
+@router.get("/feedback/all", response_model=list[FeedbackItem])
+@handle_api_errors("list all feedback")
+async def list_all_feedback(
+    limit: int = Query(200, ge=1, le=500),
+    current_user: dict = Depends(get_superadmin_user),
+    db: Client = Depends(get_supabase),
+):
+    """Return all submitted feedback (newest first). Superadmin only."""
+    response = (
+        db.table("app_feedback")
+        .select(
+            "id, company, first_name, last_name, submitted_name, position, message, created_at",
+        )
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    rows = getattr(response, "data", None) or []
+    return [_row_to_item(r) for r in rows]
+
+
+@router.delete("/feedback/{feedback_id}", status_code=status.HTTP_204_NO_CONTENT)
+@handle_api_errors("delete feedback")
+async def delete_feedback(
+    feedback_id: UUID,
+    current_user: dict = Depends(get_superadmin_user),
+    db: Client = Depends(get_supabase),
+):
+    """Remove a feedback row. Superadmin only."""
+    fid = str(feedback_id)
+    check = db.table("app_feedback").select("id").eq("id", fid).limit(1).execute()
+    rows = getattr(check, "data", None) or []
+    if not rows:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feedback not found")
+
+    db.table("app_feedback").delete().eq("id", fid).execute()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/feedback", response_model=FeedbackItem, status_code=201)
