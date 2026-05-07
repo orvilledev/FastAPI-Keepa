@@ -320,7 +320,7 @@ export default function Feedback() {
                       (No message)
                     </p>
                   )}
-                  <div className="mt-1 flex grow flex-col">
+                  <div className="mt-5 flex grow flex-col">
                     <p className="text-base font-bold text-gray-900">{displayFullName(row)}</p>
                     {row.position ? (
                       <p className="mt-0.5 text-sm font-normal text-gray-600">{row.position}</p>
