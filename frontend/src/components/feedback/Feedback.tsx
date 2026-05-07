@@ -185,28 +185,25 @@ export default function Feedback() {
               <span className="font-medium text-gray-800">Add a Feedback</span> to send one.
             </p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="space-y-4">
               {items.map((row) => (
                 <li
                   key={row.id}
-                  className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                  className="rounded-lg border border-stone-200 bg-stone-50/90 p-5 text-left shadow-sm"
                 >
                   {row.message ? (
-                    <p className="whitespace-pre-wrap text-sm text-gray-900">{row.message}</p>
-                  ) : (
-                    <p className="text-sm italic text-gray-400">(No message)</p>
-                  )}
-                  <div className="mt-3 flex flex-wrap items-baseline justify-between gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600">
-                    <p>
-                      <span className="font-medium text-gray-800">{displayFullName(row)}</span>
-                      {row.position ? (
-                        <>
-                          <span className="mx-2 text-gray-300">·</span>
-                          <span>{row.position}</span>
-                        </>
-                      ) : null}
+                    <p className="whitespace-pre-wrap text-lg font-bold leading-snug text-stone-800 md:text-xl">
+                      &ldquo;{row.message}&rdquo;
                     </p>
-                    <span className="text-gray-500">{formatSubmittedAt(row.created_at)}</span>
+                  ) : (
+                    <p className="text-base italic leading-snug text-stone-500">(No message)</p>
+                  )}
+                  <div className="mt-1.5">
+                    <p className="text-base font-bold text-gray-900">{displayFullName(row)}</p>
+                    {row.position ? (
+                      <p className="mt-0.5 text-sm font-normal text-gray-600">{row.position}</p>
+                    ) : null}
+                    <p className="mt-2 text-xs text-gray-400">{formatSubmittedAt(row.created_at)}</p>
                   </div>
                 </li>
               ))}
