@@ -52,7 +52,7 @@ async def list_my_feedback(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
-    """Return this user's submitted feedback, newest first."""
+    """Return this user's feedback (at most one row per user once uniqueness is enforced)."""
     response = (
         db.table("app_feedback")
         .select(
@@ -166,8 +166,21 @@ async def submit_feedback(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
-    """Store feedback with name entered by the user."""
+    """Store feedback with name entered by the user. One submission per account at a time."""
     _ensure_profile_row(db, current_user)
+
+    existing = (
+        db.table("app_feedback")
+        .select("id")
+        .eq("user_id", current_user["id"])
+        .limit(1)
+        .execute()
+    )
+    if getattr(existing, "data", None):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You already have feedback. Edit or delete it before adding a new one.",
+        )
 
     first_name = payload.first_name.strip()
     last_name = payload.last_name.strip()

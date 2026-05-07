@@ -48,6 +48,8 @@ export default function Feedback() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const openFeedbackModal = useCallback(() => {
+    const uid = (userInfo?.id || '').trim()
+    if (!uid || items.some((row) => row.user_id === uid)) return
     setEditingFeedbackId(null)
     setError('')
     setFirstName('')
@@ -55,7 +57,7 @@ export default function Feedback() {
     setPosition('')
     setMessage('')
     setShowFeedbackModal(true)
-  }, [])
+  }, [items, userInfo?.id])
 
   const openEditFeedbackModal = useCallback((row: FeedbackItem) => {
     if (!isMyFeedback(row, userInfo?.id)) return
@@ -156,8 +158,8 @@ export default function Feedback() {
           message: message.trim() || undefined,
         })
         setItems((prev) => {
-          const withoutDup = prev.filter((row) => row.id !== created.id)
-          return [created, ...withoutDup]
+          const withoutSelf = prev.filter((row) => row.user_id !== created.user_id)
+          return [created, ...withoutSelf]
         })
       }
       setFirstName('')
@@ -185,6 +187,9 @@ export default function Feedback() {
       if (statusCode === 404) {
         msg =
           'Feedback API was not found (404). Deploy the latest backend, or fix VITE_API_URL: it must be the API root without /api/v1 (e.g. https://metro-api.onrender.com).'
+      }
+      if (statusCode === 409 && typeof detail === 'string') {
+        msg = detail
       }
       setError(msg)
     } finally {
@@ -216,6 +221,11 @@ export default function Feedback() {
     )
   }
 
+  const myUserId = (userInfo?.id || '').trim()
+  const userAlreadyHasFeedback =
+    Boolean(myUserId) && items.some((row) => row.user_id === myUserId)
+  const canAddNewFeedback = Boolean(myUserId) && !userAlreadyHasFeedback
+
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
       <div className="card p-8">
@@ -225,9 +235,11 @@ export default function Feedback() {
         </p>
 
         <p className="mt-3 text-xs text-gray-500">
+          Each account may have <span className="font-medium text-gray-700">one</span> submission at a time —
+          unlimited edits — delete anytime to submit a fresh one.&nbsp;
           {isSuperadmin
-            ? 'Administrator view — delete any feedback on hover. You can edit or delete only your own submissions.'
-            : 'Hover your submission to edit or delete it.'}
+            ? 'Admin: delete any card on hover; edit only your own.'
+            : 'Hover your card to edit or delete.'}
         </p>
 
         {justSubmitted && (
@@ -243,8 +255,9 @@ export default function Feedback() {
             <p className="text-sm text-amber-800">{listError}</p>
           ) : items.length === 0 ? (
             <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-600">
-              No submissions yet. Use{' '}
-              <span className="font-medium text-gray-800">Add a Feedback</span> to send one.
+              {isSuperadmin
+                ? 'No feedback in the system yet.'
+                : 'You have not submitted feedback yet. Use Add a Feedback when you are ready (one submission per account).'}
             </p>
           ) : (
             <ul className="grid list-none grid-cols-1 gap-4 md:grid-cols-2">
@@ -325,13 +338,20 @@ export default function Feedback() {
         </div>
 
         <div className="mt-8">
-          <button
-            type="button"
-            className="inline-flex rounded-lg bg-[#F97316] px-6 py-3 font-semibold text-white hover:bg-[#EA580C]"
-            onClick={openFeedbackModal}
-          >
-            Add a Feedback
-          </button>
+          {canAddNewFeedback ? (
+            <button
+              type="button"
+              className="inline-flex rounded-lg bg-[#F97316] px-6 py-3 font-semibold text-white hover:bg-[#EA580C]"
+              onClick={openFeedbackModal}
+            >
+              Add a Feedback
+            </button>
+          ) : myUserId ? (
+            <p className="max-w-xl text-sm text-gray-600">
+              You already have feedback. Hover your card to edit or delete it. After you delete it, you can add a
+              new submission.
+            </p>
+          ) : null}
         </div>
       </div>
 

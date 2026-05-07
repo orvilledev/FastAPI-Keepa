@@ -49,4 +49,22 @@ UPDATE app_feedback SET company = 'MetroShoe Warehouse' WHERE trim(COALESCE(comp
 ALTER TABLE app_feedback ALTER COLUMN company SET DEFAULT 'MetroShoe Warehouse';
 ALTER TABLE app_feedback ALTER COLUMN company SET NOT NULL;
 
+-- One row per submitter (edit in place allowed; insert again only after delete).
+DELETE FROM app_feedback
+WHERE id IN (
+  SELECT id
+  FROM (
+    SELECT id,
+           ROW_NUMBER() OVER (
+             PARTITION BY user_id
+             ORDER BY created_at DESC NULLS LAST,
+                      id DESC
+           ) AS rn
+    FROM app_feedback
+  ) ranked
+  WHERE rn > 1
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_app_feedback_user_one ON app_feedback (user_id);
+
 COMMENT ON TABLE app_feedback IS 'User-submitted product feedback.';
