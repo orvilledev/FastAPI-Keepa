@@ -15,14 +15,18 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+FEEDBACK_COMPANY = "MetroShoe Warehouse"
+
 
 def _row_to_item(rec: dict) -> FeedbackItem:
     first_name = str(rec.get("first_name") or "").strip()
     last_name = str(rec.get("last_name") or "").strip()
     merged = f"{first_name} {last_name}".strip()
     submitted_name = str(rec.get("submitted_name") or merged).strip()
+    company = str(rec.get("company") or FEEDBACK_COMPANY).strip() or FEEDBACK_COMPANY
     return FeedbackItem(
         id=str(rec["id"]),
+        company=company,
         first_name=first_name,
         last_name=last_name,
         submitted_name=submitted_name,
@@ -42,7 +46,9 @@ async def list_my_feedback(
     """Return this user's submitted feedback, newest first."""
     response = (
         db.table("app_feedback")
-        .select("id, first_name, last_name, submitted_name, position, message, created_at")
+        .select(
+            "id, company, first_name, last_name, submitted_name, position, message, created_at",
+        )
         .eq("user_id", current_user["id"])
         .order("created_at", desc=True)
         .limit(limit)
@@ -69,6 +75,7 @@ async def submit_feedback(
     row = {
         "user_id": current_user["id"],
         "email": current_user.get("email"),
+        "company": FEEDBACK_COMPANY,
         "first_name": first_name,
         "last_name": last_name,
         "submitted_name": submitted_name,
@@ -80,10 +87,10 @@ async def submit_feedback(
     data = getattr(inserted, "data", None) or []
 
     if not data:
-        logger.error("app_feedback insert returned no row (check DB columns first_name / last_name)")
+        logger.error("app_feedback insert returned no row (check DB schema: first_name, last_name, company)")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not save feedback. If this persists, ensure the database has first_name and last_name columns.",
+            detail="Could not save feedback. If this persists, run database migrations for app_feedback.",
         )
 
     rec = data[0]

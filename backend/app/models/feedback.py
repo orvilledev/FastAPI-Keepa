@@ -17,6 +17,7 @@ class FeedbackItem(BaseModel):
     """Saved feedback row returned to clients."""
 
     id: str
+    company: str
     first_name: str
     last_name: str
     submitted_name: str

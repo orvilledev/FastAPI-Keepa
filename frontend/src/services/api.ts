@@ -903,6 +903,7 @@ export const notesApi = {
 
 export interface FeedbackItem {
   id: string
+  company: string
   first_name: string
   last_name: string
   submitted_name: string

@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useUser } from '../../contexts/UserContext'
 import { feedbackApi, type FeedbackItem } from '../../services/api'
 
+const FEEDBACK_COMPANY = 'MetroShoe Warehouse'
+
 function formatSubmittedAt(iso: string): string {
   try {
     const d = new Date(iso)
@@ -263,6 +265,24 @@ export default function Feedback() {
                   placeholder="e.g. Operations Analyst"
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="feedback-company"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
+                  Company <span className="text-red-600">*</span>
+                </label>
+                <input
+                  id="feedback-company"
+                  type="text"
+                  readOnly
+                  aria-readonly="true"
+                  value={FEEDBACK_COMPANY}
+                  className="w-full cursor-not-allowed rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-gray-600"
+                />
+                <p className="mt-1 text-xs text-gray-500">Assigned for all submissions.</p>
               </div>
 
               <div>

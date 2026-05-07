@@ -44,4 +44,9 @@ UPDATE app_feedback SET last_name = '—' WHERE trim(COALESCE(last_name, '')) = 
 ALTER TABLE app_feedback ALTER COLUMN first_name SET NOT NULL;
 ALTER TABLE app_feedback ALTER COLUMN last_name SET NOT NULL;
 
+ALTER TABLE app_feedback ADD COLUMN IF NOT EXISTS company TEXT;
+UPDATE app_feedback SET company = 'MetroShoe Warehouse' WHERE trim(COALESCE(company, '')) = '';
+ALTER TABLE app_feedback ALTER COLUMN company SET DEFAULT 'MetroShoe Warehouse';
+ALTER TABLE app_feedback ALTER COLUMN company SET NOT NULL;
+
 COMMENT ON TABLE app_feedback IS 'User-submitted product feedback.';
