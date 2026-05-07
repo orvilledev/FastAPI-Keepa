@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUser } from '../../contexts/UserContext'
 import { feedbackApi } from '../../services/api'
+import { APP_VERSION_LABEL } from '../../constants/app'
 import { isUserHiddenFromFeedbackPage } from '../../constants/feedbackAccess'
 
 const SESSION_SHOWN_KEY = 'msw_welcome_popup_shown_session_v1'
@@ -163,12 +164,20 @@ export default function WelcomePopup() {
           <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#81B81D]">
             Congratulations, {friendlyName}!
           </p>
-          <h2
-            id="msw-welcome-title"
-            className="mt-2 text-2xl font-bold text-stone-900 sm:text-[1.75rem] sm:leading-tight"
-          >
-            Welcome to MSW Overwatch
-          </h2>
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+            <h2
+              id="msw-welcome-title"
+              className="text-2xl font-bold text-stone-900 sm:text-[1.75rem] sm:leading-tight"
+            >
+              Welcome to MSW Overwatch
+            </h2>
+            <span
+              className="inline-flex shrink-0 items-center rounded-full border border-[#81B81D]/35 bg-[#81B81D]/12 px-2.5 py-0.5 text-xs font-semibold tracking-wide text-[#4d700f]"
+              title={`MSW Overwatch ${APP_VERSION_LABEL}`}
+            >
+              {APP_VERSION_LABEL}
+            </span>
+          </div>
           <p className="mt-3 text-[0.9375rem] leading-relaxed text-stone-600">
             You're onboard with{' '}
             <span className="font-semibold text-stone-700">MSW Overwatch</span>
