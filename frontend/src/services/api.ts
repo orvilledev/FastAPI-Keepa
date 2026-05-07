@@ -903,6 +903,8 @@ export const notesApi = {
 
 export interface FeedbackItem {
   id: string
+  first_name: string
+  last_name: string
   submitted_name: string
   position: string
   message: string | null
@@ -915,7 +917,12 @@ export const feedbackApi = {
     return response.data
   },
 
-  submit: async (body: { position: string; message?: string }) => {
+  submit: async (body: {
+    first_name: string
+    last_name: string
+    position: string
+    message?: string
+  }) => {
     const response = await api.post<FeedbackItem>('/api/v1/feedback', body)
     return response.data
   },

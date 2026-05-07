@@ -16,21 +16,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _submitter_display_name(profile: dict, current_user: dict) -> str:
-    raw = profile.get("display_name")
-    if raw is not None and str(raw).strip():
-        return str(raw).strip()
-    email = (current_user.get("email") or profile.get("email") or "").strip()
-    if "@" in email:
-        return email.split("@", 1)[0]
-    return email or "User"
-
-
 def _row_to_item(rec: dict) -> FeedbackItem:
+    first_name = str(rec.get("first_name") or "").strip()
+    last_name = str(rec.get("last_name") or "").strip()
+    merged = f"{first_name} {last_name}".strip()
+    submitted_name = str(rec.get("submitted_name") or merged).strip()
     return FeedbackItem(
         id=str(rec["id"]),
-        submitted_name=rec.get("submitted_name") or "",
-        position=rec.get("position") or "",
+        first_name=first_name,
+        last_name=last_name,
+        submitted_name=submitted_name,
+        position=str(rec.get("position") or "").strip(),
         message=rec.get("message"),
         created_at=str(rec["created_at"]),
     )
@@ -46,7 +42,7 @@ async def list_my_feedback(
     """Return this user's submitted feedback, newest first."""
     response = (
         db.table("app_feedback")
-        .select("id, submitted_name, position, message, created_at")
+        .select("id, first_name, last_name, submitted_name, position, message, created_at")
         .eq("user_id", current_user["id"])
         .order("created_at", desc=True)
         .limit(limit)
@@ -63,13 +59,18 @@ async def submit_feedback(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
-    """Store feedback with name derived from the user's profile (not client-supplied)."""
-    profile = _ensure_profile_row(db, current_user)
-    submitted_name = _submitter_display_name(profile, current_user)
+    """Store feedback with name entered by the user."""
+    _ensure_profile_row(db, current_user)
+
+    first_name = payload.first_name.strip()
+    last_name = payload.last_name.strip()
+    submitted_name = f"{first_name} {last_name}".strip()
 
     row = {
         "user_id": current_user["id"],
         "email": current_user.get("email"),
+        "first_name": first_name,
+        "last_name": last_name,
         "submitted_name": submitted_name,
         "position": payload.position.strip(),
         "message": (payload.message or "").strip() or None,
@@ -79,10 +80,10 @@ async def submit_feedback(
     data = getattr(inserted, "data", None) or []
 
     if not data:
-        logger.error("app_feedback insert returned no row")
+        logger.error("app_feedback insert returned no row (check DB columns first_name / last_name)")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not save feedback",
+            detail="Could not save feedback. If this persists, ensure the database has first_name and last_name columns.",
         )
 
     rec = data[0]
