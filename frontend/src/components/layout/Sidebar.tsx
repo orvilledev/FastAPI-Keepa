@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import { useUser } from '../../contexts/UserContext'
 import { APP_ICON_URL, APP_NAME, APP_VERSION_LABEL } from '../../constants/app'
+import { isUserHiddenFromFeedbackPage } from '../../constants/feedbackAccess'
 
 const DEV_MD_OWNER_EMAIL = 'orvillebarba@gmail.com'
 
@@ -535,18 +536,20 @@ export default function Sidebar() {
             <span>About</span>
           </Link>
 
-          <Link
-            to="/feedback"
-            onMouseEnter={() => setHoveredNav('feedback')}
-            className={`sidebar-link ${
-              navHighlighted('feedback', isActive('/feedback'))
-                ? 'sidebar-link-active'
-                : 'sidebar-link-inactive'
-            }`}
-          >
-            <span className="mr-3">{Icons.feedback}</span>
-            <span>Feedback From Users</span>
-          </Link>
+          {showFeedbackNav ? (
+            <Link
+              to="/feedback"
+              onMouseEnter={() => setHoveredNav('feedback')}
+              className={`sidebar-link ${
+                navHighlighted('feedback', isActive('/feedback'))
+                  ? 'sidebar-link-active'
+                  : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="mr-3">{Icons.feedback}</span>
+              <span>Feedback From Users</span>
+            </Link>
+          ) : null}
 
           {canViewDevMd && (
             <Link

@@ -16,6 +16,7 @@ import About from './components/About'
 import DevMd from './components/DevMd'
 import Maintenance from './components/Maintenance'
 import { systemApi } from './services/api'
+import { isUserHiddenFromFeedbackPage } from './constants/feedbackAccess'
 
 // Lazy load page components for code splitting (About is eager so its chunk cannot 404 behind stale CDN/cache)
 const Landing = lazy(() => import('./components/Landing'))
@@ -151,6 +152,21 @@ function RememberLastPrivatePath() {
   return null
 }
 
+function FeedbackRoute() {
+  const { userInfoLoading, userInfo } = useUser()
+  if (userInfoLoading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
+        Loading…
+      </div>
+    )
+  }
+  if (isUserHiddenFromFeedbackPage(userInfo?.display_name, userInfo?.email)) {
+    return <Navigate to="/dashboard" replace />
+  }
+  return <Feedback />
+}
+
 // Inner app component that uses the user context
 function AppRoutes() {
   const { authLoading, authUser, userInfoLoading, isSuperadmin, userInfo } = useUser()
@@ -234,7 +250,7 @@ function AppRoutes() {
         <Route element={<PrivateLayout />}>
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="about" element={<About />} />
-          <Route path="feedback" element={<Feedback />} />
+          <Route path="feedback" element={<FeedbackRoute />} />
           <Route
             path="dev-md"
             element={canViewDevMd ? <DevMd /> : <Navigate to="/dashboard" replace />}
