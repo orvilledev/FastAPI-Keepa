@@ -20,6 +20,13 @@ router = APIRouter()
 FEEDBACK_COMPANY = "MetroShoe Warehouse"
 
 
+def _effective_signature(signature_raw: str | None, submitted_name: str) -> str:
+    """Non-empty signature for DB; avoids NOT NULL violations if clients omit legacy field."""
+    sig = (signature_raw or "").strip()
+    fallback = (submitted_name or "").strip() or "—"
+    return sig if sig else fallback
+
+
 def _row_to_item(rec: dict) -> FeedbackItem:
     first_name = str(rec.get("first_name") or "").strip()
     last_name = str(rec.get("last_name") or "").strip()
@@ -180,7 +187,7 @@ async def update_feedback(
         "last_name": last_name,
         "submitted_name": submitted_name,
         "position": payload.position.strip(),
-        "signature": payload.signature.strip(),
+        "signature": _effective_signature(payload.signature, submitted_name),
         "message": (payload.message or "").strip() or None,
     }
 
@@ -233,7 +240,7 @@ async def submit_feedback(
         "last_name": last_name,
         "submitted_name": submitted_name,
         "position": payload.position.strip(),
-        "signature": payload.signature.strip(),
+        "signature": _effective_signature(payload.signature, submitted_name),
         "message": (payload.message or "").strip() or None,
     }
 

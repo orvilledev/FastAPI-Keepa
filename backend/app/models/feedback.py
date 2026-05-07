@@ -10,7 +10,11 @@ class FeedbackCreate(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=120, description="First name")
     last_name: str = Field(..., min_length=1, max_length=120, description="Surname")
     position: str = Field(..., min_length=1, max_length=200, description="Job title / role position")
-    signature: str = Field(..., min_length=1, max_length=280, description="Typed electronic signature")
+    signature: Optional[str] = Field(
+        default=None,
+        max_length=280,
+        description='Typed electronic signature; if omitted or blank, defaults to submitted name on save',
+    )
     message: Optional[str] = Field(None, max_length=10_000, description="Optional feedback details")
 
 
