@@ -231,10 +231,6 @@ export default function WelcomePopup() {
               Give feedback
             </button>
           </div>
-
-          <p className="mt-4 text-[0.7rem] uppercase tracking-wider text-stone-400">
-            One submission per account · You can edit it anytime
-          </p>
         </div>
       </div>
     </div>
