@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useUser } from '../../contexts/UserContext'
 import { feedbackApi, type FeedbackItem } from '../../services/api'
 
@@ -33,6 +34,8 @@ function isMyFeedback(row: FeedbackItem, userId?: string | null): boolean {
 
 export default function Feedback() {
   const { userInfoLoading, isSuperadmin, userInfo } = useUser()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
   const [editingFeedbackId, setEditingFeedbackId] = useState<string | null>(null)
   const [firstName, setFirstName] = useState('')
@@ -47,6 +50,7 @@ export default function Feedback() {
   const [listError, setListError] = useState('')
   const [justSubmitted, setJustSubmitted] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const autoOpenHandledRef = useRef(false)
 
   const openFeedbackModal = useCallback(() => {
     const uid = (userInfo?.id || '').trim()
@@ -122,6 +126,31 @@ export default function Feedback() {
     if (userInfoLoading) return
     void loadFeedback()
   }, [userInfoLoading, loadFeedback])
+
+  useEffect(() => {
+    if (autoOpenHandledRef.current) return
+    if (userInfoLoading || listLoading) return
+    const wantsAutoOpen = Boolean(
+      (location.state as { openAddModal?: boolean } | null)?.openAddModal,
+    )
+    if (!wantsAutoOpen) return
+    autoOpenHandledRef.current = true
+    const uid = (userInfo?.id || '').trim()
+    if (uid && !items.some((row) => row.user_id === uid)) {
+      openFeedbackModal()
+    }
+    navigate(location.pathname + location.search, { replace: true, state: null })
+  }, [
+    userInfoLoading,
+    listLoading,
+    location.state,
+    location.pathname,
+    location.search,
+    items,
+    userInfo?.id,
+    openFeedbackModal,
+    navigate,
+  ])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
