@@ -1,5 +1,7 @@
 import { createWorker } from 'tesseract.js'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
+import JSZip from 'jszip'
+import * as XLSX from 'xlsx'
 
 GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -22,6 +24,16 @@ export type TrackingScannerRow = {
 
 export type TrackingScannerScanResponse = {
   filename: string
+  page_count_estimate: number
+  pair_count: number
+  matched_count: number
+  needs_review_count: number
+  rows: TrackingScannerRow[]
+}
+
+export type TrackingScannerAggregateResponse = {
+  source_count: number
+  file_count: number
   page_count_estimate: number
   pair_count: number
   matched_count: number
@@ -131,6 +143,50 @@ function buildCsv(rows: TrackingScannerRow[]): string {
   return [headers.join(','), ...body].join('\n')
 }
 
+function isPdfFile(file: File): boolean {
+  return /\.pdf$/i.test(file.name) || file.type === 'application/pdf'
+}
+
+function isZipFile(file: File): boolean {
+  return /\.zip$/i.test(file.name) || file.type === 'application/zip' || file.type === 'application/x-zip-compressed'
+}
+
+async function unzipPdfFiles(file: File): Promise<File[]> {
+  const zip = await JSZip.loadAsync(await file.arrayBuffer())
+  const entries = Object.values(zip.files)
+  const pdfEntries = entries.filter((entry) => !entry.dir && /\.pdf$/i.test(entry.name))
+  const extracted = await Promise.all(
+    pdfEntries.map(async (entry) => {
+      const buffer = await entry.async('arraybuffer')
+      const leafName = entry.name.split('/').pop() || entry.name
+      return new File([buffer], leafName, { type: 'application/pdf' })
+    })
+  )
+  return extracted
+}
+
+export async function expandInputFiles(files: File[]): Promise<{ pdfFiles: File[]; skippedFiles: string[] }> {
+  const pdfFiles: File[] = []
+  const skippedFiles: string[] = []
+  for (const file of files) {
+    if (isPdfFile(file)) {
+      pdfFiles.push(file)
+      continue
+    }
+    if (isZipFile(file)) {
+      const extracted = await unzipPdfFiles(file)
+      if (extracted.length === 0) {
+        skippedFiles.push(`${file.name} (no PDFs found in ZIP)`)
+      } else {
+        pdfFiles.push(...extracted)
+      }
+      continue
+    }
+    skippedFiles.push(file.name)
+  }
+  return { pdfFiles, skippedFiles }
+}
+
 export async function scanPdfInBrowser(file: File): Promise<TrackingScannerScanResponse> {
   const bytes = new Uint8Array(await file.arrayBuffer())
   const pdf = await getDocument({ data: bytes }).promise
@@ -206,6 +262,58 @@ export async function scanPdfInBrowser(file: File): Promise<TrackingScannerScanR
   }
 }
 
+export async function scanFilesInBrowser(files: File[]): Promise<TrackingScannerAggregateResponse> {
+  const { pdfFiles, skippedFiles } = await expandInputFiles(files)
+  if (pdfFiles.length === 0) {
+    const hint =
+      skippedFiles.length > 0
+        ? ` Skipped: ${skippedFiles.join(', ')}.`
+        : ''
+    throw new Error(`No PDF files found to scan.${hint}`)
+  }
+
+  const scans = await Promise.all(pdfFiles.map((file) => scanPdfInBrowser(file)))
+  const rows = scans.flatMap((result) => result.rows)
+
+  const pageCountEstimate = scans.reduce((sum, scan) => sum + scan.page_count_estimate, 0)
+  const pairCount = scans.reduce((sum, scan) => sum + scan.pair_count, 0)
+  const matchedCount = scans.reduce((sum, scan) => sum + scan.matched_count, 0)
+  const needsReviewCount = scans.reduce((sum, scan) => sum + scan.needs_review_count, 0)
+
+  return {
+    source_count: files.length,
+    file_count: pdfFiles.length,
+    page_count_estimate: pageCountEstimate,
+    pair_count: pairCount,
+    matched_count: matchedCount,
+    needs_review_count: needsReviewCount,
+    rows,
+  }
+}
+
 export function exportRowsToCsvBlob(rows: TrackingScannerRow[]): Blob {
   return new Blob([buildCsv(rows)], { type: 'text/csv;charset=utf-8;' })
+}
+
+export function exportRowsToExcelBlob(rows: TrackingScannerRow[]): Blob {
+  const sheetRows = rows.map((row) => ({
+    source_file: row.source_file,
+    odd_page: row.odd_page ?? '',
+    even_page: row.even_page ?? '',
+    vendor: row.vendor,
+    shipment_id: row.shipment_id,
+    box_code: row.box_code,
+    carrier: row.carrier,
+    tracking_number: row.tracking_number,
+    tracking_number_raw: row.tracking_number_raw,
+    status: row.status,
+    notes: row.notes,
+  }))
+  const ws = XLSX.utils.json_to_sheet(sheetRows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Tracking Results')
+  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+  return new Blob([out], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
 }

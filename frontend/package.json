@@ -21,6 +21,7 @@
     "@supabase/supabase-js": "^2.38.5",
     "axios": "^1.6.2",
     "electron-updater": "^6.8.3",
+    "jszip": "^3.10.1",
     "pdfjs-dist": "^5.7.284",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -30,7 +31,8 @@
     "react-router-dom": "^6.20.0",
     "recharts": "^2.10.3",
     "remark-gfm": "^4.0.1",
-    "tesseract.js": "^7.0.0"
+    "tesseract.js": "^7.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",

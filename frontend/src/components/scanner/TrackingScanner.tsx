@@ -1,19 +1,20 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import {
-  exportRowsToCsvBlob,
-  scanPdfInBrowser,
+  exportRowsToExcelBlob,
+  scanFilesInBrowser,
   type TrackingScannerRow,
-  type TrackingScannerScanResponse,
+  type TrackingScannerAggregateResponse,
 } from '../../utils/trackingExtractor'
 
 type Stats = {
-  filename: string
+  sources: number
+  files: number
   pairs: number
   matched: number
   needsReview: number
 }
 
-const ACCEPTED = '.pdf,application/pdf'
+const ACCEPTED = '.pdf,.zip,application/pdf,application/zip,application/x-zip-compressed'
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
@@ -26,13 +27,12 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-function suggestedCsvFilename(sourceFile: string): string {
-  const stem = (sourceFile || 'tracking_extract').replace(/\.pdf$/i, '')
-  return `${stem}.csv`
+function suggestedExcelFilename(): string {
+  return `tracking_extract_${new Date().toISOString().slice(0, 10)}.xlsx`
 }
 
 export default function TrackingScanner() {
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
   const [rows, setRows] = useState<TrackingScannerRow[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [scanning, setScanning] = useState(false)
@@ -42,8 +42,8 @@ export default function TrackingScanner() {
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleFileSelected = useCallback((picked: File | null) => {
-    setFile(picked)
+  const handleFileSelected = useCallback((picked: File[]) => {
+    setFiles(picked)
     setRows([])
     setStats(null)
     setError(null)
@@ -51,26 +51,27 @@ export default function TrackingScanner() {
   }, [])
 
   const handleScan = useCallback(async () => {
-    if (!file) return
+    if (files.length === 0) return
     setScanning(true)
     setError(null)
     setSuccess(null)
     try {
-      const result: TrackingScannerScanResponse = await scanPdfInBrowser(file)
+      const result: TrackingScannerAggregateResponse = await scanFilesInBrowser(files)
       setRows(result.rows)
       setStats({
-        filename: result.filename,
+        sources: result.source_count,
+        files: result.file_count,
         pairs: result.pair_count,
         matched: result.matched_count,
         needsReview: result.needs_review_count,
       })
       if (result.matched_count === 0) {
         setSuccess(
-          `Scanned ${result.pair_count} page pair(s) but no complete matches were found. Review and edit rows below before exporting.`
+          `Scanned ${result.file_count} PDF(s) from ${result.source_count} upload(s), with ${result.pair_count} page pair(s). No complete matches were found. Review and edit rows below before exporting.`
         )
       } else {
         setSuccess(
-          `Scanned ${result.pair_count} pair(s) — ${result.matched_count} matched, ${result.needs_review_count} need review.`
+          `Scanned ${result.file_count} PDF(s) from ${result.source_count} upload(s): ${result.pair_count} pair(s), ${result.matched_count} matched, ${result.needs_review_count} need review.`
         )
       }
     } catch (err: unknown) {
@@ -78,20 +79,20 @@ export default function TrackingScanner() {
         (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data
           ?.detail ||
         (err as { message?: string })?.message ||
-        'Failed to scan PDF.'
-      setError(typeof detail === 'string' ? detail : 'Failed to scan PDF.')
+        'Failed to scan files.'
+      setError(typeof detail === 'string' ? detail : 'Failed to scan files.')
     } finally {
       setScanning(false)
     }
-  }, [file])
+  }, [files])
 
-  const handleDownloadCsv = useCallback(async () => {
+  const handleDownloadExcel = useCallback(async () => {
     if (rows.length === 0) return
     setExporting(true)
     setError(null)
     try {
-      const blob = exportRowsToCsvBlob(rows)
-      const filename = suggestedCsvFilename(stats?.filename || file?.name || 'tracking_extract')
+      const blob = exportRowsToExcelBlob(rows)
+      const filename = suggestedExcelFilename()
       downloadBlob(blob, filename)
       setSuccess(`Exported ${rows.length} row(s) to ${filename}.`)
     } catch (err: unknown) {
@@ -99,12 +100,12 @@ export default function TrackingScanner() {
         (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data
           ?.detail ||
         (err as { message?: string })?.message ||
-        'Failed to export CSV.'
-      setError(typeof detail === 'string' ? detail : 'Failed to export CSV.')
+        'Failed to export Excel file.'
+      setError(typeof detail === 'string' ? detail : 'Failed to export Excel file.')
     } finally {
       setExporting(false)
     }
-  }, [rows, stats, file])
+  }, [rows])
 
   const updateRow = useCallback(
     (index: number, key: keyof TrackingScannerRow, value: string) => {
@@ -122,10 +123,11 @@ export default function TrackingScanner() {
       event.preventDefault()
       event.stopPropagation()
       setIsDragging(false)
-      const dropped = event.dataTransfer?.files?.[0]
-      if (!dropped) return
-      if (!/\.pdf$/i.test(dropped.name)) {
-        setError('Only PDF files are supported.')
+      if (!event.dataTransfer?.files?.length) return
+      const dropped = Array.from(event.dataTransfer.files)
+      const hasInvalid = dropped.some((f) => !/(\.pdf|\.zip)$/i.test(f.name))
+      if (hasInvalid) {
+        setError('Only PDF and ZIP files are supported.')
         return
       }
       handleFileSelected(dropped)
@@ -137,7 +139,7 @@ export default function TrackingScanner() {
     if (!stats) return null
     return (
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
-        <SummaryCard label="Page pairs" value={stats.pairs} />
+        <SummaryCard label="PDF files" value={stats.files} />
         <SummaryCard label="Matched" value={stats.matched} accent="green" />
         <SummaryCard label="Needs review" value={stats.needsReview} accent="amber" />
       </div>
@@ -149,9 +151,9 @@ export default function TrackingScanner() {
       <header>
         <h1 className="text-2xl font-bold text-gray-900">Tracking Extractor</h1>
         <p className="mt-1 text-sm text-gray-600">
-          Upload a multi-page shipping-label PDF. Odd pages are read for the FBA{' '}
+          Upload one or more shipping-label PDFs, or ZIPs containing PDFs. Odd pages are read for the FBA{' '}
           <strong>shipment ID</strong>; even pages are OCR-scanned for the UPS{' '}
-          <strong>tracking number</strong>. Each pair becomes one CSV row.
+          <strong>tracking number</strong>. Each pair becomes one row in one Excel export.
         </p>
       </header>
 
@@ -199,45 +201,51 @@ export default function TrackingScanner() {
           />
         </svg>
         <p className="mt-3 text-sm text-gray-600">
-          Drag and drop a PDF here, or
+          Drag and drop PDF/ZIP files here, or
         </p>
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           className="mt-2 inline-flex items-center px-4 py-2 rounded-md bg-[#404040] text-white text-sm font-medium hover:bg-black"
         >
-          Choose PDF
+          Choose files
         </button>
         <input
           ref={fileInputRef}
           type="file"
+          multiple
           accept={ACCEPTED}
           className="hidden"
-          onChange={(e) => handleFileSelected(e.target.files?.[0] ?? null)}
+          onChange={(e) => handleFileSelected(Array.from(e.target.files ?? []))}
         />
-        {file && (
-          <p className="mt-3 text-xs text-gray-500">
-            Selected: <span className="font-medium text-gray-700">{file.name}</span> (
-            {(file.size / 1024 / 1024).toFixed(2)} MB)
-          </p>
+        {files.length > 0 && (
+          <div className="mt-3 text-xs text-gray-500 space-y-1">
+            <p>
+              Selected files: <span className="font-medium text-gray-700">{files.length}</span>
+            </p>
+            <p className="text-gray-500">
+              {files.slice(0, 3).map((f) => f.name).join(', ')}
+              {files.length > 3 ? ` +${files.length - 3} more` : ''}
+            </p>
+          </div>
         )}
         <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
           <button
             type="button"
-            disabled={!file || scanning}
+            disabled={files.length === 0 || scanning}
             onClick={handleScan}
             className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
           >
-            {scanning ? 'Scanning…' : 'Scan PDF'}
+            {scanning ? 'Scanning…' : 'Scan files'}
           </button>
           {rows.length > 0 && (
             <button
               type="button"
               disabled={exporting}
-              onClick={handleDownloadCsv}
+              onClick={handleDownloadExcel}
               className="px-4 py-2 rounded-md bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
             >
-              {exporting ? 'Preparing CSV…' : 'Download CSV'}
+              {exporting ? 'Preparing Excel…' : 'Download Excel'}
             </button>
           )}
         </div>
@@ -338,7 +346,8 @@ export default function TrackingScanner() {
         <ul className="list-disc pl-5 space-y-1">
           <li>Pages 1, 3, 5, … (odd): text extraction reads the FBA shipment ID and box code.</li>
           <li>Pages 2, 4, 6, … (even): each page is rendered and OCR’d to read the UPS Tracking # (1Z…).</li>
-          <li>Each odd–even pair becomes one CSV row. Missing values are flagged as <em>Needs review</em>.</li>
+          <li>Supports multiple PDF uploads and ZIP files containing PDFs in one scan.</li>
+          <li>Each odd–even pair becomes one row. Missing values are flagged as <em>Needs review</em>.</li>
           <li>OCR runs fully in your browser using Tesseract.js (no backend OCR server required).</li>
         </ul>
       </section>
