@@ -50,7 +50,7 @@ class TrackingScannerResponse(BaseModel):
 
 
 class TrackingScannerExportRequest(BaseModel):
-    filename: Optional[str] = None
+    filename: str | None = None
     rows: List[TrackingScannerRow]
 
 
