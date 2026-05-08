@@ -1,9 +1,10 @@
 """Job management API endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from typing import List
 from uuid import UUID
 from datetime import datetime
 from app.dependencies import get_current_user, get_admin_user, get_job_runner_user, check_is_admin, verify_job_access
+from app.middleware.rate_limiter import limiter, RateLimits
 from app.models.batch import BatchJobCreate, BatchJobUpdate, BatchJobResponse
 from app.database import get_supabase
 from app.services.batch_processor import BatchProcessor
@@ -28,8 +29,10 @@ def _count_jobs(
 
 
 @router.post("/jobs", response_model=BatchJobResponse, status_code=201)
+@limiter.limit(RateLimits.JOB_CREATE)
 @handle_api_errors("create job")
 async def create_job(
+    request: Request,
     job_data: BatchJobCreate,
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_job_runner_user),
@@ -155,8 +158,10 @@ async def get_job_status(
 
 
 @router.post("/jobs/{job_id}/trigger")
+@limiter.limit(RateLimits.JOB_TRIGGER)
 @handle_api_errors("trigger job")
 async def trigger_job(
+    request: Request,
     job_id: UUID,
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_job_runner_user),

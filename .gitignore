@@ -1,2 +1,87 @@
+# --- Secrets / environment ---
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# --- Coverage / test artifacts ---
 .coverage
+.coverage.*
 htmlcov/
+coverage.xml
+nosetests.xml
+.cache/
+
+# --- Node / frontend ---
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+.pnp.*
+.yarn/
+.npm/
+*.tsbuildinfo
+
+# --- Build / packaging ---
+dist/
+build/
+*.egg
+*.whl
+*.tar.gz
+
+# --- Logs ---
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Editor / OS ---
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.idea/
+.vscode/
+!.vscode/settings.json.example
+*.swp
+*.swo
+
+# --- Local data / temp ---
+*.tmp
+*.bak
+*.orig
+tmp/
+temp/
+
+# --- Credentials / keys ---
+*.pem
+*.key
+*.crt
+*.p12
+credentials.json
+service-account*.json

@@ -10,13 +10,14 @@ from datetime import datetime
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from supabase import Client
 
 from app.dependencies import get_current_user
 from app.database import get_supabase
+from app.middleware.rate_limiter import limiter, RateLimits
 from app.models.tracking_history import (
     TrackingHistoryCreate,
     TrackingHistoryDetail,
@@ -72,8 +73,10 @@ def _safe_csv_filename(stem: str) -> str:
 
 
 @router.post("/tracking-scanner/scan", response_model=TrackingScannerResponse)
+@limiter.limit(RateLimits.FILE_UPLOAD)
 @handle_api_errors("scan tracking PDF")
 async def scan_tracking_pdf(
+    request: Request,
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ):

@@ -92,6 +92,9 @@ class RateLimits:
     # Scheduler operations
     SCHEDULER_UPDATE = "10/minute"  # Scheduler configuration changes
 
+    # CLI chat (paid OpenAI calls — bound burst and hourly cost per user)
+    CHAT_TURN = "20/minute;200/hour"
+
 
 def log_rate_limit_exceeded(request: Request):
     """Log when rate limits are exceeded for monitoring purposes."""

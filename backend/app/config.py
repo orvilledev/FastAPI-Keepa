@@ -103,8 +103,24 @@ class Settings(BaseSettings):
     
     @property
     def cors_origins_list(self) -> List[str]:
-        """Convert CORS origins string to list."""
-        return [origin.strip() for origin in self.cors_origins.split(",")]
+        """Convert CORS origins string to an explicit allowlist.
+
+        We refuse the wildcard ``*`` here because the API is mounted with
+        ``allow_credentials=True``; combining the two would let any origin make
+        authenticated cross-origin calls and is forbidden by the CORS spec.
+        Any ``*`` token in ``CORS_ORIGINS`` is dropped with a warning.
+        """
+        import logging
+
+        logger = logging.getLogger(__name__)
+        raw_origins = [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        safe_origins = [origin for origin in raw_origins if origin != "*"]
+        if len(safe_origins) != len(raw_origins):
+            logger.warning(
+                "CORS_ORIGINS contained '*'; ignoring because allow_credentials=True. "
+                "Set explicit origins like https://your-frontend.example.com."
+            )
+        return safe_origins
 
     @property
     def report_excluded_seller_pattern_list(self) -> List[str]:

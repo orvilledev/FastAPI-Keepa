@@ -1,7 +1,8 @@
 """Authentication API endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Body
 from app.dependencies import get_current_user, get_superadmin_user, is_superadmin_user
 from app.database import get_supabase
+from app.middleware.rate_limiter import limiter, RateLimits
 from app.models.user import ProfileUpdate, ProfileResponse
 from app.utils.error_handler import handle_api_errors
 from supabase import Client
@@ -95,8 +96,10 @@ async def get_profile(
 
 
 @router.put("/profile", response_model=ProfileResponse)
+@limiter.limit(RateLimits.WRITE_OPERATIONS)
 @handle_api_errors("update profile")
 async def update_profile(
+    request: Request,
     profile_update: ProfileUpdate,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -144,8 +147,10 @@ async def update_profile(
 
 
 @router.patch("/me/display-name")
+@limiter.limit(RateLimits.WRITE_OPERATIONS)
 @handle_api_errors("update display name")
 async def update_display_name(
+    request: Request,
     display_name_data: DisplayNameUpdate = Body(...),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -244,8 +249,10 @@ async def get_maintenance_mode(
 
 
 @router.put("/maintenance")
+@limiter.limit(RateLimits.ADMIN_OPERATIONS)
 @handle_api_errors("update maintenance mode")
 async def update_maintenance_mode(
+    request: Request,
     payload: MaintenanceUpdate,
     current_user: dict = Depends(get_superadmin_user),
 ):
@@ -254,8 +261,10 @@ async def update_maintenance_mode(
 
 
 @router.put("/users/{user_id}/keepa-access")
+@limiter.limit(RateLimits.ADMIN_OPERATIONS)
 @handle_api_errors("update user keepa access")
 async def update_user_keepa_access(
+    request: Request,
     user_id: str,
     has_keepa_access: bool = Body(..., embed=True),
     current_user: dict = Depends(get_superadmin_user),
@@ -292,8 +301,10 @@ async def update_user_keepa_access(
 
 
 @router.put("/users/{user_id}/tools-access")
+@limiter.limit(RateLimits.ADMIN_OPERATIONS)
 @handle_api_errors("update user tools access")
 async def update_user_tools_access(
+    request: Request,
     user_id: str,
     can_manage_tools: bool = Body(..., embed=True),
     current_user: dict = Depends(get_superadmin_user),
@@ -330,8 +341,10 @@ async def update_user_tools_access(
 
 
 @router.post("/users/{user_id}/deactivate")
+@limiter.limit(RateLimits.ADMIN_OPERATIONS)
 @handle_api_errors("deactivate user")
 async def deactivate_user(
+    request: Request,
     user_id: str,
     current_user: dict = Depends(get_superadmin_user),
     db: Client = Depends(get_supabase),
@@ -391,8 +404,10 @@ async def deactivate_user(
 
 
 @router.post("/users/{user_id}/approve")
+@limiter.limit(RateLimits.ADMIN_OPERATIONS)
 @handle_api_errors("approve user")
 async def approve_user(
+    request: Request,
     user_id: str,
     current_user: dict = Depends(get_superadmin_user),
     db: Client = Depends(get_supabase),
@@ -412,8 +427,10 @@ async def approve_user(
 
 
 @router.put("/users/{user_id}/tasks-access")
+@limiter.limit(RateLimits.ADMIN_OPERATIONS)
 @handle_api_errors("update user tasks access")
 async def update_user_tasks_access(
+    request: Request,
     user_id: str,
     can_assign_tasks: bool = Body(..., embed=True),
     current_user: dict = Depends(get_superadmin_user),

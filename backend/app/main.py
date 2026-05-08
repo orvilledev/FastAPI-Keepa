@@ -18,6 +18,66 @@ import json
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Field names whose values must never be written to logs even on validation failures.
+# Matched case-insensitively against the *last* path segment of each error location.
+_SENSITIVE_FIELD_NAMES = frozenset({
+    "password",
+    "current_password",
+    "new_password",
+    "old_password",
+    "confirm_password",
+    "token",
+    "access_token",
+    "refresh_token",
+    "id_token",
+    "jwt",
+    "authorization",
+    "api_key",
+    "apikey",
+    "secret",
+    "client_secret",
+    "private_key",
+    "credentials",
+    "otp",
+    "code",
+})
+
+# Maximum characters of a single string value to keep in a logged body.
+_MAX_LOGGED_STRING_LEN = 256
+
+
+def _redact_for_logging(value, key: str | None = None):
+    """Return a copy of ``value`` with sensitive fields masked and large strings truncated.
+
+    Used only by the validation error logger so unexpected payloads (which can include
+    passwords or tokens) never end up in application logs in plaintext.
+    """
+    if key is not None and key.lower() in _SENSITIVE_FIELD_NAMES:
+        return "***REDACTED***"
+    if isinstance(value, dict):
+        # Pydantic validation error items carry the offending value under ``input`` and
+        # the field path under ``loc``; redact the input when the field name at the tail
+        # of the path is sensitive, regardless of the input's type.
+        loc = value.get("loc") if "input" in value else None
+        sensitive_loc = (
+            isinstance(loc, (list, tuple))
+            and loc
+            and isinstance(loc[-1], str)
+            and loc[-1].lower() in _SENSITIVE_FIELD_NAMES
+        )
+        result = {}
+        for k, v in value.items():
+            if sensitive_loc and k == "input":
+                result[k] = "***REDACTED***"
+            else:
+                result[k] = _redact_for_logging(v, k)
+        return result
+    if isinstance(value, list):
+        return [_redact_for_logging(item, key) for item in value]
+    if isinstance(value, str) and len(value) > _MAX_LOGGED_STRING_LEN:
+        return f"{value[:_MAX_LOGGED_STRING_LEN]}...<truncated {len(value) - _MAX_LOGGED_STRING_LEN} chars>"
+    return value
+
 # Initialize FastAPI app
 app = FastAPI(
     title="MSW Overwatch API",
@@ -40,18 +100,37 @@ app.add_middleware(
 # Custom exception handler for validation errors
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Handle validation errors with detailed logging for debugging."""
+    """Handle validation errors with detailed logging for debugging.
+
+    Request bodies and Pydantic error payloads can contain user-supplied passwords,
+    tokens, and other secrets. We mask known-sensitive field names and truncate
+    long string values before they reach the log pipeline.
+    """
     errors = exc.errors()
 
-    # Get request body for debugging
+    redacted_errors = _redact_for_logging(errors)
+
+    body_repr: object = "<unavailable>"
     try:
         body = await request.body()
-        body_json = json.loads(body) if body else {}
-        logger.error(f"Validation error for {request.method} {request.url.path}")
-        logger.error(f"Request body: {json.dumps(body_json, indent=2)}")
-        logger.error(f"Validation errors: {json.dumps(errors, indent=2)}")
+        if body:
+            try:
+                body_json = json.loads(body)
+                body_repr = _redact_for_logging(body_json)
+            except json.JSONDecodeError:
+                body_repr = f"<non-json body, {len(body)} bytes>"
+        else:
+            body_repr = "<empty>"
     except Exception as e:
-        logger.error(f"Could not parse request body: {e}")
+        body_repr = f"<could not read body: {e}>"
+
+    logger.error(
+        "Validation error for %s %s | body=%s | errors=%s",
+        request.method,
+        request.url.path,
+        json.dumps(body_repr, default=str),
+        json.dumps(redacted_errors, default=str),
+    )
 
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

@@ -1,6 +1,7 @@
 """Scheduler API endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, BackgroundTasks
 from app.dependencies import get_current_user
+from app.middleware.rate_limiter import limiter, RateLimits
 from app.scheduler import (
     scheduler,
     update_scheduler_settings,
@@ -24,6 +25,23 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Hard cap on uploaded scheduler reports. Keepa exports for any single category
+# fit comfortably under this; larger payloads risk OOM during background parsing.
+_MAX_SCHEDULER_UPLOAD_BYTES = 25 * 1024 * 1024
+
+# Allowed file extensions and content types for scheduler report uploads.
+# Content-type is validated permissively because browsers/clients vary; the
+# extension check is the primary filter and the parser is the final guard.
+_ALLOWED_SCHEDULER_UPLOAD_EXTS = (".csv", ".tsv", ".txt")
+_ALLOWED_SCHEDULER_UPLOAD_CONTENT_TYPES = frozenset({
+    "text/csv",
+    "text/tab-separated-values",
+    "text/plain",
+    "application/vnd.ms-excel",  # some clients label .csv this way
+    "application/octet-stream",  # generic fallback some clients send
+    "",  # missing header — we still rely on the extension check
+})
 
 
 class SchedulerSettingsUpdate(BaseModel):
@@ -809,8 +827,10 @@ async def update_scheduler_settings_endpoint(
 
 
 @router.post("/scheduler/uploaded-report")
+@limiter.limit(RateLimits.FILE_UPLOAD)
 @handle_api_errors("upload scheduler report")
 async def upload_scheduler_report(
+    request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
@@ -820,7 +840,33 @@ async def upload_scheduler_report(
     """Upload a Keepa report file (csv/txt) used by uploaded daily run mode."""
     filename = (file.filename or "").strip()
 
+    lower_name = filename.lower()
+    if not any(lower_name.endswith(ext) for ext in _ALLOWED_SCHEDULER_UPLOAD_EXTS):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Unsupported file type. Allowed extensions: "
+                + ", ".join(_ALLOWED_SCHEDULER_UPLOAD_EXTS)
+            ),
+        )
+    content_type = (file.content_type or "").lower()
+    if content_type not in _ALLOWED_SCHEDULER_UPLOAD_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported content type: {file.content_type or 'unknown'}",
+        )
+
     raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    if len(raw) > _MAX_SCHEDULER_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"Uploaded file exceeds {_MAX_SCHEDULER_UPLOAD_BYTES // (1024 * 1024)} MB size limit."
+            ),
+        )
+
     today = datetime.utcnow().date().isoformat()
     # Keep exactly one uploaded report per category; a new upload replaces older ones.
     db.table("scheduler_uploaded_reports").delete().eq("category", category).execute()

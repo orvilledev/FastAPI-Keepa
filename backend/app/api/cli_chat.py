@@ -4,12 +4,13 @@ from typing import Any, List
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from supabase import Client
 
 from app.config import settings
 from app.database import get_supabase
 from app.dependencies import get_current_user
+from app.middleware.rate_limiter import limiter, RateLimits
 from app.models.cli_chat import (
     CliChatHistoryResponse,
     CliChatMessageOut,
@@ -95,8 +96,10 @@ async def _openai_chat(messages: List[dict[str, str]]) -> str:
 
 
 @router.post("/cli-chat/turn", response_model=CliChatTurnResponse)
+@limiter.limit(RateLimits.CHAT_TURN)
 @handle_api_errors("cli chat turn")
 async def cli_chat_turn(
+    request: Request,
     body: CliChatTurnRequest,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
