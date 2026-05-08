@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
 import type {
-  MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, MicroToolRecord, Note, JobAid, Notification, ComprehensiveReportRow, SellerName, NoteShare, CliChatSession, CliChatMessage } from '../types'
+  MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, MicroToolRecord, Note, JobAid, Notification, ComprehensiveReportRow, SellerName, NoteShare, CliChatSession, CliChatMessage, TrackingHistorySummary, TrackingHistoryDetail, TrackingScannerRow } from '../types'
 
 /** All request paths begin with `/api/v1`. Strip a mistaken `/api/v1` suffix from env to avoid doubled paths (404 Not Found). */
 function normalizeApiBaseUrl(raw: string): string {
@@ -1019,6 +1019,32 @@ export const cliChatApi = {
       `/api/v1/cli-chat/sessions/${sessionId}/messages`
     )
     return response.data.messages ?? []
+  },
+}
+
+export const trackingScannerApi = {
+  listHistory: async (): Promise<TrackingHistorySummary[]> => {
+    const response = await api.get<TrackingHistorySummary[]>('/api/v1/tracking-scanner/history')
+    return response.data
+  },
+  getHistory: async (historyId: string): Promise<TrackingHistoryDetail> => {
+    const response = await api.get<TrackingHistoryDetail>(`/api/v1/tracking-scanner/history/${historyId}`)
+    return response.data
+  },
+  saveHistory: async (payload: {
+    name?: string
+    source_count: number
+    file_count: number
+    pair_count: number
+    matched_count: number
+    needs_review_count: number
+    rows: TrackingScannerRow[]
+  }): Promise<TrackingHistorySummary> => {
+    const response = await api.post<TrackingHistorySummary>('/api/v1/tracking-scanner/history', payload)
+    return response.data
+  },
+  deleteHistory: async (historyId: string): Promise<void> => {
+    await api.delete(`/api/v1/tracking-scanner/history/${historyId}`)
   },
 }
 

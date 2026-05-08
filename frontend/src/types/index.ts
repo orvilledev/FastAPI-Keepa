@@ -283,3 +283,34 @@ export interface Notification {
   created_at: string
 }
 
+export interface TrackingScannerRow {
+  source_file: string
+  odd_page: number | null
+  even_page: number | null
+  vendor: string
+  shipment_id: string
+  box_code: string
+  tracking_number: string
+  tracking_number_raw: string
+  carrier: string
+  status: string
+  notes: string
+}
+
+export interface TrackingHistorySummary {
+  id: string
+  user_id: string
+  name?: string | null
+  source_count: number
+  file_count: number
+  pair_count: number
+  matched_count: number
+  needs_review_count: number
+  row_count: number
+  created_at: string
+}
+
+export interface TrackingHistoryDetail extends TrackingHistorySummary {
+  rows: TrackingScannerRow[]
+}
+

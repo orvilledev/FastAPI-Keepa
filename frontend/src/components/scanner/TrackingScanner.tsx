@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   exportRowsToExcelBlob,
   scanFilesInBrowser,
@@ -6,6 +6,8 @@ import {
   type TrackingScannerRow,
   type TrackingScannerAggregateResponse,
 } from '../../utils/trackingExtractor'
+import { trackingScannerApi } from '../../services/api'
+import type { TrackingHistorySummary } from '../../types'
 
 type Stats = {
   sources: number
@@ -42,7 +44,26 @@ export default function TrackingScanner() {
   const [success, setSuccess] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [scanProgress, setScanProgress] = useState<TrackingScanProgress | null>(null)
+  const [history, setHistory] = useState<TrackingHistorySummary[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyBusyId, setHistoryBusyId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true)
+    try {
+      const rows = await trackingScannerApi.listHistory()
+      setHistory(rows)
+    } catch {
+      setError('Could not load tracking history.')
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadHistory()
+  }, [loadHistory])
 
   const handleFileSelected = useCallback((picked: File[]) => {
     setFiles(picked)
@@ -71,6 +92,20 @@ export default function TrackingScanner() {
         matched: result.matched_count,
         needsReview: result.needs_review_count,
       })
+      try {
+        const saved = await trackingScannerApi.saveHistory({
+          name: `Scan ${new Date().toLocaleString()}`,
+          source_count: result.source_count,
+          file_count: result.file_count,
+          pair_count: result.pair_count,
+          matched_count: result.matched_count,
+          needs_review_count: result.needs_review_count,
+          rows: result.rows,
+        })
+        setHistory((prev) => [saved, ...prev])
+      } catch {
+        // Non-blocking: scan results are still available in-memory even if save fails.
+      }
       if (result.matched_count === 0) {
         setSuccess(
           `Scanned ${result.file_count} PDF(s) from ${result.source_count} upload(s), with ${result.pair_count} page pair(s). No complete matches were found. Review and edit rows below before exporting.`
@@ -92,6 +127,42 @@ export default function TrackingScanner() {
       setScanProgress(null)
     }
   }, [files])
+
+  const handleLoadHistory = useCallback(async (id: string) => {
+    setHistoryBusyId(id)
+    setError(null)
+    setSuccess(null)
+    try {
+      const record = await trackingScannerApi.getHistory(id)
+      setRows(record.rows)
+      setStats({
+        sources: record.source_count,
+        files: record.file_count,
+        pairs: record.pair_count,
+        matched: record.matched_count,
+        needsReview: record.needs_review_count,
+      })
+      setSuccess(`Loaded ${record.row_count} row(s) from history.`)
+    } catch {
+      setError('Could not load selected history record.')
+    } finally {
+      setHistoryBusyId(null)
+    }
+  }, [])
+
+  const handleDeleteHistory = useCallback(async (id: string) => {
+    if (!window.confirm('Delete this history record?')) return
+    setHistoryBusyId(id)
+    setError(null)
+    try {
+      await trackingScannerApi.deleteHistory(id)
+      setHistory((prev) => prev.filter((item) => item.id !== id))
+    } catch {
+      setError('Could not delete selected history record.')
+    } finally {
+      setHistoryBusyId(null)
+    }
+  }, [])
 
   const handleDownloadExcel = useCallback(async () => {
     if (rows.length === 0) return
@@ -358,6 +429,63 @@ export default function TrackingScanner() {
           </div>
         </section>
       )}
+
+      <section className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-gray-700">Scan history</h2>
+          <button
+            type="button"
+            onClick={() => void loadHistory()}
+            className="text-xs font-medium text-indigo-600 hover:underline"
+          >
+            Refresh
+          </button>
+        </div>
+        <div className="p-4">
+          {historyLoading ? (
+            <p className="text-xs text-gray-500">Loading history…</p>
+          ) : history.length === 0 ? (
+            <p className="text-xs text-gray-500">No history yet. Run a scan to save one.</p>
+          ) : (
+            <div className="space-y-2 max-h-72 overflow-auto">
+              {history.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-md border border-gray-200 p-2 flex items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-700 truncate">
+                      {item.name || 'Scan history'}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(item.created_at).toLocaleString()} • {item.row_count} rows •{' '}
+                      {item.file_count} PDFs
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      disabled={historyBusyId === item.id}
+                      onClick={() => void handleLoadHistory(item.id)}
+                      className="px-2 py-1 text-xs rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+                    >
+                      Open
+                    </button>
+                    <button
+                      type="button"
+                      disabled={historyBusyId === item.id}
+                      onClick={() => void handleDeleteHistory(item.id)}
+                      className="px-2 py-1 text-xs rounded bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
       <section className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs text-gray-600">
         <p className="font-semibold text-gray-700 mb-1">How it works</p>

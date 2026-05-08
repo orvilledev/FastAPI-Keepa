@@ -7,13 +7,22 @@ returns either a JSON list of extracted rows or a CSV file.
 import io
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import List
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from supabase import Client
 
 from app.dependencies import get_current_user
+from app.database import get_supabase
+from app.models.tracking_history import (
+    TrackingHistoryCreate,
+    TrackingHistoryDetail,
+    TrackingHistorySummary,
+    TrackingScannerRow,
+)
 from app.services.tracking_scanner import (
     ScannedRow,
     extract_pairs_from_pdf,
@@ -29,20 +38,6 @@ router = APIRouter()
 # Hard cap on PDF size to keep OCR work bounded (~25 MB matches a few hundred
 # label pages well above any realistic shipping-label PDF).
 _MAX_PDF_BYTES = 25 * 1024 * 1024
-
-
-class TrackingScannerRow(BaseModel):
-    source_file: str
-    odd_page: Optional[int]
-    even_page: Optional[int]
-    vendor: str = ""
-    shipment_id: str = ""
-    box_code: str = ""
-    tracking_number: str = ""
-    tracking_number_raw: str = ""
-    carrier: str = ""
-    status: str = "ok"
-    notes: str = ""
 
 
 class TrackingScannerResponse(BaseModel):
@@ -149,3 +144,116 @@ async def export_tracking_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+def _history_summary_from_row(row: dict) -> TrackingHistorySummary:
+    return TrackingHistorySummary(
+        id=row["id"],
+        user_id=row["user_id"],
+        name=row.get("name"),
+        source_count=row.get("source_count", 0),
+        file_count=row.get("file_count", 0),
+        pair_count=row.get("pair_count", 0),
+        matched_count=row.get("matched_count", 0),
+        needs_review_count=row.get("needs_review_count", 0),
+        row_count=row.get("row_count", 0),
+        created_at=row["created_at"],
+    )
+
+
+@router.get("/tracking-scanner/history", response_model=List[TrackingHistorySummary])
+@handle_api_errors("list tracking scan history")
+async def list_tracking_history(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    response = (
+        db.table("tracking_scan_history")
+        .select(
+            "id,user_id,name,source_count,file_count,pair_count,matched_count,needs_review_count,row_count,created_at"
+        )
+        .eq("user_id", current_user["id"])
+        .order("created_at", desc=True)
+        .limit(100)
+        .execute()
+    )
+    return [_history_summary_from_row(row) for row in (response.data or [])]
+
+
+@router.get("/tracking-scanner/history/{history_id}", response_model=TrackingHistoryDetail)
+@handle_api_errors("get tracking scan history detail")
+async def get_tracking_history(
+    history_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    response = (
+        db.table("tracking_scan_history")
+        .select("*")
+        .eq("id", str(history_id))
+        .eq("user_id", current_user["id"])
+        .limit(1)
+        .execute()
+    )
+    if not response.data:
+        raise HTTPException(status_code=404, detail="History record not found")
+    row = response.data[0]
+    return TrackingHistoryDetail(
+        id=row["id"],
+        user_id=row["user_id"],
+        name=row.get("name"),
+        source_count=row.get("source_count", 0),
+        file_count=row.get("file_count", 0),
+        pair_count=row.get("pair_count", 0),
+        matched_count=row.get("matched_count", 0),
+        needs_review_count=row.get("needs_review_count", 0),
+        row_count=row.get("row_count", 0),
+        created_at=row["created_at"],
+        rows=[TrackingScannerRow(**item) for item in (row.get("rows") or [])],
+    )
+
+
+@router.post("/tracking-scanner/history", response_model=TrackingHistorySummary, status_code=201)
+@handle_api_errors("save tracking scan history")
+async def save_tracking_history(
+    payload: TrackingHistoryCreate,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    if not payload.rows:
+        raise HTTPException(status_code=400, detail="Cannot save empty tracking history.")
+
+    record = {
+        "user_id": current_user["id"],
+        "name": (payload.name or "").strip() or None,
+        "source_count": payload.source_count,
+        "file_count": payload.file_count,
+        "pair_count": payload.pair_count,
+        "matched_count": payload.matched_count,
+        "needs_review_count": payload.needs_review_count,
+        "row_count": len(payload.rows),
+        "rows": [row.model_dump() for row in payload.rows],
+    }
+    response = db.table("tracking_scan_history").insert(record).execute()
+    if not response.data:
+        raise HTTPException(status_code=500, detail="Failed to save history record")
+    return _history_summary_from_row(response.data[0])
+
+
+@router.delete("/tracking-scanner/history/{history_id}")
+@handle_api_errors("delete tracking scan history")
+async def delete_tracking_history(
+    history_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    response = (
+        db.table("tracking_scan_history")
+        .delete()
+        .eq("id", str(history_id))
+        .eq("user_id", current_user["id"])
+        .execute()
+    )
+    if not response.data:
+        raise HTTPException(status_code=404, detail="History record not found")
+    return {"message": "History record deleted", "id": str(history_id)}
