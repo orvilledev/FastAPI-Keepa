@@ -1,7 +1,7 @@
 import { createWorker } from 'tesseract.js'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import JSZip from 'jszip'
-import * as XLSX from 'xlsx'
+import * as XLSX from 'xlsx-js-style'
 
 GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -357,24 +357,134 @@ export function exportRowsToCsvBlob(rows: TrackingScannerRow[]): Blob {
   return new Blob([buildCsv(rows)], { type: 'text/csv;charset=utf-8;' })
 }
 
+const EXPORT_HEADER_LABELS = [
+  'Source File',
+  'Odd Page',
+  'Even Page',
+  'Vendor',
+  'Shipment ID',
+  'Box Code',
+  'Carrier',
+  'Tracking Number',
+  'Raw Tracking Number',
+  'Status',
+  'Notes',
+] as const
+
+/** ARGB for Excel */
+const RGB_BLACK = 'FF000000'
+const RGB_WHITE = 'FFFFFFFF'
+const RGB_HEADER_FILL = 'FF46A5B5'
+
+function excelThinBorder() {
+  const c = { rgb: RGB_BLACK }
+  return {
+    top: { style: 'thin' as const, color: c },
+    left: { style: 'thin' as const, color: c },
+    bottom: { style: 'thin' as const, color: c },
+    right: { style: 'thin' as const, color: c },
+  }
+}
+
+function excelHeaderStyle() {
+  return {
+    font: { bold: true, color: { rgb: RGB_BLACK }, sz: 11, name: 'Calibri' },
+    fill: {
+      patternType: 'solid' as const,
+      fgColor: { rgb: RGB_HEADER_FILL },
+    },
+    alignment: {
+      horizontal: 'center' as const,
+      vertical: 'center' as const,
+      wrapText: true,
+    },
+    border: excelThinBorder(),
+  }
+}
+
+function excelDataStyle(horizontal: 'left' | 'right') {
+  return {
+    font: { color: { rgb: RGB_BLACK }, sz: 11, name: 'Calibri' },
+    fill: {
+      patternType: 'solid' as const,
+      fgColor: { rgb: RGB_WHITE },
+    },
+    alignment: {
+      horizontal,
+      vertical: 'center' as const,
+      wrapText: true,
+    },
+    border: excelThinBorder(),
+  }
+}
+
+/** Column widths in character units so text is visible immediately on open */
+function columnCharWidths(header: readonly string[], body: (string | number)[][]): { wch: number }[] {
+  const n = header.length
+  const maxLen = Array(n).fill(0)
+  header.forEach((h, i) => {
+    maxLen[i] = Math.max(maxLen[i], h.length)
+  })
+  for (const row of body) {
+    for (let i = 0; i < n; i += 1) {
+      const text = row[i] ?? ''
+      maxLen[i] = Math.max(maxLen[i], String(text).length)
+    }
+  }
+  return maxLen.map((len) => ({ wch: Math.min(Math.max(len + 2, 8), 64) }))
+}
+
 export function exportRowsToExcelBlob(rows: TrackingScannerRow[]): Blob {
-  const sheetRows = rows.map((row) => ({
-    source_file: row.source_file,
-    odd_page: row.odd_page ?? '',
-    even_page: row.even_page ?? '',
-    vendor: row.vendor,
-    shipment_id: row.shipment_id,
-    box_code: row.box_code,
-    carrier: row.carrier,
-    tracking_number: row.tracking_number,
-    tracking_number_raw: row.tracking_number_raw,
-    status: row.status,
-    notes: row.notes,
-  }))
-  const ws = XLSX.utils.json_to_sheet(sheetRows)
+  const bodyAoA: (string | number)[][] = rows.map((row) => [
+    row.source_file,
+    row.odd_page != null ? row.odd_page : '',
+    row.even_page != null ? row.even_page : '',
+    row.vendor,
+    row.shipment_id,
+    row.box_code,
+    row.carrier,
+    row.tracking_number,
+    row.tracking_number_raw,
+    row.status,
+    row.notes,
+  ])
+
+  const aoa: (string | number)[][] = [[...EXPORT_HEADER_LABELS], ...bodyAoA]
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+
+  const aligns: ('left' | 'right')[] = [
+    'left',
+    'right',
+    'right',
+    'left',
+    'left',
+    'left',
+    'left',
+    'left',
+    'left',
+    'left',
+    'left',
+  ]
+
+  const ref = ws['!ref']
+  if (ref) {
+    const rng = XLSX.utils.decode_range(ref)
+    for (let r = rng.s.r; r <= rng.e.r; r += 1) {
+      for (let c = rng.s.c; c <= rng.e.c; c += 1) {
+        const addr = XLSX.utils.encode_cell({ r, c })
+        const cell = ws[addr]
+        if (!cell) continue
+        cell.s = r === 0 ? excelHeaderStyle() : excelDataStyle(aligns[c] ?? 'left')
+      }
+    }
+  }
+  ws['!cols'] = columnCharWidths(EXPORT_HEADER_LABELS, bodyAoA)
+
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Tracking Results')
-  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+
+  /** First sheet stays active; widths + wraps make data readable on open */
+  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true })
   return new Blob([out], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   })

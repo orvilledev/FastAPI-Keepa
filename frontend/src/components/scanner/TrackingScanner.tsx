@@ -348,7 +348,7 @@ export default function TrackingScanner() {
               Extracted rows ({rows.length})
             </h2>
             <p className="text-xs text-gray-500">
-              You can edit any cell before exporting to CSV.
+              You can edit any cell before exporting to Excel.
             </p>
           </div>
           <div className="overflow-x-auto">
