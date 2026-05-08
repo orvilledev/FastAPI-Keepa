@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import {
   exportRowsToExcelBlob,
   scanFilesInBrowser,
+  type TrackingScanProgress,
   type TrackingScannerRow,
   type TrackingScannerAggregateResponse,
 } from '../../utils/trackingExtractor'
@@ -40,12 +41,14 @@ export default function TrackingScanner() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [scanProgress, setScanProgress] = useState<TrackingScanProgress | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileSelected = useCallback((picked: File[]) => {
     setFiles(picked)
     setRows([])
     setStats(null)
+    setScanProgress(null)
     setError(null)
     setSuccess(null)
   }, [])
@@ -53,10 +56,13 @@ export default function TrackingScanner() {
   const handleScan = useCallback(async () => {
     if (files.length === 0) return
     setScanning(true)
+    setScanProgress({ completed: 0, total: files.length, percent: 0, current_file: '' })
     setError(null)
     setSuccess(null)
     try {
-      const result: TrackingScannerAggregateResponse = await scanFilesInBrowser(files)
+      const result: TrackingScannerAggregateResponse = await scanFilesInBrowser(files, (progress) => {
+        setScanProgress(progress)
+      })
       setRows(result.rows)
       setStats({
         sources: result.source_count,
@@ -83,6 +89,7 @@ export default function TrackingScanner() {
       setError(typeof detail === 'string' ? detail : 'Failed to scan files.')
     } finally {
       setScanning(false)
+      setScanProgress(null)
     }
   }, [files])
 
@@ -249,6 +256,17 @@ export default function TrackingScanner() {
             </button>
           )}
         </div>
+        {scanning && scanProgress && (
+          <div className="mt-4 flex flex-col items-center gap-2">
+            <BatteryProgress percent={scanProgress.percent} />
+            <p className="text-xs text-gray-600">
+              {scanProgress.percent}% ({scanProgress.completed}/{scanProgress.total})
+            </p>
+            <p className="text-[11px] text-gray-500 max-w-md truncate">
+              {scanProgress.current_file ? `Processing: ${scanProgress.current_file}` : 'Preparing files...'}
+            </p>
+          </div>
+        )}
         {summary}
       </section>
 
@@ -407,5 +425,27 @@ function Cell({
         mono ? 'font-mono' : ''
       }`}
     />
+  )
+}
+
+function BatteryProgress({ percent }: { percent: number }) {
+  const safePercent = Math.max(0, Math.min(100, percent))
+  const tone =
+    safePercent < 35
+      ? 'bg-red-500'
+      : safePercent < 75
+        ? 'bg-amber-500'
+        : 'bg-emerald-500'
+
+  return (
+    <div className="inline-flex items-center gap-1">
+      <div className="h-6 w-24 rounded-md border-2 border-gray-400 bg-white p-[2px]">
+        <div
+          className={`h-full rounded-sm transition-all duration-300 ${tone}`}
+          style={{ width: `${safePercent}%` }}
+        />
+      </div>
+      <div className="h-3 w-1.5 rounded-r-sm bg-gray-400" />
+    </div>
   )
 }

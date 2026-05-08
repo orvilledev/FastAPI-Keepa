@@ -41,6 +41,19 @@ export type TrackingScannerAggregateResponse = {
   rows: TrackingScannerRow[]
 }
 
+export type TrackingScanProgress = {
+  completed: number
+  total: number
+  percent: number
+  current_file: string
+}
+
+type SingleFileProgress = {
+  file_percent: number
+  pair_index: number
+  pair_count: number
+}
+
 const RE_SHIPMENT_PRIMARY = /\bFBADN[A-Z0-9-]+\b/
 const RE_SHIPMENT_FALLBACK = /\bFBA[A-Z0-9-]{8,}\b/
 const RE_BOX_CODE = /\bFBA[A-Z0-9]{8,}U\d{4,}\b/i
@@ -187,14 +200,39 @@ export async function expandInputFiles(files: File[]): Promise<{ pdfFiles: File[
   return { pdfFiles, skippedFiles }
 }
 
-export async function scanPdfInBrowser(file: File): Promise<TrackingScannerScanResponse> {
+export async function scanPdfInBrowser(
+  file: File,
+  onProgress?: (progress: SingleFileProgress) => void
+): Promise<TrackingScannerScanResponse> {
   const bytes = new Uint8Array(await file.arrayBuffer())
   const pdf = await getDocument({ data: bytes }).promise
-  const worker = await createWorker('eng')
+  const pairCount = Math.ceil(pdf.numPages / 2)
+  let activePairIndex = 0
+  let latestOcrProgress = 0
+  const emitSingleFileProgress = () => {
+    const normalized = pairCount > 0 ? (activePairIndex + latestOcrProgress) / pairCount : 1
+    onProgress?.({
+      file_percent: Math.max(0, Math.min(100, Math.round(normalized * 100))),
+      pair_index: Math.min(activePairIndex + 1, Math.max(pairCount, 1)),
+      pair_count: pairCount,
+    })
+  }
+  const worker = await createWorker('eng', 1, {
+    logger: (message) => {
+      if (message.status === 'recognizing text' && typeof message.progress === 'number') {
+        latestOcrProgress = Math.max(0, Math.min(1, message.progress))
+        emitSingleFileProgress()
+      }
+    },
+  })
   const rows: TrackingScannerRow[] = []
 
   try {
+    if (pairCount > 0) emitSingleFileProgress()
     for (let oddPage = 1; oddPage <= pdf.numPages; oddPage += 2) {
+      activePairIndex = Math.floor((oddPage - 1) / 2)
+      latestOcrProgress = 0
+      emitSingleFileProgress()
       const evenPage = oddPage + 1 <= pdf.numPages ? oddPage + 1 : null
       const odd = await pdf.getPage(oddPage)
       const oddTextContent = await odd.getTextContent()
@@ -244,6 +282,9 @@ export async function scanPdfInBrowser(file: File): Promise<TrackingScannerScanR
         notes,
       }
       rows.push(row)
+      activePairIndex += 1
+      latestOcrProgress = 0
+      emitSingleFileProgress()
     }
   } finally {
     await worker.terminate()
@@ -262,7 +303,10 @@ export async function scanPdfInBrowser(file: File): Promise<TrackingScannerScanR
   }
 }
 
-export async function scanFilesInBrowser(files: File[]): Promise<TrackingScannerAggregateResponse> {
+export async function scanFilesInBrowser(
+  files: File[],
+  onProgress?: (progress: TrackingScanProgress) => void
+): Promise<TrackingScannerAggregateResponse> {
   const { pdfFiles, skippedFiles } = await expandInputFiles(files)
   if (pdfFiles.length === 0) {
     const hint =
@@ -272,7 +316,25 @@ export async function scanFilesInBrowser(files: File[]): Promise<TrackingScanner
     throw new Error(`No PDF files found to scan.${hint}`)
   }
 
-  const scans = await Promise.all(pdfFiles.map((file) => scanPdfInBrowser(file)))
+  const scans: TrackingScannerScanResponse[] = []
+  const total = pdfFiles.length
+  const emitOverallProgress = (completedUnits: number, currentFileName: string) => {
+    onProgress?.({
+      completed: Math.floor(completedUnits),
+      total,
+      percent: Math.max(0, Math.min(100, Math.round((completedUnits / total) * 100))),
+      current_file: currentFileName,
+    })
+  }
+  emitOverallProgress(0, '')
+  for (let idx = 0; idx < pdfFiles.length; idx += 1) {
+    const file = pdfFiles[idx]
+    const scan = await scanPdfInBrowser(file, (singleFileProgress) => {
+      emitOverallProgress(idx + singleFileProgress.file_percent / 100, file.name)
+    })
+    scans.push(scan)
+    emitOverallProgress(idx + 1, file.name)
+  }
   const rows = scans.flatMap((result) => result.rows)
 
   const pageCountEstimate = scans.reduce((sum, scan) => sum + scan.page_count_estimate, 0)
