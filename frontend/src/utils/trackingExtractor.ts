@@ -54,11 +54,27 @@ type SingleFileProgress = {
   pair_count: number
 }
 
+type OcrWorker = Awaited<ReturnType<typeof createWorker>>
+
+type OcrRegion = {
+  x: number
+  y: number
+  width: number
+  height: number
+  scale: number
+}
+
 const RE_SHIPMENT_PRIMARY = /\bFBADN[A-Z0-9-]+\b/
 const RE_SHIPMENT_FALLBACK = /\bFBA[A-Z0-9-]{8,}\b/
 const RE_BOX_CODE = /\bFBA[A-Z0-9]{8,}U\d{4,}\b/i
-const RE_TRACKING_LINE = /TRACKING\s*#?\s*:?\s*([A-Z0-9 ]{10,40})/i
-const RE_UPS_GENERIC = /\b1Z[0-9A-Z ]{14,25}\b/i
+const RE_TRACKING_LINE = /TRACKING\s*#?\s*:?\s*([A-Z0-9\s:-]{10,48})/i
+const RE_UPS_GENERIC = /\b1\s*Z[\s:-]*[0-9A-Z][0-9A-Z\s:-]{13,35}\b/i
+
+const TRACKING_OCR_REGIONS: OcrRegion[] = [
+  { x: 0.1, y: 0.45, width: 0.74, height: 0.13, scale: 4 },
+  { x: 0.08, y: 0.39, width: 0.84, height: 0.22, scale: 3 },
+  { x: 0.04, y: 0.32, width: 0.92, height: 0.34, scale: 2 },
+]
 
 function normalizeAlnumUpper(value: string): string {
   return (value || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
@@ -118,6 +134,59 @@ function cropBottomLabel(canvas: HTMLCanvasElement): HTMLCanvasElement {
   const srcY = canvas.height - cropped.height
   ctx.drawImage(canvas, 0, srcY, canvas.width, cropped.height, 0, 0, cropped.width, cropped.height)
   return cropped
+}
+
+function cropOcrRegion(canvas: HTMLCanvasElement, region: OcrRegion): HTMLCanvasElement {
+  const sx = Math.max(0, Math.floor(canvas.width * region.x))
+  const sy = Math.max(0, Math.floor(canvas.height * region.y))
+  const sw = Math.min(canvas.width - sx, Math.floor(canvas.width * region.width))
+  const sh = Math.min(canvas.height - sy, Math.floor(canvas.height * region.height))
+  const scale = Math.max(1, region.scale)
+  const cropped = document.createElement('canvas')
+  cropped.width = Math.max(1, Math.floor(sw * scale))
+  cropped.height = Math.max(1, Math.floor(sh * scale))
+
+  const ctx = cropped.getContext('2d')
+  if (!ctx) return canvas
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, cropped.width, cropped.height)
+  ctx.imageSmoothingEnabled = false
+  ctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, cropped.width, cropped.height)
+  return toHighContrastCanvas(cropped)
+}
+
+function toHighContrastCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return canvas
+
+  const image = ctx.getImageData(0, 0, canvas.width, canvas.height)
+  const data = image.data
+  for (let i = 0; i < data.length; i += 4) {
+    const luminance = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
+    const value = luminance < 170 ? 0 : 255
+    data[i] = value
+    data[i + 1] = value
+    data[i + 2] = value
+  }
+  ctx.putImageData(image, 0, 0)
+  return canvas
+}
+
+async function recognizeTrackingNumber(
+  worker: OcrWorker,
+  fullCanvas: HTMLCanvasElement
+): Promise<{ raw: string; normalized: string } | null> {
+  const bottomResult = await worker.recognize(cropBottomLabel(fullCanvas))
+  const bottomHit = extractTrackingFromText(bottomResult.data.text || '')
+  if (bottomHit) return bottomHit
+
+  for (const region of TRACKING_OCR_REGIONS) {
+    const result = await worker.recognize(cropOcrRegion(fullCanvas, region))
+    const hit = extractTrackingFromText(result.data.text || '')
+    if (hit) return hit
+  }
+
+  return null
 }
 
 function buildCsv(rows: TrackingScannerRow[]): string {
@@ -220,7 +289,7 @@ export async function scanPdfInBrowser(
   const worker = await createWorker('eng', 1, {
     logger: (message) => {
       if (message.status === 'recognizing text' && typeof message.progress === 'number') {
-        latestOcrProgress = Math.max(0, Math.min(1, message.progress))
+        latestOcrProgress = Math.max(latestOcrProgress, Math.max(0, Math.min(1, message.progress)))
         emitSingleFileProgress()
       }
     },
@@ -250,10 +319,8 @@ export async function scanPdfInBrowser(
         fullCanvas.height = viewport.height
         const ctx = fullCanvas.getContext('2d')
         if (ctx) {
-          await even.render({ canvasContext: ctx, viewport }).promise
-          const labelCanvas = cropBottomLabel(fullCanvas)
-          const result = await worker.recognize(labelCanvas)
-          const hit = extractTrackingFromText(result.data.text || '')
+          await even.render({ canvas: fullCanvas, canvasContext: ctx, viewport }).promise
+          const hit = await recognizeTrackingNumber(worker, fullCanvas)
           if (hit) {
             trackingRaw = hit.raw
             trackingNumber = hit.normalized
