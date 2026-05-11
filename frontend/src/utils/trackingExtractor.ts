@@ -1,4 +1,4 @@
-import { createWorker } from 'tesseract.js'
+import { createWorker, PSM } from 'tesseract.js'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import JSZip from 'jszip'
 import * as XLSX from 'xlsx-js-style'
@@ -75,6 +75,22 @@ const TRACKING_OCR_REGIONS: OcrRegion[] = [
   { x: 0.08, y: 0.39, width: 0.84, height: 0.22, scale: 3 },
   { x: 0.04, y: 0.32, width: 0.92, height: 0.34, scale: 2 },
 ]
+
+// Narrow strips targeted at the "TRACKING #: 1Z..." line. The text on a typical
+// UPS Ground label is small, sits between the QR/barcode blocks above and the
+// large 1D barcode below, and can be at slightly different vertical positions
+// across label templates.
+const TRACKING_STRIP_REGIONS: OcrRegion[] = [
+  { x: 0.06, y: 0.475, width: 0.78, height: 0.07, scale: 6 },
+  { x: 0.06, y: 0.44, width: 0.82, height: 0.08, scale: 6 },
+  { x: 0.04, y: 0.515, width: 0.84, height: 0.07, scale: 6 },
+  { x: 0.04, y: 0.40, width: 0.86, height: 0.10, scale: 5 },
+]
+
+const TRACKING_STRIP_PSM = PSM.SINGLE_LINE
+const TRACKING_STRIP_WHITELIST = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#: '
+const TRACKING_DEFAULT_PSM = PSM.AUTO
+const TRACKING_DEFAULT_WHITELIST = ''
 
 function normalizeAlnumUpper(value: string): string {
   return (value || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
@@ -155,6 +171,26 @@ function cropOcrRegion(canvas: HTMLCanvasElement, region: OcrRegion): HTMLCanvas
   return toHighContrastCanvas(cropped)
 }
 
+function cropOcrStrip(canvas: HTMLCanvasElement, region: OcrRegion): HTMLCanvasElement {
+  const sx = Math.max(0, Math.floor(canvas.width * region.x))
+  const sy = Math.max(0, Math.floor(canvas.height * region.y))
+  const sw = Math.min(canvas.width - sx, Math.floor(canvas.width * region.width))
+  const sh = Math.min(canvas.height - sy, Math.floor(canvas.height * region.height))
+  const scale = Math.max(1, region.scale)
+  const cropped = document.createElement('canvas')
+  cropped.width = Math.max(1, Math.floor(sw * scale))
+  cropped.height = Math.max(1, Math.floor(sh * scale))
+
+  const ctx = cropped.getContext('2d')
+  if (!ctx) return canvas
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, cropped.width, cropped.height)
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, cropped.width, cropped.height)
+  return cropped
+}
+
 function toHighContrastCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement {
   const ctx = canvas.getContext('2d')
   if (!ctx) return canvas
@@ -176,6 +212,25 @@ async function recognizeTrackingNumber(
   worker: OcrWorker,
   fullCanvas: HTMLCanvasElement
 ): Promise<{ raw: string; normalized: string } | null> {
+  // Single-line strip pass first: scaled high, smooth, with a tight whitelist.
+  // This handles small `TRACKING #: 1Z ...` lines that broader passes miss.
+  try {
+    await worker.setParameters({
+      tessedit_pageseg_mode: TRACKING_STRIP_PSM,
+      tessedit_char_whitelist: TRACKING_STRIP_WHITELIST,
+    })
+    for (const region of TRACKING_STRIP_REGIONS) {
+      const result = await worker.recognize(cropOcrStrip(fullCanvas, region))
+      const hit = extractTrackingFromText(result.data.text || '')
+      if (hit) return hit
+    }
+  } finally {
+    await worker.setParameters({
+      tessedit_pageseg_mode: TRACKING_DEFAULT_PSM,
+      tessedit_char_whitelist: TRACKING_DEFAULT_WHITELIST,
+    })
+  }
+
   const bottomResult = await worker.recognize(cropBottomLabel(fullCanvas))
   const bottomHit = extractTrackingFromText(bottomResult.data.text || '')
   if (bottomHit) return bottomHit
