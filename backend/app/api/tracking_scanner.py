@@ -13,6 +13,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 from supabase import Client
 
 from app.dependencies import get_current_user
@@ -142,7 +143,7 @@ async def ocr_tracking_page(
         )
 
     try:
-        text = _ocr_image_bytes(raw)
+        text = await run_in_threadpool(_ocr_image_bytes, raw)
     except Exception as exc:
         logger.exception("OCR failed for uploaded page image")
         raise HTTPException(status_code=500, detail=f"OCR failed: {exc}")

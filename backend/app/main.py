@@ -157,6 +157,7 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
 @app.on_event("startup")
 async def startup_event():
     """Initialize database on startup."""
+    import asyncio
     logger.info("Initializing database connection...")
     init_db()
     logger.info("Setting up scheduler...")
@@ -196,6 +197,18 @@ async def startup_event():
         setup_scheduler(category='tev')  # Use TEV defaults
         setup_scheduler(category='cha')  # Use CHA defaults
     start_scheduler()
+
+    # Pre-load PaddleOCR model in a thread so the first OCR request isn't slow.
+    async def _warmup_paddle():
+        try:
+            from app.services.tracking_scanner import _get_paddle_ocr
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, _get_paddle_ocr)
+            logger.info("PaddleOCR model warmed up")
+        except Exception as exc:
+            logger.warning("PaddleOCR warmup failed (will retry on first request): %s", exc)
+
+    asyncio.ensure_future(_warmup_paddle())
     logger.info("Application startup complete")
 
 
