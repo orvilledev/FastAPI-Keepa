@@ -26,6 +26,7 @@ from app.models.tracking_history import (
 )
 from app.services.tracking_scanner import (
     ScannedRow,
+    _ocr_image_bytes,
     extract_pairs_from_pdf,
     rows_to_csv_bytes,
 )
@@ -112,6 +113,41 @@ async def scan_tracking_pdf(
         needs_review_count=needs_review,
         rows=pyd_rows,
     )
+
+
+class OcrPageResponse(BaseModel):
+    text: str
+
+
+# Hard cap for single-page PNG uploads (10 MB covers a 300-DPI full page).
+_MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
+
+@router.post("/tracking-scanner/ocr-page", response_model=OcrPageResponse)
+@limiter.limit(RateLimits.FILE_UPLOAD)
+@handle_api_errors("OCR tracking page")
+async def ocr_tracking_page(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """Run PaddleOCR (with Tesseract fallback) on a PNG and return the extracted text."""
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Uploaded image is empty.")
+    if len(raw) > _MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Image exceeds {_MAX_IMAGE_BYTES // (1024 * 1024)} MB size limit.",
+        )
+
+    try:
+        text = _ocr_image_bytes(raw)
+    except Exception as exc:
+        logger.exception("OCR failed for uploaded page image")
+        raise HTTPException(status_code=500, detail=f"OCR failed: {exc}")
+
+    return OcrPageResponse(text=text or "")
 
 
 @router.post("/tracking-scanner/export-csv")

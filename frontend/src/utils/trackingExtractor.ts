@@ -2,6 +2,7 @@ import { createWorker } from 'tesseract.js'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import JSZip from 'jszip'
 import * as XLSX from 'xlsx-js-style'
+import { trackingScannerApi } from '../services/api'
 
 GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -208,6 +209,20 @@ function toHighContrastCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement {
   return canvas
 }
 
+function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob)
+      else reject(new Error('canvas.toBlob returned null'))
+    }, 'image/png')
+  })
+}
+
+async function ocrCanvasViaBackend(canvas: HTMLCanvasElement): Promise<string> {
+  const blob = await canvasToPngBlob(canvas)
+  return trackingScannerApi.ocrPage(blob)
+}
+
 async function detectTrackingFromBarcode(
   fullCanvas: HTMLCanvasElement
 ): Promise<{ raw: string; normalized: string } | null> {
@@ -251,6 +266,15 @@ async function recognizeTrackingNumber(
 ): Promise<{ raw: string; normalized: string } | null> {
   const barcodeHit = await detectTrackingFromBarcode(fullCanvas)
   if (barcodeHit) return barcodeHit
+
+  // PaddleOCR via backend — more accurate than Tesseract.js for label images.
+  try {
+    const backendText = await ocrCanvasViaBackend(fullCanvas)
+    const backendHit = extractTrackingFromText(backendText)
+    if (backendHit) return backendHit
+  } catch {
+    // Backend unavailable or returned no match — fall through to Tesseract.js.
+  }
 
   const bottomResult = await worker.recognize(cropBottomLabel(fullCanvas))
   const bottomHit = extractTrackingFromText(bottomResult.data.text || '')
