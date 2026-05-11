@@ -2,7 +2,6 @@ import { createWorker } from 'tesseract.js'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import JSZip from 'jszip'
 import * as XLSX from 'xlsx-js-style'
-import { trackingScannerApi } from '../services/api'
 
 GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -209,20 +208,6 @@ function toHighContrastCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement {
   return canvas
 }
 
-function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob)
-      else reject(new Error('canvas.toBlob returned null'))
-    }, 'image/png')
-  })
-}
-
-async function ocrCanvasViaBackend(canvas: HTMLCanvasElement): Promise<string> {
-  const blob = await canvasToPngBlob(canvas)
-  return trackingScannerApi.ocrPage(blob)
-}
-
 async function detectTrackingFromBarcode(
   fullCanvas: HTMLCanvasElement
 ): Promise<{ raw: string; normalized: string } | null> {
@@ -271,27 +256,6 @@ async function recognizeTrackingNumber(
     return barcodeHit
   }
   console.debug(`[OCR:${debugLabel}] barcode: no hit`)
-
-  // PaddleOCR via backend — try full canvas then focused crops for better accuracy.
-  const backendCandidates = [
-    { label: 'full', canvas: fullCanvas },
-    ...TRACKING_OCR_REGIONS.map((region, i) => ({ label: `crop${i}`, canvas: cropOcrRegion(fullCanvas, region) })),
-  ]
-  for (const { label, canvas } of backendCandidates) {
-    let backendText: string
-    try {
-      backendText = await ocrCanvasViaBackend(canvas)
-    } catch (err) {
-      console.debug(`[OCR:${debugLabel}] backend ${label} threw:`, err)
-      break // Backend unavailable — fall through to Tesseract.js entirely.
-    }
-    console.debug(`[OCR:${debugLabel}] backend ${label} text:`, JSON.stringify(backendText))
-    const backendHit = extractTrackingFromText(backendText)
-    if (backendHit) {
-      console.debug(`[OCR:${debugLabel}] backend ${label} hit:`, backendHit.normalized)
-      return backendHit
-    }
-  }
 
   const bottomResult = await worker.recognize(cropBottomLabel(fullCanvas))
   const bottomText = bottomResult.data.text || ''

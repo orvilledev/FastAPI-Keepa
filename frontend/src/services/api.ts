@@ -1046,12 +1046,6 @@ export const trackingScannerApi = {
   deleteHistory: async (historyId: string): Promise<void> => {
     await api.delete(`/api/v1/tracking-scanner/history/${historyId}`)
   },
-  ocrPage: async (pngBlob: Blob): Promise<string> => {
-    const formData = new FormData()
-    formData.append('file', pngBlob, 'page.png')
-    const response = await api.post<{ text: string }>('/api/v1/tracking-scanner/ocr-page', formData)
-    return response.data.text ?? ''
-  },
 }
 
 export const systemApi = {

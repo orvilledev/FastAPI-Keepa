@@ -194,49 +194,6 @@ def _render_page_to_png_bytes(doc, page_index: int, dpi: int = 300) -> bytes:
     return pix.tobytes("png")
 
 
-# Module-level PaddleOCR instance (expensive to initialize — reused across calls).
-_PADDLE_OCR_INSTANCE = None
-
-
-def _get_paddle_ocr():
-    """Return a cached PaddleOCR instance, initializing it on first call."""
-    global _PADDLE_OCR_INSTANCE
-    if _PADDLE_OCR_INSTANCE is None:
-        from paddleocr import PaddleOCR
-        # enable_mkldnn=False avoids the oneDNN/PIR crash on Windows with
-        # PaddlePaddle 3.x (ConvertPirAttribute2RuntimeAttribute bug).
-        _PADDLE_OCR_INSTANCE = PaddleOCR(lang="en", enable_mkldnn=False)
-    return _PADDLE_OCR_INSTANCE
-
-
-def _ocr_image_bytes_paddle(png_bytes: bytes) -> str:
-    """Run PaddleOCR on a PNG image and return the extracted text."""
-    try:
-        import numpy as np
-        from PIL import Image
-    except ImportError as exc:
-        raise RuntimeError(
-            "PaddleOCR requires numpy and Pillow. "
-            "Install with `pip install paddleocr numpy Pillow`."
-        ) from exc
-
-    ocr = _get_paddle_ocr()
-    img = Image.open(io.BytesIO(png_bytes)).convert("RGB")
-    img_array = np.array(img)
-    # PaddleOCR 3.x returns a list of result objects (one per image).
-    # Each result object is dict-like with 'rec_texts' and 'rec_scores'.
-    results = ocr.predict(img_array)
-
-    lines = []
-    for res in (results or []):
-        texts = res.get("rec_texts") or []
-        scores = res.get("rec_scores") or []
-        for text, score in zip(texts, scores):
-            if score >= 0.3:
-                lines.append(str(text))
-    return "\n".join(lines)
-
-
 def _ocr_image_bytes_tesseract(png_bytes: bytes) -> str:
     """Run Tesseract OCR on an image; preprocess for stronger label OCR."""
     try:
@@ -269,14 +226,6 @@ def _ocr_image_bytes_tesseract(png_bytes: bytes) -> str:
 
 
 def _ocr_image_bytes(png_bytes: bytes) -> str:
-    """Run OCR on a PNG image: try PaddleOCR first, fall back to Tesseract."""
-    try:
-        from paddleocr import PaddleOCR  # noqa: F401 - availability check
-        return _ocr_image_bytes_paddle(png_bytes)
-    except ImportError:
-        logger.debug("PaddleOCR not installed; falling back to Tesseract.")
-    except Exception as paddle_err:
-        logger.warning("PaddleOCR failed (%s); falling back to Tesseract.", paddle_err)
     return _ocr_image_bytes_tesseract(png_bytes)
 
 
