@@ -1,5 +1,14 @@
 import { createWorker } from 'tesseract.js'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
+import {
+  BinaryBitmap,
+  BarcodeFormat,
+  DecodeHintType,
+  HybridBinarizer,
+  HTMLCanvasElementLuminanceSource,
+  MultiFormatReader,
+  NotFoundException,
+} from '@zxing/library'
 import JSZip from 'jszip'
 import * as XLSX from 'xlsx-js-style'
 
@@ -92,6 +101,25 @@ const TRACKING_BARCODE_REGIONS: OcrRegion[] = [
   { x: 0.04, y: 0.48, width: 0.88, height: 0.28, scale: 2 },
   { x: 0, y: 0.34, width: 1, height: 0.48, scale: 1 },
 ]
+
+// ZXing Code 128 reader — module-level so it's reused across pages.
+const _zxingHints = new Map<DecodeHintType, unknown>([
+  [DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128]],
+  [DecodeHintType.TRY_HARDER, true],
+])
+const _zxingReader = new MultiFormatReader()
+_zxingReader.setHints(_zxingHints)
+
+function decodeZxingFromCanvas(canvas: HTMLCanvasElement): string | null {
+  try {
+    const source = new HTMLCanvasElementLuminanceSource(canvas)
+    const bitmap = new BinaryBitmap(new HybridBinarizer(source))
+    return _zxingReader.decode(bitmap).getText()
+  } catch (e) {
+    if (e instanceof NotFoundException) return null
+    throw e
+  }
+}
 
 function normalizeAlnumUpper(value: string): string {
   return (value || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
@@ -245,33 +273,58 @@ async function detectTrackingFromBarcode(
   return null
 }
 
+type RecognizeResult = { raw: string; normalized: string; notes: string }
+
 async function recognizeTrackingNumber(
   worker: OcrWorker,
   fullCanvas: HTMLCanvasElement,
   debugLabel?: string
-): Promise<{ raw: string; normalized: string } | null> {
-  const barcodeHit = await detectTrackingFromBarcode(fullCanvas)
-  if (barcodeHit) {
-    console.debug(`[OCR:${debugLabel}] barcode hit:`, barcodeHit.normalized)
-    return barcodeHit
+): Promise<RecognizeResult> {
+  // Step 1: ZXing Code 128 — try full canvas then cropped barcode regions.
+  const barcodeCandidates = [
+    { label: 'full', canvas: fullCanvas },
+    ...TRACKING_BARCODE_REGIONS.map((r, i) => ({ label: `crop${i}`, canvas: cropBarcodeRegion(fullCanvas, r) })),
+  ]
+  for (const { label, canvas } of barcodeCandidates) {
+    let decoded: string | null = null
+    try {
+      decoded = decodeZxingFromCanvas(canvas)
+    } catch (err) {
+      console.debug(`[OCR:${debugLabel}] zxing ${label} error:`, err)
+    }
+    console.debug(`[OCR:${debugLabel}] zxing ${label}:`, decoded ?? 'null')
+    if (decoded) {
+      const hit = extractTrackingFromText(decoded)
+      if (hit) {
+        console.debug(`[OCR:${debugLabel}] zxing ${label} hit:`, hit.normalized)
+        return { ...hit, notes: '' }
+      }
+    }
   }
-  console.debug(`[OCR:${debugLabel}] barcode: no hit`)
 
+  // Step 2: Native BarcodeDetector fallback (Chrome/Edge built-in).
+  const nativeHit = await detectTrackingFromBarcode(fullCanvas)
+  if (nativeHit) {
+    console.debug(`[OCR:${debugLabel}] native barcode hit:`, nativeHit.normalized)
+    return { ...nativeHit, notes: '' }
+  }
+
+  // Step 3: Tesseract OCR — bottom crop then focused region crops.
   const bottomResult = await worker.recognize(cropBottomLabel(fullCanvas))
   const bottomText = bottomResult.data.text || ''
-  console.debug(`[OCR:${debugLabel}] tesseract bottom text:`, JSON.stringify(bottomText))
+  console.debug(`[OCR:${debugLabel}] tesseract bottom:`, JSON.stringify(bottomText))
   const bottomHit = extractTrackingFromText(bottomText)
-  if (bottomHit) return bottomHit
+  if (bottomHit) return { ...bottomHit, notes: '' }
 
   for (const [i, region] of TRACKING_OCR_REGIONS.entries()) {
     const result = await worker.recognize(cropOcrRegion(fullCanvas, region))
     const text = result.data.text || ''
-    console.debug(`[OCR:${debugLabel}] tesseract region${i} text:`, JSON.stringify(text))
+    console.debug(`[OCR:${debugLabel}] tesseract region${i}:`, JSON.stringify(text))
     const hit = extractTrackingFromText(text)
-    if (hit) return hit
+    if (hit) return { ...hit, notes: '' }
   }
 
-  return null
+  return { raw: '', normalized: '', notes: 'Barcode decode failed; OCR did not find a UPS 1Z tracking number.' }
 }
 
 function buildCsv(rows: TrackingScannerRow[]): string {
@@ -405,13 +458,10 @@ export async function scanPdfInBrowser(
         const ctx = fullCanvas.getContext('2d')
         if (ctx) {
           await even.render({ canvas: fullCanvas, canvasContext: ctx, viewport }).promise
-          const hit = await recognizeTrackingNumber(worker, fullCanvas, `${file.name}:p${evenPage}`)
-          if (hit) {
-            trackingRaw = hit.raw
-            trackingNumber = hit.normalized
-          } else {
-            notes = 'OCR completed but no UPS 1Z tracking number was found.'
-          }
+          const result = await recognizeTrackingNumber(worker, fullCanvas, `${file.name}:p${evenPage}`)
+          trackingRaw = result.raw
+          trackingNumber = result.normalized
+          notes = result.notes
         } else {
           notes = 'Could not create canvas context for OCR.'
         }
