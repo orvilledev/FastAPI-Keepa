@@ -1,4 +1,4 @@
-import { createWorker, PSM } from 'tesseract.js'
+import { createWorker } from 'tesseract.js'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import JSZip from 'jszip'
 import * as XLSX from 'xlsx-js-style'
@@ -64,6 +64,17 @@ type OcrRegion = {
   scale: number
 }
 
+type BarcodeDetectorResult = {
+  rawValue: string
+  format?: string
+}
+
+type BarcodeDetectorConstructor = new (options?: {
+  formats?: string[]
+}) => {
+  detect: (image: HTMLCanvasElement) => Promise<BarcodeDetectorResult[]>
+}
+
 const RE_SHIPMENT_PRIMARY = /\bFBADN[A-Z0-9-]+\b/
 const RE_SHIPMENT_FALLBACK = /\bFBA[A-Z0-9-]{8,}\b/
 const RE_BOX_CODE = /\bFBA[A-Z0-9]{8,}U\d{4,}\b/i
@@ -76,21 +87,11 @@ const TRACKING_OCR_REGIONS: OcrRegion[] = [
   { x: 0.04, y: 0.32, width: 0.92, height: 0.34, scale: 2 },
 ]
 
-// Narrow strips targeted at the "TRACKING #: 1Z..." line. The text on a typical
-// UPS Ground label is small, sits between the QR/barcode blocks above and the
-// large 1D barcode below, and can be at slightly different vertical positions
-// across label templates.
-const TRACKING_STRIP_REGIONS: OcrRegion[] = [
-  { x: 0.06, y: 0.475, width: 0.78, height: 0.07, scale: 6 },
-  { x: 0.06, y: 0.44, width: 0.82, height: 0.08, scale: 6 },
-  { x: 0.04, y: 0.515, width: 0.84, height: 0.07, scale: 6 },
-  { x: 0.04, y: 0.40, width: 0.86, height: 0.10, scale: 5 },
+const TRACKING_BARCODE_REGIONS: OcrRegion[] = [
+  { x: 0.08, y: 0.53, width: 0.78, height: 0.18, scale: 2 },
+  { x: 0.04, y: 0.48, width: 0.88, height: 0.28, scale: 2 },
+  { x: 0, y: 0.34, width: 1, height: 0.48, scale: 1 },
 ]
-
-const TRACKING_STRIP_PSM = PSM.SINGLE_LINE
-const TRACKING_STRIP_WHITELIST = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#: '
-const TRACKING_DEFAULT_PSM = PSM.AUTO
-const TRACKING_DEFAULT_WHITELIST = ''
 
 function normalizeAlnumUpper(value: string): string {
   return (value || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
@@ -171,7 +172,7 @@ function cropOcrRegion(canvas: HTMLCanvasElement, region: OcrRegion): HTMLCanvas
   return toHighContrastCanvas(cropped)
 }
 
-function cropOcrStrip(canvas: HTMLCanvasElement, region: OcrRegion): HTMLCanvasElement {
+function cropBarcodeRegion(canvas: HTMLCanvasElement, region: OcrRegion): HTMLCanvasElement {
   const sx = Math.max(0, Math.floor(canvas.width * region.x))
   const sy = Math.max(0, Math.floor(canvas.height * region.y))
   const sw = Math.min(canvas.width - sx, Math.floor(canvas.width * region.width))
@@ -185,8 +186,7 @@ function cropOcrStrip(canvas: HTMLCanvasElement, region: OcrRegion): HTMLCanvasE
   if (!ctx) return canvas
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, cropped.width, cropped.height)
-  ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = 'high'
+  ctx.imageSmoothingEnabled = false
   ctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, cropped.width, cropped.height)
   return cropped
 }
@@ -208,10 +208,50 @@ function toHighContrastCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement {
   return canvas
 }
 
+async function detectTrackingFromBarcode(
+  fullCanvas: HTMLCanvasElement
+): Promise<{ raw: string; normalized: string } | null> {
+  const detectorClass = (globalThis as typeof globalThis & {
+    BarcodeDetector?: BarcodeDetectorConstructor
+  }).BarcodeDetector
+  if (!detectorClass) return null
+
+  let detector: InstanceType<BarcodeDetectorConstructor>
+  try {
+    detector = new detectorClass({ formats: ['code_128'] })
+  } catch {
+    detector = new detectorClass()
+  }
+
+  const candidates = [
+    fullCanvas,
+    ...TRACKING_BARCODE_REGIONS.map((region) => cropBarcodeRegion(fullCanvas, region)),
+  ]
+
+  for (const candidate of candidates) {
+    let barcodes: BarcodeDetectorResult[] = []
+    try {
+      barcodes = await detector.detect(candidate)
+    } catch {
+      continue
+    }
+
+    for (const barcode of barcodes) {
+      const hit = extractTrackingFromText(barcode.rawValue || '')
+      if (hit) return hit
+    }
+  }
+
+  return null
+}
+
 async function recognizeTrackingNumber(
   worker: OcrWorker,
   fullCanvas: HTMLCanvasElement
 ): Promise<{ raw: string; normalized: string } | null> {
+  const barcodeHit = await detectTrackingFromBarcode(fullCanvas)
+  if (barcodeHit) return barcodeHit
+
   const bottomResult = await worker.recognize(cropBottomLabel(fullCanvas))
   const bottomHit = extractTrackingFromText(bottomResult.data.text || '')
   if (bottomHit) return bottomHit
@@ -220,25 +260,6 @@ async function recognizeTrackingNumber(
     const result = await worker.recognize(cropOcrRegion(fullCanvas, region))
     const hit = extractTrackingFromText(result.data.text || '')
     if (hit) return hit
-  }
-
-  // Last-resort single-line strip pass: scaled high, smooth, with a tight whitelist.
-  // This avoids disturbing labels already handled by the broader OCR passes.
-  try {
-    await worker.setParameters({
-      tessedit_pageseg_mode: TRACKING_STRIP_PSM,
-      tessedit_char_whitelist: TRACKING_STRIP_WHITELIST,
-    })
-    for (const region of TRACKING_STRIP_REGIONS) {
-      const result = await worker.recognize(cropOcrStrip(fullCanvas, region))
-      const hit = extractTrackingFromText(result.data.text || '')
-      if (hit) return hit
-    }
-  } finally {
-    await worker.setParameters({
-      tessedit_pageseg_mode: TRACKING_DEFAULT_PSM,
-      tessedit_char_whitelist: TRACKING_DEFAULT_WHITELIST,
-    })
   }
 
   return null
