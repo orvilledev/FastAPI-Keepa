@@ -33,12 +33,15 @@ _MAX_SCHEDULER_UPLOAD_BYTES = 25 * 1024 * 1024
 # Allowed file extensions and content types for scheduler report uploads.
 # Content-type is validated permissively because browsers/clients vary; the
 # extension check is the primary filter and the parser is the final guard.
-_ALLOWED_SCHEDULER_UPLOAD_EXTS = (".csv", ".tsv", ".txt")
+_ALLOWED_SCHEDULER_UPLOAD_EXTS = (".csv", ".tsv", ".txt", ".xlsx", ".xls", ".xlsm", ".xlsb")
 _ALLOWED_SCHEDULER_UPLOAD_CONTENT_TYPES = frozenset({
     "text/csv",
     "text/tab-separated-values",
     "text/plain",
     "application/vnd.ms-excel",  # some clients label .csv this way
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel.sheet.macroenabled.12",
+    "application/vnd.ms-excel.sheet.binary.macroenabled.12",
     "application/octet-stream",  # generic fallback some clients send
     "",  # missing header — we still rely on the extension check
 })
@@ -837,7 +840,7 @@ async def upload_scheduler_report(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
-    """Upload a Keepa report file (csv/txt) used by uploaded daily run mode."""
+    """Upload a Keepa report file used by uploaded daily run mode."""
     filename = (file.filename or "").strip()
 
     lower_name = filename.lower()
