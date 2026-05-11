@@ -33,6 +33,7 @@ class TrackingHistoryCreate(BaseModel):
 class TrackingHistorySummary(BaseModel):
     id: UUID
     user_id: UUID
+    created_by_name: Optional[str] = None
     name: Optional[str] = None
     source_count: int
     file_count: int

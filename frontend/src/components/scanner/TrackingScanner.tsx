@@ -7,6 +7,7 @@ import {
   type TrackingScannerAggregateResponse,
 } from '../../utils/trackingExtractor'
 import { trackingScannerApi } from '../../services/api'
+import { useUser } from '../../contexts/UserContext'
 import type { TrackingHistorySummary } from '../../types'
 
 type Stats = {
@@ -35,6 +36,7 @@ function suggestedExcelFilename(): string {
 }
 
 export default function TrackingScanner() {
+  const { userInfo } = useUser()
   const [files, setFiles] = useState<File[]>([])
   const [rows, setRows] = useState<TrackingScannerRow[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
@@ -448,40 +450,46 @@ export default function TrackingScanner() {
             <p className="text-xs text-gray-500">No history yet. Run a scan to save one.</p>
           ) : (
             <div className="space-y-2 max-h-72 overflow-auto">
-              {history.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-md border border-gray-200 p-2 flex items-center justify-between gap-3"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-700 truncate">
-                      {item.name || 'Scan history'}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(item.created_at).toLocaleString()} • {item.row_count} rows •{' '}
-                      {item.file_count} PDFs
-                    </p>
+              {history.map((item) => {
+                const creatorName = item.created_by_name?.trim() || 'Unknown user'
+                const canDelete = item.user_id === userInfo?.id
+                return (
+                  <div
+                    key={item.id}
+                    className="rounded-md border border-gray-200 p-2 flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-700 truncate">
+                        {item.name || 'Scan history'}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(item.created_at).toLocaleString()} • Ran by {creatorName} •{' '}
+                        {item.row_count} rows • {item.file_count} PDFs
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        disabled={historyBusyId === item.id}
+                        onClick={() => void handleLoadHistory(item.id)}
+                        className="px-2 py-1 text-xs rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+                      >
+                        Open
+                      </button>
+                      {canDelete && (
+                        <button
+                          type="button"
+                          disabled={historyBusyId === item.id}
+                          onClick={() => void handleDeleteHistory(item.id)}
+                          className="px-2 py-1 text-xs rounded bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      disabled={historyBusyId === item.id}
-                      onClick={() => void handleLoadHistory(item.id)}
-                      className="px-2 py-1 text-xs rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
-                    >
-                      Open
-                    </button>
-                    <button
-                      type="button"
-                      disabled={historyBusyId === item.id}
-                      onClick={() => void handleDeleteHistory(item.id)}
-                      className="px-2 py-1 text-xs rounded bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

@@ -300,6 +300,7 @@ export interface TrackingScannerRow {
 export interface TrackingHistorySummary {
   id: string
   user_id: string
+  created_by_name?: string | null
   name?: string | null
   source_count: number
   file_count: number

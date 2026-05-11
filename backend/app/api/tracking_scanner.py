@@ -153,6 +153,7 @@ def _history_summary_from_row(row: dict) -> TrackingHistorySummary:
     return TrackingHistorySummary(
         id=row["id"],
         user_id=row["user_id"],
+        created_by_name=row.get("created_by_name"),
         name=row.get("name"),
         source_count=row.get("source_count", 0),
         file_count=row.get("file_count", 0),
@@ -164,6 +165,38 @@ def _history_summary_from_row(row: dict) -> TrackingHistorySummary:
     )
 
 
+def _tracking_history_creator_name(current_user: dict, db: Client) -> str | None:
+    """Return a stable display name snapshot for the user saving this scan."""
+    profile = {}
+    try:
+        response = (
+            db.table("profiles")
+            .select("*")
+            .eq("id", current_user["id"])
+            .limit(1)
+            .execute()
+        )
+        if response.data:
+            profile = response.data[0]
+    except Exception as exc:  # pragma: no cover - history metadata should not block saves
+        logger.warning("Could not load tracking history creator profile: %s", exc)
+
+    metadata = current_user.get("user_metadata") or {}
+    candidates = [
+        profile.get("display_name"),
+        profile.get("full_name"),
+        metadata.get("display_name"),
+        metadata.get("full_name"),
+        metadata.get("name"),
+        profile.get("email"),
+        current_user.get("email"),
+    ]
+    for value in candidates:
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
 @router.get("/tracking-scanner/history", response_model=List[TrackingHistorySummary])
 @handle_api_errors("list tracking scan history")
 async def list_tracking_history(
@@ -173,9 +206,8 @@ async def list_tracking_history(
     response = (
         db.table("tracking_scan_history")
         .select(
-            "id,user_id,name,source_count,file_count,pair_count,matched_count,needs_review_count,row_count,created_at"
+            "id,user_id,created_by_name,name,source_count,file_count,pair_count,matched_count,needs_review_count,row_count,created_at"
         )
-        .eq("user_id", current_user["id"])
         .order("created_at", desc=True)
         .limit(100)
         .execute()
@@ -194,7 +226,6 @@ async def get_tracking_history(
         db.table("tracking_scan_history")
         .select("*")
         .eq("id", str(history_id))
-        .eq("user_id", current_user["id"])
         .limit(1)
         .execute()
     )
@@ -204,6 +235,7 @@ async def get_tracking_history(
     return TrackingHistoryDetail(
         id=row["id"],
         user_id=row["user_id"],
+        created_by_name=row.get("created_by_name"),
         name=row.get("name"),
         source_count=row.get("source_count", 0),
         file_count=row.get("file_count", 0),
@@ -228,6 +260,7 @@ async def save_tracking_history(
 
     record = {
         "user_id": current_user["id"],
+        "created_by_name": _tracking_history_creator_name(current_user, db),
         "name": (payload.name or "").strip() or None,
         "source_count": payload.source_count,
         "file_count": payload.file_count,
