@@ -9,6 +9,14 @@ import os
 BACKEND_DIR = Path(__file__).parent.parent
 ENV_FILE = BACKEND_DIR / ".env"
 
+# Production frontend origins that must always be allowed even when the host
+# ``CORS_ORIGINS`` env var is missing or stale. Keep this list short and only
+# include canonical first-party origins.
+_ALWAYS_ALLOWED_CORS_ORIGINS = (
+    "https://www.mswoverwatch.com",
+    "https://mswoverwatch.com",
+)
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     
@@ -76,6 +84,10 @@ class Settings(BaseSettings):
     desktop_app_download_url: str = ""
     
     # CORS Configuration
+    # CORS_ORIGINS may be overridden on the host (Render env var). The canonical
+    # production frontend origins in ``_ALWAYS_ALLOWED_CORS_ORIGINS`` below are
+    # appended in ``cors_origins_list`` so the live UI keeps working even if the
+    # env var is missing or stale.
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
     
     # Scheduler Configuration
@@ -109,6 +121,10 @@ class Settings(BaseSettings):
         ``allow_credentials=True``; combining the two would let any origin make
         authenticated cross-origin calls and is forbidden by the CORS spec.
         Any ``*`` token in ``CORS_ORIGINS`` is dropped with a warning.
+
+        The canonical production frontend origins are always appended so a
+        missing/stale ``CORS_ORIGINS`` env var on the host does not break the
+        live UI.
         """
         import logging
 
@@ -120,6 +136,11 @@ class Settings(BaseSettings):
                 "CORS_ORIGINS contained '*'; ignoring because allow_credentials=True. "
                 "Set explicit origins like https://your-frontend.example.com."
             )
+        seen = {origin for origin in safe_origins}
+        for origin in _ALWAYS_ALLOWED_CORS_ORIGINS:
+            if origin not in seen:
+                safe_origins.append(origin)
+                seen.add(origin)
         return safe_origins
 
     @property
