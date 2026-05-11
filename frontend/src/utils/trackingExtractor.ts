@@ -212,8 +212,18 @@ async function recognizeTrackingNumber(
   worker: OcrWorker,
   fullCanvas: HTMLCanvasElement
 ): Promise<{ raw: string; normalized: string } | null> {
-  // Single-line strip pass first: scaled high, smooth, with a tight whitelist.
-  // This handles small `TRACKING #: 1Z ...` lines that broader passes miss.
+  const bottomResult = await worker.recognize(cropBottomLabel(fullCanvas))
+  const bottomHit = extractTrackingFromText(bottomResult.data.text || '')
+  if (bottomHit) return bottomHit
+
+  for (const region of TRACKING_OCR_REGIONS) {
+    const result = await worker.recognize(cropOcrRegion(fullCanvas, region))
+    const hit = extractTrackingFromText(result.data.text || '')
+    if (hit) return hit
+  }
+
+  // Last-resort single-line strip pass: scaled high, smooth, with a tight whitelist.
+  // This avoids disturbing labels already handled by the broader OCR passes.
   try {
     await worker.setParameters({
       tessedit_pageseg_mode: TRACKING_STRIP_PSM,
@@ -229,16 +239,6 @@ async function recognizeTrackingNumber(
       tessedit_pageseg_mode: TRACKING_DEFAULT_PSM,
       tessedit_char_whitelist: TRACKING_DEFAULT_WHITELIST,
     })
-  }
-
-  const bottomResult = await worker.recognize(cropBottomLabel(fullCanvas))
-  const bottomHit = extractTrackingFromText(bottomResult.data.text || '')
-  if (bottomHit) return bottomHit
-
-  for (const region of TRACKING_OCR_REGIONS) {
-    const result = await worker.recognize(cropOcrRegion(fullCanvas, region))
-    const hit = extractTrackingFromText(result.data.text || '')
-    if (hit) return hit
   }
 
   return null
