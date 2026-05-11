@@ -262,34 +262,48 @@ async function detectTrackingFromBarcode(
 
 async function recognizeTrackingNumber(
   worker: OcrWorker,
-  fullCanvas: HTMLCanvasElement
+  fullCanvas: HTMLCanvasElement,
+  debugLabel?: string
 ): Promise<{ raw: string; normalized: string } | null> {
   const barcodeHit = await detectTrackingFromBarcode(fullCanvas)
-  if (barcodeHit) return barcodeHit
+  if (barcodeHit) {
+    console.debug(`[OCR:${debugLabel}] barcode hit:`, barcodeHit.normalized)
+    return barcodeHit
+  }
+  console.debug(`[OCR:${debugLabel}] barcode: no hit`)
 
   // PaddleOCR via backend — try full canvas then focused crops for better accuracy.
   const backendCandidates = [
-    fullCanvas,
-    ...TRACKING_OCR_REGIONS.map((region) => cropOcrRegion(fullCanvas, region)),
+    { label: 'full', canvas: fullCanvas },
+    ...TRACKING_OCR_REGIONS.map((region, i) => ({ label: `crop${i}`, canvas: cropOcrRegion(fullCanvas, region) })),
   ]
-  for (const canvas of backendCandidates) {
+  for (const { label, canvas } of backendCandidates) {
     let backendText: string
     try {
       backendText = await ocrCanvasViaBackend(canvas)
-    } catch {
+    } catch (err) {
+      console.debug(`[OCR:${debugLabel}] backend ${label} threw:`, err)
       break // Backend unavailable — fall through to Tesseract.js entirely.
     }
+    console.debug(`[OCR:${debugLabel}] backend ${label} text:`, JSON.stringify(backendText))
     const backendHit = extractTrackingFromText(backendText)
-    if (backendHit) return backendHit
+    if (backendHit) {
+      console.debug(`[OCR:${debugLabel}] backend ${label} hit:`, backendHit.normalized)
+      return backendHit
+    }
   }
 
   const bottomResult = await worker.recognize(cropBottomLabel(fullCanvas))
-  const bottomHit = extractTrackingFromText(bottomResult.data.text || '')
+  const bottomText = bottomResult.data.text || ''
+  console.debug(`[OCR:${debugLabel}] tesseract bottom text:`, JSON.stringify(bottomText))
+  const bottomHit = extractTrackingFromText(bottomText)
   if (bottomHit) return bottomHit
 
-  for (const region of TRACKING_OCR_REGIONS) {
+  for (const [i, region] of TRACKING_OCR_REGIONS.entries()) {
     const result = await worker.recognize(cropOcrRegion(fullCanvas, region))
-    const hit = extractTrackingFromText(result.data.text || '')
+    const text = result.data.text || ''
+    console.debug(`[OCR:${debugLabel}] tesseract region${i} text:`, JSON.stringify(text))
+    const hit = extractTrackingFromText(text)
     if (hit) return hit
   }
 
@@ -427,7 +441,7 @@ export async function scanPdfInBrowser(
         const ctx = fullCanvas.getContext('2d')
         if (ctx) {
           await even.render({ canvas: fullCanvas, canvasContext: ctx, viewport }).promise
-          const hit = await recognizeTrackingNumber(worker, fullCanvas)
+          const hit = await recognizeTrackingNumber(worker, fullCanvas, `${file.name}:p${evenPage}`)
           if (hit) {
             trackingRaw = hit.raw
             trackingNumber = hit.normalized
