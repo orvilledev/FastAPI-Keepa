@@ -267,13 +267,20 @@ async function recognizeTrackingNumber(
   const barcodeHit = await detectTrackingFromBarcode(fullCanvas)
   if (barcodeHit) return barcodeHit
 
-  // PaddleOCR via backend — more accurate than Tesseract.js for label images.
-  try {
-    const backendText = await ocrCanvasViaBackend(fullCanvas)
+  // PaddleOCR via backend — try full canvas then focused crops for better accuracy.
+  const backendCandidates = [
+    fullCanvas,
+    ...TRACKING_OCR_REGIONS.map((region) => cropOcrRegion(fullCanvas, region)),
+  ]
+  for (const canvas of backendCandidates) {
+    let backendText: string
+    try {
+      backendText = await ocrCanvasViaBackend(canvas)
+    } catch {
+      break // Backend unavailable — fall through to Tesseract.js entirely.
+    }
     const backendHit = extractTrackingFromText(backendText)
     if (backendHit) return backendHit
-  } catch {
-    // Backend unavailable or returned no match — fall through to Tesseract.js.
   }
 
   const bottomResult = await worker.recognize(cropBottomLabel(fullCanvas))

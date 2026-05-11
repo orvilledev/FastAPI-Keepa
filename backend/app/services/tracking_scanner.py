@@ -232,7 +232,7 @@ def _ocr_image_bytes_paddle(png_bytes: bytes) -> str:
         texts = res.get("rec_texts") or []
         scores = res.get("rec_scores") or []
         for text, score in zip(texts, scores):
-            if score >= 0.5:
+            if score >= 0.3:
                 lines.append(str(text))
     return "\n".join(lines)
 
