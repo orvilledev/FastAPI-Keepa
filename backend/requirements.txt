@@ -22,6 +22,9 @@ bleach==6.1.0
 PyMuPDF>=1.24.10
 pytesseract>=0.3.13
 Pillow>=10.4.0
+paddleocr>=3.5.0
+paddlepaddle>=3.3.0
+numpy>=1.24.0
 
 # Monitoring dependencies
 sentry-sdk[fastapi]==2.19.2
