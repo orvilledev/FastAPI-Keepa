@@ -44,7 +44,9 @@ limiter = Limiter(
     default_limits=["100/minute"],  # Default limit for all endpoints
     storage_uri="memory://",  # Use in-memory storage (for production, consider Redis)
     strategy="fixed-window",  # Fixed window counting strategy
-    headers_enabled=True,  # Include rate limit headers in responses
+    # Keep limiting active without requiring every decorated endpoint to accept a
+    # starlette Response parameter for SlowAPI header injection.
+    headers_enabled=False,
 )
 
 
