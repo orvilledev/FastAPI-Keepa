@@ -89,6 +89,10 @@ const RE_SHIPMENT_FALLBACK = /\bFBA[A-Z0-9-]{8,}\b/
 const RE_BOX_CODE = /\bFBA[A-Z0-9]{8,}U\d{4,}\b/i
 const RE_TRACKING_LINE = /TRACKING\s*#?\s*:?\s*([A-Z0-9\s:-]{10,48})/i
 const RE_UPS_GENERIC = /\b1\s*Z[\s:-]*[0-9A-Z][0-9A-Z\s:-]{13,35}\b/i
+const RE_SOURCE_SHIPMENT_ID = /\b(FBADN[A-Z0-9]{7,})(?:-\d+)?\b/i
+const RE_SOURCE_SEQUENCE = /-(\d+)$/
+const SOURCE_SHIPMENT_ID_LENGTH = 12
+const BOX_CODE_COLUMN_WIDTH_PX = 231
 
 const TRACKING_OCR_REGIONS: OcrRegion[] = [
   { x: 0.1, y: 0.45, width: 0.74, height: 0.13, scale: 4 },
@@ -150,6 +154,55 @@ function extractShipmentId(text: string): string {
 
 function extractBoxCode(text: string): string {
   return text.match(RE_BOX_CODE)?.[0] ?? ''
+}
+
+function sourceFileStem(fileName: string): string {
+  const leafName = fileName.split(/[\\/]/).pop() || fileName
+  return leafName.replace(/\.[^.]+$/, '')
+}
+
+function extractShipmentIdFromSourceFileName(fileName: string): string {
+  const match = sourceFileStem(fileName).match(RE_SOURCE_SHIPMENT_ID)
+  return match?.[1] ? match[1].slice(0, SOURCE_SHIPMENT_ID_LENGTH).toUpperCase() : ''
+}
+
+function sourceFileSequence(fileName: string): number {
+  const match = sourceFileStem(fileName).match(RE_SOURCE_SEQUENCE)
+  return match?.[1] ? Number.parseInt(match[1], 10) : Number.MAX_SAFE_INTEGER
+}
+
+function compareSourceFileNames(a: string, b: string): number {
+  const shipmentA = extractShipmentIdFromSourceFileName(a) || sourceFileStem(a)
+  const shipmentB = extractShipmentIdFromSourceFileName(b) || sourceFileStem(b)
+  const shipmentCompare = shipmentA.localeCompare(shipmentB, undefined, {
+    numeric: true,
+    sensitivity: 'base',
+  })
+  if (shipmentCompare !== 0) return shipmentCompare
+
+  const sequenceCompare = sourceFileSequence(a) - sourceFileSequence(b)
+  if (sequenceCompare !== 0) return sequenceCompare
+
+  return sourceFileStem(a).localeCompare(sourceFileStem(b), undefined, {
+    numeric: true,
+    sensitivity: 'base',
+  })
+}
+
+function sortedRowsForOutput(rows: TrackingScannerRow[]): TrackingScannerRow[] {
+  return [...rows].sort((a, b) => {
+    const sourceCompare = compareSourceFileNames(a.source_file, b.source_file)
+    if (sourceCompare !== 0) return sourceCompare
+
+    const oddCompare = (a.odd_page ?? Number.MAX_SAFE_INTEGER) - (b.odd_page ?? Number.MAX_SAFE_INTEGER)
+    if (oddCompare !== 0) return oddCompare
+
+    return (a.even_page ?? Number.MAX_SAFE_INTEGER) - (b.even_page ?? Number.MAX_SAFE_INTEGER)
+  })
+}
+
+function shipmentIdForOutput(row: TrackingScannerRow): string {
+  return extractShipmentIdFromSourceFileName(row.source_file) || row.shipment_id
 }
 
 function extractTrackingFromText(text: string): { raw: string; normalized: string } | null {
@@ -336,23 +389,21 @@ function buildCsv(rows: TrackingScannerRow[]): string {
     'shipment_id',
     'box_code',
     'tracking_number',
-    'tracking_number_raw',
     'carrier',
     'status',
     'notes',
   ]
 
   const escapeCsv = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`
-  const body = rows.map((row) =>
+  const body = sortedRowsForOutput(rows).map((row) =>
     [
       row.source_file,
       row.odd_page,
       row.even_page,
       row.vendor,
-      row.shipment_id,
+      shipmentIdForOutput(row),
       row.box_code,
       row.tracking_number,
-      row.tracking_number_raw,
       row.carrier,
       row.status,
       row.notes,
@@ -404,7 +455,10 @@ export async function expandInputFiles(files: File[]): Promise<{ pdfFiles: File[
     }
     skippedFiles.push(file.name)
   }
-  return { pdfFiles, skippedFiles }
+  return {
+    pdfFiles: pdfFiles.sort((a, b) => compareSourceFileNames(a.name, b.name)),
+    skippedFiles,
+  }
 }
 
 export async function scanPdfInBrowser(
@@ -469,7 +523,7 @@ export async function scanPdfInBrowser(
         notes = 'Missing paired even page for OCR.'
       }
 
-      const shipmentId = extractShipmentId(oddText)
+      const shipmentId = extractShipmentIdFromSourceFileName(file.name) || extractShipmentId(oddText)
       const row: TrackingScannerRow = {
         source_file: file.name,
         odd_page: oddPage,
@@ -537,7 +591,7 @@ export async function scanFilesInBrowser(
     scans.push(scan)
     emitOverallProgress(idx + 1, file.name)
   }
-  const rows = scans.flatMap((result) => result.rows)
+  const rows = sortedRowsForOutput(scans.flatMap((result) => result.rows))
 
   const pageCountEstimate = scans.reduce((sum, scan) => sum + scan.page_count_estimate, 0)
   const pairCount = scans.reduce((sum, scan) => sum + scan.pair_count, 0)
@@ -568,7 +622,6 @@ const EXPORT_HEADER_LABELS = [
   'Box Code',
   'Carrier',
   'Tracking Number',
-  'Raw Tracking Number',
   'Status',
   'Notes',
 ] as const
@@ -637,16 +690,15 @@ function columnCharWidths(header: readonly string[], body: (string | number)[][]
 }
 
 export function exportRowsToExcelBlob(rows: TrackingScannerRow[]): Blob {
-  const bodyAoA: (string | number)[][] = rows.map((row) => [
+  const bodyAoA: (string | number)[][] = sortedRowsForOutput(rows).map((row) => [
     row.source_file,
     row.odd_page != null ? row.odd_page : '',
     row.even_page != null ? row.even_page : '',
     row.vendor,
-    row.shipment_id,
+    shipmentIdForOutput(row),
     row.box_code,
     row.carrier,
     row.tracking_number,
-    row.tracking_number_raw,
     row.status,
     row.notes,
   ])
@@ -658,7 +710,6 @@ export function exportRowsToExcelBlob(rows: TrackingScannerRow[]): Blob {
     'left',
     'right',
     'right',
-    'left',
     'left',
     'left',
     'left',
@@ -681,6 +732,7 @@ export function exportRowsToExcelBlob(rows: TrackingScannerRow[]): Blob {
     }
   }
   ws['!cols'] = columnCharWidths(EXPORT_HEADER_LABELS, bodyAoA)
+  ws['!cols'][5] = { wpx: BOX_CODE_COLUMN_WIDTH_PX }
 
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Tracking Results')

@@ -53,6 +53,11 @@ _UPS_TRACKING_LINE_RE = re.compile(
 # Generic UPS pattern fallback (1Z + 16 alphanumeric).
 _UPS_GENERIC_RE = re.compile(r"\b1Z[0-9A-Z ]{14,25}\b", re.IGNORECASE)
 
+# Source filenames are expected to contain the shipment token, e.g.
+# FBA19CJBRFKK-FBADN4542426-5.pdf -> FBADN4542426.
+_SOURCE_SHIPMENT_ID_RE = re.compile(r"\b(FBADN[A-Z0-9]{7,})(?:-\d+)?\b", re.IGNORECASE)
+_SOURCE_SHIPMENT_ID_LENGTH = 12
+
 
 def _normalize_alnum_upper(value: str) -> str:
     return re.sub(r"[^A-Z0-9]", "", (value or "").upper())
@@ -122,6 +127,16 @@ def _extract_shipment_id_from_text(text: str) -> Optional[str]:
             continue
         return candidate
     return None
+
+
+def _extract_shipment_id_from_source_file(source_file: str) -> Optional[str]:
+    if not source_file:
+        return None
+    stem = os.path.splitext(os.path.basename(source_file))[0]
+    match = _SOURCE_SHIPMENT_ID_RE.search(stem)
+    if not match:
+        return None
+    return match.group(1)[:_SOURCE_SHIPMENT_ID_LENGTH].upper()
 
 
 def _extract_box_code_from_text(text: str) -> Optional[str]:
@@ -253,7 +268,11 @@ def extract_pairs_from_pdf(pdf_bytes: bytes, source_file: str = "") -> List[Scan
             even_idx = odd_idx + 1 if odd_idx + 1 < page_count else None
 
             odd_text = doc[odd_idx].get_text() or ""
-            shipment_id = _extract_shipment_id_from_text(odd_text) or ""
+            shipment_id = (
+                _extract_shipment_id_from_source_file(source_file)
+                or _extract_shipment_id_from_text(odd_text)
+                or ""
+            )
             box_code = _extract_box_code_from_text(odd_text) or ""
             vendor = _extract_vendor_from_text(odd_text) or ""
 
@@ -323,7 +342,6 @@ def rows_to_csv_bytes(rows: List[ScannedRow]) -> bytes:
             "shipment_id",
             "box_code",
             "tracking_number",
-            "tracking_number_raw",
             "carrier",
             "status",
             "notes",
@@ -332,5 +350,9 @@ def rows_to_csv_bytes(rows: List[ScannedRow]) -> bytes:
     )
     writer.writeheader()
     for row in rows:
-        writer.writerow(row.to_dict())
+        data = row.to_dict()
+        source_shipment_id = _extract_shipment_id_from_source_file(row.source_file)
+        if source_shipment_id:
+            data["shipment_id"] = source_shipment_id
+        writer.writerow(data)
     return buf.getvalue().encode("utf-8-sig")
