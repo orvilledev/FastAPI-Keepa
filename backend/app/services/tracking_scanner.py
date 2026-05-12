@@ -53,9 +53,8 @@ _UPS_TRACKING_LINE_RE = re.compile(
 # Generic UPS pattern fallback (1Z + 16 alphanumeric).
 _UPS_GENERIC_RE = re.compile(r"\b1Z[0-9A-Z ]{14,25}\b", re.IGNORECASE)
 
-# Source filenames are expected to contain the shipment token, e.g.
-# FBA19CJBRFKK-FBADN4542426-5.pdf -> FBADN4542426.
-_SOURCE_SHIPMENT_ID_RE = re.compile(r"\b(FBADN[A-Z0-9]{7,})(?:-\d+)?\b", re.IGNORECASE)
+# Source filenames are expected to start with the shipment id, e.g.
+# FBA19CJ7R05M-FBADN4642426-1.pdf -> FBA19CJ7R05M.
 _SOURCE_SHIPMENT_ID_LENGTH = 12
 
 
@@ -133,10 +132,11 @@ def _extract_shipment_id_from_source_file(source_file: str) -> Optional[str]:
     if not source_file:
         return None
     stem = os.path.splitext(os.path.basename(source_file))[0]
-    match = _SOURCE_SHIPMENT_ID_RE.search(stem)
-    if not match:
+    first_segment = stem.split("-", 1)[0]
+    normalized = _normalize_alnum_upper(first_segment)
+    if len(normalized) < _SOURCE_SHIPMENT_ID_LENGTH:
         return None
-    return match.group(1)[:_SOURCE_SHIPMENT_ID_LENGTH].upper()
+    return normalized[:_SOURCE_SHIPMENT_ID_LENGTH]
 
 
 def _extract_box_code_from_text(text: str) -> Optional[str]:

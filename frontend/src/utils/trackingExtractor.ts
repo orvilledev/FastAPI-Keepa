@@ -89,7 +89,6 @@ const RE_SHIPMENT_FALLBACK = /\bFBA[A-Z0-9-]{8,}\b/
 const RE_BOX_CODE = /\bFBA[A-Z0-9]{8,}U\d{4,}\b/i
 const RE_TRACKING_LINE = /TRACKING\s*#?\s*:?\s*([A-Z0-9\s:-]{10,48})/i
 const RE_UPS_GENERIC = /\b1\s*Z[\s:-]*[0-9A-Z][0-9A-Z\s:-]{13,35}\b/i
-const RE_SOURCE_SHIPMENT_ID = /\b(FBADN[A-Z0-9]{7,})(?:-\d+)?\b/i
 const RE_SOURCE_SEQUENCE = /-(\d+)$/
 const SOURCE_SHIPMENT_ID_LENGTH = 12
 const BOX_CODE_COLUMN_WIDTH_PX = 231
@@ -162,8 +161,11 @@ function sourceFileStem(fileName: string): string {
 }
 
 function extractShipmentIdFromSourceFileName(fileName: string): string {
-  const match = sourceFileStem(fileName).match(RE_SOURCE_SHIPMENT_ID)
-  return match?.[1] ? match[1].slice(0, SOURCE_SHIPMENT_ID_LENGTH).toUpperCase() : ''
+  const firstSegment = sourceFileStem(fileName).split('-')[0] ?? ''
+  const normalized = normalizeAlnumUpper(firstSegment)
+  return normalized.length >= SOURCE_SHIPMENT_ID_LENGTH
+    ? normalized.slice(0, SOURCE_SHIPMENT_ID_LENGTH)
+    : ''
 }
 
 function sourceFileSequence(fileName: string): number {
