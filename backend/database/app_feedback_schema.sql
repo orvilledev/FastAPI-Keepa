@@ -73,3 +73,9 @@ UPDATE app_feedback SET signature = '—' WHERE trim(COALESCE(signature, '')) = 
 ALTER TABLE app_feedback ALTER COLUMN signature SET NOT NULL;
 
 COMMENT ON TABLE app_feedback IS 'User-submitted product feedback.';
+
+-- Lock the table from the public REST API. The FastAPI backend uses the
+-- service role key, which bypasses RLS, so endpoints in
+-- backend/app/api/feedback.py keep working. With RLS enabled and no policies,
+-- anon and authenticated clients get zero access to this table directly.
+ALTER TABLE app_feedback ENABLE ROW LEVEL SECURITY;
