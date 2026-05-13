@@ -94,15 +94,15 @@ const SOURCE_SHIPMENT_ID_LENGTH = 12
 const BOX_CODE_COLUMN_WIDTH_PX = 231
 
 const TRACKING_OCR_REGIONS: OcrRegion[] = [
-  { x: 0.1, y: 0.45, width: 0.74, height: 0.13, scale: 4 },
-  { x: 0.08, y: 0.39, width: 0.84, height: 0.22, scale: 3 },
-  { x: 0.04, y: 0.32, width: 0.92, height: 0.34, scale: 2 },
+  { x: 0.05, y: 0.40, width: 0.90, height: 0.18, scale: 4 },
+  { x: 0.02, y: 0.32, width: 0.96, height: 0.28, scale: 3 },
+  { x: 0, y: 0.22, width: 1, height: 0.55, scale: 2 },
 ]
 
 const TRACKING_BARCODE_REGIONS: OcrRegion[] = [
-  { x: 0.08, y: 0.53, width: 0.78, height: 0.18, scale: 2 },
-  { x: 0.04, y: 0.48, width: 0.88, height: 0.28, scale: 2 },
-  { x: 0, y: 0.34, width: 1, height: 0.48, scale: 1 },
+  { x: 0.04, y: 0.46, width: 0.92, height: 0.24, scale: 2 },
+  { x: 0, y: 0.38, width: 1, height: 0.38, scale: 2 },
+  { x: 0, y: 0.25, width: 1, height: 0.60, scale: 1 },
 ]
 
 // ZXing Code 128 reader — module-level so it's reused across pages.
@@ -228,7 +228,7 @@ function extractTrackingFromText(text: string): { raw: string; normalized: strin
 function cropBottomLabel(canvas: HTMLCanvasElement): HTMLCanvasElement {
   const cropped = document.createElement('canvas')
   cropped.width = canvas.width
-  cropped.height = Math.floor(canvas.height * 0.58)
+  cropped.height = Math.floor(canvas.height * 0.65)
   const ctx = cropped.getContext('2d')
   if (!ctx) return canvas
   const srcY = canvas.height - cropped.height
@@ -507,7 +507,7 @@ export async function scanPdfInBrowser(
 
       if (evenPage) {
         const even = await pdf.getPage(evenPage)
-        const viewport = even.getViewport({ scale: 2 })
+        const viewport = even.getViewport({ scale: 3 })
         const fullCanvas = document.createElement('canvas')
         fullCanvas.width = viewport.width
         fullCanvas.height = viewport.height
