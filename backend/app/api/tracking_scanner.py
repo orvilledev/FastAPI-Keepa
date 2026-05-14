@@ -208,6 +208,7 @@ async def list_tracking_history(
         .select(
             "id,user_id,created_by_name,name,source_count,file_count,pair_count,matched_count,needs_review_count,row_count,created_at"
         )
+        .eq("user_id", current_user["id"])
         .order("created_at", desc=True)
         .limit(100)
         .execute()
@@ -226,6 +227,7 @@ async def get_tracking_history(
         db.table("tracking_scan_history")
         .select("*")
         .eq("id", str(history_id))
+        .eq("user_id", current_user["id"])
         .limit(1)
         .execute()
     )
@@ -283,13 +285,15 @@ async def delete_tracking_history(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
-    response = (
+    existing = (
         db.table("tracking_scan_history")
-        .delete()
+        .select("id")
         .eq("id", str(history_id))
         .eq("user_id", current_user["id"])
+        .limit(1)
         .execute()
     )
-    if not response.data:
+    if not existing.data:
         raise HTTPException(status_code=404, detail="History record not found")
+    db.table("tracking_scan_history").delete().eq("id", str(history_id)).eq("user_id", current_user["id"]).execute()
     return {"message": "History record deleted", "id": str(history_id)}
