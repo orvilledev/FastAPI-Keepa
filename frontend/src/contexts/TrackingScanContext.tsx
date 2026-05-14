@@ -38,11 +38,15 @@ type TrackingScanContextValue = {
   historyLoading: boolean
   historyClearing: boolean
   historyBusyId: string | null
+  /** Set when the visible rows came from opening a saved history record. */
+  loadedHistoryId: string | null
   setError: Dispatch<SetStateAction<string | null>>
   setSuccess: Dispatch<SetStateAction<string | null>>
   selectFiles: (picked: File[]) => void
   startScan: () => Promise<void>
   updateRow: (index: number, key: keyof TrackingScannerRow, value: string) => void
+  /** Clear everything back to the empty Tracking Extractor main view. */
+  resetView: () => void
   loadHistory: () => Promise<void>
   openHistory: (id: string) => Promise<void>
   deleteHistory: (id: string) => Promise<void>
@@ -71,6 +75,7 @@ export function TrackingScanProvider({ children }: { children: ReactNode }) {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyClearing, setHistoryClearing] = useState(false)
   const [historyBusyId, setHistoryBusyId] = useState<string | null>(null)
+  const [loadedHistoryId, setLoadedHistoryId] = useState<string | null>(null)
 
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true)
@@ -109,6 +114,17 @@ export function TrackingScanProvider({ children }: { children: ReactNode }) {
     setScanProgress(null)
     setError(null)
     setSuccess(null)
+    setLoadedHistoryId(null)
+  }, [])
+
+  const resetView = useCallback(() => {
+    setFiles([])
+    setRows([])
+    setStats(null)
+    setScanProgress(null)
+    setError(null)
+    setSuccess(null)
+    setLoadedHistoryId(null)
   }, [])
 
   const startScan = useCallback(async () => {
@@ -117,6 +133,8 @@ export function TrackingScanProvider({ children }: { children: ReactNode }) {
     setScanProgress({ completed: 0, total: files.length, percent: 0, current_file: '' })
     setError(null)
     setSuccess(null)
+    // A fresh scan's results are "live", not opened from history.
+    setLoadedHistoryId(null)
     try {
       const result: TrackingScannerAggregateResponse = await scanFilesInBrowser(files, (progress) => {
         setScanProgress(progress)
@@ -179,6 +197,7 @@ export function TrackingScanProvider({ children }: { children: ReactNode }) {
         matched: record.matched_count,
         needsReview: record.needs_review_count,
       })
+      setLoadedHistoryId(id)
       setSuccess(`Loaded ${record.row_count} row(s) from history.`)
     } catch {
       setError('Could not load selected history record.')
@@ -243,11 +262,13 @@ export function TrackingScanProvider({ children }: { children: ReactNode }) {
     historyLoading,
     historyClearing,
     historyBusyId,
+    loadedHistoryId,
     setError,
     setSuccess,
     selectFiles,
     startScan,
     updateRow,
+    resetView,
     loadHistory,
     openHistory,
     deleteHistory,

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { exportRowsToExcelBlob } from '../../utils/trackingExtractor'
 import { useUser } from '../../contexts/UserContext'
 import { useTrackingScan } from '../../contexts/TrackingScanContext'
@@ -36,11 +36,13 @@ export default function TrackingScanner() {
     historyLoading,
     historyClearing,
     historyBusyId,
+    loadedHistoryId,
     setError,
     setSuccess,
     selectFiles,
     startScan,
     updateRow,
+    resetView,
     loadHistory,
     openHistory,
     deleteHistory,
@@ -50,6 +52,18 @@ export default function TrackingScanner() {
   const [exporting, setExporting] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Returning to this page should land on the empty main view, not a scan that
+  // was opened from history — the history list is the way back to those. A
+  // live scan (in progress or just finished) has no loadedHistoryId, so it
+  // stays. Runs once on mount: we want the state as it was when the user
+  // navigated back here.
+  useEffect(() => {
+    if (loadedHistoryId && !scanning) {
+      resetView()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleDownloadExcel = useCallback(async () => {
     if (rows.length === 0) return
@@ -102,17 +116,28 @@ export default function TrackingScanner() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-gray-900">Tracking Extractor</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Upload one or more shipping-label PDFs, or ZIPs containing PDFs. Odd pages are read for the FBA{' '}
-          <strong>shipment ID</strong>; even pages are OCR-scanned for the UPS{' '}
-          <strong>tracking number</strong>. Each pair becomes one row in one Excel export.
-        </p>
-        <p className="mt-1 text-xs text-gray-500">
-          A scan keeps running if you switch pages — come back here any time to check progress or
-          results. (A full browser refresh still clears an in-progress scan.)
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Tracking Extractor</h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Upload one or more shipping-label PDFs, or ZIPs containing PDFs. Odd pages are read for the FBA{' '}
+            <strong>shipment ID</strong>; even pages are OCR-scanned for the UPS{' '}
+            <strong>tracking number</strong>. Each pair becomes one row in one Excel export.
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            A scan keeps running if you switch pages — come back here any time to check progress or
+            results. (A full browser refresh still clears an in-progress scan.)
+          </p>
+        </div>
+        {loadedHistoryId && (
+          <button
+            type="button"
+            onClick={resetView}
+            className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            ← Back to Tracking Extractor
+          </button>
+        )}
       </header>
 
       {error && (
