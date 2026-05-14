@@ -1046,6 +1046,9 @@ export const trackingScannerApi = {
   deleteHistory: async (historyId: string): Promise<void> => {
     await api.delete(`/api/v1/tracking-scanner/history/${historyId}`)
   },
+  clearAllHistory: async (): Promise<void> => {
+    await api.delete('/api/v1/tracking-scanner/history/all')
+  },
 }
 
 export const systemApi = {

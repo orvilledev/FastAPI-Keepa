@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from supabase import Client
 
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, is_superadmin_user
 from app.database import get_supabase
 from app.middleware.rate_limiter import limiter, RateLimits
 from app.models.tracking_history import (
@@ -203,16 +203,14 @@ async def list_tracking_history(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
-    response = (
-        db.table("tracking_scan_history")
-        .select(
-            "id,user_id,created_by_name,name,source_count,file_count,pair_count,matched_count,needs_review_count,row_count,created_at"
-        )
-        .eq("user_id", current_user["id"])
-        .order("created_at", desc=True)
-        .limit(100)
-        .execute()
+    is_sa = is_superadmin_user(current_user, db)
+    q = db.table("tracking_scan_history").select(
+        "id,user_id,created_by_name,name,source_count,file_count,pair_count,matched_count,needs_review_count,row_count,created_at"
     )
+    if not is_sa:
+        q = q.eq("user_id", current_user["id"])
+    limit = 500 if is_sa else 100
+    response = q.order("created_at", desc=True).limit(limit).execute()
     return [_history_summary_from_row(row) for row in (response.data or [])]
 
 
@@ -223,14 +221,11 @@ async def get_tracking_history(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
-    response = (
-        db.table("tracking_scan_history")
-        .select("*")
-        .eq("id", str(history_id))
-        .eq("user_id", current_user["id"])
-        .limit(1)
-        .execute()
-    )
+    is_sa = is_superadmin_user(current_user, db)
+    q = db.table("tracking_scan_history").select("*").eq("id", str(history_id))
+    if not is_sa:
+        q = q.eq("user_id", current_user["id"])
+    response = q.limit(1).execute()
     if not response.data:
         raise HTTPException(status_code=404, detail="History record not found")
     row = response.data[0]
@@ -278,6 +273,21 @@ async def save_tracking_history(
     return _history_summary_from_row(response.data[0])
 
 
+@router.delete("/tracking-scanner/history/all")
+@handle_api_errors("clear all tracking scan history")
+async def clear_all_tracking_history(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Remove all scan history for the current user, or all rows for superadmin."""
+    is_sa = is_superadmin_user(current_user, db)
+    if is_sa:
+        db.table("tracking_scan_history").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+    else:
+        db.table("tracking_scan_history").delete().eq("user_id", current_user["id"]).execute()
+    return {"message": "All tracking scan history cleared."}
+
+
 @router.delete("/tracking-scanner/history/{history_id}")
 @handle_api_errors("delete tracking scan history")
 async def delete_tracking_history(
@@ -285,15 +295,19 @@ async def delete_tracking_history(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
-    existing = (
+    is_sa = is_superadmin_user(current_user, db)
+    sel = (
         db.table("tracking_scan_history")
         .select("id")
         .eq("id", str(history_id))
-        .eq("user_id", current_user["id"])
-        .limit(1)
-        .execute()
     )
+    if not is_sa:
+        sel = sel.eq("user_id", current_user["id"])
+    existing = sel.limit(1).execute()
     if not existing.data:
         raise HTTPException(status_code=404, detail="History record not found")
-    db.table("tracking_scan_history").delete().eq("id", str(history_id)).eq("user_id", current_user["id"]).execute()
+    del_q = db.table("tracking_scan_history").delete().eq("id", str(history_id))
+    if not is_sa:
+        del_q = del_q.eq("user_id", current_user["id"])
+    del_q.execute()
     return {"message": "History record deleted", "id": str(history_id)}

@@ -36,7 +36,7 @@ function suggestedExcelFilename(): string {
 }
 
 export default function TrackingScanner() {
-  const { userInfo } = useUser()
+  const { userInfo, isSuperadmin } = useUser()
   const [files, setFiles] = useState<File[]>([])
   const [rows, setRows] = useState<TrackingScannerRow[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
@@ -48,6 +48,7 @@ export default function TrackingScanner() {
   const [scanProgress, setScanProgress] = useState<TrackingScanProgress | null>(null)
   const [history, setHistory] = useState<TrackingHistorySummary[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyClearing, setHistoryClearing] = useState(false)
   const [historyBusyId, setHistoryBusyId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -165,6 +166,25 @@ export default function TrackingScanner() {
       setHistoryBusyId(null)
     }
   }, [])
+
+  const handleClearAllHistory = useCallback(async () => {
+    const msg = isSuperadmin
+      ? 'Delete ALL tracking scan history for every user? This cannot be undone.'
+      : 'Delete all of your saved tracking scans? This cannot be undone.'
+    if (!window.confirm(msg)) return
+    setHistoryClearing(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      await trackingScannerApi.clearAllHistory()
+      setHistory([])
+      setSuccess(isSuperadmin ? "All users' scan history was cleared." : 'Your scan history was cleared.')
+    } catch {
+      setError('Could not clear scan history.')
+    } finally {
+      setHistoryClearing(false)
+    }
+  }, [isSuperadmin])
 
   const handleDownloadExcel = useCallback(async () => {
     if (rows.length === 0) return
@@ -433,15 +453,28 @@ export default function TrackingScanner() {
       )}
 
       <section className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold text-gray-700">Scan history</h2>
-          <button
-            type="button"
-            onClick={() => void loadHistory()}
-            className="text-xs font-medium text-indigo-600 hover:underline"
-          >
-            Refresh
-          </button>
+          <div className="flex items-center gap-3 shrink-0">
+            {history.length > 0 && (
+              <button
+                type="button"
+                onClick={() => void handleClearAllHistory()}
+                disabled={historyLoading || historyClearing || historyBusyId !== null}
+                className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {historyClearing ? 'Clearing…' : 'Clear all history'}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => void loadHistory()}
+              disabled={historyLoading || historyClearing}
+              className="text-xs font-medium text-indigo-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
         <div className="p-4">
           {historyLoading ? (
@@ -452,7 +485,7 @@ export default function TrackingScanner() {
             <div className="space-y-2 max-h-72 overflow-auto">
               {history.map((item) => {
                 const creatorName = item.created_by_name?.trim() || 'Unknown user'
-                const canDelete = item.user_id === userInfo?.id
+                const canDelete = isSuperadmin || item.user_id === userInfo?.id
                 return (
                   <div
                     key={item.id}
@@ -470,7 +503,7 @@ export default function TrackingScanner() {
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
-                        disabled={historyBusyId === item.id}
+                        disabled={historyBusyId === item.id || historyClearing}
                         onClick={() => void handleLoadHistory(item.id)}
                         className="px-2 py-1 text-xs rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
                       >
@@ -479,7 +512,7 @@ export default function TrackingScanner() {
                       {canDelete && (
                         <button
                           type="button"
-                          disabled={historyBusyId === item.id}
+                          disabled={historyBusyId === item.id || historyClearing}
                           onClick={() => void handleDeleteHistory(item.id)}
                           className="px-2 py-1 text-xs rounded bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50"
                         >
