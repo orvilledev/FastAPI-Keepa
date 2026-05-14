@@ -10,6 +10,7 @@ import {
 } from 'react-router-dom'
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { UserProvider, useUser } from './contexts/UserContext'
+import { TrackingScanProvider } from './contexts/TrackingScanContext'
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/common/ProtectedRoute'
 import About from './components/About'
@@ -107,16 +108,23 @@ function UploadedVendorRedirect() {
   return <Navigate to={target} replace />
 }
 
-/** Wraps all authenticated app pages in the main layout; sends guests to the landing page. */
+/**
+ * Wraps all authenticated app pages in the main layout; sends guests to the
+ * landing page. TrackingScanProvider lives here — above the routed Outlet — so
+ * an in-browser Tracking Extractor scan keeps running and its progress/results
+ * survive navigation between pages (it only unmounts on logout).
+ */
 function PrivateLayout() {
   const { authUser } = useUser()
   if (!authUser) {
     return <Navigate to="/" replace />
   }
   return (
-    <Layout>
-      <Outlet />
-    </Layout>
+    <TrackingScanProvider>
+      <Layout>
+        <Outlet />
+      </Layout>
+    </TrackingScanProvider>
   )
 }
 
