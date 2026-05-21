@@ -397,13 +397,12 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
     setSuccess('')
     try {
       const uploadResult = await schedulerApi.uploadReport(uploadedFile, vendor)
-      // Persist the upload-mode email recipients alongside the upload action;
-      // also force input_mode to 'uploaded' so the scheduler picks up the file.
+      // Force input_mode to 'uploaded' so the scheduler picks up the file.
+      // Do NOT send email_recipients here — the backend filters by the current
+      // user's allowed pool, which would clear recipients set by another user.
+      // Recipients are only changed via the explicit "Save Recipients" button.
       await schedulerApi.updateSettings(
-        {
-          input_mode: 'uploaded',
-          email_recipients: uploadEmailRecipients.trim() || null,
-        },
+        { input_mode: 'uploaded' },
         vendor,
       )
       // Optimistic status update for snappier UX while first poll is pending.
