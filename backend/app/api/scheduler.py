@@ -872,20 +872,24 @@ async def upload_scheduler_report(
 
     today = datetime.utcnow().date().isoformat()
     # Keep exactly one uploaded report per category; a new upload replaces older ones.
-    db.table("scheduler_uploaded_reports").delete().eq("category", category).execute()
-    insert_resp = db.table("scheduler_uploaded_reports").insert({
-        "category": category,
-        "filename": filename,
-        "content_type": file.content_type,
-        "uploaded_for_date": today,
-        "upcs": [],
-        "parsed_rows": [],
-        "upc_count": 0,
-        "row_count": 0,
-        "parse_status": "pending",
-        "parse_error": None,
-        "uploaded_by": current_user["id"],
-    }).execute()
+    await asyncio.to_thread(
+        lambda: db.table("scheduler_uploaded_reports").delete().eq("category", category).execute()
+    )
+    insert_resp = await asyncio.to_thread(
+        lambda: db.table("scheduler_uploaded_reports").insert({
+            "category": category,
+            "filename": filename,
+            "content_type": file.content_type,
+            "uploaded_for_date": today,
+            "upcs": [],
+            "parsed_rows": [],
+            "upc_count": 0,
+            "row_count": 0,
+            "parse_status": "pending",
+            "parse_error": None,
+            "uploaded_by": current_user["id"],
+        }).execute()
+    )
     report = insert_resp.data[0] if insert_resp.data else None
     report_id = str(report["id"]) if report and report.get("id") else None
     if not report_id:
@@ -976,8 +980,8 @@ async def rerun_uploaded_report(
 ):
     """Trigger an immediate uploaded-mode run for a category."""
     db = get_supabase()
-    latest = (
-        db.table("scheduler_uploaded_reports")
+    latest = await asyncio.to_thread(
+        lambda: db.table("scheduler_uploaded_reports")
         .select("id, parse_status, created_at")
         .eq("category", category)
         .order("created_at", desc=True)

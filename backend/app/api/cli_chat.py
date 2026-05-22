@@ -1,4 +1,5 @@
 """CLI chat: OpenAI-backed turns with Supabase session memory."""
+import asyncio
 from datetime import datetime, timezone
 from typing import Any, List
 from uuid import UUID
@@ -109,12 +110,12 @@ async def cli_chat_turn(
     limit = max(1, min(settings.cli_chat_history_limit, 100))
 
     if body.session_id:
-        _ensure_session_owned(db, user_id, body.session_id)
+        await asyncio.to_thread(_ensure_session_owned, db, user_id, body.session_id)
         session_id = body.session_id
     else:
         title = (body.message.strip()[:120] or "Chat").replace("\n", " ")
-        ins = (
-            db.table("chat_sessions")
+        ins = await asyncio.to_thread(
+            lambda: db.table("chat_sessions")
             .insert(
                 {
                     "user_id": user_id,
@@ -131,8 +132,8 @@ async def cli_chat_turn(
             )
         session_id = UUID(ins.data[0]["id"])
 
-    hist = (
-        db.table("chat_messages")
+    hist = await asyncio.to_thread(
+        lambda: db.table("chat_messages")
         .select("role, content, created_at")
         .eq("session_id", str(session_id))
         .order("created_at", desc=True)
@@ -141,14 +142,16 @@ async def cli_chat_turn(
     )
     rows: List[dict[str, Any]] = list(reversed(hist.data or []))
 
-    db.table("chat_messages").insert(
-        {
-            "session_id": str(session_id),
-            "role": "user",
-            "content": body.message.strip(),
-            "created_at": _now_iso(),
-        }
-    ).execute()
+    await asyncio.to_thread(
+        lambda: db.table("chat_messages").insert(
+            {
+                "session_id": str(session_id),
+                "role": "user",
+                "content": body.message.strip(),
+                "created_at": _now_iso(),
+            }
+        ).execute()
+    )
 
     openai_messages: List[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
     for row in rows:
@@ -159,18 +162,22 @@ async def cli_chat_turn(
 
     reply = await _openai_chat(openai_messages)
 
-    db.table("chat_messages").insert(
-        {
-            "session_id": str(session_id),
-            "role": "assistant",
-            "content": reply,
-            "created_at": _now_iso(),
-        }
-    ).execute()
+    await asyncio.to_thread(
+        lambda: db.table("chat_messages").insert(
+            {
+                "session_id": str(session_id),
+                "role": "assistant",
+                "content": reply,
+                "created_at": _now_iso(),
+            }
+        ).execute()
+    )
 
-    db.table("chat_sessions").update({"updated_at": _now_iso()}).eq(
-        "id", str(session_id)
-    ).execute()
+    await asyncio.to_thread(
+        lambda: db.table("chat_sessions").update({"updated_at": _now_iso()}).eq(
+            "id", str(session_id)
+        ).execute()
+    )
 
     return CliChatTurnResponse(session_id=session_id, reply=reply)
 
