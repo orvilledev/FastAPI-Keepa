@@ -116,7 +116,7 @@ async def scan_tracking_pdf(
 
 @router.post("/tracking-scanner/export-csv")
 @handle_api_errors("export tracking CSV")
-async def export_tracking_csv(
+def export_tracking_csv(
     payload: TrackingScannerExportRequest,
     current_user: dict = Depends(get_current_user),
 ):
@@ -199,7 +199,7 @@ def _tracking_history_creator_name(current_user: dict, db: Client) -> str | None
 
 @router.get("/tracking-scanner/history", response_model=List[TrackingHistorySummary])
 @handle_api_errors("list tracking scan history")
-async def list_tracking_history(
+def list_tracking_history(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
@@ -216,7 +216,7 @@ async def list_tracking_history(
 
 @router.get("/tracking-scanner/history/{history_id}", response_model=TrackingHistoryDetail)
 @handle_api_errors("get tracking scan history detail")
-async def get_tracking_history(
+def get_tracking_history(
     history_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
@@ -247,7 +247,7 @@ async def get_tracking_history(
 
 @router.post("/tracking-scanner/history", response_model=TrackingHistorySummary, status_code=201)
 @handle_api_errors("save tracking scan history")
-async def save_tracking_history(
+def save_tracking_history(
     payload: TrackingHistoryCreate,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
@@ -275,7 +275,7 @@ async def save_tracking_history(
 
 @router.delete("/tracking-scanner/history/all")
 @handle_api_errors("clear all tracking scan history")
-async def clear_all_tracking_history(
+def clear_all_tracking_history(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
@@ -290,7 +290,7 @@ async def clear_all_tracking_history(
 
 @router.delete("/tracking-scanner/history/{history_id}")
 @handle_api_errors("delete tracking scan history")
-async def delete_tracking_history(
+def delete_tracking_history(
     history_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),

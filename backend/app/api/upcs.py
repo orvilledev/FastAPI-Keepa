@@ -24,7 +24,7 @@ def _parse_optional_category(category: Optional[str]) -> Optional[str]:
 
 @router.post("/upcs", response_model=dict, status_code=201)
 @handle_api_errors("add UPCs")
-async def add_upcs(
+def add_upcs(
     request: UPCsCreateRequest,
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase)
@@ -123,7 +123,7 @@ async def add_upcs(
 
 @router.get("/upcs/categories", response_model=dict)
 @handle_api_errors("list UPC categories")
-async def list_upc_categories(
+def list_upc_categories(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
@@ -136,7 +136,7 @@ async def list_upc_categories(
 
 @router.get("/upcs", response_model=List[UPCResponse])
 @handle_api_errors("list UPCs")
-async def list_upcs(
+def list_upcs(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
     limit: int = Query(100, ge=1, le=1000),
@@ -179,7 +179,7 @@ async def list_upcs(
 
 @router.get("/upcs/count", response_model=dict)
 @handle_api_errors("get UPC count")
-async def get_upc_count(
+def get_upc_count(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
     category: Optional[str] = Query(None, description="Filter by vendor category code"),
@@ -196,7 +196,7 @@ async def get_upc_count(
 
 @router.delete("/upcs/{upc}", response_model=dict)
 @handle_api_errors("delete UPC")
-async def delete_upc(
+def delete_upc(
     upc: str,
     category: Optional[str] = Query(None, description="Filter by category: 'dnk' or 'clk'"),
     current_user: dict = Depends(get_keepa_access_user),
@@ -212,7 +212,7 @@ async def delete_upc(
 
 @router.delete("/upcs", response_model=dict)
 @handle_api_errors("delete all UPCs")
-async def delete_all_upcs(
+def delete_all_upcs(
     category: Optional[str] = Query(None, description="Filter by category: 'dnk' or 'clk'"),
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase)

@@ -16,7 +16,7 @@ router = APIRouter()
 
 @router.get("/batches/{batch_id}", response_model=UPCBatchResponse)
 @handle_api_errors("get batch")
-async def get_batch(
+def get_batch(
     batch: dict = Depends(verify_batch_access)
 ):
     """Get UPC batch details."""
@@ -25,7 +25,7 @@ async def get_batch(
 
 @router.get("/batches/{batch_id}/items", response_model=List[UPCBatchItemResponse])
 @handle_api_errors("get batch items")
-async def get_batch_items(
+def get_batch_items(
     batch: dict = Depends(verify_batch_access),
     db: Client = Depends(get_supabase)
 ):
@@ -38,7 +38,7 @@ async def get_batch_items(
 
 @router.post("/batches/{batch_id}/stop")
 @handle_api_errors("stop batch")
-async def stop_batch(
+def stop_batch(
     batch_id: UUID,
     current_user: dict = Depends(get_admin_user),
     db: Client = Depends(get_supabase)

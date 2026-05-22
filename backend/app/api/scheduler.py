@@ -435,7 +435,7 @@ def _process_uploaded_report_in_background(report_id: str, filename: str, raw: b
 
 
 @router.get("/scheduler/next-run")
-async def get_next_scheduled_run(
+def get_next_scheduled_run(
     category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -541,7 +541,7 @@ async def get_next_scheduled_run(
 
 @router.get("/scheduler/settings")
 @handle_api_errors("get scheduler settings")
-async def get_scheduler_settings(
+def get_scheduler_settings(
     category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -597,7 +597,7 @@ async def get_scheduler_settings(
 
 @router.get("/scheduler/calendar")
 @handle_api_errors("get scheduler calendar")
-async def get_scheduler_calendar(
+def get_scheduler_calendar(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -706,7 +706,7 @@ async def get_scheduler_calendar(
 
 @router.put("/scheduler/settings")
 @handle_api_errors("update scheduler settings")
-async def update_scheduler_settings_endpoint(
+def update_scheduler_settings_endpoint(
     settings_data: SchedulerSettingsUpdate,
     category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
     current_user: dict = Depends(get_current_user),
@@ -906,7 +906,7 @@ async def upload_scheduler_report(
 
 @router.get("/scheduler/uploaded-report/latest")
 @handle_api_errors("get latest uploaded scheduler report")
-async def get_latest_uploaded_report(
+def get_latest_uploaded_report(
     category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
@@ -926,7 +926,7 @@ async def get_latest_uploaded_report(
 
 @router.get("/scheduler/uploaded-report/status")
 @handle_api_errors("get uploaded scheduler report status")
-async def get_uploaded_report_status(
+def get_uploaded_report_status(
     category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
@@ -946,7 +946,7 @@ async def get_uploaded_report_status(
 
 @router.delete("/scheduler/uploaded-report/{report_id}")
 @handle_api_errors("delete uploaded scheduler report")
-async def delete_uploaded_report(
+def delete_uploaded_report(
     report_id: str,
     category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
     current_user: dict = Depends(get_current_user),

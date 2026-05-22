@@ -54,7 +54,7 @@ class DisplayNameUpdate(BaseModel):
 
 
 @router.get("/me")
-async def get_current_user_info(
+def get_current_user_info(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -86,7 +86,7 @@ async def get_current_user_info(
 
 @router.get("/profile", response_model=ProfileResponse)
 @handle_api_errors("get profile")
-async def get_profile(
+def get_profile(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -98,7 +98,7 @@ async def get_profile(
 @router.put("/profile", response_model=ProfileResponse)
 @limiter.limit(RateLimits.WRITE_OPERATIONS)
 @handle_api_errors("update profile")
-async def update_profile(
+def update_profile(
     request: Request,
     profile_update: ProfileUpdate,
     current_user: dict = Depends(get_current_user),
@@ -149,7 +149,7 @@ async def update_profile(
 @router.patch("/me/display-name")
 @limiter.limit(RateLimits.WRITE_OPERATIONS)
 @handle_api_errors("update display name")
-async def update_display_name(
+def update_display_name(
     request: Request,
     display_name_data: DisplayNameUpdate = Body(...),
     current_user: dict = Depends(get_current_user),
@@ -217,7 +217,7 @@ class MaintenanceUpdate(BaseModel):
 
 @router.get("/users")
 @handle_api_errors("get all users")
-async def get_all_users(
+def get_all_users(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -241,7 +241,7 @@ async def get_all_users(
 
 @router.get("/maintenance")
 @handle_api_errors("get maintenance mode")
-async def get_maintenance_mode(
+def get_maintenance_mode(
     current_user: dict = Depends(get_superadmin_user),
 ):
     """Get runtime maintenance mode state (superadmin only)."""
@@ -251,7 +251,7 @@ async def get_maintenance_mode(
 @router.put("/maintenance")
 @limiter.limit(RateLimits.ADMIN_OPERATIONS)
 @handle_api_errors("update maintenance mode")
-async def update_maintenance_mode(
+def update_maintenance_mode(
     request: Request,
     payload: MaintenanceUpdate,
     current_user: dict = Depends(get_superadmin_user),
@@ -263,7 +263,7 @@ async def update_maintenance_mode(
 @router.put("/users/{user_id}/keepa-access")
 @limiter.limit(RateLimits.ADMIN_OPERATIONS)
 @handle_api_errors("update user keepa access")
-async def update_user_keepa_access(
+def update_user_keepa_access(
     request: Request,
     user_id: str,
     has_keepa_access: bool = Body(..., embed=True),
@@ -303,7 +303,7 @@ async def update_user_keepa_access(
 @router.put("/users/{user_id}/tools-access")
 @limiter.limit(RateLimits.ADMIN_OPERATIONS)
 @handle_api_errors("update user tools access")
-async def update_user_tools_access(
+def update_user_tools_access(
     request: Request,
     user_id: str,
     can_manage_tools: bool = Body(..., embed=True),
@@ -343,7 +343,7 @@ async def update_user_tools_access(
 @router.post("/users/{user_id}/deactivate")
 @limiter.limit(RateLimits.ADMIN_OPERATIONS)
 @handle_api_errors("deactivate user")
-async def deactivate_user(
+def deactivate_user(
     request: Request,
     user_id: str,
     current_user: dict = Depends(get_superadmin_user),
@@ -406,7 +406,7 @@ async def deactivate_user(
 @router.post("/users/{user_id}/approve")
 @limiter.limit(RateLimits.ADMIN_OPERATIONS)
 @handle_api_errors("approve user")
-async def approve_user(
+def approve_user(
     request: Request,
     user_id: str,
     current_user: dict = Depends(get_superadmin_user),
@@ -429,7 +429,7 @@ async def approve_user(
 @router.put("/users/{user_id}/tasks-access")
 @limiter.limit(RateLimits.ADMIN_OPERATIONS)
 @handle_api_errors("update user tasks access")
-async def update_user_tasks_access(
+def update_user_tasks_access(
     request: Request,
     user_id: str,
     can_assign_tasks: bool = Body(..., embed=True),

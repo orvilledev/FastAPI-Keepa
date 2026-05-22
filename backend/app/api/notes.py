@@ -25,7 +25,7 @@ router = APIRouter()
 
 @router.post("/notes", response_model=NoteResponse, status_code=201)
 @handle_api_errors("create note")
-async def create_note(
+def create_note(
     note: NoteCreate,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -51,7 +51,7 @@ async def create_note(
 
 @router.get("/notes", response_model=dict)
 @handle_api_errors("list notes")
-async def list_notes(
+def list_notes(
     page: int = Query(0, ge=0, description="Page number (0-indexed)"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     search: Optional[str] = Query(None, description="Search term for title or content"),
@@ -105,7 +105,7 @@ async def list_notes(
 
 @router.get("/notes/{note_id}", response_model=NoteResponse)
 @handle_api_errors("get note")
-async def get_note(
+def get_note(
     note_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -120,7 +120,7 @@ async def get_note(
 
 @router.put("/notes/{note_id}", response_model=NoteResponse)
 @handle_api_errors("update note")
-async def update_note(
+def update_note(
     note_id: UUID,
     note: NoteUpdate,
     current_user: dict = Depends(get_current_user),
@@ -149,7 +149,7 @@ async def update_note(
 
 @router.delete("/notes/{note_id}", status_code=204)
 @handle_api_errors("delete note")
-async def delete_note(
+def delete_note(
     note_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -164,7 +164,7 @@ async def delete_note(
 
 @router.post("/notes/{note_id}/verify-password", response_model=dict)
 @handle_api_errors("verify note password")
-async def verify_note_password(
+def verify_note_password(
     note_id: UUID,
     password_data: NotePasswordVerify,
     current_user: dict = Depends(get_current_user),
@@ -188,7 +188,7 @@ async def verify_note_password(
 
 @router.post("/notes/reorder", response_model=dict)
 @handle_api_errors("reorder notes")
-async def reorder_notes(
+def reorder_notes(
     reorder_data: NoteReorder,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -206,7 +206,7 @@ async def reorder_notes(
 
 @router.get("/notes/{note_id}/shares", response_model=List[NoteShareResponse])
 @handle_api_errors("list note shares")
-async def list_note_shares(
+def list_note_shares(
     note_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -220,7 +220,7 @@ async def list_note_shares(
 
 @router.post("/notes/{note_id}/share", response_model=NoteShareResponse, status_code=201)
 @handle_api_errors("share note")
-async def share_note(
+def share_note(
     note_id: UUID,
     share_data: NoteShareCreate,
     current_user: dict = Depends(get_current_user),
@@ -240,7 +240,7 @@ async def share_note(
 
 @router.delete("/notes/{note_id}/shares/{shared_with_user_id}", status_code=204)
 @handle_api_errors("revoke note share")
-async def revoke_note_share(
+def revoke_note_share(
     note_id: UUID,
     shared_with_user_id: UUID,
     current_user: dict = Depends(get_current_user),

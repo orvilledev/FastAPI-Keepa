@@ -13,7 +13,7 @@ router = APIRouter()
 
 @router.get("/quick-access", response_model=List[QuickAccessLinkResponse])
 @handle_api_errors("get quick access links")
-async def get_quick_access_links(
+def get_quick_access_links(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -24,7 +24,7 @@ async def get_quick_access_links(
 
 @router.post("/quick-access", response_model=QuickAccessLinkResponse, status_code=201)
 @handle_api_errors("create quick access link")
-async def create_quick_access_link(
+def create_quick_access_link(
     link_data: QuickAccessLinkCreate,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -43,7 +43,7 @@ async def create_quick_access_link(
 
 @router.put("/quick-access/{link_id}", response_model=QuickAccessLinkResponse)
 @handle_api_errors("update quick access link")
-async def update_quick_access_link(
+def update_quick_access_link(
     link_id: UUID,
     link_data: QuickAccessLinkUpdate,
     current_user: dict = Depends(get_current_user),
@@ -70,7 +70,7 @@ async def update_quick_access_link(
 
 @router.delete("/quick-access/{link_id}")
 @handle_api_errors("delete quick access link")
-async def delete_quick_access_link(
+def delete_quick_access_link(
     link_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)

@@ -177,7 +177,7 @@ async def cli_chat_turn(
 
 @router.get("/cli-chat/sessions", response_model=CliChatSessionListResponse)
 @handle_api_errors("list cli chat sessions")
-async def list_cli_chat_sessions(
+def list_cli_chat_sessions(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
     limit: int = 50,
@@ -205,7 +205,7 @@ async def list_cli_chat_sessions(
 
 @router.get("/cli-chat/sessions/{session_id}/messages", response_model=CliChatHistoryResponse)
 @handle_api_errors("get cli chat history")
-async def get_cli_chat_history(
+def get_cli_chat_history(
     session_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),

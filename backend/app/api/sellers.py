@@ -38,7 +38,7 @@ class SellerIdsBulkDelete(BaseModel):
 
 @router.get("/sellers")
 @handle_api_errors("list seller names")
-async def list_seller_names(
+def list_seller_names(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -50,7 +50,7 @@ async def list_seller_names(
 
 @router.post("/sellers", status_code=201)
 @handle_api_errors("add seller name")
-async def add_seller_name(
+def add_seller_name(
     data: SellerNameCreate,
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase)
@@ -63,7 +63,7 @@ async def add_seller_name(
 
 @router.put("/sellers/{seller_id}")
 @handle_api_errors("update seller name")
-async def update_seller_name(
+def update_seller_name(
     seller_id: str,
     data: SellerNameUpdate,
     current_user: dict = Depends(get_keepa_access_user),
@@ -77,7 +77,7 @@ async def update_seller_name(
 
 @router.post("/sellers/bulk")
 @handle_api_errors("bulk upsert seller names")
-async def bulk_upsert_seller_names(
+def bulk_upsert_seller_names(
     data: SellerNameBulkRequest,
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase)
@@ -91,7 +91,7 @@ async def bulk_upsert_seller_names(
 
 @router.delete("/sellers/{seller_id}")
 @handle_api_errors("delete seller name")
-async def delete_seller_name(
+def delete_seller_name(
     seller_id: str,
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase)
@@ -104,7 +104,7 @@ async def delete_seller_name(
 
 @router.post("/sellers/bulk-delete")
 @handle_api_errors("bulk delete seller names")
-async def bulk_delete_seller_names(
+def bulk_delete_seller_names(
     data: SellerIdsBulkDelete,
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase)

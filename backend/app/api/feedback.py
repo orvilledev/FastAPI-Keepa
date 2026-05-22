@@ -74,7 +74,7 @@ def _reject_if_feedback_blocked(db: Client, current_user: dict) -> None:
         )
 
 
-async def require_feedback_allowed(
+def require_feedback_allowed(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ) -> dict:
@@ -82,7 +82,7 @@ async def require_feedback_allowed(
     return current_user
 
 
-async def require_superadmin_feedback_allowed(
+def require_superadmin_feedback_allowed(
     current_user: dict = Depends(get_superadmin_user),
     db: Client = Depends(get_supabase),
 ) -> dict:
@@ -92,7 +92,7 @@ async def require_superadmin_feedback_allowed(
 
 @router.get("/feedback/me", response_model=list[FeedbackItem])
 @handle_api_errors("list feedback")
-async def list_my_feedback(
+def list_my_feedback(
     limit: int = Query(50, ge=1, le=100),
     current_user: dict = Depends(require_feedback_allowed),
     db: Client = Depends(get_supabase),
@@ -114,7 +114,7 @@ async def list_my_feedback(
 
 @router.get("/feedback/all", response_model=list[FeedbackItem])
 @handle_api_errors("list all feedback")
-async def list_all_feedback(
+def list_all_feedback(
     limit: int = Query(200, ge=1, le=500),
     current_user: dict = Depends(require_superadmin_feedback_allowed),
     db: Client = Depends(get_supabase),
@@ -135,7 +135,7 @@ async def list_all_feedback(
 
 @router.delete("/feedback/{feedback_id}", status_code=status.HTTP_204_NO_CONTENT)
 @handle_api_errors("delete feedback")
-async def delete_feedback(
+def delete_feedback(
     feedback_id: UUID,
     current_user: dict = Depends(require_feedback_allowed),
     db: Client = Depends(get_supabase),
@@ -160,7 +160,7 @@ async def delete_feedback(
 
 @router.patch("/feedback/{feedback_id}", response_model=FeedbackItem)
 @handle_api_errors("update feedback")
-async def update_feedback(
+def update_feedback(
     feedback_id: UUID,
     payload: FeedbackUpdate,
     current_user: dict = Depends(require_feedback_allowed),
@@ -207,7 +207,7 @@ async def update_feedback(
 
 @router.post("/feedback", response_model=FeedbackItem, status_code=201)
 @handle_api_errors("submit feedback")
-async def submit_feedback(
+def submit_feedback(
     payload: FeedbackCreate,
     current_user: dict = Depends(require_feedback_allowed),
     db: Client = Depends(get_supabase),

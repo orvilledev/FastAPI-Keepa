@@ -19,7 +19,7 @@ router = APIRouter()
 
 @router.get("/dashboard/widgets", response_model=List[DashboardWidgetResponse])
 @handle_api_errors("get dashboard widgets")
-async def get_dashboard_widgets(
+def get_dashboard_widgets(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -47,7 +47,7 @@ async def get_dashboard_widgets(
 
 @router.post("/dashboard/widgets/order", response_model=List[DashboardWidgetResponse])
 @handle_api_errors("update dashboard widget order")
-async def update_dashboard_widget_order(
+def update_dashboard_widget_order(
     order_data: DashboardWidgetOrderUpdate,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -115,7 +115,7 @@ def _is_daily_run_name_for_category(job_name: str, category: str) -> bool:
 
 @router.get("/dashboard/off-price-seller-stats")
 @handle_api_errors("get off-price seller stats")
-async def get_off_price_seller_stats(
+def get_off_price_seller_stats(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):

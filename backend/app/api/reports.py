@@ -20,7 +20,7 @@ router = APIRouter()
 
 
 @router.post("/reports/test-email")
-async def test_email(
+def test_email(
     current_user: dict = Depends(get_current_user),
 ):
     """Test email configuration by sending a test email."""
@@ -85,7 +85,7 @@ async def test_email(
 
 @router.get("/reports/{job_id}", response_model=List[dict])
 @handle_api_errors("get price alerts")
-async def get_price_alerts(
+def get_price_alerts(
     job: dict = Depends(verify_job_access),
     db: Client = Depends(get_supabase)
 ):
@@ -97,7 +97,7 @@ async def get_price_alerts(
 
 @router.get("/reports/{job_id}/csv")
 @handle_api_errors("generate CSV")
-async def download_csv(
+def download_csv(
     job: dict = Depends(verify_job_access),
     db: Client = Depends(get_supabase)
 ):
@@ -123,7 +123,7 @@ async def download_csv(
 
 @router.post("/reports/{job_id}/email")
 @handle_api_errors("resend email")
-async def resend_email(
+def resend_email(
     job: dict = Depends(verify_job_access),
     db: Client = Depends(get_supabase)
 ):

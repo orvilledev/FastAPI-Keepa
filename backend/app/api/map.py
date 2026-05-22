@@ -45,7 +45,7 @@ def _parse_map_entry(map_entry: dict) -> Optional[dict]:
 
 @router.post("/map/check-duplicates", response_model=dict)
 @handle_api_errors("check MAP duplicates")
-async def check_map_duplicates(
+def check_map_duplicates(
     maps: List[dict],
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase),
@@ -87,7 +87,7 @@ async def check_map_duplicates(
 
 @router.post("/map", response_model=dict, status_code=201)
 @handle_api_errors("add MAP entries")
-async def add_maps(
+def add_maps(
     maps: List[dict],
     replace_duplicates: bool = False,
     current_user: dict = Depends(get_keepa_access_user),
@@ -151,7 +151,7 @@ async def add_maps(
 
 @router.post("/map/delete-by-upcs", response_model=MAPDeleteByUPCsResponse)
 @handle_api_errors("delete MAP entries by UPC list")
-async def delete_maps_by_upcs(
+def delete_maps_by_upcs(
     body: MAPDeleteByUPCsBody,
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase),
@@ -172,7 +172,7 @@ async def delete_maps_by_upcs(
 
 @router.get("/map", response_model=List[MAPResponse])
 @handle_api_errors("list MAP entries")
-async def list_maps(
+def list_maps(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
     limit: int = 100,
@@ -188,7 +188,7 @@ async def list_maps(
 
 @router.get("/map/count", response_model=dict)
 @handle_api_errors("get MAP count")
-async def get_map_count(
+def get_map_count(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
     search: str = None,
@@ -205,7 +205,7 @@ async def get_map_count(
 
 @router.get("/map/vendors", response_model=dict)
 @handle_api_errors("list MAP vendors")
-async def list_map_vendors(
+def list_map_vendors(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
@@ -218,7 +218,7 @@ async def list_map_vendors(
 
 @router.get("/map/{upc}", response_model=MAPResponse)
 @handle_api_errors("get MAP by UPC")
-async def get_map_by_upc(
+def get_map_by_upc(
     upc: str,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
@@ -232,7 +232,7 @@ async def get_map_by_upc(
 
 @router.delete("/map/{upc}", response_model=dict)
 @handle_api_errors("delete MAP entry")
-async def delete_map(
+def delete_map(
     upc: str,
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase),
@@ -246,7 +246,7 @@ async def delete_map(
 
 @router.delete("/map", response_model=dict)
 @handle_api_errors("delete MAP entries")
-async def delete_all_maps(
+def delete_all_maps(
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase),
     vendor_type: Optional[str] = Query(

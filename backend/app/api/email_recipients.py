@@ -118,7 +118,7 @@ def _get_excluded_emails_for_user(db: Client, user_id: str) -> Set[str]:
 
 @router.get("/email-recipients/registered", response_model=RegisteredEmailsResponse)
 @handle_api_errors("list registered emails")
-async def list_registered_emails(
+def list_registered_emails(
     _current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase),
 ):
@@ -168,7 +168,7 @@ async def list_registered_emails(
 
 @router.post("/email-recipients/pool/sync-used")
 @handle_api_errors("sync used recipients into email pool")
-async def sync_used_recipients_to_pool(
+def sync_used_recipients_to_pool(
     current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase),
 ):
@@ -217,7 +217,7 @@ async def sync_used_recipients_to_pool(
 
 @router.get("/email-recipients/pool", response_model=List[EmailPoolEntryResponse])
 @handle_api_errors("list email pool")
-async def list_email_pool(
+def list_email_pool(
     current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase),
 ):
@@ -237,7 +237,7 @@ async def list_email_pool(
 
 @router.post("/email-recipients/pool", response_model=EmailPoolEntryResponse, status_code=201)
 @handle_api_errors("add email to pool")
-async def add_email_to_pool(
+def add_email_to_pool(
     body: EmailPoolEntryCreate,
     current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase),
@@ -279,7 +279,7 @@ async def add_email_to_pool(
 
 @router.patch("/email-recipients/pool/{entry_id}", response_model=EmailPoolEntryResponse)
 @handle_api_errors("update email pool entry")
-async def update_email_pool_entry(
+def update_email_pool_entry(
     entry_id: UUID,
     body: EmailPoolEntryUpdate,
     current_user: dict = Depends(get_job_runner_user),
@@ -302,7 +302,7 @@ async def update_email_pool_entry(
 
 @router.delete("/email-recipients/pool/{entry_id}")
 @handle_api_errors("remove email from pool")
-async def delete_email_from_pool(
+def delete_email_from_pool(
     entry_id: UUID,
     current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase),
@@ -339,7 +339,7 @@ async def delete_email_from_pool(
 
 @router.get("/email-recipients/lists", response_model=List[EmailListResponse])
 @handle_api_errors("list saved email lists")
-async def list_email_lists(
+def list_email_lists(
     current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase),
 ):
@@ -364,7 +364,7 @@ async def list_email_lists(
 
 @router.post("/email-recipients/lists", response_model=EmailListResponse, status_code=201)
 @handle_api_errors("create saved email list")
-async def create_email_list(
+def create_email_list(
     body: EmailListCreate,
     current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase),
@@ -399,7 +399,7 @@ async def create_email_list(
 
 @router.patch("/email-recipients/lists/{list_id}", response_model=EmailListResponse)
 @handle_api_errors("update saved email list")
-async def update_email_list(
+def update_email_list(
     list_id: UUID,
     body: EmailListUpdate,
     current_user: dict = Depends(get_job_runner_user),
@@ -445,7 +445,7 @@ async def update_email_list(
 
 @router.delete("/email-recipients/lists/{list_id}")
 @handle_api_errors("delete saved email list")
-async def delete_email_list(
+def delete_email_list(
     list_id: UUID,
     current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase),

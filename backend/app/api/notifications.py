@@ -80,7 +80,7 @@ NOTIFICATION_CATALOG = [
 
 @router.get("/notifications/catalog", response_model=dict)
 @handle_api_errors("get notifications catalog")
-async def get_notifications_catalog(
+def get_notifications_catalog(
     current_user: dict = Depends(get_current_user),
 ):
     """Get recommended notification types and template metadata for clients/admin tooling."""
@@ -90,7 +90,7 @@ async def get_notifications_catalog(
 
 @router.get("/notifications", response_model=List[NotificationResponse])
 @handle_api_errors("get notifications")
-async def get_notifications(
+def get_notifications(
     unread_only: Optional[bool] = Query(False, description="Filter to show only unread notifications"),
     limit: Optional[int] = Query(50, description="Maximum number of notifications to return"),
     current_user: dict = Depends(get_current_user),
@@ -127,7 +127,7 @@ async def get_notifications(
 
 @router.get("/notifications/unread-count", response_model=dict)
 @handle_api_errors("get unread notification count")
-async def get_unread_count(
+def get_unread_count(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -150,7 +150,7 @@ async def get_unread_count(
 
 @router.put("/notifications/{notification_id}/read", response_model=NotificationResponse)
 @handle_api_errors("mark notification as read")
-async def mark_notification_read(
+def mark_notification_read(
     notification_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -187,7 +187,7 @@ async def mark_notification_read(
 
 @router.put("/notifications/read-all", response_model=dict)
 @handle_api_errors("mark all notifications as read")
-async def mark_all_notifications_read(
+def mark_all_notifications_read(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -208,7 +208,7 @@ async def mark_all_notifications_read(
 
 @router.delete("/notifications/{notification_id}")
 @handle_api_errors("delete notification")
-async def delete_notification(
+def delete_notification(
     notification_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -234,7 +234,7 @@ async def delete_notification(
 
 @router.delete("/notifications")
 @handle_api_errors("clear notifications")
-async def clear_notifications(
+def clear_notifications(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):

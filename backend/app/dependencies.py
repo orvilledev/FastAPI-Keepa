@@ -79,7 +79,8 @@ async def get_current_user(
                     detail="Invalid authentication credentials",
                 )
             
-            profile = _ensure_profile_row_for_access(db, user_data)
+            import asyncio
+            profile = await asyncio.to_thread(_ensure_profile_row_for_access, db, user_data)
             is_active = profile.get("is_active", False)
             user_email = (user_data.get("email") or "").lower()
             role = (profile.get("role") or "").lower()
@@ -107,7 +108,7 @@ async def get_current_user(
         )
 
 
-async def get_admin_user(
+def get_admin_user(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ) -> dict:
@@ -135,7 +136,7 @@ def is_superadmin_user(current_user: dict, db: Client) -> bool:
     return False
 
 
-async def get_superadmin_user(
+def get_superadmin_user(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ) -> dict:
@@ -149,7 +150,7 @@ async def get_superadmin_user(
     return current_user
 
 
-async def get_keepa_access_user(
+def get_keepa_access_user(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ) -> dict:
@@ -177,7 +178,7 @@ async def get_keepa_access_user(
     return current_user
 
 
-async def get_tools_manager_user(
+def get_tools_manager_user(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ) -> dict:
@@ -205,7 +206,7 @@ async def get_tools_manager_user(
     return current_user
 
 
-async def get_job_runner_user(
+def get_job_runner_user(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ) -> dict:
@@ -240,7 +241,7 @@ def _is_maintenance_bypass_user(current_user: dict, db: Client) -> bool:
     return user_email in set(settings.maintenance_allowlist_emails_list)
 
 
-async def require_app_access(
+def require_app_access(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ) -> dict:
@@ -260,7 +261,7 @@ async def require_app_access(
     )
 
 
-async def check_is_admin(
+def check_is_admin(
     current_user: dict,
     db: Client
 ) -> bool:
@@ -278,7 +279,7 @@ async def check_is_admin(
     return profile_response.data and profile_response.data[0].get("role") == "admin"
 
 
-async def verify_job_access(
+def verify_job_access(
     job_id: UUID,
     current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase)
@@ -307,7 +308,7 @@ async def verify_job_access(
     return job
 
 
-async def verify_batch_access(
+def verify_batch_access(
     batch_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -343,7 +344,7 @@ async def verify_batch_access(
     
     job = job_response.data[0]
     
-    is_admin = await check_is_admin(current_user, db)
+    is_admin = check_is_admin(current_user, db)
     
     if not is_admin and job["created_by"] != current_user["id"]:
         raise HTTPException(status_code=403, detail="Not authorized to view this batch")

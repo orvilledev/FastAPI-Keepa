@@ -29,7 +29,7 @@ def _normalize_micro_tool_row(raw: dict) -> dict:
 
 @router.get("/tools/public", response_model=List[PublicToolResponse])
 @handle_api_errors("get public tools")
-async def get_public_tools(
+def get_public_tools(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -40,7 +40,7 @@ async def get_public_tools(
 
 @router.post("/tools/public", response_model=PublicToolResponse, status_code=201)
 @handle_api_errors("create public tool")
-async def create_public_tool(
+def create_public_tool(
     tool_data: PublicToolCreate,
     current_user: dict = Depends(get_tools_manager_user),
     db: Client = Depends(get_supabase)
@@ -62,7 +62,7 @@ async def create_public_tool(
 
 @router.put("/tools/public/{tool_id}", response_model=PublicToolResponse)
 @handle_api_errors("update public tool")
-async def update_public_tool(
+def update_public_tool(
     tool_id: UUID,
     tool_data: PublicToolUpdate,
     current_user: dict = Depends(get_tools_manager_user),
@@ -89,7 +89,7 @@ async def update_public_tool(
 
 @router.delete("/tools/public/{tool_id}")
 @handle_api_errors("delete public tool")
-async def delete_public_tool(
+def delete_public_tool(
     tool_id: UUID,
     current_user: dict = Depends(get_tools_manager_user),
     db: Client = Depends(get_supabase)
@@ -109,7 +109,7 @@ async def delete_public_tool(
 
 @router.post("/tools/public/{tool_id}/star")
 @handle_api_errors("star tool")
-async def star_tool(
+def star_tool(
     tool_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -139,7 +139,7 @@ async def star_tool(
 
 @router.delete("/tools/public/{tool_id}/star")
 @handle_api_errors("unstar tool")
-async def unstar_tool(
+def unstar_tool(
     tool_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -153,7 +153,7 @@ async def unstar_tool(
 
 @router.get("/tools/my-toolbox")
 @handle_api_errors("get my toolbox")
-async def get_my_toolbox(
+def get_my_toolbox(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -185,7 +185,7 @@ async def get_my_toolbox(
 
 @router.get("/tools/public/starred")
 @handle_api_errors("get starred tool IDs")
-async def get_starred_tool_ids(
+def get_starred_tool_ids(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -198,7 +198,7 @@ async def get_starred_tool_ids(
 # User Tools endpoints (personal tools)
 @router.get("/tools/user", response_model=List[UserToolResponse])
 @handle_api_errors("get user tools")
-async def get_user_tools(
+def get_user_tools(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -219,7 +219,7 @@ async def get_user_tools(
 
 @router.post("/tools/user", response_model=UserToolResponse, status_code=201)
 @handle_api_errors("create user tool")
-async def create_user_tool(
+def create_user_tool(
     tool_data: UserToolCreate,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -244,7 +244,7 @@ async def create_user_tool(
 
 @router.put("/tools/user/{tool_id}", response_model=UserToolResponse)
 @handle_api_errors("update user tool")
-async def update_user_tool(
+def update_user_tool(
     tool_id: UUID,
     tool_data: UserToolUpdate,
     current_user: dict = Depends(get_current_user),
@@ -277,7 +277,7 @@ async def update_user_tool(
 
 @router.delete("/tools/user/{tool_id}")
 @handle_api_errors("delete user tool")
-async def delete_user_tool(
+def delete_user_tool(
     tool_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -294,7 +294,7 @@ async def delete_user_tool(
 # Job Aids endpoints
 @router.get("/tools/job-aids", response_model=List[JobAidResponse])
 @handle_api_errors("get job aids")
-async def get_job_aids(
+def get_job_aids(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -305,7 +305,7 @@ async def get_job_aids(
 
 @router.post("/tools/job-aids", response_model=JobAidResponse, status_code=201)
 @handle_api_errors("create job aid")
-async def create_job_aid(
+def create_job_aid(
     aid_data: JobAidCreate,
     current_user: dict = Depends(get_tools_manager_user),
     db: Client = Depends(get_supabase)
@@ -324,7 +324,7 @@ async def create_job_aid(
 
 @router.put("/tools/job-aids/{aid_id}", response_model=JobAidResponse)
 @handle_api_errors("update job aid")
-async def update_job_aid(
+def update_job_aid(
     aid_id: UUID,
     aid_data: JobAidUpdate,
     current_user: dict = Depends(get_tools_manager_user),
@@ -351,7 +351,7 @@ async def update_job_aid(
 
 @router.delete("/tools/job-aids/{aid_id}")
 @handle_api_errors("delete job aid")
-async def delete_job_aid(
+def delete_job_aid(
     aid_id: UUID,
     current_user: dict = Depends(get_tools_manager_user),
     db: Client = Depends(get_supabase)
@@ -371,7 +371,7 @@ async def delete_job_aid(
 
 @router.post("/tools/job-aids/{aid_id}/star")
 @handle_api_errors("star job aid")
-async def star_job_aid(
+def star_job_aid(
     aid_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -401,7 +401,7 @@ async def star_job_aid(
 
 @router.delete("/tools/job-aids/{aid_id}/star")
 @handle_api_errors("unstar job aid")
-async def unstar_job_aid(
+def unstar_job_aid(
     aid_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -415,7 +415,7 @@ async def unstar_job_aid(
 
 @router.get("/tools/job-aids/starred")
 @handle_api_errors("get starred job aid IDs")
-async def get_starred_job_aid_ids(
+def get_starred_job_aid_ids(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -428,7 +428,7 @@ async def get_starred_job_aid_ids(
 # Micro Tools (user-owned external shortcuts)
 @router.get("/tools/micro-tools", response_model=List[MicroToolResponse])
 @handle_api_errors("get micro tools")
-async def get_micro_tools(
+def get_micro_tools(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
@@ -442,7 +442,7 @@ async def get_micro_tools(
 
 @router.post("/tools/micro-tools", response_model=MicroToolResponse, status_code=201)
 @handle_api_errors("create micro tool")
-async def create_micro_tool(
+def create_micro_tool(
     tool_data: MicroToolCreate,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
@@ -465,7 +465,7 @@ async def create_micro_tool(
 
 @router.put("/tools/micro-tools/{tool_id}", response_model=MicroToolResponse)
 @handle_api_errors("update micro tool")
-async def update_micro_tool(
+def update_micro_tool(
     tool_id: UUID,
     tool_data: MicroToolUpdate,
     current_user: dict = Depends(get_current_user),
@@ -502,7 +502,7 @@ async def update_micro_tool(
 
 @router.delete("/tools/micro-tools/{tool_id}")
 @handle_api_errors("delete micro tool")
-async def delete_micro_tool(
+def delete_micro_tool(
     tool_id: UUID,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),

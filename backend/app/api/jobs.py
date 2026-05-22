@@ -62,7 +62,7 @@ async def create_job(
 
 @router.get("/jobs", response_model=List[BatchJobResponse])
 @handle_api_errors("list jobs")
-async def list_jobs(
+def list_jobs(
     limit: int = 15,
     offset: int = 0,
     include_enrichment: bool = True,
@@ -91,7 +91,7 @@ async def list_jobs(
 
 @router.get("/jobs/stats", response_model=dict)
 @handle_api_errors("get jobs stats")
-async def get_jobs_stats(
+def get_jobs_stats(
     _current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase)
 ):
@@ -110,7 +110,7 @@ async def get_jobs_stats(
 
 @router.get("/jobs/{job_id}", response_model=BatchJobResponse)
 @handle_api_errors("get job")
-async def get_job(
+def get_job(
     job: dict = Depends(verify_job_access),
     db: Client = Depends(get_supabase)
 ):
@@ -124,7 +124,7 @@ async def get_job(
 
 @router.get("/jobs/{job_id}/status", response_model=dict)
 @handle_api_errors("get job status")
-async def get_job_status(
+def get_job_status(
     job: dict = Depends(verify_job_access),
     db: Client = Depends(get_supabase)
 ):
@@ -160,7 +160,7 @@ async def get_job_status(
 @router.post("/jobs/{job_id}/trigger")
 @limiter.limit(RateLimits.JOB_TRIGGER)
 @handle_api_errors("trigger job")
-async def trigger_job(
+def trigger_job(
     request: Request,
     job_id: UUID,
     background_tasks: BackgroundTasks,
@@ -183,7 +183,7 @@ async def trigger_job(
 
 @router.post("/jobs/{job_id}/stop")
 @handle_api_errors("stop job")
-async def stop_job(
+def stop_job(
     job: dict = Depends(verify_job_access),
     _current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase)
@@ -216,7 +216,7 @@ async def stop_job(
 
 @router.put("/jobs/{job_id}", response_model=BatchJobResponse)
 @handle_api_errors("update job")
-async def update_job(
+def update_job(
     job_id: UUID,
     job_data: BatchJobUpdate,
     job: dict = Depends(verify_job_access),
@@ -230,7 +230,7 @@ async def update_job(
     job_repo = JobRepository(db)
     
     # Check if user is admin or job owner
-    is_admin = await check_is_admin(current_user, db)
+    is_admin = check_is_admin(current_user, db)
     if not is_admin and job["created_by"] != current_user["id"]:
         raise HTTPException(
             status_code=403, 
@@ -257,7 +257,7 @@ async def update_job(
 
 @router.delete("/jobs/{job_id}")
 @handle_api_errors("delete job")
-async def delete_job(
+def delete_job(
     job: dict = Depends(verify_job_access),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
@@ -267,7 +267,7 @@ async def delete_job(
     job_repo = JobRepository(db)
     
     # Check if user is admin or job owner
-    is_admin = await check_is_admin(current_user, db)
+    is_admin = check_is_admin(current_user, db)
     if not is_admin and job["created_by"] != current_user["id"]:
         raise HTTPException(
             status_code=403, 
