@@ -49,6 +49,11 @@ def remember_input_mode(category: str, mode: str) -> None:
     _last_known_input_mode[normalized_category] = normalized_mode
 
 
+async def _run_sync(op):
+    """Run a synchronous I/O call off the event loop to keep FastAPI responsive."""
+    return await asyncio.to_thread(op)
+
+
 def _normalize_price(value) -> Optional[float]:
     if value is None:
         return None
@@ -341,8 +346,8 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
             normalized_forced_mode = ""
 
         try:
-            category_settings_response = (
-                db.table("scheduler_settings")
+            category_settings_response = await _run_sync(
+                lambda: db.table("scheduler_settings")
                 .select("email_recipients, input_mode, uploaded_wait_timeout_seconds")
                 .eq("category", category)
                 .limit(1)
@@ -399,7 +404,9 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
             )
         
         # Get admin user ID (or system user)
-        profiles_response = db.table("profiles").select("id").eq("role", "admin").limit(1).execute()
+        profiles_response = await _run_sync(
+            lambda: db.table("profiles").select("id").eq("role", "admin").limit(1).execute()
+        )
         
         if not profiles_response.data:
             logger.error("No admin user found for automated job")
@@ -409,19 +416,21 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
         from uuid import UUID
         admin_uuid = UUID(admin_id)
 
-        def notify_admin(notification_type: str, title: str, message: str, priority: str = "info", related_job_id: Optional[str] = None):
+        async def notify_admin(notification_type: str, title: str, message: str, priority: str = "info", related_job_id: Optional[str] = None):
             try:
-                create_notification(
-                    db=db,
-                    user_id=admin_uuid,
-                    notification_type=notification_type,
-                    title=title,
-                    message=message,
-                    priority=priority,
-                    related_id=UUID(str(related_job_id)) if related_job_id else None,
-                    related_type="job" if related_job_id else None,
-                    action_label="View Dashboard",
-                    action_url="/dashboard",
+                await asyncio.to_thread(
+                    lambda: create_notification(
+                        db=db,
+                        user_id=admin_uuid,
+                        notification_type=notification_type,
+                        title=title,
+                        message=message,
+                        priority=priority,
+                        related_id=UUID(str(related_job_id)) if related_job_id else None,
+                        related_type="job" if related_job_id else None,
+                        action_label="View Dashboard",
+                        action_url="/dashboard",
+                    )
                 )
             except Exception as notify_err:
                 logger.warning("Failed to create scheduler notification: %s", notify_err)
@@ -433,8 +442,8 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
             report = None
             deadline = datetime.utcnow().timestamp() + uploaded_wait_timeout_seconds
             while datetime.utcnow().timestamp() <= deadline:
-                uploaded_response = (
-                    db.table("scheduler_uploaded_reports")
+                uploaded_response = await _run_sync(
+                    lambda: db.table("scheduler_uploaded_reports")
                     .select("id, upcs, parsed_rows, parse_status, created_at")
                     .eq("category", category)
                     .order("created_at", desc=True)
@@ -470,7 +479,7 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                         category.upper(),
                         parse_status or "pending",
                     )
-                    db.table("batch_jobs").insert({
+                    await _run_sync(lambda: db.table("batch_jobs").insert({
                         "job_name": f"Daily {category.upper()} Uploaded Report - {current_time.strftime('%Y-%m-%d')}",
                         "status": "failed",
                         "total_batches": 0,
@@ -482,8 +491,8 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                         "map_vendor_type": category,
                         "keepa_offers_limit": settings.keepa_offers_limit,
                         "off_price_scope": "buybox_only",
-                    }).execute()
-                    notify_admin(
+                    }).execute())
+                    await notify_admin(
                         "import_missing_file",
                         f"Import Mode blocked: {category.upper()}",
                         f"Scheduled run skipped because uploaded report parse is {parse_status or 'pending'}.",
@@ -495,13 +504,13 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                 # Uploaded mode always uses Manage UPCs (per-vendor app UPC list)
                 # as the run scope; uploaded file rows are comparison input only.
                 upc_repo = UPCRepository(db)
-                upcs = upc_repo.get_all_upc_codes(category)
+                upcs = await _run_sync(lambda: upc_repo.get_all_upc_codes(category))
             else:
                 logger.warning(
                     "No uploaded report found for %s; creating failed daily run entry",
                     category.upper(),
                 )
-                db.table("batch_jobs").insert({
+                await _run_sync(lambda: db.table("batch_jobs").insert({
                     "job_name": f"Daily {category.upper()} Uploaded Report - {current_time.strftime('%Y-%m-%d')}",
                     "status": "failed",
                     "total_batches": 0,
@@ -513,8 +522,8 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                     "map_vendor_type": category,
                     "keepa_offers_limit": settings.keepa_offers_limit,
                     "off_price_scope": "buybox_only",
-                }).execute()
-                notify_admin(
+                }).execute())
+                await notify_admin(
                     "import_missing_file",
                     f"Import Mode blocked: {category.upper()}",
                     "Scheduled run skipped because no uploaded report was found.",
@@ -523,7 +532,7 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                 return
         else:
             upc_repo = UPCRepository(db)
-            upcs = upc_repo.get_all_upc_codes(category)
+            upcs = await _run_sync(lambda: upc_repo.get_all_upc_codes(category))
 
         if upcs:
             logger.info(f"Found {len(upcs)} {category.upper()} UPCs to process")
@@ -542,19 +551,19 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
             logger.info(f"Created {category.upper()} batch job {job_id} with {len(upcs)} UPCs. Processing...")
             if input_mode == "uploaded":
                 map_repo = MAPRepository(db)
-                map_prices = map_repo.get_map_prices_by_upcs(upcs, vendor_type=category)
+                map_prices = await _run_sync(lambda: map_repo.get_map_prices_by_upcs(upcs, vendor_type=category))
 
                 if not uploaded_entries:
                     logger.warning(
                         "Uploaded mode run for %s has no parsed rows in uploaded report; failing run",
                         category.upper(),
                     )
-                    db.table("batch_jobs").update({
+                    await _run_sync(lambda: db.table("batch_jobs").update({
                         "status": "failed",
                         "completed_at": datetime.utcnow().isoformat(),
                         "error_message": "Uploaded Keepa report has no parsed rows for comparison.",
-                    }).eq("id", str(job_id)).execute()
-                    notify_admin(
+                    }).eq("id", str(job_id)).execute())
+                    await notify_admin(
                         "import_completed_with_errors",
                         f"Import run failed: {category.upper()}",
                         "Uploaded Keepa report has no parsed rows for comparison.",
@@ -577,12 +586,12 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                         "Uploaded mode run for %s has no UPC overlap between uploaded file and Manage UPCs",
                         category.upper(),
                     )
-                    db.table("batch_jobs").update({
+                    await _run_sync(lambda: db.table("batch_jobs").update({
                         "status": "failed",
                         "completed_at": datetime.utcnow().isoformat(),
                         "error_message": "No overlapping UPCs between uploaded file and Manage UPCs.",
-                    }).eq("id", str(job_id)).execute()
-                    notify_admin(
+                    }).eq("id", str(job_id)).execute())
+                    await notify_admin(
                         "import_completed_with_errors",
                         f"Import run failed: {category.upper()}",
                         "No overlapping UPCs between uploaded file and Manage UPCs.",
@@ -658,13 +667,18 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                 if alert_rows:
                     chunk_size = 500
                     for i in range(0, len(alert_rows), chunk_size):
-                        db.table("price_alerts").insert(alert_rows[i:i + chunk_size]).execute()
+                        chunk = alert_rows[i:i + chunk_size]
+                        await _run_sync(lambda c=chunk: db.table("price_alerts").insert(c).execute())
 
                 # Fill existing batch items with synthetic Keepa-like payloads.
-                batches_resp = db.table("upc_batches").select("id").eq("batch_job_id", str(job_id)).execute()
+                batches_resp = await _run_sync(
+                    lambda: db.table("upc_batches").select("id").eq("batch_job_id", str(job_id)).execute()
+                )
                 for batch in batches_resp.data or []:
                     batch_id = batch["id"]
-                    items_resp = db.table("upc_batch_items").select("id, upc").eq("upc_batch_id", batch_id).execute()
+                    items_resp = await _run_sync(
+                        lambda bid=batch_id: db.table("upc_batch_items").select("id, upc").eq("upc_batch_id", bid).execute()
+                    )
                     batch_items = items_resp.data or []
                     completed_count = len(batch_items)
                     processed_at_iso = datetime.utcnow().isoformat()
@@ -681,20 +695,25 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                         if keepa_data is None:
                             entry = upc_to_entry.get(upc)
                             keepa_data = _build_synthetic_uploaded_offer(entry or {"upc": upc})
-                        db.table("upc_batch_items").update({
+                        kd, ids = keepa_data, item_ids
+                        await _run_sync(lambda kd=kd, ids=ids: db.table("upc_batch_items").update({
                             "status": "completed",
-                            "keepa_data": keepa_data,
+                            "keepa_data": kd,
                             "processed_at": processed_at_iso,
-                        }).in_("id", item_ids).execute()
+                        }).in_("id", ids).execute())
 
-                    db.table("upc_batches").update({
+                    bid = batch_id
+                    cnt = completed_count
+                    await _run_sync(lambda bid=bid, cnt=cnt: db.table("upc_batches").update({
                         "status": "completed",
-                        "processed_count": completed_count,
+                        "processed_count": cnt,
                         "completed_at": datetime.utcnow().isoformat(),
-                    }).eq("id", batch_id).execute()
+                    }).eq("id", bid).execute())
 
                 total_batches = len(batches_resp.data or [])
-                latest_job_resp = db.table("batch_jobs").select("status").eq("id", str(job_id)).limit(1).execute()
+                latest_job_resp = await _run_sync(
+                    lambda: db.table("batch_jobs").select("status").eq("id", str(job_id)).limit(1).execute()
+                )
                 latest_job_status = (
                     str((latest_job_resp.data or [{}])[0].get("status") or "").strip().lower()
                     if latest_job_resp.data
@@ -707,12 +726,13 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                         "deleted" if latest_job_status is None else "cancelled",
                     )
                     return
-                db.table("batch_jobs").update({
+                tb = total_batches
+                await _run_sync(lambda tb=tb: db.table("batch_jobs").update({
                     "status": "completed",
-                    "completed_batches": total_batches,
+                    "completed_batches": tb,
                     "completed_at": datetime.utcnow().isoformat(),
-                }).eq("id", str(job_id)).execute()
-                create_completion_notifications_for_all_profiles(
+                }).eq("id", str(job_id)).execute())
+                await _run_sync(lambda: create_completion_notifications_for_all_profiles(
                     db,
                     notification_type="run_completed_clean",
                     title=f"Run completed: {job_name}",
@@ -723,11 +743,13 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                     metadata={"job_name": job_name, "vendor": category, "total_upcs": len(upcs), "input_mode": "uploaded"},
                     action_label="View Express Jobs",
                     action_url="/jobs",
-                )
+                ))
 
                 # Generate the off-price CSV (one row per flagged UPC) and email it.
                 try:
-                    latest_job_resp = db.table("batch_jobs").select("status").eq("id", str(job_id)).limit(1).execute()
+                    latest_job_resp = await _run_sync(
+                        lambda: db.table("batch_jobs").select("status").eq("id", str(job_id)).limit(1).execute()
+                    )
                     latest_job_status = (
                         str((latest_job_resp.data or [{}])[0].get("status") or "").strip().lower()
                         if latest_job_resp.data
@@ -741,21 +763,23 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                         )
                         return
                     report_service = ReportService(db)
-                    csv_bytes, filename, alerts_count = report_service.generate_csv_for_job(
-                        job_id,
-                        job_name,
-                        map_vendor_type=category,
-                        off_price_scope="buybox_and_non_buybox_below_map",
+                    csv_bytes, filename, alerts_count = await _run_sync(
+                        lambda: report_service.generate_csv_for_job(
+                            job_id,
+                            job_name,
+                            map_vendor_type=category,
+                            off_price_scope="buybox_and_non_buybox_below_map",
+                        )
                     )
-                    total_upcs = report_service.get_total_upcs_for_job(job_id)
-                    EmailService().send_csv_report(
+                    total_upcs = await _run_sync(lambda: report_service.get_total_upcs_for_job(job_id))
+                    await _run_sync(lambda: EmailService().send_csv_report(
                         csv_bytes=csv_bytes,
                         filename=filename,
                         job_name=job_name,
                         total_upcs=total_upcs,
                         alerts_count=alerts_count,
                         recipient_email=custom_recipients,
-                    )
+                    ))
                 except Exception as email_err:
                     logger.warning("Uploaded daily run email/report step failed for %s: %s", category.upper(), email_err)
             else:
