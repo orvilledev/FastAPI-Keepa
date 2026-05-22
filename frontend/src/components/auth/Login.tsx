@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { authApi } from '../../services/api'
 import { APP_ICON_URL } from '../../constants/app'
@@ -165,14 +165,6 @@ export default function Login() {
               </button>
             </div>
 
-            <div className="text-center">
-              <Link
-                to="/signup"
-                className="text-sm text-[#404040] hover:text-[#3B3B3B] font-medium transition-colors"
-              >
-                Don't have an account? <span className="font-semibold">Sign up</span>
-              </Link>
-            </div>
           </form>
 
           {/* Forgot Password Modal/Form */}

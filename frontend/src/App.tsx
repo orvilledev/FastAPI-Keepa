@@ -22,7 +22,6 @@ import { isUserHiddenFromFeedbackPage } from './constants/feedbackAccess'
 // Lazy load page components for code splitting (About is eager so its chunk cannot 404 behind stale CDN/cache)
 const Landing = lazy(() => import('./components/Landing'))
 const Login = lazy(() => import('./components/auth/Login'))
-const Signup = lazy(() => import('./components/auth/Signup'))
 const ResetPassword = lazy(() => import('./components/auth/ResetPassword'))
 const Dashboard = lazy(() => import('./components/dashboard/Dashboard'))
 const JobList = lazy(() => import('./components/jobs/JobList'))
@@ -245,14 +244,6 @@ function AppRoutes() {
           element={
             <GuestRoute>
               <Login />
-            </GuestRoute>
-          }
-        />
-        <Route
-          path="/signup"
-          element={
-            <GuestRoute>
-              <Signup />
             </GuestRoute>
           }
         />
