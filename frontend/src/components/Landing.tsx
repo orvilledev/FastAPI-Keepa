@@ -1,49 +1,7 @@
 import { Link } from 'react-router-dom'
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
 import { APP_COPYRIGHT_OWNER, APP_ICON_URL, APP_NAME, APP_VERSION_LABEL } from '../constants/app'
 
 export default function Landing() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [showSignup, setShowSignup] = useState(false)
-  const navigate = useNavigate()
-
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match')
-      return
-    }
-
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters')
-      return
-    }
-
-    setLoading(true)
-
-    try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-      })
-
-      if (error) throw error
-      navigate('/dashboard')
-    } catch (error: any) {
-      setError(error.message || 'Failed to sign up')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const features = [
     {
       icon: (
@@ -95,12 +53,6 @@ export default function Landing() {
             >
               Sign In
             </Link>
-            <button
-              onClick={() => setShowSignup(true)}
-              className="btn-primary"
-            >
-              Get Started
-            </button>
           </div>
         </div>
       </nav>
@@ -127,15 +79,6 @@ export default function Landing() {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <button
-              onClick={() => {
-                setShowSignup(true)
-                document.getElementById('signup-section')?.scrollIntoView({ behavior: 'smooth' })
-              }}
-              className="bg-[#F97316] hover:bg-[#EA580C] text-white font-semibold text-lg px-8 py-4 rounded-lg transition-colors"
-            >
-              Get Started
-            </button>
             <Link
               to="/login"
               className="btn-secondary text-lg px-8 py-4"
@@ -200,15 +143,6 @@ export default function Landing() {
                 <span className="text-gray-700">Fast collaboration with reusable communication patterns</span>
               </li>
             </ul>
-            <button
-              onClick={() => {
-                setShowSignup(true)
-                document.getElementById('signup-section')?.scrollIntoView({ behavior: 'smooth' })
-              }}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-medium px-6 py-3 rounded-lg transition-colors"
-            >
-              Get Started Free
-            </button>
           </div>
 
           {/* Paid Plan for Non-Employees */}
@@ -248,15 +182,6 @@ export default function Landing() {
                 <span className="text-gray-700">Onboarding and billing coordinated directly with your team</span>
               </li>
             </ul>
-            <button
-              onClick={() => {
-                setShowSignup(true)
-                document.getElementById('signup-section')?.scrollIntoView({ behavior: 'smooth' })
-              }}
-              className="w-full btn-primary"
-            >
-              Contact Sales
-            </button>
           </div>
         </div>
         <div className="mt-8 text-center">
@@ -292,103 +217,6 @@ export default function Landing() {
               </p>
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* Signup Section */}
-      <section
-        id="signup-section"
-        className="container mx-auto px-4 sm:px-6 lg:px-8 py-20"
-      >
-        <div className="max-w-md mx-auto">
-          <div className="card p-8 shadow-xl">
-            <div className="text-center mb-8">
-              <img src={APP_ICON_URL} alt="MSW Overwatch" className="w-16 h-16 mx-auto mb-4" />
-              <h2 className="text-3xl font-bold text-[#404040]">
-                Join {APP_NAME}
-              </h2>
-              <p className="mt-1 text-xs text-gray-500">Current version: {APP_VERSION_LABEL}</p>
-              <p className="mt-2 text-sm text-gray-500">
-                Sign in after signup to open your dashboard and sidebar tools
-              </p>
-            </div>
-            <form className="space-y-6" onSubmit={handleSignup}>
-              {error && (
-                <div className="rounded-lg bg-red-50 border border-red-200 p-4">
-                  <div className="text-sm text-red-800 font-medium">{error}</div>
-                </div>
-              )}
-              <div className="space-y-4">
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                    Email address
-                  </label>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                    Password
-                  </label>
-                  <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    autoComplete="new-password"
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                    Confirm Password
-                  </label>
-                  <input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type="password"
-                    autoComplete="new-password"
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                    placeholder="••••••••"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Creating account...' : 'Create Account'}
-                </button>
-              </div>
-
-              <div className="text-center">
-                <Link
-                  to="/login"
-                  className="text-sm text-[#404040] hover:text-[#3B3B3B] font-medium transition-colors"
-                >
-                  Already have an account? <span className="font-semibold">Sign in</span>
-                </Link>
-              </div>
-            </form>
-          </div>
         </div>
       </section>
 
