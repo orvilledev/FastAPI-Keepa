@@ -209,8 +209,10 @@ function AppRoutes() {
       }
     }
     void loadMaintenanceStatus()
+    const interval = setInterval(() => void loadMaintenanceStatus(), 60_000)
     return () => {
       active = false
+      clearInterval(interval)
     }
   }, [])
 
