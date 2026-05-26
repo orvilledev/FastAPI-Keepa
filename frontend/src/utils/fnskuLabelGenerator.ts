@@ -1,3 +1,4 @@
+import JsBarcode from 'jsbarcode'
 import { jsPDF } from 'jspdf'
 import XLSX from 'xlsx-js-style'
 
@@ -45,7 +46,10 @@ const CELL_FONT = { name: 'Calibri', sz: 12 } as const
 const COLUMN_WIDTHS: readonly number[] = [25.25, 13, 13, 13, 13, 13]
 const PDF_LABEL_WIDTH_PT = 216
 const PDF_LABEL_HEIGHT_PT = 108
-const PDF_MARGIN_PT = 10
+const PDF_MARGIN_PT = 8
+const PDF_BARCODE_WIDTH_PT = 150
+const PDF_BARCODE_HEIGHT_PT = 28
+const PDF_BARCODE_CANVAS_SCALE = 4
 
 export type FnskuItem = {
   sku: string
@@ -433,31 +437,64 @@ function buildPdfLabels(shipment: FnskuShipment): FnskuPdfLabel[] {
   return labels
 }
 
+function renderBarcodeDataUrl(value: string): string | null {
+  if (!value || typeof document === 'undefined') return null
+  try {
+    const canvas = document.createElement('canvas')
+    JsBarcode(canvas, value, {
+      format: 'CODE128',
+      width: PDF_BARCODE_CANVAS_SCALE,
+      height: PDF_BARCODE_HEIGHT_PT * PDF_BARCODE_CANVAS_SCALE,
+      displayValue: false,
+      margin: 0,
+      background: '#ffffff',
+      lineColor: '#000000',
+    })
+    return canvas.toDataURL('image/png')
+  } catch {
+    return null
+  }
+}
+
 function drawFnskuPdfLabel(doc: jsPDF, label: FnskuPdfLabel, index: number, total: number) {
   const contentWidth = PDF_LABEL_WIDTH_PT - PDF_MARGIN_PT * 2
-  let y = PDF_MARGIN_PT + 6
+  const centerX = PDF_LABEL_WIDTH_PT / 2
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
-  doc.text(label.fnsku, PDF_MARGIN_PT, y)
+  let y = PDF_MARGIN_PT
 
-  y += 12
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(label.msku ? 8.4 : 10)
-  const titleLines = doc.splitTextToSize(label.title, contentWidth) as string[]
-  const maxTitleLines = label.msku ? 5 : 2
-  for (const line of titleLines.slice(0, maxTitleLines)) {
-    doc.text(line, PDF_MARGIN_PT, y)
-    y += label.msku ? 9 : 12
+  const barcode = renderBarcodeDataUrl(label.fnsku)
+  if (barcode) {
+    const barcodeX = centerX - PDF_BARCODE_WIDTH_PT / 2
+    doc.addImage(barcode, 'PNG', barcodeX, y, PDF_BARCODE_WIDTH_PT, PDF_BARCODE_HEIGHT_PT)
+    y += PDF_BARCODE_HEIGHT_PT + 2
   }
 
-  y += label.msku ? 1 : 2
-  doc.setFontSize(label.msku ? 8.6 : 10)
-  doc.text(label.msku ? `${label.condition}\t${label.msku}` : label.condition, PDF_MARGIN_PT, y)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  doc.text(label.fnsku, centerX, y + 8, { align: 'center' })
+  y += 12
 
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.text(`-- ${index + 1} of ${total} --`, PDF_LABEL_WIDTH_PT / 2, PDF_LABEL_HEIGHT_PT - 8, {
+  const titleFontSize = label.msku ? 7.5 : 9
+  const titleLineHeight = label.msku ? 8 : 11
+  doc.setFontSize(titleFontSize)
+  const titleLines = doc.splitTextToSize(label.title, contentWidth) as string[]
+  const maxTitleLines = label.msku ? 4 : 2
+  for (const line of titleLines.slice(0, maxTitleLines)) {
+    doc.text(line, PDF_MARGIN_PT, y + titleLineHeight - 2)
+    y += titleLineHeight
+  }
+
+  if (label.condition || label.msku) {
+    y += 1
+    doc.setFontSize(label.msku ? 8 : 9.5)
+    const line = label.msku ? `${label.condition}    ${label.msku}` : label.condition
+    doc.text(line, PDF_MARGIN_PT, y + 8)
+  }
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  doc.text(`-- ${index + 1} of ${total} --`, centerX, PDF_LABEL_HEIGHT_PT - 4, {
     align: 'center',
   })
 }
