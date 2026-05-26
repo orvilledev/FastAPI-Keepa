@@ -115,6 +115,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7V5a1 1 0 011-1h2m10 0h2a1 1 0 011 1v2M4 17v2a1 1 0 001 1h2m10 0h2a1 1 0 001-1v-2M7 8v8m3-8v8m3-8v8m3-8v8" />
     </svg>
   ),
+  fnskuLabels: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+    </svg>
+  ),
 }
 
 export default function Sidebar() {
@@ -536,6 +541,19 @@ export default function Sidebar() {
           >
             <span className="mr-3">{Icons.scanner}</span>
             <span>Tracking Extractor</span>
+          </Link>
+
+          <Link
+            to="/fnsku-labels"
+            onMouseEnter={() => setHoveredNav('fnsku-labels')}
+            className={`sidebar-link ${
+              navHighlighted('fnsku-labels', isActive('/fnsku-labels'))
+                ? 'sidebar-link-active'
+                : 'sidebar-link-inactive'
+            }`}
+          >
+            <span className="mr-3">{Icons.fnskuLabels}</span>
+            <span>FNSKU Labels</span>
           </Link>
 
           <Link
