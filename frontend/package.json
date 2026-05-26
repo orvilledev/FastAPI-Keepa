@@ -22,6 +22,7 @@
     "@zxing/library": "^0.23.0",
     "axios": "^1.6.2",
     "electron-updater": "^6.8.3",
+    "jspdf": "^4.2.1",
     "jszip": "^3.10.1",
     "pdfjs-dist": "^5.7.284",
     "react": "^18.2.0",

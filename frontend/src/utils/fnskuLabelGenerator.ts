@@ -1,3 +1,4 @@
+import { jsPDF } from 'jspdf'
 import XLSX from 'xlsx-js-style'
 
 /**
@@ -42,6 +43,9 @@ const HEADER: readonly string[] = [
 const CELL_FONT = { name: 'Calibri', sz: 12 } as const
 /** Column widths copied directly from the reference workbook (in Excel character units). */
 const COLUMN_WIDTHS: readonly number[] = [25.25, 13, 13, 13, 13, 13]
+const PDF_LABEL_WIDTH_PT = 216
+const PDF_LABEL_HEIGHT_PT = 108
+const PDF_MARGIN_PT = 10
 
 export type FnskuItem = {
   sku: string
@@ -353,6 +357,12 @@ export function summarizeFnskuShipment(shipment: FnskuShipment): FnskuShipmentSu
 
 type AoaCell = string | number | null
 type AoaRow = AoaCell[]
+type FnskuPdfLabel = {
+  fnsku: string
+  title: string
+  condition: string
+  msku: string
+}
 
 /** Build the AoA matrix that becomes the `Products` sheet. Exported for testing. */
 export function buildProductsAoa(shipment: FnskuShipment): AoaRow[] {
@@ -401,7 +411,88 @@ export function buildFnskuLabelsWorkbookBlob(shipment: FnskuShipment): Blob {
   })
 }
 
+function asPositiveLabelCount(value: AoaCell): number {
+  const n = typeof value === 'number' ? value : Number.parseInt(String(value || '0'), 10)
+  return Number.isFinite(n) && n > 0 ? n : 0
+}
+
+function buildPdfLabels(shipment: FnskuShipment): FnskuPdfLabel[] {
+  const rows = buildProductsAoa(shipment).slice(1)
+  const labels: FnskuPdfLabel[] = []
+  for (const row of rows) {
+    const count = asPositiveLabelCount(row[0])
+    for (let i = 0; i < count; i += 1) {
+      labels.push({
+        fnsku: String(row[1] || ''),
+        title: String(row[2] || ''),
+        condition: String(row[3] || ''),
+        msku: String(row[4] || ''),
+      })
+    }
+  }
+  return labels
+}
+
+function drawFnskuPdfLabel(doc: jsPDF, label: FnskuPdfLabel, index: number, total: number) {
+  const contentWidth = PDF_LABEL_WIDTH_PT - PDF_MARGIN_PT * 2
+  let y = PDF_MARGIN_PT + 6
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  doc.text(label.fnsku, PDF_MARGIN_PT, y)
+
+  y += 12
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(label.msku ? 8.4 : 10)
+  const titleLines = doc.splitTextToSize(label.title, contentWidth) as string[]
+  const maxTitleLines = label.msku ? 5 : 2
+  for (const line of titleLines.slice(0, maxTitleLines)) {
+    doc.text(line, PDF_MARGIN_PT, y)
+    y += label.msku ? 9 : 12
+  }
+
+  y += label.msku ? 1 : 2
+  doc.setFontSize(label.msku ? 8.6 : 10)
+  doc.text(label.msku ? `${label.condition}\t${label.msku}` : label.condition, PDF_MARGIN_PT, y)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.text(`-- ${index + 1} of ${total} --`, PDF_LABEL_WIDTH_PT / 2, PDF_LABEL_HEIGHT_PT - 8, {
+    align: 'center',
+  })
+}
+
+/** Generate one product-label PDF page per expanded row from the Excel Products sheet. */
+export function buildFnskuLabelsPdfBlob(shipment: FnskuShipment): Blob {
+  const labels = buildPdfLabels(shipment)
+  const doc = new jsPDF({
+    unit: 'pt',
+    format: [PDF_LABEL_WIDTH_PT, PDF_LABEL_HEIGHT_PT],
+    orientation: 'landscape',
+    compress: true,
+  })
+
+  labels.forEach((label, index) => {
+    if (index > 0) {
+      doc.addPage([PDF_LABEL_WIDTH_PT, PDF_LABEL_HEIGHT_PT], 'landscape')
+    }
+    drawFnskuPdfLabel(doc, label, index, labels.length)
+  })
+
+  return doc.output('blob')
+}
+
 export function suggestedFnskuLabelFilename(shipment: FnskuShipment): string {
   const id = (shipment.shipmentId || 'SHIPMENT').replace(/[^A-Z0-9_-]+/gi, '')
   return `WR FNSKU LABELS ${id}.xlsx`
+}
+
+export function suggestedFnskuLabelPdfFilename(shipment: FnskuShipment): string {
+  const id = (shipment.shipmentId || 'SHIPMENT').replace(/[^A-Z0-9_-]+/gi, '')
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(
+    now.getHours()
+  )}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+  return `WR FNSKU LABELS ${id}_Product_${timestamp}.pdf`
 }

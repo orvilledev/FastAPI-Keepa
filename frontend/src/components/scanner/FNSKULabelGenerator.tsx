@@ -1,10 +1,12 @@
 import JSZip from 'jszip'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import {
+  buildFnskuLabelsPdfBlob,
   buildFnskuLabelsWorkbookBlob,
   FnskuParseError,
   parseFnskuSource,
   suggestedFnskuLabelFilename,
+  suggestedFnskuLabelPdfFilename,
   summarizeFnskuShipment,
   type FnskuShipment,
   type FnskuShipmentSummary,
@@ -152,7 +154,21 @@ export default function FNSKULabelGenerator() {
     setEntries((prev) => prev.filter((_, i) => i !== index))
   }, [])
 
-  const handleDownloadAll = useCallback(() => {
+  const handleDownloadWorkbook = useCallback((shipment: FnskuShipment) => {
+    const blob = buildFnskuLabelsWorkbookBlob(shipment)
+    const filename = suggestedFnskuLabelFilename(shipment)
+    downloadBlob(blob, filename)
+    return filename
+  }, [])
+
+  const handleDownloadPdf = useCallback((shipment: FnskuShipment) => {
+    const blob = buildFnskuLabelsPdfBlob(shipment)
+    const filename = suggestedFnskuLabelPdfFilename(shipment)
+    downloadBlob(blob, filename)
+    return filename
+  }, [])
+
+  const handleDownloadAllWorkbooks = useCallback(() => {
     const ready = entries.filter((e) => e.shipment)
     if (ready.length === 0) return
     setExporting(true)
@@ -160,9 +176,7 @@ export default function FNSKULabelGenerator() {
     try {
       ready.forEach(({ shipment }) => {
         if (!shipment) return
-        const blob = buildFnskuLabelsWorkbookBlob(shipment)
-        const filename = suggestedFnskuLabelFilename(shipment)
-        downloadBlob(blob, filename)
+        handleDownloadWorkbook(shipment)
       })
       setGlobalSuccess(
         ready.length === 1
@@ -175,7 +189,29 @@ export default function FNSKULabelGenerator() {
     } finally {
       setExporting(false)
     }
-  }, [entries])
+  }, [entries, handleDownloadWorkbook])
+
+  const handleDownloadAllPdfs = useCallback(() => {
+    const ready = entries.filter((e) => e.shipment)
+    if (ready.length === 0) return
+    setExporting(true)
+    setGlobalError(null)
+    try {
+      const filenames: string[] = []
+      ready.forEach(({ shipment }) => {
+        if (!shipment) return
+        filenames.push(handleDownloadPdf(shipment))
+      })
+      setGlobalSuccess(
+        filenames.length === 1 ? `Generated ${filenames[0]}.` : `Generated ${filenames.length} PDFs.`
+      )
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to generate PDF.'
+      setGlobalError(msg)
+    } finally {
+      setExporting(false)
+    }
+  }, [entries, handleDownloadPdf])
 
   const readyCount = useMemo(() => entries.filter((e) => e.shipment).length, [entries])
   const parsingCount = useMemo(() => entries.filter((e) => e.parsing).length, [entries])
@@ -269,14 +305,26 @@ export default function FNSKULabelGenerator() {
           <button
             type="button"
             disabled={readyCount === 0 || exporting || parsingCount > 0}
-            onClick={handleDownloadAll}
+            onClick={handleDownloadAllWorkbooks}
             className="px-4 py-2 rounded-md bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
           >
             {exporting
               ? 'Generating…'
               : readyCount > 1
                 ? `Download ${readyCount} workbooks`
-                : 'Download labels workbook'}
+                : 'Download Excel workbook'}
+          </button>
+          <button
+            type="button"
+            disabled={readyCount === 0 || exporting || parsingCount > 0}
+            onClick={handleDownloadAllPdfs}
+            className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {exporting
+              ? 'Generating…'
+              : readyCount > 1
+                ? `Download ${readyCount} PDFs`
+                : 'Download PDF labels'}
           </button>
           {entries.length > 0 && (
             <button
@@ -305,15 +353,24 @@ export default function FNSKULabelGenerator() {
               entry={entry}
               index={index}
               onRemove={removeEntry}
-              onDownload={(shipment) => {
+              onDownloadWorkbook={(shipment) => {
                 setExporting(true)
                 try {
-                  const blob = buildFnskuLabelsWorkbookBlob(shipment)
-                  const filename = suggestedFnskuLabelFilename(shipment)
-                  downloadBlob(blob, filename)
+                  const filename = handleDownloadWorkbook(shipment)
                   setGlobalSuccess(`Generated ${filename}.`)
                 } catch (err) {
                   setGlobalError(err instanceof Error ? err.message : 'Failed to generate workbook.')
+                } finally {
+                  setExporting(false)
+                }
+              }}
+              onDownloadPdf={(shipment) => {
+                setExporting(true)
+                try {
+                  const filename = handleDownloadPdf(shipment)
+                  setGlobalSuccess(`Generated ${filename}.`)
+                } catch (err) {
+                  setGlobalError(err instanceof Error ? err.message : 'Failed to generate PDF.')
                 } finally {
                   setExporting(false)
                 }
@@ -339,7 +396,8 @@ export default function FNSKULabelGenerator() {
             unit quantity in <code>Number of Labels*</code>.
           </li>
           <li>
-            Multiple files generate one workbook each — zip files are automatically unpacked.
+            Multiple files generate one workbook and one matching PDF label file each — zip files
+            are automatically unpacked.
           </li>
           <li>
             Generation runs entirely in your browser — no upload to a server, no PII leaves the
@@ -355,12 +413,14 @@ function FileCard({
   entry,
   index,
   onRemove,
-  onDownload,
+  onDownloadWorkbook,
+  onDownloadPdf,
 }: {
   entry: FileEntry
   index: number
   onRemove: (i: number) => void
-  onDownload: (shipment: FnskuShipment) => void
+  onDownloadWorkbook: (shipment: FnskuShipment) => void
+  onDownloadPdf: (shipment: FnskuShipment) => void
 }) {
   const { file, shipment, summary, error, parsing } = entry
 
@@ -389,13 +449,22 @@ function FileCard({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {shipment && (
-            <button
-              type="button"
-              onClick={() => onDownload(shipment)}
-              className="px-3 py-1 rounded-md bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700"
-            >
-              Download
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => onDownloadWorkbook(shipment)}
+                className="px-3 py-1 rounded-md bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700"
+              >
+                Excel
+              </button>
+              <button
+                type="button"
+                onClick={() => onDownloadPdf(shipment)}
+                className="px-3 py-1 rounded-md bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-700"
+              >
+                PDF
+              </button>
+            </>
           )}
           <button
             type="button"
