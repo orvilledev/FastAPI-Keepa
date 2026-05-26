@@ -46,9 +46,9 @@ const CELL_FONT = { name: 'Calibri', sz: 12 } as const
 const COLUMN_WIDTHS: readonly number[] = [25.25, 13, 13, 13, 13, 13]
 const PDF_LABEL_WIDTH_PT = 216
 const PDF_LABEL_HEIGHT_PT = 108
-const PDF_MARGIN_PT = 8
-const PDF_BARCODE_WIDTH_PT = 150
-const PDF_BARCODE_HEIGHT_PT = 28
+const PDF_MARGIN_PT = 6
+const PDF_BARCODE_WIDTH_PT = 196
+const PDF_BARCODE_HEIGHT_PT = 30
 const PDF_BARCODE_CANVAS_SCALE = 4
 
 export type FnskuItem = {
@@ -456,47 +456,46 @@ function renderBarcodeDataUrl(value: string): string | null {
   }
 }
 
-function drawFnskuPdfLabel(doc: jsPDF, label: FnskuPdfLabel, index: number, total: number) {
-  const contentWidth = PDF_LABEL_WIDTH_PT - PDF_MARGIN_PT * 2
+function drawFnskuPdfLabel(doc: jsPDF, label: FnskuPdfLabel) {
+  const contentWidth = PDF_LABEL_WIDTH_PT - PDF_MARGIN_PT * 2 - 4
   const centerX = PDF_LABEL_WIDTH_PT / 2
 
-  let y = PDF_MARGIN_PT
+  doc.setDrawColor(210, 210, 210)
+  doc.setLineWidth(0.5)
+  doc.rect(0.5, 0.5, PDF_LABEL_WIDTH_PT - 1, PDF_LABEL_HEIGHT_PT - 1)
 
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7.5)
+  doc.text(label.fnsku, centerX, 9, { align: 'center' })
+
+  const barcodeY = 13
   const barcode = renderBarcodeDataUrl(label.fnsku)
   if (barcode) {
     const barcodeX = centerX - PDF_BARCODE_WIDTH_PT / 2
-    doc.addImage(barcode, 'PNG', barcodeX, y, PDF_BARCODE_WIDTH_PT, PDF_BARCODE_HEIGHT_PT)
-    y += PDF_BARCODE_HEIGHT_PT + 2
+    doc.addImage(barcode, 'PNG', barcodeX, barcodeY, PDF_BARCODE_WIDTH_PT, PDF_BARCODE_HEIGHT_PT)
   }
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.text(label.fnsku, centerX, y + 8, { align: 'center' })
-  y += 12
+  const metaY = barcodeY + PDF_BARCODE_HEIGHT_PT + 7
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  if (label.msku) {
+    doc.text(label.msku, PDF_MARGIN_PT + 1, metaY)
+  }
+  if (label.condition) {
+    doc.text(label.condition, PDF_LABEL_WIDTH_PT - PDF_MARGIN_PT - 1, metaY, { align: 'right' })
+  }
 
   doc.setFont('helvetica', 'normal')
-  const titleFontSize = label.msku ? 7.5 : 9
-  const titleLineHeight = label.msku ? 8 : 11
+  const titleFontSize = label.msku ? 9 : 8.5
+  const titleLineHeight = label.msku ? 10.5 : 9.5
   doc.setFontSize(titleFontSize)
   const titleLines = doc.splitTextToSize(label.title, contentWidth) as string[]
-  const maxTitleLines = label.msku ? 4 : 2
+  const maxTitleLines = label.msku ? 4 : 3
+  let y = metaY + 12
   for (const line of titleLines.slice(0, maxTitleLines)) {
-    doc.text(line, PDF_MARGIN_PT, y + titleLineHeight - 2)
+    doc.text(line, centerX, y, { align: 'center' })
     y += titleLineHeight
   }
-
-  if (label.condition || label.msku) {
-    y += 1
-    doc.setFontSize(label.msku ? 8 : 9.5)
-    const line = label.msku ? `${label.condition}    ${label.msku}` : label.condition
-    doc.text(line, PDF_MARGIN_PT, y + 8)
-  }
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.text(`-- ${index + 1} of ${total} --`, centerX, PDF_LABEL_HEIGHT_PT - 4, {
-    align: 'center',
-  })
 }
 
 /** Generate one product-label PDF page per expanded row from the Excel Products sheet. */
@@ -513,7 +512,7 @@ export function buildFnskuLabelsPdfBlob(shipment: FnskuShipment): Blob {
     if (index > 0) {
       doc.addPage([PDF_LABEL_WIDTH_PT, PDF_LABEL_HEIGHT_PT], 'landscape')
     }
-    drawFnskuPdfLabel(doc, label, index, labels.length)
+    drawFnskuPdfLabel(doc, label)
   })
 
   return doc.output('blob')
