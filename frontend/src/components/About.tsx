@@ -145,6 +145,10 @@ export default function About() {
         <p className="mt-2 text-gray-700">
           Contact the Developer: <span className="font-semibold">Orville Barba via remote@metroshoewarehouse.com</span>
         </p>
+        <p className="mt-2 text-gray-700">
+          QA (Quality Assurance) Testers:{' '}
+          <span className="font-semibold">Stephanie Roque and Sunshine Gale Ocampo</span>
+        </p>
       </div>
     </div>
   )
