@@ -1,3 +1,4 @@
+import JSZip from 'jszip'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import {
   buildFnskuLabelsWorkbookBlob,
@@ -10,7 +11,17 @@ import {
 } from '../../utils/fnskuLabelGenerator'
 
 const ACCEPTED =
-  '.csv,.xlsx,.xls,.xlsm,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  '.csv,.xlsx,.xls,.xlsm,.zip,text/csv,application/vnd.ms-excel,' +
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,' +
+  'application/zip,application/x-zip-compressed'
+
+type FileEntry = {
+  file: File
+  shipment: FnskuShipment | null
+  summary: FnskuShipmentSummary | null
+  error: string | null
+  parsing: boolean
+}
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
@@ -23,37 +34,39 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
+async function extractFromZip(zipFile: File): Promise<File[]> {
+  const zip = await JSZip.loadAsync(zipFile)
+  const extracted: File[] = []
+  for (const [name, entry] of Object.entries(zip.files)) {
+    if (!entry.dir && /\.(csv|xlsx|xls|xlsm)$/i.test(name)) {
+      const blob = await entry.async('blob')
+      const baseName = name.split('/').pop() ?? name
+      extracted.push(new File([blob], baseName))
+    }
+  }
+  return extracted
+}
+
 export default function FNSKULabelGenerator() {
-  const [file, setFile] = useState<File | null>(null)
-  const [shipment, setShipment] = useState<FnskuShipment | null>(null)
-  const [summary, setSummary] = useState<FnskuShipmentSummary | null>(null)
-  const [parsing, setParsing] = useState(false)
-  const [exporting, setExporting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
+  const [entries, setEntries] = useState<FileEntry[]>([])
+  const [globalError, setGlobalError] = useState<string | null>(null)
+  const [globalSuccess, setGlobalSuccess] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const reset = useCallback(() => {
-    setFile(null)
-    setShipment(null)
-    setSummary(null)
-    setError(null)
-    setSuccess(null)
+    setEntries([])
+    setGlobalError(null)
+    setGlobalSuccess(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }, [])
 
-  const handleParse = useCallback(async (selected: File) => {
-    setParsing(true)
-    setError(null)
-    setSuccess(null)
-    setShipment(null)
-    setSummary(null)
-    setFile(selected)
+  const parseFile = useCallback(async (file: File): Promise<FileEntry> => {
     try {
-      const parsed = await parseFnskuSource(selected)
-      setShipment(parsed)
-      setSummary(summarizeFnskuShipment(parsed))
+      const shipment = await parseFnskuSource(file)
+      const summary = summarizeFnskuShipment(shipment)
+      return { file, shipment, summary, error: null, parsing: false }
     } catch (err) {
       const msg =
         err instanceof FnskuParseError
@@ -61,41 +74,68 @@ export default function FNSKULabelGenerator() {
           : err instanceof Error
             ? err.message
             : 'Failed to parse the shipment file.'
-      setError(msg)
-    } finally {
-      setParsing(false)
+      return { file, shipment: null, summary: null, error: msg, parsing: false }
     }
   }, [])
 
   const handleFiles = useCallback(
-    (files: File[]) => {
-      const next = files[0]
-      if (!next) return
-      if (!/\.(csv|xlsx|xls|xlsm|txt)$/i.test(next.name)) {
-        setError('Unsupported file type. Upload a .csv or .xlsx shipment plan export.')
-        return
-      }
-      void handleParse(next)
-    },
-    [handleParse]
-  )
+    async (incoming: File[]) => {
+      setGlobalError(null)
+      setGlobalSuccess(null)
 
-  const handleDownload = useCallback(() => {
-    if (!shipment) return
-    setExporting(true)
-    setError(null)
-    try {
-      const blob = buildFnskuLabelsWorkbookBlob(shipment)
-      const filename = suggestedFnskuLabelFilename(shipment)
-      downloadBlob(blob, filename)
-      setSuccess(`Generated ${filename}.`)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to generate workbook.'
-      setError(msg)
-    } finally {
-      setExporting(false)
-    }
-  }, [shipment])
+      // Expand zips and filter valid files
+      const flat: File[] = []
+      for (const f of incoming) {
+        if (/\.zip$/i.test(f.name)) {
+          try {
+            const inner = await extractFromZip(f)
+            if (inner.length === 0) {
+              setGlobalError(`No supported files found inside "${f.name}".`)
+            } else {
+              flat.push(...inner)
+            }
+          } catch {
+            setGlobalError(`Could not read zip file "${f.name}".`)
+          }
+        } else if (/\.(csv|xlsx|xls|xlsm)$/i.test(f.name)) {
+          flat.push(f)
+        } else {
+          setGlobalError(
+            `"${f.name}" is not supported. Upload .csv, .xlsx, or .zip files.`
+          )
+        }
+      }
+
+      if (flat.length === 0) return
+
+      // Add placeholder entries (parsing state) immediately for UI feedback
+      const placeholders: FileEntry[] = flat.map((file) => ({
+        file,
+        shipment: null,
+        summary: null,
+        error: null,
+        parsing: true,
+      }))
+      setEntries((prev) => [...prev, ...placeholders])
+
+      // Parse all files in parallel
+      const results = await Promise.all(flat.map(parseFile))
+
+      // Replace placeholder entries with results
+      setEntries((prev) => {
+        const updated = [...prev]
+        results.forEach((result, i) => {
+          const placeholderFile = flat[i]
+          const idx = updated.findIndex(
+            (e) => e.file === placeholderFile && e.parsing
+          )
+          if (idx !== -1) updated[idx] = result
+        })
+        return updated
+      })
+    },
+    [parseFile]
+  )
 
   const handleDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
@@ -103,26 +143,53 @@ export default function FNSKULabelGenerator() {
       event.stopPropagation()
       setIsDragging(false)
       const dropped = Array.from(event.dataTransfer?.files ?? [])
-      if (dropped.length > 0) handleFiles(dropped)
+      if (dropped.length > 0) void handleFiles(dropped)
     },
     [handleFiles]
   )
 
-  const unitsMatch = useMemo(() => {
-    if (!summary) return true
-    if (!summary.declaredUnits) return true
-    return summary.declaredUnits === summary.computedUnits
-  }, [summary])
+  const removeEntry = useCallback((index: number) => {
+    setEntries((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const handleDownloadAll = useCallback(() => {
+    const ready = entries.filter((e) => e.shipment)
+    if (ready.length === 0) return
+    setExporting(true)
+    setGlobalError(null)
+    try {
+      ready.forEach(({ shipment }) => {
+        if (!shipment) return
+        const blob = buildFnskuLabelsWorkbookBlob(shipment)
+        const filename = suggestedFnskuLabelFilename(shipment)
+        downloadBlob(blob, filename)
+      })
+      setGlobalSuccess(
+        ready.length === 1
+          ? `Generated ${suggestedFnskuLabelFilename(ready[0].shipment!)}.`
+          : `Generated ${ready.length} workbooks.`
+      )
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to generate workbook.'
+      setGlobalError(msg)
+    } finally {
+      setExporting(false)
+    }
+  }, [entries])
+
+  const readyCount = useMemo(() => entries.filter((e) => e.shipment).length, [entries])
+  const parsingCount = useMemo(() => entries.filter((e) => e.parsing).length, [entries])
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <header>
         <h1 className="text-2xl font-bold text-gray-900">FNSKU Labels Generator</h1>
         <p className="mt-1 text-sm text-gray-600">
-          Upload the Amazon shipment plan export (the per-shipment{' '}
+          Upload one or more Amazon shipment plan exports (the per-shipment{' '}
           <strong>Individual units</strong> CSV or XLSX) and download the{' '}
-          <code className="rounded bg-gray-100 px-1 py-0.5 text-xs">WR FNSKU LABELS</code> workbook
-          formatted for the warehouse label tool.
+          <code className="rounded bg-gray-100 px-1 py-0.5 text-xs">WR FNSKU LABELS</code> workbooks
+          formatted for the warehouse label tool. You can also upload a <strong>.zip</strong> containing
+          multiple exports.
         </p>
         <p className="mt-1 text-xs text-gray-500">
           Each box becomes a marker row at the top and bottom of its block; every FNSKU is repeated
@@ -130,17 +197,18 @@ export default function FNSKULabelGenerator() {
         </p>
       </header>
 
-      {error && (
+      {globalError && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          {error}
+          {globalError}
         </div>
       )}
-      {success && (
+      {globalSuccess && (
         <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-          {success}
+          {globalSuccess}
         </div>
       )}
 
+      {/* Drop zone */}
       <section
         className={`rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
           isDragging
@@ -174,92 +242,220 @@ export default function FNSKULabelGenerator() {
           />
         </svg>
         <p className="mt-3 text-sm text-gray-600">
-          Drag and drop a shipment <strong>.csv</strong> or <strong>.xlsx</strong> here, or
+          Drag and drop <strong>.csv</strong>, <strong>.xlsx</strong>, or <strong>.zip</strong> files
+          here, or
         </p>
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           className="mt-2 inline-flex items-center px-4 py-2 rounded-md bg-[#404040] text-white text-sm font-medium hover:bg-black"
         >
-          Choose file
+          Choose files
         </button>
         <input
           ref={fileInputRef}
           type="file"
           accept={ACCEPTED}
+          multiple
           className="hidden"
-          onChange={(e) => handleFiles(Array.from(e.target.files ?? []))}
+          onChange={(e) => {
+            void handleFiles(Array.from(e.target.files ?? []))
+            // Reset input so same files can be re-added if cleared
+            if (fileInputRef.current) fileInputRef.current.value = ''
+          }}
         />
-        {file && (
-          <p className="mt-3 text-xs text-gray-500">
-            Selected: <span className="font-medium text-gray-700">{file.name}</span>
-            {parsing ? ' — parsing…' : ''}
-          </p>
-        )}
+
         <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
           <button
             type="button"
-            disabled={!shipment || exporting || parsing}
-            onClick={handleDownload}
+            disabled={readyCount === 0 || exporting || parsingCount > 0}
+            onClick={handleDownloadAll}
             className="px-4 py-2 rounded-md bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
           >
-            {exporting ? 'Generating…' : 'Download labels workbook'}
+            {exporting
+              ? 'Generating…'
+              : readyCount > 1
+                ? `Download ${readyCount} workbooks`
+                : 'Download labels workbook'}
           </button>
-          {(file || shipment) && (
+          {entries.length > 0 && (
             <button
               type="button"
               onClick={reset}
               className="px-4 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Clear
+              Clear all
             </button>
           )}
         </div>
+
+        {parsingCount > 0 && (
+          <p className="mt-3 text-xs text-gray-500">
+            Parsing {parsingCount} file{parsingCount > 1 ? 's' : ''}…
+          </p>
+        )}
       </section>
 
+      {/* File list */}
+      {entries.length > 0 && (
+        <section className="space-y-4">
+          {entries.map((entry, index) => (
+            <FileCard
+              key={`${entry.file.name}-${index}`}
+              entry={entry}
+              index={index}
+              onRemove={removeEntry}
+              onDownload={(shipment) => {
+                setExporting(true)
+                try {
+                  const blob = buildFnskuLabelsWorkbookBlob(shipment)
+                  const filename = suggestedFnskuLabelFilename(shipment)
+                  downloadBlob(blob, filename)
+                  setGlobalSuccess(`Generated ${filename}.`)
+                } catch (err) {
+                  setGlobalError(err instanceof Error ? err.message : 'Failed to generate workbook.')
+                } finally {
+                  setExporting(false)
+                }
+              }}
+            />
+          ))}
+        </section>
+      )}
+
+      <section className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs text-gray-600">
+        <p className="font-semibold text-gray-700 mb-1">Output format</p>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>
+            Single sheet named <code>Products</code> with columns: Number of Labels*, Fnsku, Title,
+            Condition, Msku, DynamicText - 2.
+          </li>
+          <li>
+            Each box block is bracketed by two identical marker rows where Fnsku is the Box ID,
+            Title is the Box name, and Condition is the 1-based box sequence number.
+          </li>
+          <li>
+            Product rows inside a block list every FNSKU allocated to that box with the per-box
+            unit quantity in <code>Number of Labels*</code>.
+          </li>
+          <li>
+            Multiple files generate one workbook each — zip files are automatically unpacked.
+          </li>
+          <li>
+            Generation runs entirely in your browser — no upload to a server, no PII leaves the
+            page.
+          </li>
+        </ul>
+      </section>
+    </div>
+  )
+}
+
+function FileCard({
+  entry,
+  index,
+  onRemove,
+  onDownload,
+}: {
+  entry: FileEntry
+  index: number
+  onRemove: (i: number) => void
+  onDownload: (shipment: FnskuShipment) => void
+}) {
+  const { file, shipment, summary, error, parsing } = entry
+
+  const unitsMatch = useMemo(() => {
+    if (!summary) return true
+    if (!summary.declaredUnits) return true
+    return summary.declaredUnits === summary.computedUnits
+  }, [summary])
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      {/* Card header */}
+      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <FileIcon />
+          <span className="text-sm font-medium text-gray-800 truncate">{file.name}</span>
+          {parsing && (
+            <span className="text-xs text-indigo-600 shrink-0">Parsing…</span>
+          )}
+          {error && (
+            <span className="text-xs text-red-600 shrink-0">Error</span>
+          )}
+          {shipment && !parsing && (
+            <span className="text-xs text-emerald-600 shrink-0">Ready</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {shipment && (
+            <button
+              type="button"
+              onClick={() => onDownload(shipment)}
+              className="px-3 py-1 rounded-md bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700"
+            >
+              Download
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onRemove(index)}
+            className="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+            title="Remove"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Error state */}
+      {error && (
+        <div className="px-4 py-3 text-sm text-red-700 bg-red-50">{error}</div>
+      )}
+
+      {/* Shipment summary */}
       {summary && shipment && (
         <>
-          <section className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-200">
-              <h2 className="text-sm font-semibold text-gray-700">Shipment</h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-4">
-              <Stat label="Shipment ID" value={summary.shipmentId || '—'} mono />
-              <Stat label="Shipment name" value={summary.shipmentName || '—'} />
-              <Stat label="Ship to" value={summary.shipTo || '—'} />
-              <Stat label="Boxes" value={String(summary.boxCount)} />
-              <Stat label="SKUs" value={String(summary.skuCount)} />
-              <Stat
-                label="Units (declared)"
-                value={summary.declaredUnits ? String(summary.declaredUnits) : '—'}
-              />
-              <Stat
-                label="Units (computed)"
-                value={String(summary.computedUnits)}
-                accent={unitsMatch ? undefined : 'amber'}
-              />
-              <Stat
-                label="SKUs split across boxes"
-                value={String(summary.splitSkuCount)}
-                accent={summary.splitSkuCount > 0 ? 'indigo' : undefined}
-              />
-            </div>
-            {!unitsMatch && (
-              <div className="mx-4 mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                The declared unit total ({summary.declaredUnits}) does not match the sum of per-box
-                allocations ({summary.computedUnits}). Double check the source file before
-                generating labels.
-              </div>
-            )}
-          </section>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-4">
+            <Stat label="Shipment ID" value={summary.shipmentId || '—'} mono />
+            <Stat label="Shipment name" value={summary.shipmentName || '—'} />
+            <Stat label="Ship to" value={summary.shipTo || '—'} />
+            <Stat label="Boxes" value={String(summary.boxCount)} />
+            <Stat label="SKUs" value={String(summary.skuCount)} />
+            <Stat
+              label="Units (declared)"
+              value={summary.declaredUnits ? String(summary.declaredUnits) : '—'}
+            />
+            <Stat
+              label="Units (computed)"
+              value={String(summary.computedUnits)}
+              accent={unitsMatch ? undefined : 'amber'}
+            />
+            <Stat
+              label="SKUs split across boxes"
+              value={String(summary.splitSkuCount)}
+              accent={summary.splitSkuCount > 0 ? 'indigo' : undefined}
+            />
+          </div>
 
-          <section className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-700">
-                Boxes ({summary.boxCount}) · output preview ({summary.outputRowCount} data rows)
-              </h2>
-              <p className="text-xs text-gray-500">
-                Order matches the source export's box columns (not B1–B9 numbering).
+          {!unitsMatch && (
+            <div className="mx-4 mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              The declared unit total ({summary.declaredUnits}) does not match the sum of per-box
+              allocations ({summary.computedUnits}). Double check the source file before generating
+              labels.
+            </div>
+          )}
+
+          {/* Boxes table */}
+          <div className="border-t border-gray-200">
+            <div className="px-4 py-2 flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                Boxes ({summary.boxCount}) · {summary.outputRowCount} output rows
+              </h3>
+              <p className="text-xs text-gray-400">
+                Order matches source export's box columns.
               </p>
             </div>
             <div className="overflow-x-auto">
@@ -292,15 +488,16 @@ export default function FNSKULabelGenerator() {
                 </tbody>
               </table>
             </div>
-          </section>
+          </div>
 
-          <section className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-200">
-              <h2 className="text-sm font-semibold text-gray-700">
+          {/* Items table */}
+          <div className="border-t border-gray-200">
+            <div className="px-4 py-2">
+              <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
                 Items ({shipment.items.length})
-              </h2>
+              </h3>
             </div>
-            <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
+            <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide sticky top-0">
                   <tr>
@@ -345,32 +542,18 @@ export default function FNSKULabelGenerator() {
                 </tbody>
               </table>
             </div>
-          </section>
+          </div>
         </>
       )}
-
-      <section className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs text-gray-600">
-        <p className="font-semibold text-gray-700 mb-1">Output format</p>
-        <ul className="list-disc pl-5 space-y-1">
-          <li>
-            Single sheet named <code>Products</code> with columns: Number of Labels*, Fnsku, Title,
-            Condition, Msku, DynamicText - 2.
-          </li>
-          <li>
-            Each box block is bracketed by two identical marker rows where Fnsku is the Box ID,
-            Title is the Box name, and Condition is the 1-based box sequence number.
-          </li>
-          <li>
-            Product rows inside a block list every FNSKU allocated to that box with the per-box
-            unit quantity in <code>Number of Labels*</code>.
-          </li>
-          <li>
-            Generation runs entirely in your browser — no upload to a server, no PII leaves the
-            page.
-          </li>
-        </ul>
-      </section>
     </div>
+  )
+}
+
+function FileIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+    </svg>
   )
 }
 
