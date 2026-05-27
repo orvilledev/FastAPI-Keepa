@@ -1,8 +1,9 @@
 """Tests for EmailService class."""
 
 import pytest
+import re
 from unittest.mock import patch, MagicMock
-from app.services.email_service import EmailService, _render_email_template
+from app.services.email_service import EmailService, _render_email_template, _format_mdyy_date
 
 
 def _extract_subject_and_body(send_message_call) -> tuple[str, str]:
@@ -120,8 +121,11 @@ class TestEmailTemplateRendering:
 
         subject, body = _extract_subject_and_body(mock_server.send_message)
         assert subject == "Keepa Off Price Report - Daily DNK Off Price Report - 2026-05-27"
-        assert "Your Keepa Off Price report has been generated." in body
-        assert "Total UPCs Processed: 10" in body
+        expected_date = _format_mdyy_date()
+        assert f"Hi, attached are the listings that are off price as of today {expected_date}." in body
+        assert f"- Job Name: Daily DNK Uploaded Report - {expected_date}" in body
+        assert "- Price Alerts Found: 3" in body
+        assert body.strip().endswith("Thank you!")
 
     @pytest.mark.unit
     @patch("app.services.email_service.smtplib.SMTP")
@@ -146,7 +150,7 @@ class TestEmailTemplateRendering:
         subject, body = _extract_subject_and_body(mock_server.send_message)
         assert subject.startswith("DNK report - ")
         # default body still applied
-        assert "Your Keepa Off Price report has been generated." in body
+        assert "Hi, attached are the listings that are off price as of today" in body
 
     @pytest.mark.unit
     @patch("app.services.email_service.smtplib.SMTP")
@@ -226,4 +230,10 @@ class TestEmailTemplateRendering:
         )
         subject, body = _extract_subject_and_body(mock_server.send_message)
         assert subject == "Keepa Off Price Report - Daily DNK"
-        assert "Your Keepa Off Price report has been generated." in body
+        assert "Hi, attached are the listings that are off price as of today" in body
+
+    @pytest.mark.unit
+    def test_format_mdyy_date_shape(self):
+        """Date helper emits M.D.YY with no leading zeros for month/day."""
+        text = _format_mdyy_date()
+        assert re.fullmatch(r"\d{1,2}\.\d{1,2}\.\d{2}", text)

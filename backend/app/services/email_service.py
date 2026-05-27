@@ -27,6 +27,20 @@ _TEMPLATE_TOKEN_RE = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 logger = logging.getLogger(__name__)
 
 
+def _format_mdyy_date(now: Optional[datetime] = None) -> str:
+    """Format date as M.D.YY (e.g. 5.27.26)."""
+    dt = now or datetime.now()
+    return f"{dt.month}.{dt.day}.{dt.strftime('%y')}"
+
+
+def _infer_vendor_from_job_name(job_name: str) -> str:
+    """Best-effort vendor extraction from job names like 'Daily DNK ...'."""
+    match = re.match(r"^\s*Daily\s+([A-Za-z0-9_-]+)\s+", str(job_name or ""))
+    if match:
+        return match.group(1).upper()
+    return "UNKNOWN"
+
+
 def _render_email_template(template: Optional[str], context: Mapping[str, object]) -> Optional[str]:
     """Render `{token}` placeholders inside `template` using `context`.
 
@@ -140,25 +154,24 @@ class EmailService:
         )
         
         try:
+            email_date = _format_mdyy_date()
+            vendor_upper = (vendor or "").strip().upper() or _infer_vendor_from_job_name(job_name)
+            default_job_name_line = f"Daily {vendor_upper} Uploaded Report - {email_date}"
             default_subject = f"Keepa Off Price Report - {job_name}"
             default_body = (
-                "Hello,\n\n"
-                "Your Keepa Off Price report has been generated.\n\n"
+                f"Hi, attached are the listings that are off price as of today {email_date}.\n\n"
                 "Job Details:\n"
-                f"- Job Name: {job_name}\n"
-                f"- Total UPCs Processed: {total_upcs}\n"
+                f"- Job Name: {default_job_name_line}\n"
                 f"- Price Alerts Found: {alerts_count}\n\n"
-                "Please find the detailed report attached as a CSV file.\n\n"
-                "Best regards,\n"
-                "Keepa Alert Service"
+                "Thank you!"
             )
 
             template_context = {
-                "vendor": (vendor or "").upper(),
+                "vendor": vendor_upper,
                 "job_name": job_name,
                 "total_upcs": total_upcs,
                 "alerts_count": alerts_count,
-                "run_date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "run_date": email_date,
             }
 
             # Templates are truncated defensively in case the DB CHECK was
