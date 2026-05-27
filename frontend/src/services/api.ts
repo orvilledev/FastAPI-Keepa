@@ -529,6 +529,8 @@ export const schedulerApi = {
       email_recipients?: string | null
       input_mode?: 'api' | 'uploaded'
       uploaded_wait_timeout_seconds?: number
+      email_subject_template?: string | null
+      email_body_template?: string | null
     },
     category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
   ) => {

@@ -345,16 +345,23 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
             )
             normalized_forced_mode = ""
 
+        email_subject_template: Optional[str] = None
+        email_body_template: Optional[str] = None
         try:
             category_settings_response = await _run_sync(
                 lambda: db.table("scheduler_settings")
-                .select("email_recipients, input_mode, uploaded_wait_timeout_seconds")
+                .select(
+                    "email_recipients, input_mode, uploaded_wait_timeout_seconds, "
+                    "email_subject_template, email_body_template"
+                )
                 .eq("category", category)
                 .limit(1)
                 .execute()
             )
             if category_settings_response.data:
                 custom_recipients = category_settings_response.data[0].get("email_recipients")
+                email_subject_template = category_settings_response.data[0].get("email_subject_template")
+                email_body_template = category_settings_response.data[0].get("email_body_template")
                 raw_mode = str(category_settings_response.data[0].get("input_mode") or "").strip().lower()
                 if raw_mode in VALID_INPUT_MODES:
                     input_mode = raw_mode
@@ -779,6 +786,9 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                         total_upcs=total_upcs,
                         alerts_count=alerts_count,
                         recipient_email=custom_recipients,
+                        vendor=category,
+                        email_subject_template=email_subject_template,
+                        email_body_template=email_body_template,
                     ))
                 except Exception as email_err:
                     logger.warning("Uploaded daily run email/report step failed for %s: %s", category.upper(), email_err)

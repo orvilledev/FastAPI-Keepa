@@ -59,11 +59,17 @@ class SchedulerSettingsUpdate(BaseModel):
     email_recipients: Optional[str] = None
     input_mode: Optional[str] = None
     uploaded_wait_timeout_seconds: Optional[int] = None
+    # Optional per-vendor custom email wording. Blank string clears the
+    # override and reverts that field to the built-in default at send time.
+    email_subject_template: Optional[str] = None
+    email_body_template: Optional[str] = None
 
 
 VALID_RUN_MODES = {"daily", "every_other_day", "custom_days"}
 VALID_WEEKDAYS = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
 VALID_INPUT_MODES = {"api", "uploaded"}
+MAX_EMAIL_SUBJECT_TEMPLATE_LENGTH = 300
+MAX_EMAIL_BODY_TEMPLATE_LENGTH = 10000
 DAILY_JOB_NAME_RE = re.compile(r"^Daily\s+([A-Za-z0-9_-]+)\s+", re.IGNORECASE)
 UPC_RE = re.compile(r"\b\d{8,14}\b")
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -562,6 +568,8 @@ def get_scheduler_settings(
                 "email_recipients": None,
                 "input_mode": "api",
                 "uploaded_wait_timeout_seconds": 90,
+                "email_subject_template": None,
+                "email_body_template": None,
                 "category": category
             }
         settings = response.data[0]
@@ -576,6 +584,8 @@ def get_scheduler_settings(
             "email_recipients": settings.get("email_recipients"),
             "input_mode": settings.get("input_mode", "api"),
             "uploaded_wait_timeout_seconds": settings.get("uploaded_wait_timeout_seconds", 90),
+            "email_subject_template": settings.get("email_subject_template"),
+            "email_body_template": settings.get("email_body_template"),
             "category": settings.get("category", category)
         }
     except Exception as e:
@@ -591,6 +601,8 @@ def get_scheduler_settings(
             "email_recipients": None,
             "input_mode": "api",
             "uploaded_wait_timeout_seconds": 90,
+            "email_subject_template": None,
+            "email_body_template": None,
             "category": category
         }
 
@@ -762,7 +774,32 @@ def update_scheduler_settings_endpoint(
         if settings_data.uploaded_wait_timeout_seconds < 0 or settings_data.uploaded_wait_timeout_seconds > 900:
             raise HTTPException(status_code=400, detail="uploaded_wait_timeout_seconds must be between 0 and 900")
         update_data["uploaded_wait_timeout_seconds"] = settings_data.uploaded_wait_timeout_seconds
-    
+    if settings_data.email_subject_template is not None:
+        # Blank string explicitly clears the override (back to default subject).
+        raw_subject = settings_data.email_subject_template
+        normalized_subject = raw_subject.strip() if isinstance(raw_subject, str) else ""
+        if len(normalized_subject) > MAX_EMAIL_SUBJECT_TEMPLATE_LENGTH:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"email_subject_template must be at most {MAX_EMAIL_SUBJECT_TEMPLATE_LENGTH} characters"
+                ),
+            )
+        update_data["email_subject_template"] = normalized_subject or None
+    if settings_data.email_body_template is not None:
+        raw_body = settings_data.email_body_template
+        # Strip only trailing whitespace; preserve internal newlines/spaces
+        # so user's formatting (blank lines, indents) is sent as-is.
+        normalized_body = raw_body.rstrip() if isinstance(raw_body, str) else ""
+        if len(normalized_body) > MAX_EMAIL_BODY_TEMPLATE_LENGTH:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"email_body_template must be at most {MAX_EMAIL_BODY_TEMPLATE_LENGTH} characters"
+                ),
+            )
+        update_data["email_body_template"] = normalized_body or None
+
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
 
@@ -824,6 +861,8 @@ def update_scheduler_settings_endpoint(
         "email_recipients": updated_settings.get("email_recipients"),
         "input_mode": updated_settings.get("input_mode", "api"),
         "uploaded_wait_timeout_seconds": updated_settings.get("uploaded_wait_timeout_seconds", 90),
+        "email_subject_template": updated_settings.get("email_subject_template"),
+        "email_body_template": updated_settings.get("email_body_template"),
         "category": category,
         "message": f"{category.upper()} scheduler settings updated successfully"
     }

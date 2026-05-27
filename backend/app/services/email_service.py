@@ -1,18 +1,61 @@
 """Email service for sending CSV reports."""
+import re
 import smtplib
 import logging
+from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 from email.utils import formataddr, parseaddr
-from typing import Optional, List
+from typing import Optional, List, Mapping
 from app.config import settings
 from app.services.csv_generator import CSVGenerator
 
 SMTP_TIMEOUT = 30  # seconds
 
+# Hard caps mirror the DB CHECK constraints so a misconfigured row can't be
+# stretched here. Keep generous but bounded to avoid pathological inputs.
+MAX_SUBJECT_TEMPLATE_LENGTH = 300
+MAX_BODY_TEMPLATE_LENGTH = 10000
+
+# {token} placeholders are replaced with values from the rendering context.
+# Unknown tokens are left as-is so users can freely write arbitrary `{...}`
+# text without crashing the send.
+_TEMPLATE_TOKEN_RE = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
 logger = logging.getLogger(__name__)
+
+
+def _render_email_template(template: Optional[str], context: Mapping[str, object]) -> Optional[str]:
+    """Render `{token}` placeholders inside `template` using `context`.
+
+    Returns None when `template` is empty/blank so callers can cleanly fall
+    back to the built-in default wording. Unknown tokens stay verbatim; the
+    function never raises — on unexpected error it returns None and the
+    caller falls back to defaults.
+    """
+    if template is None:
+        return None
+    try:
+        text = str(template)
+    except Exception:
+        return None
+    if not text.strip():
+        return None
+
+    def _replace(match: "re.Match[str]") -> str:
+        key = match.group(1)
+        if key in context:
+            value = context[key]
+            return "" if value is None else str(value)
+        return match.group(0)
+
+    try:
+        return _TEMPLATE_TOKEN_RE.sub(_replace, text)
+    except Exception as render_err:
+        logger.warning("Email template render failed; using default. %s", render_err)
+        return None
 
 
 class EmailService:
@@ -53,7 +96,10 @@ class EmailService:
         job_name: str,
         total_upcs: int,
         alerts_count: int,
-        recipient_email: Optional[str] = None
+        recipient_email: Optional[str] = None,
+        vendor: Optional[str] = None,
+        email_subject_template: Optional[str] = None,
+        email_body_template: Optional[str] = None,
     ) -> bool:
         """
         Send email with CSV attachment.
@@ -65,6 +111,13 @@ class EmailService:
             total_upcs: Total number of UPCs processed
             alerts_count: Number of price alerts found
             recipient_email: Optional recipient email, defaults to configured email_to
+            vendor: Optional vendor/category code (e.g. dnk, clk) for `{vendor}`
+                substitution and logging context. Does not affect routing.
+            email_subject_template: Optional per-vendor custom subject. Supports
+                `{vendor}`, `{job_name}`, `{total_upcs}`, `{alerts_count}`,
+                `{run_date}`. Blank/None falls back to the default subject.
+            email_body_template: Optional per-vendor custom body (plain text);
+                same placeholders. Blank/None falls back to the default body.
 
         Returns:
             True if email sent successfully, False otherwise
@@ -87,30 +140,59 @@ class EmailService:
         )
         
         try:
-            # Create message
+            default_subject = f"Keepa Off Price Report - {job_name}"
+            default_body = (
+                "Hello,\n\n"
+                "Your Keepa Off Price report has been generated.\n\n"
+                "Job Details:\n"
+                f"- Job Name: {job_name}\n"
+                f"- Total UPCs Processed: {total_upcs}\n"
+                f"- Price Alerts Found: {alerts_count}\n\n"
+                "Please find the detailed report attached as a CSV file.\n\n"
+                "Best regards,\n"
+                "Keepa Alert Service"
+            )
+
+            template_context = {
+                "vendor": (vendor or "").upper(),
+                "job_name": job_name,
+                "total_upcs": total_upcs,
+                "alerts_count": alerts_count,
+                "run_date": datetime.utcnow().strftime("%Y-%m-%d"),
+            }
+
+            # Templates are truncated defensively in case the DB CHECK was
+            # bypassed (e.g. row inserted via raw SQL by an admin).
+            safe_subject_template = (
+                str(email_subject_template)[:MAX_SUBJECT_TEMPLATE_LENGTH]
+                if email_subject_template is not None
+                else None
+            )
+            safe_body_template = (
+                str(email_body_template)[:MAX_BODY_TEMPLATE_LENGTH]
+                if email_body_template is not None
+                else None
+            )
+
+            rendered_subject = _render_email_template(safe_subject_template, template_context)
+            rendered_body = _render_email_template(safe_body_template, template_context)
+
+            subject = rendered_subject if rendered_subject is not None else default_subject
+            body = rendered_body if rendered_body is not None else default_body
+
+            if rendered_subject is not None or rendered_body is not None:
+                logger.info(
+                    "Using custom email template for vendor=%s (subject_overridden=%s, body_overridden=%s)",
+                    vendor or "<unknown>",
+                    rendered_subject is not None,
+                    rendered_body is not None,
+                )
+
             msg = MIMEMultipart()
             msg["From"] = self._from_header()
-            # Join multiple recipients with comma for the "To" header
             msg["To"] = ", ".join(recipients)
-            msg["Subject"] = f"Keepa Off Price Report - {job_name}"
-            
-            # Create email body
-            body = f"""
-            Hello,
-            
-            Your Keepa Off Price report has been generated.
-            
-            Job Details:
-            - Job Name: {job_name}
-            - Total UPCs Processed: {total_upcs}
-            - Price Alerts Found: {alerts_count}
-            
-            Please find the detailed report attached as a CSV file.
-            
-            Best regards,
-            Keepa Alert Service
-            """
-            
+            msg["Subject"] = subject
+
             msg.attach(MIMEText(body, "plain"))
             
             # Attach CSV file
@@ -156,7 +238,10 @@ class EmailService:
         total_upcs: int,
         alerts_count: int,
         csv_bytes: Optional[bytes] = None,
-        recipient_email: Optional[str] = None
+        recipient_email: Optional[str] = None,
+        vendor: Optional[str] = None,
+        email_subject_template: Optional[str] = None,
+        email_body_template: Optional[str] = None,
     ) -> bool:
         """
         Send job completion email with optional CSV attachment.
@@ -167,6 +252,9 @@ class EmailService:
             alerts_count: Number of price alerts found
             csv_bytes: Optional CSV file content
             recipient_email: Optional recipient email, defaults to configured email_to
+            vendor: Optional vendor/category code for template substitution.
+            email_subject_template: Optional per-vendor custom subject.
+            email_body_template: Optional per-vendor custom body.
 
         Returns:
             True if email sent successfully, False otherwise
@@ -179,7 +267,10 @@ class EmailService:
                 job_name=job_name,
                 total_upcs=total_upcs,
                 alerts_count=alerts_count,
-                recipient_email=recipient_email
+                recipient_email=recipient_email,
+                vendor=vendor,
+                email_subject_template=email_subject_template,
+                email_body_template=email_body_template,
             )
         else:
             recipients = self._parse_recipients(self.email_to)

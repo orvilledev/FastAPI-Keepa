@@ -78,6 +78,8 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
     anchor_date: null as string | null,
     email_recipients: '',
     uploaded_wait_timeout_seconds: 90,
+    email_subject_template: '',
+    email_body_template: '',
   })
   const [savingSettings, setSavingSettings] = useState(false)
   const [togglingEnabled, setTogglingEnabled] = useState(false)
@@ -164,6 +166,8 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
           typeof settings.uploaded_wait_timeout_seconds === 'number'
             ? settings.uploaded_wait_timeout_seconds
             : 90,
+        email_subject_template: settings.email_subject_template ?? null,
+        email_body_template: settings.email_body_template ?? null,
       }
       setSchedulerSettings(normalizedSettings)
       setSettingsForm({
@@ -179,6 +183,8 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
           typeof normalizedSettings.uploaded_wait_timeout_seconds === 'number'
             ? normalizedSettings.uploaded_wait_timeout_seconds
             : 90,
+        email_subject_template: normalizedSettings.email_subject_template ?? '',
+        email_body_template: normalizedSettings.email_body_template ?? '',
       })
       setUploadEmailRecipients(normalizedSettings.email_recipients || '')
     } catch (err: any) {
@@ -194,6 +200,8 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
         anchor_date: null,
         email_recipients: '',
         uploaded_wait_timeout_seconds: 90,
+        email_subject_template: null,
+        email_body_template: null,
         category: vendor,
       }
       setSchedulerSettings(defaults)
@@ -207,6 +215,8 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
         anchor_date: defaults.anchor_date ?? null,
         email_recipients: defaults.email_recipients ?? '',
         uploaded_wait_timeout_seconds: defaults.uploaded_wait_timeout_seconds ?? 90,
+        email_subject_template: '',
+        email_body_template: '',
       })
     }
   }
@@ -222,7 +232,22 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
         setError('Import Mode wait timeout must be between 0 and 900 seconds.')
         return
       }
-      await schedulerApi.updateSettings(settingsForm, vendor)
+      const subjectTrimmed = (settingsForm.email_subject_template || '').trim()
+      const bodyTrimmed = (settingsForm.email_body_template || '').trim()
+      if (subjectTrimmed.length > 300) {
+        setError('Email subject template must be at most 300 characters.')
+        return
+      }
+      if (bodyTrimmed.length > 10000) {
+        setError('Email body template must be at most 10,000 characters.')
+        return
+      }
+      const payload = {
+        ...settingsForm,
+        email_subject_template: subjectTrimmed ? subjectTrimmed : '',
+        email_body_template: settingsForm.email_body_template ?? '',
+      }
+      await schedulerApi.updateSettings(payload, vendor)
       await loadSchedulerSettings()
       await loadNextRun()
       setShowSettingsModal(false)
@@ -248,6 +273,8 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
           typeof schedulerSettings.uploaded_wait_timeout_seconds === 'number'
             ? schedulerSettings.uploaded_wait_timeout_seconds
             : 90,
+        email_subject_template: schedulerSettings.email_subject_template ?? '',
+        email_body_template: schedulerSettings.email_body_template ?? '',
       })
     }
     setShowSettingsModal(true)
@@ -992,6 +1019,74 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                   onChange={(value) => setSettingsForm({ ...settingsForm, email_recipients: value })}
                   disabled={savingSettings}
                 />
+              </div>
+
+              <div className="rounded-lg border border-gray-200 p-4 bg-gray-50 space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">
+                    Custom email wording ({VENDOR_UPPER} only) — optional
+                  </p>
+                  <p className="mt-1 text-xs text-gray-600">
+                    Leave blank to use the default email. Optional placeholders you may use anywhere:
+                    {' '}
+                    <code className="px-1 bg-white border border-gray-200 rounded">{'{vendor}'}</code>{' '}
+                    <code className="px-1 bg-white border border-gray-200 rounded">{'{job_name}'}</code>{' '}
+                    <code className="px-1 bg-white border border-gray-200 rounded">{'{total_upcs}'}</code>{' '}
+                    <code className="px-1 bg-white border border-gray-200 rounded">{'{alerts_count}'}</code>{' '}
+                    <code className="px-1 bg-white border border-gray-200 rounded">{'{run_date}'}</code>
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor={`${vendor}-email-subject-template`}
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
+                    Custom email subject (optional, max 300 chars)
+                  </label>
+                  <input
+                    id={`${vendor}-email-subject-template`}
+                    type="text"
+                    maxLength={300}
+                    value={settingsForm.email_subject_template}
+                    onChange={(e) =>
+                      setSettingsForm({ ...settingsForm, email_subject_template: e.target.value })
+                    }
+                    placeholder="e.g. Daily {vendor} Off Price Report - {run_date}"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#404040] focus:border-transparent"
+                    disabled={savingSettings}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    {(settingsForm.email_subject_template || '').length}/300 characters
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor={`${vendor}-email-body-template`}
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
+                    Custom email body (optional, max 10,000 chars)
+                  </label>
+                  <textarea
+                    id={`${vendor}-email-body-template`}
+                    rows={6}
+                    maxLength={10000}
+                    value={settingsForm.email_body_template}
+                    onChange={(e) =>
+                      setSettingsForm({ ...settingsForm, email_body_template: e.target.value })
+                    }
+                    placeholder={
+                      'e.g.\nTeam,\n\nPlease review the attached {vendor} report for {run_date}.\nFlagged listings: {alerts_count} of {total_upcs} UPCs.\n\nThanks'
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#404040] focus:border-transparent font-mono text-sm whitespace-pre-wrap"
+                    disabled={savingSettings}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    {(settingsForm.email_body_template || '').length}/10,000 characters. Plain text only —
+                    HTML is not rendered. Unknown {'{tokens}'} are kept as-is.
+                  </p>
+                </div>
               </div>
 
               <div>

@@ -213,6 +213,10 @@ export interface SchedulerSettings {
   custom_days: string[]
   anchor_date?: string | null
   email_recipients?: string | null
+  /** Optional per-vendor custom email subject. Blank/null = default. */
+  email_subject_template?: string | null
+  /** Optional per-vendor custom email body. Blank/null = default. */
+  email_body_template?: string | null
   category: string
 }
 
