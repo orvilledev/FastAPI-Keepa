@@ -126,7 +126,7 @@ export default function Dashboard() {
       {!userInfoLoading && greeting && (
         <div>
           <h1 className="text-5xl font-bold text-gray-900">{greeting}</h1>
-          <p className="mt-3 text-lg text-gray-600">Let's get started and make today productive!</p>
+          <p className="mt-3 text-lg text-gray-600">Stop overthinking and start building.</p>
         </div>
       )}
 
