@@ -290,3 +290,100 @@ def test_extract_keepa_product_data_matches_buybox_seller_id_across_types():
     assert product["buy_box_seller_id"] == "12345"
     assert product["buy_box_seller_name"] == "Correct Seller"
     assert product["buy_box_price"] == 25.0
+
+
+@pytest.mark.unit
+def test_comprehensive_report_rows_sorted_by_seller_alphabetically():
+    """Column J (Seller) must be in case-insensitive A→Z order in emailed Excel."""
+
+    def _make_keepa(seller_id: str, seller_name: str, price_cents: int, buybox_price_cents: int):
+        return {
+            "products": [
+                {
+                    "asin": f"B_{seller_id}",
+                    "title": "T",
+                    "brand": "B",
+                    "stats": {
+                        "buyBoxSellerId": seller_id,
+                        "buyBoxPrice": buybox_price_cents,
+                    },
+                    "current_sellers": [
+                        {
+                            "sellerId": seller_id,
+                            "sellerName": seller_name,
+                            "price": price_cents,
+                            "isFBA": False,
+                            "condition": "New",
+                        }
+                    ],
+                    "offers": [],
+                }
+            ]
+        }
+
+    # Three UPCs with sellers in reverse alpha order
+    items = [
+        {"upc": "001", "keepa_data": _make_keepa("Z1", "Zeta Retail", 1000, 1000), "status": "completed"},
+        {"upc": "002", "keepa_data": _make_keepa("A1", "Alpha Shop", 1000, 1000), "status": "completed"},
+        {"upc": "003", "keepa_data": _make_keepa("M1", "Metro Goods", 1000, 1000), "status": "completed"},
+    ]
+    map_prices = {
+        "001": Decimal("50.00"),
+        "002": Decimal("50.00"),
+        "003": Decimal("50.00"),
+    }
+
+    excel_bytes, count = CSVGenerator.generate_comprehensive_report_csv(
+        items,
+        map_prices,
+        seller_name_map={},
+        excluded_seller_substrings=[],
+    )
+    assert count == 3
+
+    wb = load_workbook(io.BytesIO(excel_bytes))
+    ws = wb.active
+    headers = [c.value for c in ws[1]]
+    seller_col = headers.index("Seller") + 1
+
+    sellers_in_file = [ws.cell(row=r, column=seller_col).value for r in range(2, 5)]
+    assert sellers_in_file == ["Alpha Shop", "Metro Goods", "Zeta Retail"]
+
+
+@pytest.mark.unit
+def test_comprehensive_report_seller_sort_case_insensitive():
+    """Sorting must ignore case ('beta' should sort before 'Charlie')."""
+
+    def _make_keepa(seller_id, seller_name, price_cents):
+        return {
+            "products": [
+                {
+                    "asin": f"B_{seller_id}",
+                    "title": "T",
+                    "brand": "B",
+                    "stats": {"buyBoxSellerId": seller_id, "buyBoxPrice": price_cents},
+                    "current_sellers": [
+                        {"sellerId": seller_id, "sellerName": seller_name, "price": price_cents,
+                         "isFBA": False, "condition": "New"}
+                    ],
+                    "offers": [],
+                }
+            ]
+        }
+
+    items = [
+        {"upc": "001", "keepa_data": _make_keepa("C1", "Charlie Store", 1000), "status": "completed"},
+        {"upc": "002", "keepa_data": _make_keepa("B1", "beta retail", 1000), "status": "completed"},
+    ]
+    map_prices = {"001": Decimal("50.00"), "002": Decimal("50.00")}
+
+    excel_bytes, count = CSVGenerator.generate_comprehensive_report_csv(
+        items, map_prices, seller_name_map={}, excluded_seller_substrings=[]
+    )
+    assert count == 2
+    wb = load_workbook(io.BytesIO(excel_bytes))
+    ws = wb.active
+    headers = [c.value for c in ws[1]]
+    seller_col = headers.index("Seller") + 1
+    sellers_in_file = [ws.cell(row=r, column=seller_col).value for r in range(2, 4)]
+    assert sellers_in_file == ["beta retail", "Charlie Store"]

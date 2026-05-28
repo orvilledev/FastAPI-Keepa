@@ -729,7 +729,17 @@ class CSVGenerator:
         
         # Reorder columns (exclude internal _is_off_price column)
         df = df[required_columns + ["_is_off_price"]]
-        
+
+        # Sort rows by Seller (column J) case-insensitively A→Z; blanks/N/A last.
+        if not df.empty and "Seller" in df.columns:
+            df = df.sort_values(
+                by=["Seller", "UPC"],
+                key=lambda col: col.astype(str).str.strip().str.lower().replace(
+                    {"": "\uffff", "n/a": "\uffff"}
+                ),
+                na_position="last",
+            ).reset_index(drop=True)
+
         # Generate Excel file with formatting instead of CSV
         excel_buffer = io.BytesIO()
         wb = Workbook()
