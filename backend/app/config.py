@@ -40,6 +40,20 @@ class Settings(BaseSettings):
     keepa_429_cooldown_max_delay_seconds: float = 5.0
     keepa_cancel_check_every_items: int = 10
     batch_inter_delay_seconds: float = 0.0
+
+    # Keepa offer-level filters used when merging offers[] into the unified
+    # seller list (backend/app/services/keepa_sellers.py). These eliminate
+    # false-positive "off-price" sellers that are not actually listing the UPC
+    # right now (used/refurb, addon-only, scam, out of stock, stale). Gates
+    # apply only to entries from offers[]; current_sellers entries are trusted.
+    # Defaults are permissive when Keepa omits the underlying field, so legit
+    # offers without these fields are not lost. Set to false to disable a gate.
+    keepa_offer_require_new_condition: bool = True
+    keepa_offer_drop_disqualifying_flags: bool = True
+    keepa_offer_drop_zero_stock: bool = True
+    # Reject offers whose Keepa lastSeen is older than this many minutes.
+    # Default: 48h. Set to 0 to disable freshness gating.
+    keepa_offer_max_age_minutes: int = 60 * 24 * 2
     
     @property
     def keepa_api_keys_list(self) -> List[str]:

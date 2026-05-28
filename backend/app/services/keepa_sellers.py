@@ -3,13 +3,106 @@ Merge Keepa current_sellers with competitive offers (offerCSV / liveOffersOrder)
 
 Keepa often returns a short current_sellers list while offers= includes more live
 marketplace rows; we union both (dedupe identical sellerId+price only).
+
+Offer-level "currently active" gates are applied only to entries from offers[]
+(not current_sellers) so we don't pull in sellers who are not actually listing
+the UPC right now (used/refurb, addon, scam, out of stock, stale). Gates are
+permissive when Keepa omits the underlying field. See backend/app/config.py
+for the per-gate toggles.
 """
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.config import settings
+
 logger = logging.getLogger(__name__)
+
+# Keepa minute timestamps count minutes since 2011-01-01T00:00:00Z.
+_KEEPA_EPOCH_UNIX_SECONDS = 1293840000
+
+# Keepa condition codes: 2 = New. Anything else (used, refurb, collectible,
+# unknown) cannot meaningfully violate New-product MAP and routinely produces
+# false-positive "off-price" rows for non-listings.
+_NEW_CONDITION_CODE = 2
+
+# Boolean offer flags that disqualify an offer from off-price comparison.
+_DISQUALIFYING_OFFER_FLAGS = ("isPreorder", "isAddonItem", "isScam")
+
+
+def _now_keepa_minutes() -> int:
+    """Current time expressed in Keepa minutes (minutes since Keepa epoch)."""
+    return int((time.time() - _KEEPA_EPOCH_UNIX_SECONDS) // 60)
+
+
+def _offer_condition_is_new(offer: Dict[str, Any]) -> bool:
+    """Treat missing condition as New so offers without the field are not lost."""
+    cond = offer.get("condition")
+    if cond is None:
+        return True
+    if isinstance(cond, str):
+        return cond.strip().lower() == "new"
+    try:
+        return int(cond) == _NEW_CONDITION_CODE
+    except (TypeError, ValueError):
+        return False
+
+
+def _offer_has_disqualifying_flag(offer: Dict[str, Any]) -> bool:
+    return any(bool(offer.get(flag)) for flag in _DISQUALIFYING_OFFER_FLAGS)
+
+
+def _offer_stock_is_zero(offer: Dict[str, Any]) -> bool:
+    """stockCSV is [keepaMinute, qty, ...] pairs; last qty == 0 means OOS."""
+    stock = offer.get("stockCSV")
+    if not isinstance(stock, (list, tuple)) or len(stock) < 2:
+        return False
+    try:
+        return int(stock[-1]) == 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _offer_is_fresh(
+    offer: Dict[str, Any],
+    max_age_minutes: int,
+    now_keepa_minutes: Optional[int] = None,
+) -> bool:
+    """Reject offers whose lastSeen is older than max_age_minutes."""
+    if max_age_minutes <= 0:
+        return True
+    last_seen = offer.get("lastSeen")
+    if last_seen is None:
+        return True
+    try:
+        last_seen_int = int(last_seen)
+    except (TypeError, ValueError):
+        return True
+    now = now_keepa_minutes if now_keepa_minutes is not None else _now_keepa_minutes()
+    return last_seen_int >= (now - max_age_minutes)
+
+
+def _offer_is_currently_active(
+    offer: Dict[str, Any],
+    *,
+    require_new_condition: bool,
+    drop_disqualifying_flags: bool,
+    drop_zero_stock: bool,
+    max_age_minutes: int,
+    now_keepa_minutes: Optional[int] = None,
+) -> bool:
+    """Apply per-gate offer eligibility checks. Each gate is independently toggleable."""
+    if require_new_condition and not _offer_condition_is_new(offer):
+        return False
+    if drop_disqualifying_flags and _offer_has_disqualifying_flag(offer):
+        return False
+    if drop_zero_stock and _offer_stock_is_zero(offer):
+        return False
+    if max_age_minutes > 0 and not _offer_is_fresh(offer, max_age_minutes, now_keepa_minutes):
+        return False
+    return True
 
 
 def last_list_price_cents_from_offer_csv(csv: Any) -> Optional[int]:
@@ -120,6 +213,16 @@ def build_unified_seller_list(keepa_response: Optional[Dict[str, Any]]) -> List[
     if not live_order:
         live_order = list(range(len(offers_list)))
 
+    require_new_condition = bool(getattr(settings, "keepa_offer_require_new_condition", True))
+    drop_disqualifying_flags = bool(getattr(settings, "keepa_offer_drop_disqualifying_flags", True))
+    drop_zero_stock = bool(getattr(settings, "keepa_offer_drop_zero_stock", True))
+    try:
+        max_age_minutes = int(getattr(settings, "keepa_offer_max_age_minutes", 0) or 0)
+    except (TypeError, ValueError):
+        max_age_minutes = 0
+
+    now_keepa = _now_keepa_minutes() if max_age_minutes > 0 else None
+
     for idx in live_order:
         try:
             i = int(idx)
@@ -129,6 +232,23 @@ def build_unified_seller_list(keepa_response: Optional[Dict[str, Any]]) -> List[
             continue
         offer = offers_list[i]
         if not isinstance(offer, dict):
+            continue
+        if not _offer_is_currently_active(
+            offer,
+            require_new_condition=require_new_condition,
+            drop_disqualifying_flags=drop_disqualifying_flags,
+            drop_zero_stock=drop_zero_stock,
+            max_age_minutes=max_age_minutes,
+            now_keepa_minutes=now_keepa,
+        ):
+            logger.debug(
+                "Filtered offer sellerId=%s condition=%r flags=%s stock=%s lastSeen=%s",
+                offer.get("sellerId"),
+                offer.get("condition"),
+                {f: offer.get(f) for f in _DISQUALIFYING_OFFER_FLAGS},
+                offer.get("stockCSV"),
+                offer.get("lastSeen"),
+            )
             continue
         row = _offer_to_seller_row(offer)
         if row is None:
