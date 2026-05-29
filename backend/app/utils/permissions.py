@@ -75,19 +75,6 @@ class PermissionChecker:
     def can_delete_validation(self, validation: dict) -> bool:
         """Check if user can delete a validation."""
         return validation.get("submitted_by") == self.user_id
-    
-    # Note permissions
-    def can_access_note(self, note: dict) -> bool:
-        """Check if user can access a note."""
-        return note.get("user_id") == self.user_id
-    
-    def can_edit_note(self, note: dict) -> bool:
-        """Check if user can edit a note."""
-        return note.get("user_id") == self.user_id
-    
-    def can_delete_note(self, note: dict) -> bool:
-        """Check if user can delete a note."""
-        return note.get("user_id") == self.user_id
 
 
 def get_permission_checker(current_user: dict) -> PermissionChecker:

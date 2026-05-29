@@ -3,4 +3,3 @@
  */
 
 export { useAuth } from './useAuth'
-export { useNoteProtection } from './useNoteProtection'

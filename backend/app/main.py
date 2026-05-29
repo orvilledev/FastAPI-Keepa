@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.database import init_db
-from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notes, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner
+from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner
 from app.scheduler import setup_scheduler, start_scheduler, shutdown_scheduler
 from app.dependencies import require_app_access
 from app.maintenance import get_maintenance_state
@@ -237,7 +237,6 @@ app.include_router(scheduler.router, prefix=settings.api_v1_str, tags=["schedule
 app.include_router(tools.router, prefix=settings.api_v1_str, tags=["tools"], dependencies=[Depends(require_app_access)])
 app.include_router(quick_access.router, prefix=settings.api_v1_str, tags=["quick-access"], dependencies=[Depends(require_app_access)])
 app.include_router(dashboard.router, prefix=settings.api_v1_str, tags=["dashboard"], dependencies=[Depends(require_app_access)])
-app.include_router(notes.router, prefix=settings.api_v1_str, tags=["notes"], dependencies=[Depends(require_app_access)])
 app.include_router(notifications.router, prefix=settings.api_v1_str, tags=["notifications"], dependencies=[Depends(require_app_access)])
 app.include_router(sellers.router, prefix=settings.api_v1_str, tags=["sellers"], dependencies=[Depends(require_app_access)])
 app.include_router(email_recipients.router, prefix=settings.api_v1_str, tags=["email-recipients"], dependencies=[Depends(require_app_access)])

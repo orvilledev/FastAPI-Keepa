@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
 import type {
-  MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, MicroToolRecord, Note, JobAid, Notification, ComprehensiveReportRow, SellerName, NoteShare, CliChatSession, CliChatMessage, TrackingHistorySummary, TrackingHistoryDetail, TrackingScannerRow } from '../types'
+  MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, MicroToolRecord, JobAid, Notification, ComprehensiveReportRow, SellerName, CliChatSession, CliChatMessage, TrackingHistorySummary, TrackingHistoryDetail, TrackingScannerRow } from '../types'
 
 /** All request paths begin with `/api/v1`. Strip a mistaken `/api/v1` suffix from env to avoid doubled paths (404 Not Found). */
 function normalizeApiBaseUrl(raw: string): string {
@@ -839,67 +839,6 @@ export const dashboardApi = {
   updateWidgetOrder: async (widgets: { widget_id: string; display_order: number }[]) => {
     const response = await api.post<DashboardWidget[]>('/api/v1/dashboard/widgets/order', { widgets })
     return response.data
-  },
-}
-
-// Notes API
-export const notesApi = {
-  listNotes: async (
-    page: number = 0,
-    pageSize: number = 20,
-    search?: string,
-    category?: string,
-    scope: 'my' | 'shared' | 'all' = 'my'
-  ) => {
-    const params: any = { page, page_size: pageSize, scope }
-    if (search) params.search = search
-    if (category) params.category = category
-    const response = await api.get<{
-      notes: Note[]
-      total: number
-      page: number
-      page_size: number
-      total_pages: number
-    }>('/api/v1/notes', { params })
-    return response.data
-  },
-  getNote: async (noteId: string) => {
-    const response = await api.get<Note>(`/api/v1/notes/${noteId}`)
-    return response.data
-  },
-  createNote: async (noteData: { title: string; content: string; category?: string; color?: string; importance?: string; is_protected?: boolean; password?: string; require_password_always?: boolean }) => {
-    const response = await api.post<Note>('/api/v1/notes', noteData)
-    return response.data
-  },
-  updateNote: async (noteId: string, noteData: { title?: string; content?: string; category?: string; color?: string; importance?: string; is_protected?: boolean; password?: string; remove_password?: boolean; require_password_always?: boolean }) => {
-    const response = await api.put<Note>(`/api/v1/notes/${noteId}`, noteData)
-    return response.data
-  },
-  verifyNotePassword: async (noteId: string, password: string) => {
-    const response = await api.post<{ verified: boolean }>(`/api/v1/notes/${noteId}/verify-password`, { password })
-    return response.data
-  },
-  reorderNotes: async (noteIds: string[]) => {
-    const response = await api.post<{ message: string }>('/api/v1/notes/reorder', { note_ids: noteIds })
-    return response.data
-  },
-  deleteNote: async (noteId: string) => {
-    const response = await api.delete(`/api/v1/notes/${noteId}`)
-    return response.data
-  },
-  listNoteShares: async (noteId: string) => {
-    const response = await api.get<NoteShare[]>(`/api/v1/notes/${noteId}/shares`)
-    return response.data
-  },
-  shareNote: async (noteId: string, shared_with_user_id: string, permission: 'view' | 'edit' = 'view') => {
-    const response = await api.post<NoteShare>(`/api/v1/notes/${noteId}/share`, {
-      shared_with_user_id,
-      permission,
-    })
-    return response.data
-  },
-  revokeNoteShare: async (noteId: string, sharedWithUserId: string) => {
-    await api.delete(`/api/v1/notes/${noteId}/shares/${sharedWithUserId}`)
   },
 }
 

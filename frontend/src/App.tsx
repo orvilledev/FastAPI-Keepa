@@ -49,7 +49,6 @@ const TrackingScanner = lazy(() => import('./components/scanner/TrackingScanner'
 const FNSKULabelGenerator = lazy(() => import('./components/scanner/FNSKULabelGenerator'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
-const MyNotes = lazy(() => import('./components/notes/MyNotes'))
 const Feedback = lazy(() => import('./components/feedback/Feedback'))
 const LAST_PRIVATE_PATH_KEY = 'last_private_path'
 const DEV_MD_OWNER_EMAIL = 'orvillebarba@gmail.com'
@@ -125,19 +124,6 @@ function PrivateLayout() {
         <Outlet />
       </Layout>
     </TrackingScanProvider>
-  )
-}
-
-/** Dedicated notes window without sidebar/header layout chrome. */
-function NotesPopoutRoute() {
-  const { authUser } = useUser()
-  if (!authUser) {
-    return <Navigate to="/login" replace />
-  }
-  return (
-    <ProtectedRoute>
-      <MyNotes />
-    </ProtectedRoute>
   )
 }
 
@@ -250,7 +236,7 @@ function AppRoutes() {
             </GuestRoute>
           }
         />
-        <Route path="/notes-popout" element={<NotesPopoutRoute />} />
+        <Route path="/notes-popout" element={<Navigate to="/dashboard" replace />} />
 
         <Route element={<PrivateLayout />}>
           <Route path="dashboard" element={<Dashboard />} />
@@ -285,8 +271,8 @@ function AppRoutes() {
           <Route path="daily-run/cha" element={<ProtectedRoute requireKeepaAccess={true}><CHADailyRun /></ProtectedRoute>} />
           <Route path="daily-run/calendar" element={<ProtectedRoute requireKeepaAccess={true}><RunCalendar /></ProtectedRoute>} />
 
-          <Route path="reminders" element={<MyNotes />} />
-          <Route path="my-space/notes" element={<Navigate to="/reminders" replace />} />
+          <Route path="reminders" element={<Navigate to="/dashboard" replace />} />
+          <Route path="my-space/notes" element={<Navigate to="/dashboard" replace />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="howtoguide" element={<HowToGuide />} />
           <Route path="trainings" element={<Navigate to="/howtoguide" replace />} />
