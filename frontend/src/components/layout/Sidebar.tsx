@@ -16,12 +16,6 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   ),
-  settings: (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  ),
   package: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -67,11 +61,6 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8m-18 8h18a2 2 0 002-2V8a2 2 0 00-2-2H3a2 2 0 00-2 2v6a2 2 0 002 2z" />
     </svg>
   ),
-  chevronDown: (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-    </svg>
-  ),
   chevronRight: (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -98,7 +87,6 @@ export default function Sidebar() {
   const location = useLocation()
   const { hasKeepaAccess, isSuperadmin, userInfo, authUser, userInfoLoading } = useUser()
   const isElectron = Boolean(window.desktop?.isElectron)
-  const [isKeepaMenuOpen, setIsKeepaMenuOpen] = useState(false)
   const [isDailyRunsMenuOpen, setIsDailyRunsMenuOpen] = useState(false)
   const [isManageUPCsMenuOpen, setIsManageUPCsMenuOpen] = useState(false)
   const [desktopVersion, setDesktopVersion] = useState<string | null>(null)
@@ -191,9 +179,6 @@ export default function Sidebar() {
 
   const hasActiveDailyRunsSubItem = dailyRunsMenuItems.some(item => isActive(item.path))
   const hasActiveManageUPCsSubItem = manageUPCsMenuItems.some(item => isActive(item.path))
-  const hasActiveSubItem = keepaMenuItems.some(item =>
-    item.path ? isActive(item.path) : (item.children && item.children.some(child => isActive(child.path)))
-  )
 
   /** Blocklist hides nav item entirely once user profile / session is resolved. */
   const showFeedbackNav =
@@ -205,12 +190,15 @@ export default function Sidebar() {
       authUser?.email,
     )
 
-  // Auto-open Keepa submenu / flyouts when a child route is active
+  // Auto-open flyouts when a child route is active
   useEffect(() => {
-    if (hasActiveSubItem || hasActiveDailyRunsSubItem || hasActiveManageUPCsSubItem) {
-      setIsKeepaMenuOpen(true)
+    if (hasActiveDailyRunsSubItem) {
+      setIsDailyRunsMenuOpen(true)
     }
-  }, [hasActiveSubItem, hasActiveDailyRunsSubItem, hasActiveManageUPCsSubItem])
+    if (hasActiveManageUPCsSubItem) {
+      setIsManageUPCsMenuOpen(true)
+    }
+  }, [hasActiveDailyRunsSubItem, hasActiveManageUPCsSubItem])
 
   useEffect(() => {
     if (!isElectron || !window.desktop?.getVersion) return
@@ -266,169 +254,139 @@ export default function Sidebar() {
             <span>Dashboard</span>
           </Link>
 
-          {/* Keepa Alert Services - top level (requires Keepa / pricing access) */}
-          {hasKeepaAccess && (
-            <div>
-              <button
-                type="button"
-                onClick={() => setIsKeepaMenuOpen(!isKeepaMenuOpen)}
-                onMouseEnter={() => setHoveredNav('keepa-root')}
-                className={`sidebar-link w-full text-left text-black ${
-                  navHighlighted('keepa-root', hasActiveSubItem)
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="mr-3">{Icons.settings}</span>
-                <span className="flex-1">Keepa Alert Services</span>
-                <span>
-                  {isKeepaMenuOpen ? Icons.chevronDown : Icons.chevronRight}
-                </span>
-              </button>
+          {hasKeepaAccess &&
+            keepaMenuItems.map((item) => {
+              if (item.children) {
+                const isOpen =
+                  (item.label === 'Daily Runs' && isDailyRunsMenuOpen) ||
+                  (item.label === 'Manage UPCs' && isManageUPCsMenuOpen)
+                const hasActiveChild =
+                  (item.label === 'Daily Runs' && hasActiveDailyRunsSubItem) ||
+                  (item.label === 'Manage UPCs' && hasActiveManageUPCsSubItem)
+                const buttonRef =
+                  item.label === 'Daily Runs' ? dailyRunsButtonRef : manageUPCsButtonRef
+                const timeoutRef =
+                  item.label === 'Daily Runs' ? dailyRunsTimeoutRef : manageUPCsTimeoutRef
 
-              {isKeepaMenuOpen && (
-                <div className="ml-4 mt-1 space-y-1 bg-[#404040] rounded-lg p-2 dark-dropdown">
-                  {keepaMenuItems.map((item) => {
-                    if (item.children) {
-                      const isOpen =
-                        (item.label === 'Daily Runs' && isDailyRunsMenuOpen) ||
-                        (item.label === 'Manage UPCs' && isManageUPCsMenuOpen)
-                      const hasActiveChild =
-                        (item.label === 'Daily Runs' && hasActiveDailyRunsSubItem) ||
-                        (item.label === 'Manage UPCs' && hasActiveManageUPCsSubItem)
-                      const buttonRef =
-                        item.label === 'Daily Runs' ? dailyRunsButtonRef : manageUPCsButtonRef
-                      const timeoutRef =
-                        item.label === 'Daily Runs' ? dailyRunsTimeoutRef : manageUPCsTimeoutRef
+                const flyoutParentId =
+                  item.label === 'Daily Runs' ? 'daily-runs' : 'manage-upcs'
 
-                      const flyoutParentId =
-                        item.label === 'Daily Runs' ? 'keepa-daily' : 'keepa-upcs'
+                const handleMouseEnter = () => {
+                  setHoveredNav(flyoutParentId)
+                  if (timeoutRef.current) {
+                    clearTimeout(timeoutRef.current)
+                    timeoutRef.current = null
+                  }
+                  if (item.label === 'Daily Runs') {
+                    setIsDailyRunsMenuOpen(true)
+                  } else if (item.label === 'Manage UPCs') {
+                    setIsManageUPCsMenuOpen(true)
+                  }
+                }
 
-                      const handleMouseEnter = () => {
-                        setHoveredNav(flyoutParentId)
-                        if (timeoutRef.current) {
-                          clearTimeout(timeoutRef.current)
-                          timeoutRef.current = null
-                        }
-                        if (item.label === 'Daily Runs') {
-                          setIsDailyRunsMenuOpen(true)
-                        } else if (item.label === 'Manage UPCs') {
-                          setIsManageUPCsMenuOpen(true)
-                        }
-                      }
-
-                      const handleMouseLeave = () => {
-                        timeoutRef.current = setTimeout(() => {
-                          if (item.label === 'Daily Runs') {
-                            setIsDailyRunsMenuOpen(false)
-                          } else if (item.label === 'Manage UPCs') {
-                            setIsManageUPCsMenuOpen(false)
-                          }
-                        }, 200)
-                      }
-
-                      return (
-                        <div key={item.label} className="relative group">
-                          <button
-                            ref={buttonRef}
-                            type="button"
-                            onMouseEnter={handleMouseEnter}
-                            onMouseLeave={handleMouseLeave}
-                            className={`sidebar-link w-full text-left ${
-                              navHighlighted(flyoutParentId, hasActiveChild)
-                                ? 'sidebar-link-active'
-                                : 'sidebar-link-inactive'
-                            }`}
-                          >
-                            <span className="mr-3">{Icons[item.icon]}</span>
-                            <span className="flex-1">{item.label}</span>
-                            <span>{Icons.chevronRight}</span>
-                          </button>
-
-                          {isOpen && (
-                            <div
-                              className="flyout-menu absolute left-full top-0 ml-2 bg-[#3B3B3B] rounded-lg shadow-2xl border border-white/20 min-w-[200px] z-[9999]"
-                              onMouseEnter={handleMouseEnter}
-                              onMouseLeave={handleMouseLeave}
-                            >
-                              <div className="p-2 space-y-1">
-                                {item.children.map((childItem) => (
-                                  <Link
-                                    key={childItem.path}
-                                    to={childItem.path}
-                                    onMouseEnter={() =>
-                                      setHoveredNav(
-                                        `${item.label === 'Daily Runs' ? 'flyout-daily' : 'flyout-upcs'}-${childItem.path}`
-                                      )
-                                    }
-                                    className={`sidebar-link ${
-                                      navHighlighted(
-                                        `${item.label === 'Daily Runs' ? 'flyout-daily' : 'flyout-upcs'}-${childItem.path}`,
-                                        isActive(childItem.path)
-                                      )
-                                        ? 'sidebar-link-active'
-                                        : 'sidebar-link-inactive'
-                                    }`}
-                                    onClick={() => {
-                                      if (dailyRunsTimeoutRef.current) {
-                                        clearTimeout(dailyRunsTimeoutRef.current)
-                                        dailyRunsTimeoutRef.current = null
-                                      }
-                                      if (manageUPCsTimeoutRef.current) {
-                                        clearTimeout(manageUPCsTimeoutRef.current)
-                                        manageUPCsTimeoutRef.current = null
-                                      }
-                                      setIsDailyRunsMenuOpen(false)
-                                      setIsManageUPCsMenuOpen(false)
-                                      if (item.label === 'Daily Runs') {
-                                        setIsDailyRunsMenuOpen(false)
-                                      } else if (item.label === 'Manage UPCs') {
-                                        setIsManageUPCsMenuOpen(false)
-                                      }
-                                    }}
-                                  >
-                                    <span className="mr-3">{Icons[childItem.icon]}</span>
-                                    <span>{childItem.label}</span>
-                                  </Link>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )
+                const handleMouseLeave = () => {
+                  timeoutRef.current = setTimeout(() => {
+                    if (item.label === 'Daily Runs') {
+                      setIsDailyRunsMenuOpen(false)
+                    } else if (item.label === 'Manage UPCs') {
+                      setIsManageUPCsMenuOpen(false)
                     }
+                  }, 200)
+                }
 
-                    const keepaLinkId =
-                      item.path === '/jobs'
-                        ? 'keepa-jobs'
-                        : item.path === '/map'
-                          ? 'keepa-map'
-                          : item.path === '/seller-list'
-                            ? 'keepa-sellers'
-                          : item.path === '/email-list'
-                            ? 'keepa-emails'
-                            : 'keepa-other'
+                return (
+                  <div key={item.label} className="relative group">
+                    <button
+                      ref={buttonRef}
+                      type="button"
+                      onMouseEnter={handleMouseEnter}
+                      onMouseLeave={handleMouseLeave}
+                      className={`sidebar-link w-full text-left ${
+                        navHighlighted(flyoutParentId, hasActiveChild)
+                          ? 'sidebar-link-active'
+                          : 'sidebar-link-inactive'
+                      }`}
+                    >
+                      <span className="mr-3">{Icons[item.icon]}</span>
+                      <span className="flex-1">{item.label}</span>
+                      <span>{Icons.chevronRight}</span>
+                    </button>
 
-                    return (
-                      <Link
-                        key={item.path}
-                        to={item.path!}
-                        onMouseEnter={() => setHoveredNav(keepaLinkId)}
-                        className={`sidebar-link ${
-                          navHighlighted(keepaLinkId, isActive(item.path!))
-                            ? 'sidebar-link-active'
-                            : 'sidebar-link-inactive'
-                        }`}
+                    {isOpen && (
+                      <div
+                        className="flyout-menu absolute left-full top-0 ml-2 bg-[#3B3B3B] rounded-lg shadow-2xl border border-white/20 min-w-[200px] z-[9999]"
+                        onMouseEnter={handleMouseEnter}
+                        onMouseLeave={handleMouseLeave}
                       >
-                        <span className="mr-3">{Icons[item.icon]}</span>
-                        <span>{item.label}</span>
-                      </Link>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+                        <div className="p-2 space-y-1">
+                          {item.children.map((childItem) => (
+                            <Link
+                              key={childItem.path}
+                              to={childItem.path}
+                              onMouseEnter={() =>
+                                setHoveredNav(
+                                  `${item.label === 'Daily Runs' ? 'flyout-daily' : 'flyout-upcs'}-${childItem.path}`
+                                )
+                              }
+                              className={`sidebar-link ${
+                                navHighlighted(
+                                  `${item.label === 'Daily Runs' ? 'flyout-daily' : 'flyout-upcs'}-${childItem.path}`,
+                                  isActive(childItem.path)
+                                )
+                                  ? 'sidebar-link-active'
+                                  : 'sidebar-link-inactive'
+                              }`}
+                              onClick={() => {
+                                if (dailyRunsTimeoutRef.current) {
+                                  clearTimeout(dailyRunsTimeoutRef.current)
+                                  dailyRunsTimeoutRef.current = null
+                                }
+                                if (manageUPCsTimeoutRef.current) {
+                                  clearTimeout(manageUPCsTimeoutRef.current)
+                                  manageUPCsTimeoutRef.current = null
+                                }
+                                setIsDailyRunsMenuOpen(false)
+                                setIsManageUPCsMenuOpen(false)
+                              }}
+                            >
+                              <span className="mr-3">{Icons[childItem.icon]}</span>
+                              <span>{childItem.label}</span>
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+
+              const linkId =
+                item.path === '/jobs'
+                  ? 'jobs'
+                  : item.path === '/map'
+                    ? 'map'
+                    : item.path === '/seller-list'
+                      ? 'seller-list'
+                      : item.path === '/email-list'
+                        ? 'email-list'
+                        : 'keepa-other'
+
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path!}
+                  onMouseEnter={() => setHoveredNav(linkId)}
+                  className={`sidebar-link ${
+                    navHighlighted(linkId, isActive(item.path!))
+                      ? 'sidebar-link-active'
+                      : 'sidebar-link-inactive'
+                  }`}
+                >
+                  <span className="mr-3">{Icons[item.icon]}</span>
+                  <span>{item.label}</span>
+                </Link>
+              )
+            })}
 
         </div>
 
