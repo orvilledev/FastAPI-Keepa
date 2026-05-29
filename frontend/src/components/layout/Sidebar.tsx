@@ -461,48 +461,6 @@ export default function Sidebar() {
             </div>
           )}
 
-          {/* Documentations Dropdown */}
-          <div>
-            <button
-              onClick={() => {
-                setIsToolsMenuOpen(!isToolsMenuOpen)
-              }}
-              onMouseEnter={() => setHoveredNav('resources')}
-              className={`sidebar-link w-full text-left text-black ${
-                navHighlighted('resources', false) ? 'sidebar-link-active' : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="mr-3">{Icons.resources}</span>
-              <span className="flex-1">Documentations</span>
-              <span>
-                {isToolsMenuOpen ? Icons.chevronDown : Icons.chevronRight}
-              </span>
-            </button>
-            
-            {isToolsMenuOpen && (
-              <div className="ml-4 mt-1 space-y-1 bg-[#404040] rounded-lg p-2 dark-dropdown">
-                {toolsMenuItems.map((item) => {
-                  const toolsItemId = `tools-${item.path}`
-                  return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    onMouseEnter={() => setHoveredNav(toolsItemId)}
-                    className={`sidebar-link ${
-                      navHighlighted(toolsItemId, isActive(item.path))
-                        ? 'sidebar-link-active'
-                        : 'sidebar-link-inactive'
-                    }`}
-                  >
-                    <span className="mr-3">{Icons[item.icon]}</span>
-                    <span>{item.label}</span>
-                  </Link>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
           <Link
             to="/micro-tools"
             onMouseEnter={() => setHoveredNav('micro-tools')}
@@ -554,6 +512,48 @@ export default function Sidebar() {
             <span className="mr-3">{Icons.info}</span>
             <span>About</span>
           </Link>
+
+          {/* Documentations Dropdown */}
+          <div>
+            <button
+              onClick={() => {
+                setIsToolsMenuOpen(!isToolsMenuOpen)
+              }}
+              onMouseEnter={() => setHoveredNav('resources')}
+              className={`sidebar-link w-full text-left text-black ${
+                navHighlighted('resources', false) ? 'sidebar-link-active' : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="mr-3">{Icons.resources}</span>
+              <span className="flex-1">Documentations</span>
+              <span>
+                {isToolsMenuOpen ? Icons.chevronDown : Icons.chevronRight}
+              </span>
+            </button>
+            
+            {isToolsMenuOpen && (
+              <div className="ml-4 mt-1 space-y-1 bg-[#404040] rounded-lg p-2 dark-dropdown">
+                {toolsMenuItems.map((item) => {
+                  const toolsItemId = `tools-${item.path}`
+                  return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onMouseEnter={() => setHoveredNav(toolsItemId)}
+                    className={`sidebar-link ${
+                      navHighlighted(toolsItemId, isActive(item.path))
+                        ? 'sidebar-link-active'
+                        : 'sidebar-link-inactive'
+                    }`}
+                  >
+                    <span className="mr-3">{Icons[item.icon]}</span>
+                    <span>{item.label}</span>
+                  </Link>
+                  )
+                })}
+              </div>
+            )}
+          </div>
 
           {showFeedbackNav ? (
             <Link
