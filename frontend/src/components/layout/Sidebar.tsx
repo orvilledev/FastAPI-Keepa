@@ -235,9 +235,10 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* Center: standalone tools with border above/below */}
-        <div className="flex min-h-0 flex-1 flex-col justify-center py-2">
-          <div className="space-y-0.5 border-t-2 border-b-2 border-gray-300/80 py-3">
+        <div className="min-h-4 flex-1" aria-hidden="true" />
+
+        {/* Center: standalone tools */}
+        <div className="shrink-0 space-y-0.5 border-t-2 border-gray-300/80 py-3">
             <Link
               to="/micro-tools"
               onMouseEnter={() => setHoveredNav('micro-tools')}
@@ -276,11 +277,12 @@ export default function Sidebar() {
               <span className="shrink-0">{Icons.fnskuLabels}</span>
               <span className="sidebar-link-label">FNSKU Labels</span>
             </Link>
-          </div>
         </div>
 
+        <div className="min-h-4 flex-1" aria-hidden="true" />
+
         {/* Bottom: About, FAQ, Feedback, User Management */}
-        <div className="mt-auto shrink-0 space-y-0.5 border-t-2 border-gray-300/80 pt-3 pb-1">
+        <div className="shrink-0 space-y-0.5 border-t-2 border-gray-300/80 pt-3 pb-1">
           <Link
             to="/about"
             onMouseEnter={() => setHoveredNav('about')}
