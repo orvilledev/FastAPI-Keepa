@@ -236,10 +236,11 @@ export default function Sidebar() {
         </div>
       </div>
       <nav
-        className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-3"
+        className="flex min-h-0 flex-1 flex-col px-3 py-3"
         onMouseLeave={() => setHoveredNav(null)}
       >
-        <div className="space-y-0.5">
+        <div className="min-h-0 shrink overflow-y-auto overscroll-y-contain">
+          <div className="space-y-0.5">
           {/* Dashboard - top level */}
           <Link
             to="/dashboard"
@@ -387,7 +388,11 @@ export default function Sidebar() {
                 </Link>
               )
             })}
+          </div>
+        </div>
 
+        <div className="flex min-h-0 flex-1 flex-col justify-center py-2">
+          <div className="space-y-0.5 border-t-2 border-b-2 border-gray-300/80 py-3">
           <Link
             to="/micro-tools"
             onMouseEnter={() => setHoveredNav('micro-tools')}
@@ -426,11 +431,10 @@ export default function Sidebar() {
             <span className="shrink-0">{Icons.fnskuLabels}</span>
             <span className="sidebar-link-label">FNSKU Labels</span>
           </Link>
+          </div>
         </div>
 
-        <div className="my-3 border-t border-gray-300/80" role="separator" />
-
-        <div className="space-y-0.5">
+        <div className="mt-auto shrink-0 space-y-0.5 border-t-2 border-gray-300/80 pt-3 pb-1">
           <Link
             to="/about"
             onMouseEnter={() => setHoveredNav('about')}
