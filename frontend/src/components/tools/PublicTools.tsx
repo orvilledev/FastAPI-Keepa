@@ -74,11 +74,10 @@ const INITIAL_QUICK_GUIDES: QuickGuide[] = [
     id: 'calendar',
     title: 'How to check run schedules',
     steps: [
-      'On the left menu, click Keepa Alert Services, then click Run Calendar.',
-      'Find your vendor row.',
-      'Check the Next Run time and status.',
-      'If something looks wrong, go back to Daily Runs and update settings.',
-      'Return to Run Calendar and confirm the new time is shown.',
+      'Open Dashboard from the left menu.',
+      'Review the vendor run cards for next run times and status.',
+      'If something looks wrong, go to Daily Runs and update settings.',
+      'Return to Dashboard and confirm the updated schedule is reflected.',
     ],
   },
   {
