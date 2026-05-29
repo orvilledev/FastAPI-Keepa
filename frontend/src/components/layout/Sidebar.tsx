@@ -235,10 +235,12 @@ export default function Sidebar() {
           </div>
         </div>
 
-        <div className="min-h-4 flex-1" aria-hidden="true" />
+        <div className="flex min-h-4 flex-1 items-center" aria-hidden="true">
+          <div className="w-full border-t-2 border-gray-300/80" role="separator" />
+        </div>
 
         {/* Center: standalone tools */}
-        <div className="shrink-0 space-y-0.5 border-t-2 border-gray-300/80 py-3">
+        <div className="shrink-0 space-y-0.5 py-3">
             <Link
               to="/micro-tools"
               onMouseEnter={() => setHoveredNav('micro-tools')}
@@ -279,10 +281,12 @@ export default function Sidebar() {
             </Link>
         </div>
 
-        <div className="min-h-4 flex-1" aria-hidden="true" />
+        <div className="flex min-h-4 flex-1 items-center" aria-hidden="true">
+          <div className="w-full border-t-2 border-gray-300/80" role="separator" />
+        </div>
 
         {/* Bottom: About, FAQ, Feedback, User Management */}
-        <div className="shrink-0 space-y-0.5 border-t-2 border-gray-300/80 pt-3 pb-1">
+        <div className="shrink-0 space-y-0.5 pb-1">
           <Link
             to="/about"
             onMouseEnter={() => setHoveredNav('about')}
