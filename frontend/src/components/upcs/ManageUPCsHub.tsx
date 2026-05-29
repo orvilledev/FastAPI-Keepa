@@ -1,14 +1,14 @@
 import { Link } from 'react-router-dom'
 
 const VENDORS = [
-  { code: 'dnk', label: 'DNK' },
-  { code: 'clk', label: 'CLK' },
-  { code: 'obz', label: 'OBZ' },
-  { code: 'ref', label: 'REF' },
-  { code: 'bor', label: 'BOR' },
-  { code: 'sff', label: 'SFF' },
-  { code: 'tev', label: 'TEV' },
-  { code: 'cha', label: 'CHA' },
+  { code: 'dnk', label: 'DNK (Dansko)' },
+  { code: 'clk', label: 'CLK (Clarks)' },
+  { code: 'obz', label: 'OBZ (Oboz)' },
+  { code: 'ref', label: 'REF (Reef)' },
+  { code: 'bor', label: 'BOR (Born)' },
+  { code: 'sff', label: 'SFF (Sofft)' },
+  { code: 'tev', label: 'TEV (Teva)' },
+  { code: 'cha', label: 'CHA (Chaco)' },
 ] as const
 
 export default function ManageUPCsHub() {

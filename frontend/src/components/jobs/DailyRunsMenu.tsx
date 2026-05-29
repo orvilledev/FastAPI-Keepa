@@ -1,14 +1,14 @@
 import { Link } from 'react-router-dom'
 
 const VENDORS = [
-  { code: 'dnk', label: 'DNK' },
-  { code: 'clk', label: 'CLK' },
-  { code: 'obz', label: 'OBZ' },
-  { code: 'ref', label: 'REF' },
-  { code: 'bor', label: 'BOR' },
-  { code: 'sff', label: 'SFF' },
-  { code: 'tev', label: 'TEV' },
-  { code: 'cha', label: 'CHA' },
+  { code: 'dnk', label: 'DNK (Dansko)' },
+  { code: 'clk', label: 'CLK (Clarks)' },
+  { code: 'obz', label: 'OBZ (Oboz)' },
+  { code: 'ref', label: 'REF (Reef)' },
+  { code: 'bor', label: 'BOR (Born)' },
+  { code: 'sff', label: 'SFF (Sofft)' },
+  { code: 'tev', label: 'TEV (Teva)' },
+  { code: 'cha', label: 'CHA (Chaco)' },
 ] as const
 
 export default function DailyRunsMenu() {
@@ -35,7 +35,7 @@ export default function DailyRunsMenu() {
                 </svg>
               </div>
               <div>
-                <h2 className="text-base font-semibold text-gray-900">{label} Daily Run</h2>
+                <h2 className="text-base font-semibold text-gray-900">{label}</h2>
                 <p className="text-xs text-gray-500">Scheduler &amp; run history</p>
               </div>
             </div>
