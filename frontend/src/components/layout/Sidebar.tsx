@@ -235,7 +235,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="flex h-screen w-64 flex-col bg-white/80 backdrop-blur-lg border-r border-gray-200/80 shadow-lg sticky top-0 z-50">
+    <aside className="sticky top-16 z-40 flex h-[calc(100vh-4rem)] w-64 flex-col border-r border-gray-200/80 bg-white/80 shadow-lg backdrop-blur-lg">
       <div className="p-6 border-b border-gray-200/80">
         <div className="flex items-center space-x-2">
           <img src={APP_ICON_URL} alt="MSW Overwatch" className="w-8 h-8" />
@@ -470,7 +470,7 @@ export default function Sidebar() {
           </Link>
         </div>
 
-        <div className="mt-auto space-y-1 border-t border-gray-200/80 pt-4">
+        <div className="mt-auto space-y-1 border-t-2 border-gray-300/80 pt-4">
           <Link
             to="/about"
             onMouseEnter={() => setHoveredNav('about')}
