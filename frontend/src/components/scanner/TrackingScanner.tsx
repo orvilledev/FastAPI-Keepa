@@ -119,15 +119,6 @@ export default function TrackingScanner() {
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Tracking Extractor</h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Upload one or more shipping-label PDFs, or ZIPs containing PDFs. Odd pages are read for the FBA{' '}
-            <strong>shipment ID</strong>; even pages are OCR-scanned for the UPS{' '}
-            <strong>tracking number</strong>. Each pair becomes one row in one Excel export.
-          </p>
-          <p className="mt-1 text-xs text-gray-500">
-            A scan keeps running if you switch pages — come back here any time to check progress or
-            results. (A full browser refresh still clears an in-progress scan.)
-          </p>
         </div>
         {loadedHistoryId && (
           <button
@@ -409,17 +400,6 @@ export default function TrackingScanner() {
             </div>
           )}
         </div>
-      </section>
-
-      <section className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs text-gray-600">
-        <p className="font-semibold text-gray-700 mb-1">How it works</p>
-        <ul className="list-disc pl-5 space-y-1">
-          <li>Pages 1, 3, 5, … (odd): text extraction reads the FBA shipment ID and box code.</li>
-          <li>Pages 2, 4, 6, … (even): each page is rendered and OCR’d to read the UPS Tracking # (1Z…).</li>
-          <li>Supports multiple PDF uploads and ZIP files containing PDFs in one scan.</li>
-          <li>Each odd–even pair becomes one row. Missing values are flagged as <em>Needs review</em>.</li>
-          <li>OCR runs fully in your browser using Tesseract.js (no backend OCR server required).</li>
-        </ul>
       </section>
     </div>
   )
