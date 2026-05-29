@@ -430,6 +430,10 @@ export default function Sidebar() {
             </div>
           )}
 
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col justify-center py-2">
+          <div className="space-y-1 border-t-2 border-b-2 border-gray-300/80 py-4">
           <Link
             to="/micro-tools"
             onMouseEnter={() => setHoveredNav('micro-tools')}
@@ -468,6 +472,7 @@ export default function Sidebar() {
             <span className="mr-3">{Icons.fnskuLabels}</span>
             <span>FNSKU Labels</span>
           </Link>
+          </div>
         </div>
 
         <div className="mt-auto space-y-1 border-t-2 border-gray-300/80 pt-4">
