@@ -4,8 +4,6 @@ import { useUser } from '../../contexts/UserContext'
 import { APP_ICON_URL, APP_NAME, APP_VERSION_LABEL } from '../../constants/app'
 import { isUserHiddenFromFeedbackPage } from '../../constants/feedbackAccess'
 
-const DEV_MD_OWNER_EMAIL = 'orvillebarba@gmail.com'
-
 // SVG Icon components that inherit text color via currentColor
 const Icons = {
   dashboard: (
@@ -16,12 +14,6 @@ const Icons = {
   info: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  ),
-  devmd: (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4h7l5 5v11a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 4v5h5M9 13h6M9 17h6" />
     </svg>
   ),
   settings: (
@@ -225,7 +217,6 @@ export default function Sidebar() {
     item.path ? isActive(item.path) : (item.children && item.children.some(child => isActive(child.path)))
   )
   const hasActiveToolsSubItem = toolsMenuItems.some(item => isActive(item.path))
-  const canViewDevMd = userInfo?.email?.toLowerCase() === DEV_MD_OWNER_EMAIL
 
   /** Blocklist hides nav item entirely once user profile / session is resolved. */
   const showFeedbackNav =
@@ -578,21 +569,6 @@ export default function Sidebar() {
               <span>Feedback From Users</span>
             </Link>
           ) : null}
-
-          {canViewDevMd && (
-            <Link
-              to="/dev-md"
-              onMouseEnter={() => setHoveredNav('dev-md')}
-              className={`sidebar-link ${
-                navHighlighted('dev-md', isActive('/dev-md'))
-                  ? 'sidebar-link-active'
-                  : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="mr-3">{Icons.devmd}</span>
-              <span>Dev MD</span>
-            </Link>
-          )}
 
           {/* User Management (Superadmin only) */}
           {isSuperadmin && (
