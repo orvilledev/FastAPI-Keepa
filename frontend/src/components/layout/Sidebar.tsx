@@ -235,7 +235,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-64 bg-white/80 backdrop-blur-lg border-r border-gray-200/80 shadow-lg h-screen sticky top-0 z-50">
+    <aside className="flex h-screen w-64 flex-col bg-white/80 backdrop-blur-lg border-r border-gray-200/80 shadow-lg sticky top-0 z-50">
       <div className="p-6 border-b border-gray-200/80">
         <div className="flex items-center space-x-2">
           <img src={APP_ICON_URL} alt="MSW Overwatch" className="w-8 h-8" />
@@ -248,7 +248,7 @@ export default function Sidebar() {
         </div>
       </div>
       <nav
-        className="mt-6 px-4"
+        className="mt-6 flex min-h-0 flex-1 flex-col px-4 pb-4"
         onMouseLeave={() => setHoveredNav(null)}
       >
         <div className="space-y-1">
@@ -468,7 +468,9 @@ export default function Sidebar() {
             <span className="mr-3">{Icons.fnskuLabels}</span>
             <span>FNSKU Labels</span>
           </Link>
+        </div>
 
+        <div className="mt-auto space-y-1 border-t border-gray-200/80 pt-4">
           <Link
             to="/about"
             onMouseEnter={() => setHoveredNav('about')}
