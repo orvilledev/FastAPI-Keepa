@@ -220,17 +220,6 @@ export default function FNSKULabelGenerator() {
     <div className="max-w-6xl mx-auto space-y-6">
       <header>
         <h1 className="text-2xl font-bold text-gray-900">FNSKU Labels Generator</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Upload one or more Amazon shipment plan exports (the per-shipment{' '}
-          <strong>Individual units</strong> CSV or XLSX) and download the{' '}
-          <code className="rounded bg-gray-100 px-1 py-0.5 text-xs">WR FNSKU LABELS</code> workbooks
-          formatted for the warehouse label tool. You can also upload a <strong>.zip</strong> containing
-          multiple exports.
-        </p>
-        <p className="mt-1 text-xs text-gray-500">
-          Each box becomes a marker row at the top and bottom of its block; every FNSKU is repeated
-          once per box it is allocated to with the correct unit quantity.
-        </p>
       </header>
 
       {globalError && (
@@ -379,32 +368,6 @@ export default function FNSKULabelGenerator() {
           ))}
         </section>
       )}
-
-      <section className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs text-gray-600">
-        <p className="font-semibold text-gray-700 mb-1">Output format</p>
-        <ul className="list-disc pl-5 space-y-1">
-          <li>
-            Single sheet named <code>Products</code> with columns: Number of Labels*, Fnsku, Title,
-            Condition, Msku, DynamicText - 2.
-          </li>
-          <li>
-            Each box block is bracketed by two identical marker rows where Fnsku is the Box ID,
-            Title is the Box name, and Condition is the 1-based box sequence number.
-          </li>
-          <li>
-            Product rows inside a block list every FNSKU allocated to that box with the per-box
-            unit quantity in <code>Number of Labels*</code>.
-          </li>
-          <li>
-            Multiple files generate one workbook and one matching PDF label file each — zip files
-            are automatically unpacked.
-          </li>
-          <li>
-            Generation runs entirely in your browser — no upload to a server, no PII leaves the
-            page.
-          </li>
-        </ul>
-      </section>
     </div>
   )
 }
