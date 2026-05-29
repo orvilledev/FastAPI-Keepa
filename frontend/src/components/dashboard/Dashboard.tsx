@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import VendorRunCard from './VendorRunCard'
-import WelcomePopup from './WelcomePopup'
 import { schedulerApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
 
@@ -121,7 +120,6 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <WelcomePopup />
       {/* Greeting */}
       {!userInfoLoading && greeting && (
         <div>
