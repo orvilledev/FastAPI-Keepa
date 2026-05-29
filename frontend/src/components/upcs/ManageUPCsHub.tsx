@@ -11,13 +11,13 @@ const VENDORS = [
   { code: 'cha', label: 'CHA' },
 ] as const
 
-export default function DailyRunsMenu() {
+export default function ManageUPCsHub() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Daily Runs</h1>
+        <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Manage UPCs</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Select a vendor to open its scheduler, run history, and API/Upload toggle.
+          Select a vendor to view, add, or remove UPCs for its daily scheduler processing.
         </p>
       </div>
 
@@ -25,18 +25,18 @@ export default function DailyRunsMenu() {
         {VENDORS.map(({ code, label }) => (
           <Link
             key={code}
-            to={`/daily-run/${code}`}
+            to={`/upcs?category=${code}`}
             className="card card-hover p-5 flex flex-col gap-2"
           >
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#404040] text-white">
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
                 </svg>
               </div>
               <div>
-                <h2 className="text-base font-semibold text-gray-900">{label} Daily Run</h2>
-                <p className="text-xs text-gray-500">Scheduler &amp; run history</p>
+                <h2 className="text-base font-semibold text-gray-900">{label}</h2>
+                <p className="text-xs text-gray-500">Manage UPCs</p>
               </div>
             </div>
           </Link>

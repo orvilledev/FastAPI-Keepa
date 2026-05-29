@@ -37,6 +37,7 @@ const CHADailyRun = lazy(() => import('./components/jobs/CHADailyRun'))
 const DailyRunsMenu = lazy(() => import('./components/jobs/DailyRunsMenu'))
 const ReportView = lazy(() => import('./components/reports/ReportView'))
 const UPCManagement = lazy(() => import('./components/upcs/UPCManagement'))
+const ManageUPCsHub = lazy(() => import('./components/upcs/ManageUPCsHub'))
 const MAPManagement = lazy(() => import('./components/map/MAPManagement'))
 const SellerList = lazy(() => import('./components/sellers/SellerList'))
 const EmailList = lazy(() => import('./components/email/EmailList'))
@@ -243,6 +244,7 @@ function AppRoutes() {
           <Route path="jobs/new" element={<ProtectedRoute requireKeepaAccess={true}><CreateJob /></ProtectedRoute>} />
           <Route path="jobs/:jobId" element={<ProtectedRoute requireKeepaAccess={true}><JobDetail /></ProtectedRoute>} />
           <Route path="reports/:jobId" element={<ProtectedRoute requireKeepaAccess={true}><ReportView /></ProtectedRoute>} />
+          <Route path="manage-upcs" element={<ProtectedRoute requireKeepaAccess={true}><ManageUPCsHub /></ProtectedRoute>} />
           <Route path="upcs" element={<ProtectedRoute requireKeepaAccess={true}><UPCManagement /></ProtectedRoute>} />
           <Route path="clk-upcs" element={<Navigate to="/upcs?category=clk" replace />} />
           <Route path="map" element={<ProtectedRoute requireKeepaAccess={true}><MAPManagement /></ProtectedRoute>} />

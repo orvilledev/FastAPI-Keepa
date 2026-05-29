@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useUser } from '../../contexts/UserContext'
 import { APP_ICON_URL, APP_NAME, APP_VERSION_LABEL } from '../../constants/app'
 import { isUserHiddenFromFeedbackPage } from '../../constants/feedbackAccess'
@@ -61,11 +61,6 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8m-18 8h18a2 2 0 002-2V8a2 2 0 00-2-2H3a2 2 0 00-2 2v6a2 2 0 002 2z" />
     </svg>
   ),
-  chevronRight: (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-    </svg>
-  ),
   feedback: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.018c8.836 0 16 8.058 16 9.036v7.964a1 1 0 01-1.618.794L17 21" />
@@ -87,18 +82,11 @@ export default function Sidebar() {
   const location = useLocation()
   const { hasKeepaAccess, isSuperadmin, userInfo, authUser, userInfoLoading } = useUser()
   const isElectron = Boolean(window.desktop?.isElectron)
-  const [isDailyRunsMenuOpen, setIsDailyRunsMenuOpen] = useState(false)
-  const [isManageUPCsMenuOpen, setIsManageUPCsMenuOpen] = useState(false)
   const [desktopVersion, setDesktopVersion] = useState<string | null>(null)
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false)
   const [updateMessage, setUpdateMessage] = useState('')
-  /** Only one sidebar row shows “highlight” while hovering; route highlight defers to hover target. */
+  /** Only one sidebar row shows "highlight" while hovering; route highlight defers to hover target. */
   const [hoveredNav, setHoveredNav] = useState<string | null>(null)
-
-  const dailyRunsButtonRef = useRef<HTMLButtonElement>(null)
-  const manageUPCsButtonRef = useRef<HTMLButtonElement>(null)
-  const dailyRunsTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const manageUPCsTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const isActive = (path: string) => {
     const currentPath = location.pathname
@@ -115,70 +103,38 @@ export default function Sidebar() {
       return true
     }
 
-    // Exact match - always check this first
     if (currentPath === path) return true
-    
-    // For parent routes that can have children (e.g., /jobs should match /jobs/123)
-    // But NOT for sibling routes at the same level
-    // Check if this path is a parent route that should match children
-    const parentRoutes = ['/jobs'] // Routes that can have nested children
-    
+
+    // /jobs matches /jobs/123, /jobs/new, etc.
+    const parentRoutes = ['/jobs']
     if (parentRoutes.includes(path)) {
-      // Allow matching child routes (e.g., /jobs/123 matches /jobs)
       return currentPath.startsWith(path + '/')
     }
-    
-    // For all other routes (specific menu items like /dashboard, /upcs, etc.), only exact match
-    // This ensures Dashboard is only active when on /dashboard, not on other pages
+
+    // /daily-run matches any /daily-run/xxx vendor page
+    if (path === '/daily-run') {
+      return currentPath.startsWith('/daily-run/')
+    }
+
+    // /manage-upcs or /upcs hub highlights when on any /upcs?category=xxx page
+    if (path === '/manage-upcs') {
+      return currentPath === '/upcs' || currentPath === '/manage-upcs'
+    }
+
     return false
   }
 
   const navHighlighted = (id: string, routeActive: boolean) =>
     (hoveredNav === null && routeActive) || hoveredNav === id
 
-  // Daily Runs no longer has an API/Upload split — each vendor's page hosts
-  // both modes via a toggle. The flyout lists vendors directly.
-  const dailyRunsMenuItems = [
-    { path: '/daily-run/dnk', label: 'DNK', icon: 'refresh' as const },
-    { path: '/daily-run/clk', label: 'CLK', icon: 'refresh' as const },
-    { path: '/daily-run/obz', label: 'OBZ', icon: 'refresh' as const },
-    { path: '/daily-run/ref', label: 'REF', icon: 'refresh' as const },
-    { path: '/daily-run/bor', label: 'BOR', icon: 'refresh' as const },
-    { path: '/daily-run/sff', label: 'SFF', icon: 'refresh' as const },
-    { path: '/daily-run/tev', label: 'TEV', icon: 'refresh' as const },
-    { path: '/daily-run/cha', label: 'CHA', icon: 'refresh' as const },
-  ]
-
-  const manageUPCsMenuItems = [
-    { path: '/upcs?category=dnk', label: 'DNK', icon: 'barcode' as const },
-    { path: '/upcs?category=clk', label: 'CLK', icon: 'barcode' as const },
-    { path: '/upcs?category=obz', label: 'OBZ', icon: 'barcode' as const },
-    { path: '/upcs?category=ref', label: 'REF', icon: 'barcode' as const },
-    { path: '/upcs?category=bor', label: 'BOR', icon: 'barcode' as const },
-    { path: '/upcs?category=sff', label: 'SFF', icon: 'barcode' as const },
-    { path: '/upcs?category=tev', label: 'TEV', icon: 'barcode' as const },
-    { path: '/upcs?category=cha', label: 'CHA', icon: 'barcode' as const },
-  ]
-
   const keepaMenuItems = [
-    { path: '/jobs', label: 'Express Jobs', icon: 'package' as const },
-    {
-      label: 'Manage UPCs',
-      icon: 'barcode' as const,
-      children: manageUPCsMenuItems
-    },
-    { path: '/map', label: 'Manage MAP', icon: 'dollar' as const },
-    { path: '/seller-list', label: 'Seller List', icon: 'users' as const },
-    { path: '/email-list', label: 'Email List', icon: 'mail' as const },
-    {
-      label: 'Daily Runs',
-      icon: 'refresh' as const,
-      children: dailyRunsMenuItems
-    },
+    { path: '/jobs',         label: 'Express Jobs', icon: 'package'  as const },
+    { path: '/manage-upcs', label: 'Manage UPCs',  icon: 'barcode'  as const },
+    { path: '/map',          label: 'Manage MAP',   icon: 'dollar'   as const },
+    { path: '/seller-list',  label: 'Seller List',  icon: 'users'    as const },
+    { path: '/email-list',   label: 'Email List',   icon: 'mail'     as const },
+    { path: '/daily-run',    label: 'Daily Runs',   icon: 'refresh'  as const },
   ]
-
-  const hasActiveDailyRunsSubItem = dailyRunsMenuItems.some(item => isActive(item.path))
-  const hasActiveManageUPCsSubItem = manageUPCsMenuItems.some(item => isActive(item.path))
 
   /** Blocklist hides nav item entirely once user profile / session is resolved. */
   const showFeedbackNav =
@@ -189,16 +145,6 @@ export default function Sidebar() {
       userInfo?.email,
       authUser?.email,
     )
-
-  // Auto-open flyouts when a child route is active
-  useEffect(() => {
-    if (hasActiveDailyRunsSubItem) {
-      setIsDailyRunsMenuOpen(true)
-    }
-    if (hasActiveManageUPCsSubItem) {
-      setIsManageUPCsMenuOpen(true)
-    }
-  }, [hasActiveDailyRunsSubItem, hasActiveManageUPCsSubItem])
 
   useEffect(() => {
     if (!isElectron || !window.desktop?.getVersion) return
@@ -239,146 +185,39 @@ export default function Sidebar() {
         className="flex min-h-0 flex-1 flex-col px-3 py-3"
         onMouseLeave={() => setHoveredNav(null)}
       >
+        {/* Top nav: Dashboard + Keepa items */}
         <div className="min-h-0 shrink overflow-y-auto overscroll-y-contain">
           <div className="space-y-0.5">
-          {/* Dashboard - top level */}
-          <Link
-            to="/dashboard"
-            onMouseEnter={() => setHoveredNav('dashboard')}
-            className={`sidebar-link ${
-              navHighlighted('dashboard', isActive('/dashboard'))
-                ? 'sidebar-link-active'
-                : 'sidebar-link-inactive'
-            }`}
-          >
-            <span className="shrink-0">{Icons.dashboard}</span>
-            <span className="sidebar-link-label">Dashboard</span>
-          </Link>
+            <Link
+              to="/dashboard"
+              onMouseEnter={() => setHoveredNav('dashboard')}
+              className={`sidebar-link ${
+                navHighlighted('dashboard', isActive('/dashboard'))
+                  ? 'sidebar-link-active'
+                  : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="shrink-0">{Icons.dashboard}</span>
+              <span className="sidebar-link-label">Dashboard</span>
+            </Link>
 
-          {hasKeepaAccess &&
-            keepaMenuItems.map((item) => {
-              if (item.children) {
-                const isOpen =
-                  (item.label === 'Daily Runs' && isDailyRunsMenuOpen) ||
-                  (item.label === 'Manage UPCs' && isManageUPCsMenuOpen)
-                const hasActiveChild =
-                  (item.label === 'Daily Runs' && hasActiveDailyRunsSubItem) ||
-                  (item.label === 'Manage UPCs' && hasActiveManageUPCsSubItem)
-                const buttonRef =
-                  item.label === 'Daily Runs' ? dailyRunsButtonRef : manageUPCsButtonRef
-                const timeoutRef =
-                  item.label === 'Daily Runs' ? dailyRunsTimeoutRef : manageUPCsTimeoutRef
-
-                const flyoutParentId =
-                  item.label === 'Daily Runs' ? 'daily-runs' : 'manage-upcs'
-
-                const handleMouseEnter = () => {
-                  setHoveredNav(flyoutParentId)
-                  if (timeoutRef.current) {
-                    clearTimeout(timeoutRef.current)
-                    timeoutRef.current = null
-                  }
-                  if (item.label === 'Daily Runs') {
-                    setIsDailyRunsMenuOpen(true)
-                  } else if (item.label === 'Manage UPCs') {
-                    setIsManageUPCsMenuOpen(true)
-                  }
-                }
-
-                const handleMouseLeave = () => {
-                  timeoutRef.current = setTimeout(() => {
-                    if (item.label === 'Daily Runs') {
-                      setIsDailyRunsMenuOpen(false)
-                    } else if (item.label === 'Manage UPCs') {
-                      setIsManageUPCsMenuOpen(false)
-                    }
-                  }, 200)
-                }
-
-                return (
-                  <div key={item.label} className="relative group">
-                    <button
-                      ref={buttonRef}
-                      type="button"
-                      onMouseEnter={handleMouseEnter}
-                      onMouseLeave={handleMouseLeave}
-                      className={`sidebar-link w-full text-left ${
-                        navHighlighted(flyoutParentId, hasActiveChild)
-                          ? 'sidebar-link-active'
-                          : 'sidebar-link-inactive'
-                      }`}
-                    >
-                      <span className="shrink-0">{Icons[item.icon]}</span>
-                      <span className="sidebar-link-label">{item.label}</span>
-                      <span className="shrink-0">{Icons.chevronRight}</span>
-                    </button>
-
-                    {isOpen && (
-                      <div
-                        className="flyout-menu absolute left-full top-0 ml-2 bg-[#3B3B3B] rounded-lg shadow-2xl border border-white/20 min-w-[200px] z-[9999]"
-                        onMouseEnter={handleMouseEnter}
-                        onMouseLeave={handleMouseLeave}
-                      >
-                        <div className="p-2 space-y-1">
-                          {item.children.map((childItem) => (
-                            <Link
-                              key={childItem.path}
-                              to={childItem.path}
-                              onMouseEnter={() =>
-                                setHoveredNav(
-                                  `${item.label === 'Daily Runs' ? 'flyout-daily' : 'flyout-upcs'}-${childItem.path}`
-                                )
-                              }
-                              className={`sidebar-link ${
-                                navHighlighted(
-                                  `${item.label === 'Daily Runs' ? 'flyout-daily' : 'flyout-upcs'}-${childItem.path}`,
-                                  isActive(childItem.path)
-                                )
-                                  ? 'sidebar-link-active'
-                                  : 'sidebar-link-inactive'
-                              }`}
-                              onClick={() => {
-                                if (dailyRunsTimeoutRef.current) {
-                                  clearTimeout(dailyRunsTimeoutRef.current)
-                                  dailyRunsTimeoutRef.current = null
-                                }
-                                if (manageUPCsTimeoutRef.current) {
-                                  clearTimeout(manageUPCsTimeoutRef.current)
-                                  manageUPCsTimeoutRef.current = null
-                                }
-                                setIsDailyRunsMenuOpen(false)
-                                setIsManageUPCsMenuOpen(false)
-                              }}
-                            >
-                              <span className="shrink-0">{Icons[childItem.icon]}</span>
-                              <span className="sidebar-link-label">{childItem.label}</span>
-                            </Link>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              }
-
+            {hasKeepaAccess && keepaMenuItems.map((item) => {
               const linkId =
-                item.path === '/jobs'
-                  ? 'jobs'
-                  : item.path === '/map'
-                    ? 'map'
-                    : item.path === '/seller-list'
-                      ? 'seller-list'
-                      : item.path === '/email-list'
-                        ? 'email-list'
-                        : 'keepa-other'
+                item.path === '/jobs'         ? 'jobs'        :
+                item.path === '/manage-upcs'  ? 'manage-upcs' :
+                item.path === '/map'          ? 'map'         :
+                item.path === '/seller-list'  ? 'seller-list' :
+                item.path === '/email-list'   ? 'email-list'  :
+                item.path === '/daily-run'    ? 'daily-runs'  :
+                'keepa-other'
 
               return (
                 <Link
                   key={item.path}
-                  to={item.path!}
+                  to={item.path}
                   onMouseEnter={() => setHoveredNav(linkId)}
                   className={`sidebar-link ${
-                    navHighlighted(linkId, isActive(item.path!))
+                    navHighlighted(linkId, isActive(item.path))
                       ? 'sidebar-link-active'
                       : 'sidebar-link-inactive'
                   }`}
@@ -391,49 +230,51 @@ export default function Sidebar() {
           </div>
         </div>
 
+        {/* Center: standalone tools with border above/below */}
         <div className="flex min-h-0 flex-1 flex-col justify-center py-2">
           <div className="space-y-0.5 border-t-2 border-b-2 border-gray-300/80 py-3">
-          <Link
-            to="/micro-tools"
-            onMouseEnter={() => setHoveredNav('micro-tools')}
-            className={`sidebar-link ${
-              navHighlighted('micro-tools', isActive('/micro-tools'))
-                ? 'sidebar-link-active'
-                : 'sidebar-link-inactive'
-            }`}
-          >
-            <span className="shrink-0">{Icons.toolbox}</span>
-            <span className="sidebar-link-label">Micro Tools</span>
-          </Link>
+            <Link
+              to="/micro-tools"
+              onMouseEnter={() => setHoveredNav('micro-tools')}
+              className={`sidebar-link ${
+                navHighlighted('micro-tools', isActive('/micro-tools'))
+                  ? 'sidebar-link-active'
+                  : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="shrink-0">{Icons.toolbox}</span>
+              <span className="sidebar-link-label">Micro Tools</span>
+            </Link>
 
-          <Link
-            to="/tracking-scanner"
-            onMouseEnter={() => setHoveredNav('tracking-scanner')}
-            className={`sidebar-link ${
-              navHighlighted('tracking-scanner', isActive('/tracking-scanner'))
-                ? 'sidebar-link-active'
-                : 'sidebar-link-inactive'
-            }`}
-          >
-            <span className="shrink-0">{Icons.scanner}</span>
-            <span className="sidebar-link-label">Tracking Extractor</span>
-          </Link>
+            <Link
+              to="/tracking-scanner"
+              onMouseEnter={() => setHoveredNav('tracking-scanner')}
+              className={`sidebar-link ${
+                navHighlighted('tracking-scanner', isActive('/tracking-scanner'))
+                  ? 'sidebar-link-active'
+                  : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="shrink-0">{Icons.scanner}</span>
+              <span className="sidebar-link-label">Tracking Extractor</span>
+            </Link>
 
-          <Link
-            to="/fnsku-labels"
-            onMouseEnter={() => setHoveredNav('fnsku-labels')}
-            className={`sidebar-link ${
-              navHighlighted('fnsku-labels', isActive('/fnsku-labels'))
-                ? 'sidebar-link-active'
-                : 'sidebar-link-inactive'
-            }`}
-          >
-            <span className="shrink-0">{Icons.fnskuLabels}</span>
-            <span className="sidebar-link-label">FNSKU Labels</span>
-          </Link>
+            <Link
+              to="/fnsku-labels"
+              onMouseEnter={() => setHoveredNav('fnsku-labels')}
+              className={`sidebar-link ${
+                navHighlighted('fnsku-labels', isActive('/fnsku-labels'))
+                  ? 'sidebar-link-active'
+                  : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="shrink-0">{Icons.fnskuLabels}</span>
+              <span className="sidebar-link-label">FNSKU Labels</span>
+            </Link>
           </div>
         </div>
 
+        {/* Bottom: About, FAQ, Feedback, User Management */}
         <div className="mt-auto shrink-0 space-y-0.5 border-t-2 border-gray-300/80 pt-3 pb-1">
           <Link
             to="/about"
@@ -461,7 +302,7 @@ export default function Sidebar() {
             <span className="sidebar-link-label">FAQ</span>
           </Link>
 
-          {showFeedbackNav ? (
+          {showFeedbackNav && (
             <Link
               to="/feedback"
               onMouseEnter={() => setHoveredNav('feedback')}
@@ -474,9 +315,8 @@ export default function Sidebar() {
               <span className="shrink-0">{Icons.feedback}</span>
               <span className="sidebar-link-label">Feedback From Users</span>
             </Link>
-          ) : null}
+          )}
 
-          {/* User Management (Superadmin only) */}
           {isSuperadmin && (
             <Link
               to="/admin/users"
@@ -513,4 +353,3 @@ export default function Sidebar() {
     </aside>
   )
 }
-
