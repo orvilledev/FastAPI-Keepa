@@ -33,7 +33,7 @@ class BatchJobCreate(BaseModel):
         description="MAP vendor code (map_prices.vendor_type); omit for default (dnk)",
     )
     off_price_scope: OffPriceScope = Field(
-        default="buybox_only",
+        default="buybox_and_non_buybox_below_map",
         description=(
             "Off-price detection scope: "
             "'buybox_only' or 'buybox_and_non_buybox_below_map'"
@@ -78,7 +78,7 @@ class BatchJobResponse(BaseModel):
     email_recipients: Optional[str] = None
     keepa_offers_limit: Optional[int] = None
     map_vendor_type: str = Field(default=DEFAULT_MAP_VENDOR_TYPE)
-    off_price_scope: OffPriceScope = "buybox_only"
+    off_price_scope: OffPriceScope = "buybox_and_non_buybox_below_map"
 
     @field_validator("map_vendor_type", mode="before")
     @classmethod

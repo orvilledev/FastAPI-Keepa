@@ -107,7 +107,7 @@ def test_offer_without_seller_name_uses_empty_string_not_unknown():
 
 @pytest.mark.unit
 def test_offer_filtered_when_condition_used_int_code():
-    """Keepa condition != 2 (New) should be filtered out of offers[] merge."""
+    """Keepa condition != 0 (New) should be filtered out of offers[] merge."""
     resp = {
         "products": [
             {
@@ -162,7 +162,26 @@ def test_offer_kept_when_condition_new_string():
 
 
 @pytest.mark.unit
-def test_offer_kept_when_condition_int_two():
+def test_offer_kept_when_condition_int_zero():
+    """Keepa condition 0 = New; offer should pass through."""
+    resp = {
+        "products": [
+            {
+                "current_sellers": [],
+                "offers": [
+                    {"offerCSV": [1, 3000, 0], "sellerId": "S1", "condition": 0},
+                ],
+                "liveOffersOrder": [0],
+            }
+        ]
+    }
+    rows = build_unified_seller_list(resp)
+    assert len(rows) == 1
+
+
+@pytest.mark.unit
+def test_offer_filtered_when_condition_int_two():
+    """Keepa condition 2 = Used-Very Good; offer should be filtered."""
     resp = {
         "products": [
             {
@@ -174,8 +193,7 @@ def test_offer_kept_when_condition_int_two():
             }
         ]
     }
-    rows = build_unified_seller_list(resp)
-    assert len(rows) == 1
+    assert build_unified_seller_list(resp) == []
 
 
 @pytest.mark.unit
@@ -299,8 +317,14 @@ def test_offer_condition_is_new_handles_missing_field():
 
 
 @pytest.mark.unit
+def test_offer_condition_is_new_accepts_code_zero():
+    """Keepa condition 0 = New."""
+    assert _offer_condition_is_new({"condition": 0})
+
+
+@pytest.mark.unit
 def test_offer_condition_is_new_rejects_used_codes():
-    for code in (0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11):
+    for code in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11):
         assert not _offer_condition_is_new({"condition": code}), f"code {code} should not be New"
 
 

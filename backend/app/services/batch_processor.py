@@ -333,7 +333,7 @@ class BatchProcessor:
 
             job_vendor = resolve_map_vendor_type(None)
             job_offers_limit: Optional[int] = None
-            job_off_price_scope = "buybox_only"
+            job_off_price_scope = "buybox_and_non_buybox_below_map"
             job_id_for_batch = batch_data.get("batch_job_id")
             if job_id_for_batch:
                 job_row = await self._execute_with_retry(

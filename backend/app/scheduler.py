@@ -497,7 +497,7 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                         "email_recipients": custom_recipients,
                         "map_vendor_type": category,
                         "keepa_offers_limit": settings.keepa_offers_limit,
-                        "off_price_scope": "buybox_only",
+                        "off_price_scope": "buybox_and_non_buybox_below_map",
                     }).execute())
                     await notify_admin(
                         "import_missing_file",
@@ -528,7 +528,7 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                     "email_recipients": custom_recipients,
                     "map_vendor_type": category,
                     "keepa_offers_limit": settings.keepa_offers_limit,
-                    "off_price_scope": "buybox_only",
+                    "off_price_scope": "buybox_and_non_buybox_below_map",
                 }).execute())
                 await notify_admin(
                     "import_missing_file",

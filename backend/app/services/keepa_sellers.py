@@ -23,10 +23,10 @@ logger = logging.getLogger(__name__)
 # Keepa minute timestamps count minutes since 2011-01-01T00:00:00Z.
 _KEEPA_EPOCH_UNIX_SECONDS = 1293840000
 
-# Keepa condition codes: 2 = New. Anything else (used, refurb, collectible,
+# Keepa condition codes: 0 = New. Anything else (used, refurb, collectible,
 # unknown) cannot meaningfully violate New-product MAP and routinely produces
 # false-positive "off-price" rows for non-listings.
-_NEW_CONDITION_CODE = 2
+_NEW_CONDITION_CODE = 0
 
 # Boolean offer flags that disqualify an offer from off-price comparison.
 _DISQUALIFYING_OFFER_FLAGS = ("isPreorder", "isAddonItem", "isScam")

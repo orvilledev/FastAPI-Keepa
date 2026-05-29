@@ -11,7 +11,7 @@ export default function CreateJob() {
   const [emailRecipients, setEmailRecipients] = useState('')
   const [mapVendorType, setMapVendorType] = useState('dnk')
   const [keepaOffersLimit, setKeepaOffersLimit] = useState<number>(100)
-  const [offPriceScope, setOffPriceScope] = useState<'buybox_only' | 'buybox_and_non_buybox_below_map'>('buybox_only')
+  const [offPriceScope, setOffPriceScope] = useState<'buybox_only' | 'buybox_and_non_buybox_below_map'>('buybox_and_non_buybox_below_map')
   const [vendorSuggestions, setVendorSuggestions] = useState<string[]>([...SYSTEM_VENDOR_CODES])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
