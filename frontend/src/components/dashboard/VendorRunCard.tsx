@@ -91,14 +91,14 @@ export default function VendorRunCard({ vendor, nowMs }: { vendor: CalendarVendo
 
   return (
     <div
-      className={`rounded-xl shadow-xl p-6 text-white border ${
+      className={`rounded-xl shadow-xl p-4 sm:p-5 text-white border ${
         inputMode === 'uploaded'
           ? 'bg-[#404040] border-white/20'
           : 'bg-[#404040] border-white/20'
       }`}
     >
-      <div className="flex items-center justify-between">
-        <div className="flex-1">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1">
           <h3 className="text-lg font-semibold mb-2">{code} Keepa Off Price Daily Run</h3>
           <p className="text-white/70 text-sm mb-4">
             Scheduled for {vendor.scheduled_time}
@@ -113,29 +113,29 @@ export default function VendorRunCard({ vendor, nowMs }: { vendor: CalendarVendo
             </span>
           </p>
           {timeLeft && secondsUntil !== null && secondsUntil > 0 ? (
-            <div className="flex items-center space-x-4">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <div className="text-center">
-                <div className={`text-4xl font-bold ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}>{String(timeLeft.hours).padStart(2, '0')}</div>
+                <div className={`text-2xl font-bold sm:text-3xl ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}>{String(timeLeft.hours).padStart(2, '0')}</div>
                 <div className="text-xs text-white/70 mt-1">Hours</div>
               </div>
-              <div className={`text-3xl font-bold ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}>:</div>
+              <div className={`text-xl font-bold sm:text-2xl ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}>:</div>
               <div className="text-center">
-                <div className={`text-4xl font-bold ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}>{String(timeLeft.minutes).padStart(2, '0')}</div>
+                <div className={`text-2xl font-bold sm:text-3xl ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}>{String(timeLeft.minutes).padStart(2, '0')}</div>
                 <div className="text-xs text-white/70 mt-1">Minutes</div>
               </div>
-              <div className={`text-3xl font-bold ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}>:</div>
+              <div className={`text-xl font-bold sm:text-2xl ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}>:</div>
               <div className="text-center">
-                <div className={`text-4xl font-bold ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}>{String(timeLeft.seconds).padStart(2, '0')}</div>
+                <div className={`text-2xl font-bold sm:text-3xl ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}>{String(timeLeft.seconds).padStart(2, '0')}</div>
                 <div className="text-xs text-white/70 mt-1">Seconds</div>
               </div>
             </div>
           ) : (
-            <div className="text-lg font-semibold">Email will be sent soon...</div>
+            <div className="text-base font-semibold sm:text-lg">Email will be sent soon...</div>
           )}
         </div>
-        <div className="text-right ml-6">
+        <div className="shrink-0 sm:text-right">
           <div className="text-sm text-white/70 mb-1">Next Run</div>
-          <div className="text-lg font-semibold">{nextRunText}</div>
+          <div className="text-base font-semibold sm:text-lg">{nextRunText}</div>
           <div className="mt-2">
             <span
               className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${

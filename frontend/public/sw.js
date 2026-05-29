@@ -1,4 +1,4 @@
-const SW_VERSION = 'v7'
+const SW_VERSION = 'v8'
 const STATIC_CACHE = `msw-overwatch-static-${SW_VERSION}`
 const RUNTIME_CACHE = `msw-overwatch-runtime-${SW_VERSION}`
 const APP_SHELL_FILES = ['/', '/index.html', '/manifest.webmanifest', '/app-icon.svg', '/favicon.svg', '/orbit-logo.svg']

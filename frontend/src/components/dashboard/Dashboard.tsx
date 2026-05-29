@@ -123,8 +123,8 @@ export default function Dashboard() {
       {/* Greeting */}
       {!userInfoLoading && greeting && (
         <div>
-          <h1 className="text-5xl font-bold text-gray-900">{greeting}</h1>
-          <p className="mt-3 text-lg text-gray-600">Stop overthinking and start building.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">{greeting}</h1>
+          <p className="mt-2 text-base text-gray-600">Stop overthinking and start building.</p>
         </div>
       )}
 
@@ -173,7 +173,7 @@ export default function Dashboard() {
                   <Link
                     key={`inactive-${category}`}
                     to={`/daily-run/${category}`}
-                    className="inline-flex items-center rounded-[16px] bg-[#81B81D] text-white font-bold text-lg px-6 py-2 shadow-sm"
+                    className="inline-flex items-center rounded-[16px] bg-[#81B81D] text-white font-bold text-base px-5 py-2 shadow-sm"
                   >
                     {VENDOR_LABELS[category]}
                   </Link>

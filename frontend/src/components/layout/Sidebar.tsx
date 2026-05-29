@@ -223,23 +223,23 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="sticky top-16 z-40 flex h-[calc(100vh-4rem)] w-64 flex-col border-r border-gray-200/80 bg-white/80 shadow-lg backdrop-blur-lg">
-      <div className="p-6 border-b border-gray-200/80">
-        <div className="flex items-center space-x-2">
-          <img src={APP_ICON_URL} alt="MSW Overwatch" className="w-8 h-8" />
-          <div>
-            <h2 className="text-lg font-bold text-[#404040]">
+    <aside className="flex h-full w-60 shrink-0 flex-col border-r border-gray-200/80 bg-white/80 shadow-lg backdrop-blur-lg">
+      <div className="shrink-0 border-b border-gray-200/80 p-4">
+        <div className="flex items-center gap-2.5">
+          <img src={APP_ICON_URL} alt="MSW Overwatch" className="h-8 w-8 shrink-0" />
+          <div className="min-w-0">
+            <h2 className="truncate text-base font-bold text-[#404040]">
               {APP_NAME}
             </h2>
-            <p className="text-xs text-gray-500">Central Workspace • {APP_VERSION_LABEL}</p>
+            <p className="truncate text-xs text-gray-500">Central Workspace • {APP_VERSION_LABEL}</p>
           </div>
         </div>
       </div>
       <nav
-        className="mt-6 flex min-h-0 flex-1 flex-col px-4 pb-4"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-3"
         onMouseLeave={() => setHoveredNav(null)}
       >
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           {/* Dashboard - top level */}
           <Link
             to="/dashboard"
@@ -250,8 +250,8 @@ export default function Sidebar() {
                 : 'sidebar-link-inactive'
             }`}
           >
-            <span className="mr-3">{Icons.dashboard}</span>
-            <span>Dashboard</span>
+            <span className="shrink-0">{Icons.dashboard}</span>
+            <span className="sidebar-link-label">Dashboard</span>
           </Link>
 
           {hasKeepaAccess &&
@@ -307,9 +307,9 @@ export default function Sidebar() {
                           : 'sidebar-link-inactive'
                       }`}
                     >
-                      <span className="mr-3">{Icons[item.icon]}</span>
-                      <span className="flex-1">{item.label}</span>
-                      <span>{Icons.chevronRight}</span>
+                      <span className="shrink-0">{Icons[item.icon]}</span>
+                      <span className="sidebar-link-label">{item.label}</span>
+                      <span className="shrink-0">{Icons.chevronRight}</span>
                     </button>
 
                     {isOpen && (
@@ -349,8 +349,8 @@ export default function Sidebar() {
                                 setIsManageUPCsMenuOpen(false)
                               }}
                             >
-                              <span className="mr-3">{Icons[childItem.icon]}</span>
-                              <span>{childItem.label}</span>
+                              <span className="shrink-0">{Icons[childItem.icon]}</span>
+                              <span className="sidebar-link-label">{childItem.label}</span>
                             </Link>
                           ))}
                         </div>
@@ -382,8 +382,8 @@ export default function Sidebar() {
                       : 'sidebar-link-inactive'
                   }`}
                 >
-                  <span className="mr-3">{Icons[item.icon]}</span>
-                  <span>{item.label}</span>
+                  <span className="shrink-0">{Icons[item.icon]}</span>
+                  <span className="sidebar-link-label">{item.label}</span>
                 </Link>
               )
             })}
@@ -397,8 +397,8 @@ export default function Sidebar() {
                 : 'sidebar-link-inactive'
             }`}
           >
-            <span className="mr-3">{Icons.toolbox}</span>
-            <span>Micro Tools</span>
+            <span className="shrink-0">{Icons.toolbox}</span>
+            <span className="sidebar-link-label">Micro Tools</span>
           </Link>
 
           <Link
@@ -410,8 +410,8 @@ export default function Sidebar() {
                 : 'sidebar-link-inactive'
             }`}
           >
-            <span className="mr-3">{Icons.scanner}</span>
-            <span>Tracking Extractor</span>
+            <span className="shrink-0">{Icons.scanner}</span>
+            <span className="sidebar-link-label">Tracking Extractor</span>
           </Link>
 
           <Link
@@ -423,16 +423,14 @@ export default function Sidebar() {
                 : 'sidebar-link-inactive'
             }`}
           >
-            <span className="mr-3">{Icons.fnskuLabels}</span>
-            <span>FNSKU Labels</span>
+            <span className="shrink-0">{Icons.fnskuLabels}</span>
+            <span className="sidebar-link-label">FNSKU Labels</span>
           </Link>
         </div>
 
-        <div className="flex min-h-8 flex-1 items-center py-3" aria-hidden="true">
-          <div className="h-px w-full bg-gray-300/80" />
-        </div>
+        <div className="my-3 border-t border-gray-300/80" role="separator" />
 
-        <div className="shrink-0 space-y-1 pb-1">
+        <div className="space-y-0.5">
           <Link
             to="/about"
             onMouseEnter={() => setHoveredNav('about')}
@@ -442,8 +440,8 @@ export default function Sidebar() {
                 : 'sidebar-link-inactive'
             }`}
           >
-            <span className="mr-3">{Icons.info}</span>
-            <span>About</span>
+            <span className="shrink-0">{Icons.info}</span>
+            <span className="sidebar-link-label">About</span>
           </Link>
 
           <Link
@@ -455,8 +453,8 @@ export default function Sidebar() {
                 : 'sidebar-link-inactive'
             }`}
           >
-            <span className="mr-3">{Icons.wrench}</span>
-            <span>FAQ</span>
+            <span className="shrink-0">{Icons.wrench}</span>
+            <span className="sidebar-link-label">FAQ</span>
           </Link>
 
           {showFeedbackNav ? (
@@ -469,8 +467,8 @@ export default function Sidebar() {
                   : 'sidebar-link-inactive'
               }`}
             >
-              <span className="mr-3">{Icons.feedback}</span>
-              <span>Feedback From Users</span>
+              <span className="shrink-0">{Icons.feedback}</span>
+              <span className="sidebar-link-label">Feedback From Users</span>
             </Link>
           ) : null}
 
@@ -485,14 +483,14 @@ export default function Sidebar() {
                   : 'sidebar-link-inactive'
               }`}
             >
-              <span className="mr-3">{Icons.users}</span>
-              <span>User Management</span>
+              <span className="shrink-0">{Icons.users}</span>
+              <span className="sidebar-link-label">User Management</span>
             </Link>
           )}
         </div>
       </nav>
       {isElectron && (
-        <div className="mx-4 mb-4 mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+        <div className="mx-4 mb-4 mt-3 shrink-0 rounded-lg border border-gray-200 bg-gray-50 p-3">
           <p className="text-xs font-semibold text-gray-700">Desktop</p>
           <p className="mt-1 text-xs text-gray-600">
             Version: <span className="font-mono text-[11px]">{desktopVersion ?? 'loading...'}</span>
