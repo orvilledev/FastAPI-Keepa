@@ -26,17 +26,22 @@ export default function DailyRunsMenu() {
           <Link
             key={code}
             to={`/daily-run/${code}`}
-            className="card card-hover p-5 flex flex-col gap-2"
+            className="vendor-hub-card"
           >
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#404040] text-white">
+              <div className="vendor-hub-card-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#404040] text-white transition-colors duration-300">
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  <circle cx="17" cy="4" r="2" strokeWidth={2} />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 6.5l-1.5 3 1.5 1-2.5 7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12.5 12l-1 5" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12.5 12l3-1.5" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.5 10.5l2.5-1.5 2-3.5" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.5 5.5l-1 2" />
                 </svg>
               </div>
               <div>
-                <h2 className="text-base font-semibold text-gray-900">{label}</h2>
-                <p className="text-xs text-gray-500">Scheduler &amp; run history</p>
+                <h2 className="vendor-hub-card-title text-base font-semibold text-gray-900 transition-colors duration-300">{label}</h2>
+                <p className="vendor-hub-card-subtitle text-xs text-gray-500 transition-colors duration-300">Scheduler &amp; run history</p>
               </div>
             </div>
           </Link>

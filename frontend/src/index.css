@@ -33,6 +33,31 @@
   .card-hover {
     @apply transition-all duration-200 hover:shadow-md hover:border-gray-200;
   }
+
+  .vendor-hub-card {
+    @apply flex flex-col gap-2 rounded-xl border border-gray-100/80 bg-white p-5 shadow-sm;
+    transition: background 0.3s ease-in, color 0.3s ease-in, box-shadow 0.3s ease-in;
+    will-change: background, color;
+  }
+
+  .vendor-hub-card:hover {
+    background: #404040 !important;
+    color: white !important;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
+  }
+
+  .vendor-hub-card:hover .vendor-hub-card-title {
+    color: white !important;
+  }
+
+  .vendor-hub-card:hover .vendor-hub-card-subtitle {
+    color: rgb(255 255 255 / 0.7) !important;
+  }
+
+  .vendor-hub-card:hover .vendor-hub-card-icon {
+    background: rgb(255 255 255 / 0.2) !important;
+    color: white !important;
+  }
   
   .btn-primary {
     @apply bg-[#404040] hover:bg-[#3B3B3B] text-white font-medium px-6 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 transform hover:-translate-y-0.5;
