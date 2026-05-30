@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { APP_ICON_URL } from '../../constants/app'
 import { authApi, invalidateAuthTokenCache } from '../../services/api'
 import {
+  buildTotpUri,
   fetchMfaStatus,
   prepareTotpEnrollment,
   recordMfaActivity,
@@ -45,11 +46,19 @@ export default function MfaSetup() {
         return
       }
 
+      const accountEmail = sessionData.session.user?.email ?? 'user'
       const enrollment = await prepareTotpEnrollment()
+      const enrollmentSecret = enrollment.totp.secret ?? null
       setFactorId(enrollment.id)
-      setQrCode(enrollment.totp.qr_code ?? null)
-      setOtpUri(enrollment.totp.uri ?? null)
-      setSecret(enrollment.totp.secret ?? null)
+      setSecret(enrollmentSecret)
+      if (enrollmentSecret) {
+        // Render a custom QR/URI so the authenticator app shows "MSW Overwatch" as the issuer.
+        setOtpUri(buildTotpUri(enrollmentSecret, accountEmail))
+        setQrCode(null)
+      } else {
+        setQrCode(enrollment.totp.qr_code ?? null)
+        setOtpUri(enrollment.totp.uri ?? null)
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to start authenticator setup'
       setError(message)

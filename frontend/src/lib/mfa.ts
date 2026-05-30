@@ -1,4 +1,22 @@
 import { supabase } from './supabase'
+import { APP_NAME } from '../constants/app'
+
+/**
+ * Build a standard otpauth:// URI so authenticator apps show our app name as the issuer
+ * (Supabase's default URI uses the project's Site URL, e.g. "localhost:3000").
+ * Uses the SAME secret Supabase generated, so the codes still verify against Supabase.
+ */
+export function buildTotpUri(secret: string, account: string, issuer: string = APP_NAME): string {
+  const label = `${encodeURIComponent(issuer)}:${encodeURIComponent(account)}`
+  const query = [
+    `secret=${encodeURIComponent(secret)}`,
+    `issuer=${encodeURIComponent(issuer)}`,
+    'algorithm=SHA1',
+    'digits=6',
+    'period=30',
+  ].join('&')
+  return `otpauth://totp/${label}?${query}`
+}
 
 export type MfaStatus = {
   hasVerifiedTotp: boolean
