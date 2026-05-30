@@ -121,7 +121,9 @@ function PublicHome() {
 /** Logged-in users are redirected away from guest-only routes (login/signup). */
 function GuestRoute({ children }: { children: React.ReactNode }) {
   const { authUser } = useUser()
-  if (authUser) {
+  const location = useLocation()
+  // Let Login finish MFA routing after signInWithPassword; redirecting here caused dashboard/API races and sign-out.
+  if (authUser && location.pathname !== '/login') {
     return <AuthenticatedEntryRedirect />
   }
   return <>{children}</>

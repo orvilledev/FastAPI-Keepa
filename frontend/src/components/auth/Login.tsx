@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { authApi } from '../../services/api'
-import { fetchMfaStatus, redirectForIncompleteMfa, shouldShowMfaSetup, shouldShowMfaVerify } from '../../lib/mfa'
+import { fetchMfaStatus, shouldShowMfaSetup, shouldShowMfaVerify } from '../../lib/mfa'
 import { APP_ICON_URL } from '../../constants/app'
 
 export default function Login() {
@@ -26,17 +25,14 @@ export default function Login() {
   }, [])
 
   const completeSignIn = async () => {
-    try {
-      await authApi.getCurrentUser()
-    } catch (authError: unknown) {
-      const status = (authError as { response?: { status?: number; data?: { detail?: string } } })?.response?.status
-      const detail = (authError as { response?: { status?: number; data?: { detail?: string } } })?.response?.data?.detail
-      if (status === 403 && typeof detail === 'string' && detail.toLowerCase().includes('pending superadmin approval')) {
-        await supabase.auth.signOut()
-        setError('Your account is pending superadmin approval.')
-        return false
+    const status = await fetchMfaStatus()
+    if (!status.isFullyAuthenticated) {
+      if (shouldShowMfaSetup(status)) {
+        navigate('/mfa/setup')
+      } else {
+        navigate('/mfa/verify')
       }
-      throw authError
+      return false
     }
     navigate('/dashboard')
     return true

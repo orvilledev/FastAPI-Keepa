@@ -110,22 +110,7 @@ api.interceptors.response.use(
       message.toLowerCase().includes('mfa verification required')
 
     if (mfaRequired) {
-      const config = error.config as { _mfaRefresh?: boolean } | undefined
-      if (config && !config._mfaRefresh) {
-        config._mfaRefresh = true
-        try {
-          invalidateAuthTokenCache()
-          const { data, error: refreshError } = await supabase.auth.refreshSession()
-          if (!refreshError && data.session?.access_token) {
-            cachedToken = data.session.access_token
-            tokenExpiresAt = (data.session.expires_at || 0) * 1000 - 5 * 60 * 1000
-            config.headers.Authorization = `Bearer ${cachedToken}`
-            return api.request(config)
-          }
-        } catch {
-          // Fall through to redirect / reject.
-        }
-      }
+      // Do not refreshSession here — it cannot promote AAL1→AAL2 and may invalidate the login session.
       if (!isMfaAuthRoute()) {
         void redirectForIncompleteMfa()
       }

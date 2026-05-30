@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
-import { authApi, invalidateAuthTokenCache } from '../services/api'
+import { authApi } from '../services/api'
 import { fetchMfaStatus, isMfaAuthRoute, redirectForIncompleteMfa } from '../lib/mfa'
 
 // Extended user info from API
@@ -78,30 +78,8 @@ export function UserProvider({ children }: UserProviderProps) {
       const status = (error as { response?: { status?: number; data?: { detail?: string } } })?.response?.status
       const detail = (error as { response?: { status?: number; data?: { detail?: string } } })?.response?.data?.detail
       if (status === 401 && typeof detail === 'string' && detail.toLowerCase().includes('mfa verification required')) {
-        invalidateAuthTokenCache()
-        const { error: refreshError } = await supabase.auth.refreshSession()
-        if (!refreshError) {
-          try {
-            const data = await authApi.getCurrentUser()
-            const emailLower = (data.email || authUser.email || '').toLowerCase()
-            setUserInfo({
-              id: data.id || authUser.id,
-              email: data.email || authUser.email,
-              role: data.role,
-              display_name: data.display_name,
-              has_keepa_access: data.has_keepa_access || false,
-              can_manage_tools: data.can_manage_tools || false,
-              is_superadmin: Boolean(data.is_superadmin) || emailLower === 'orvillebarba@gmail.com',
-              mfa_enabled: Boolean(data.mfa_enabled),
-              created_at: data.created_at,
-            })
-            profileLoadedForUserId.current = authUser.id
-            return
-          } catch {
-            // Continue to redirect / clear below.
-          }
-        }
         setUserInfo(null)
+        profileLoadedForUserId.current = null
         if (!isMfaAuthRoute()) {
           void redirectForIncompleteMfa()
         }
@@ -109,8 +87,12 @@ export function UserProvider({ children }: UserProviderProps) {
       }
       if (status === 403 && typeof detail === 'string' && detail.toLowerCase().includes('pending superadmin approval')) {
         sessionStorage.setItem('auth_notice', 'Your account is pending superadmin approval.')
+        profileLoadedForUserId.current = null
         await supabase.auth.signOut()
         setUserInfo(null)
+        if (typeof window !== 'undefined' && !isMfaAuthRoute()) {
+          window.location.assign('/login')
+        }
         return
       }
       // Set minimal info from auth user if API fails
@@ -231,6 +213,8 @@ export function UserProvider({ children }: UserProviderProps) {
     displayName,
     refetchUserInfo: async () => {
       profileLoadedForUserId.current = null
+      const mfaStatus = await fetchMfaStatus()
+      if (!mfaStatus.isFullyAuthenticated) return
       await fetchUserInfo()
     },
     signOut,

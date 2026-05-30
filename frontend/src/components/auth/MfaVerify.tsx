@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { APP_ICON_URL } from '../../constants/app'
-import { authApi } from '../../services/api'
+import { authApi, invalidateAuthTokenCache } from '../../services/api'
 import {
   createMfaChallenge,
   fetchMfaStatus,
@@ -66,7 +66,8 @@ export default function MfaVerify() {
   }, [navigate])
 
   const finishSignIn = async () => {
-    await supabase.auth.refreshSession()
+    invalidateAuthTokenCache()
+    await supabase.auth.getSession()
     try {
       await authApi.confirmMfaEnrollment()
     } catch {

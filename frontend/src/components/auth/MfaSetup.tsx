@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { APP_ICON_URL } from '../../constants/app'
-import { authApi } from '../../services/api'
+import { authApi, invalidateAuthTokenCache } from '../../services/api'
 import {
   fetchMfaStatus,
   prepareTotpEnrollment,
@@ -71,7 +71,8 @@ export default function MfaSetup() {
     setSubmitting(true)
     try {
       await verifyEnrollmentCode(factorId, code)
-      await supabase.auth.refreshSession()
+      invalidateAuthTokenCache()
+      await supabase.auth.getSession()
       await authApi.confirmMfaEnrollment()
       navigate('/dashboard', { replace: true })
     } catch (err: unknown) {
