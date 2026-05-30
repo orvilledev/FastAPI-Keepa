@@ -631,12 +631,6 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
             </svg>
             <div>
               <h2 className="text-lg font-semibold text-[#111827]">Imported Keepa Report</h2>
-              <p className="mt-1 text-sm text-[#111827]">
-                Upload a Keepa export file (Excel, CSV, or TXT). The system will parse it and use uploaded rows for
-                MAP/off-price comparison on the next run instead of consuming Keepa API tokens. Run UPC scope still
-                comes from Manage UPCs for this vendor. A current Keepa upload is <strong>required</strong> for
-                upload-mode runs.
-              </p>
             </div>
           </div>
 
@@ -681,9 +675,6 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
               >
                 {savingUploadRecipients ? 'Saving...' : 'Save Recipients'}
               </button>
-              <span className="text-xs text-gray-500">
-                Recipient changes are saved only after clicking <strong>Save Recipients</strong> (or Upload Report).
-              </span>
             </div>
           </div>
 
