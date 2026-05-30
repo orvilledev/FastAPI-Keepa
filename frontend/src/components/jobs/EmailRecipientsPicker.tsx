@@ -163,7 +163,7 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
       )}
 
       <p className="text-sm text-gray-500">
-        Leave empty to use default report recipients. Otherwise only the selected addresses receive the report.
+        Leave empty to use default report recipients.
       </p>
     </div>
   )
