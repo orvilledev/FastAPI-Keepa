@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { APP_ICON_URL } from '../../constants/app'
 import { authApi, invalidateAuthTokenCache } from '../../services/api'
@@ -25,8 +25,12 @@ export default function MfaSetup() {
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const enrollmentInFlight = useRef(false)
 
   const startEnrollment = useCallback(async () => {
+    // Prevent React Strict Mode / rapid re-mounts from enrolling twice (which left a duplicate factor).
+    if (enrollmentInFlight.current) return
+    enrollmentInFlight.current = true
     setError('')
     setLoading(true)
     try {
@@ -68,6 +72,7 @@ export default function MfaSetup() {
       setSecret(null)
     } finally {
       setLoading(false)
+      enrollmentInFlight.current = false
     }
   }, [navigate])
 

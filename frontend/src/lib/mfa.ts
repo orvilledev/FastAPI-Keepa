@@ -171,7 +171,12 @@ export async function verifyMfaCode(factorId: string, challengeId: string, code:
   if (error) throw error
 }
 
-export async function enrollTotpFactor(friendlyName = 'Authenticator app') {
+/** A unique friendly name avoids Supabase's "factor with this friendly name already exists" error. */
+function nextTotpFriendlyName(): string {
+  return `${APP_NAME} (${Date.now()})`
+}
+
+export async function enrollTotpFactor(friendlyName: string = nextTotpFriendlyName()) {
   const { data, error } = await supabase.auth.mfa.enroll({
     factorType: 'totp',
     friendlyName,
@@ -194,9 +199,23 @@ export async function unenrollUnverifiedTotpFactors() {
   }
 }
 
+/**
+ * Start a fresh TOTP enrollment.
+ * Clears any leftover unverified factor (e.g. an abandoned QR scan) first, and retries once
+ * if Supabase still reports a name/factor collision so the user never gets stuck on setup.
+ */
 export async function prepareTotpEnrollment() {
   await unenrollUnverifiedTotpFactors()
-  return enrollTotpFactor()
+  try {
+    return await enrollTotpFactor()
+  } catch (err) {
+    const message = err instanceof Error ? err.message.toLowerCase() : ''
+    const isCollision = message.includes('already exists') || message.includes('friendly name')
+    if (!isCollision) throw err
+    // A stale factor slipped through (race / partial cleanup) — remove unverified factors and retry once.
+    await unenrollUnverifiedTotpFactors()
+    return enrollTotpFactor()
+  }
 }
 
 /**
