@@ -134,11 +134,11 @@ export default function Sidebar() {
 
   const keepaMenuItems = [
     { path: '/jobs',         label: 'Express Jobs', icon: 'package'  as const },
+    { path: '/daily-run',    label: 'Daily Runs',   icon: 'running'  as const },
     { path: '/manage-upcs', label: 'Manage UPCs',  icon: 'barcode'  as const },
     { path: '/map',          label: 'Manage MAP',   icon: 'dollar'   as const },
     { path: '/seller-list',  label: 'Seller List',  icon: 'users'    as const },
     { path: '/email-list',   label: 'Email List',   icon: 'mail'     as const },
-    { path: '/daily-run',    label: 'Daily Runs',   icon: 'running'  as const },
   ]
 
   /** Blocklist hides nav item entirely once user profile / session is resolved. */
