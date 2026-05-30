@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
+import { supabase } from '../lib/supabase'
+import { authApi } from '../services/api'
 import { redirectForIncompleteMfa } from '../lib/mfa'
 
 // Extended user info from API
