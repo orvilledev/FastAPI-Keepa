@@ -41,6 +41,24 @@ const api = axios.create({
 let cachedToken: string | null = null
 let tokenExpiresAt: number = 0
 
+/** Force the next API request to read a fresh Supabase session (e.g. after MFA step-up). */
+export function invalidateAuthTokenCache() {
+  cachedToken = null
+  tokenExpiresAt = 0
+}
+
+async function syncAuthTokenFromSession() {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session?.access_token) {
+    cachedToken = session.access_token
+    tokenExpiresAt = (session.expires_at || 0) * 1000 - 5 * 60 * 1000
+    return session.access_token
+  }
+  cachedToken = null
+  tokenExpiresAt = 0
+  return null
+}
+
 // Listen for auth changes to update cached token
 supabase.auth.onAuthStateChange((_event, session) => {
   if (session?.access_token) {
@@ -65,11 +83,7 @@ supabase.auth.getSession().then(({ data: { session } }) => {
 api.interceptors.request.use(async (config) => {
   // Only fetch fresh session if token is expired or missing
   if (!cachedToken || Date.now() > tokenExpiresAt) {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.access_token) {
-      cachedToken = session.access_token
-      tokenExpiresAt = (session.expires_at || 0) * 1000 - 5 * 60 * 1000
-    }
+    await syncAuthTokenFromSession()
   }
   
   if (cachedToken) {
@@ -96,6 +110,22 @@ api.interceptors.response.use(
       message.toLowerCase().includes('mfa verification required')
 
     if (mfaRequired) {
+      const config = error.config as { _mfaRefresh?: boolean } | undefined
+      if (config && !config._mfaRefresh) {
+        config._mfaRefresh = true
+        try {
+          invalidateAuthTokenCache()
+          const { data, error: refreshError } = await supabase.auth.refreshSession()
+          if (!refreshError && data.session?.access_token) {
+            cachedToken = data.session.access_token
+            tokenExpiresAt = (data.session.expires_at || 0) * 1000 - 5 * 60 * 1000
+            config.headers.Authorization = `Bearer ${cachedToken}`
+            return api.request(config)
+          }
+        } catch {
+          // Fall through to redirect / reject.
+        }
+      }
       if (!isMfaAuthRoute()) {
         void redirectForIncompleteMfa()
       }

@@ -71,6 +71,7 @@ export default function MfaSetup() {
     setSubmitting(true)
     try {
       await verifyEnrollmentCode(factorId, code)
+      await supabase.auth.refreshSession()
       await authApi.confirmMfaEnrollment()
       navigate('/dashboard', { replace: true })
     } catch (err: unknown) {

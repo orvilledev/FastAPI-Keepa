@@ -120,6 +120,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {userInfoLoading && (
+        <p className="text-sm text-gray-500">Loading your profile…</p>
+      )}
       {/* Greeting */}
       {!userInfoLoading && greeting && (
         <div>

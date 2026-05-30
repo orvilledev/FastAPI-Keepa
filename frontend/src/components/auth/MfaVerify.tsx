@@ -66,6 +66,7 @@ export default function MfaVerify() {
   }, [navigate])
 
   const finishSignIn = async () => {
+    await supabase.auth.refreshSession()
     try {
       await authApi.confirmMfaEnrollment()
     } catch {

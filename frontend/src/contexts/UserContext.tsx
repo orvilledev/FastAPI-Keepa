@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
-import { authApi } from '../services/api'
+import { authApi, invalidateAuthTokenCache } from '../services/api'
 import { fetchMfaStatus, isMfaAuthRoute, redirectForIncompleteMfa } from '../lib/mfa'
 
 // Extended user info from API
@@ -74,6 +74,28 @@ export function UserProvider({ children }: UserProviderProps) {
       const status = (error as { response?: { status?: number; data?: { detail?: string } } })?.response?.status
       const detail = (error as { response?: { status?: number; data?: { detail?: string } } })?.response?.data?.detail
       if (status === 401 && typeof detail === 'string' && detail.toLowerCase().includes('mfa verification required')) {
+        invalidateAuthTokenCache()
+        const { error: refreshError } = await supabase.auth.refreshSession()
+        if (!refreshError) {
+          try {
+            const data = await authApi.getCurrentUser()
+            const emailLower = (data.email || authUser.email || '').toLowerCase()
+            setUserInfo({
+              id: data.id || authUser.id,
+              email: data.email || authUser.email,
+              role: data.role,
+              display_name: data.display_name,
+              has_keepa_access: data.has_keepa_access || false,
+              can_manage_tools: data.can_manage_tools || false,
+              is_superadmin: Boolean(data.is_superadmin) || emailLower === 'orvillebarba@gmail.com',
+              mfa_enabled: Boolean(data.mfa_enabled),
+              created_at: data.created_at,
+            })
+            return
+          } catch {
+            // Continue to redirect / clear below.
+          }
+        }
         setUserInfo(null)
         if (!isMfaAuthRoute()) {
           void redirectForIncompleteMfa()
@@ -138,29 +160,53 @@ export function UserProvider({ children }: UserProviderProps) {
     }
   }, [])
 
+  const syncProfileAfterAuth = useCallback(async () => {
+    if (!authUser) {
+      setUserInfo(null)
+      return
+    }
+
+    try {
+      const mfaStatus = await fetchMfaStatus()
+      if (!mfaStatus.isFullyAuthenticated) {
+        setUserInfo(null)
+        return
+      }
+      invalidateAuthTokenCache()
+      await supabase.auth.refreshSession()
+      await fetchUserInfo()
+    } catch {
+      try {
+        const mfaStatus = await fetchMfaStatus()
+        if (mfaStatus.isFullyAuthenticated) {
+          invalidateAuthTokenCache()
+          await supabase.auth.refreshSession()
+          await fetchUserInfo()
+        }
+      } catch {
+        // Profile sync failed; keep existing userInfo if any.
+      }
+    }
+  }, [authUser, fetchUserInfo])
+
   // Fetch profile only after MFA step-up (AAL2). Calling the API at AAL1 returns 401 and was reloading /mfa/verify.
   useEffect(() => {
     if (!authUser || authLoading) return
+    void syncProfileAfterAuth()
+  }, [authUser, authLoading, syncProfileAfterAuth])
 
-    let cancelled = false
-    void (async () => {
-      try {
-        const mfaStatus = await fetchMfaStatus()
-        if (cancelled) return
-        if (!mfaStatus.isFullyAuthenticated) {
-          setUserInfo(null)
-          return
-        }
-        await fetchUserInfo()
-      } catch {
-        if (!cancelled) await fetchUserInfo()
+  // Re-sync profile when Supabase refreshes the session (e.g. after MFA verify).
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session?.user) return
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        void syncProfileAfterAuth()
       }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [authUser, authLoading, fetchUserInfo])
+    })
+    return () => subscription.unsubscribe()
+  }, [syncProfileAfterAuth])
 
   const signOut = async () => {
     await supabase.auth.signOut()
@@ -172,8 +218,14 @@ export function UserProvider({ children }: UserProviderProps) {
   const hasKeepaAccess = userInfo?.has_keepa_access || false
   const canManageTools = userInfo?.can_manage_tools || false
   const isSuperadmin =
-    Boolean(userInfo?.is_superadmin) || userInfo?.email?.toLowerCase() === 'orvillebarba@gmail.com'
-  const displayName = userInfo?.display_name || userInfo?.email?.split('@')[0] || 'User'
+    Boolean(userInfo?.is_superadmin) ||
+    userInfo?.email?.toLowerCase() === 'orvillebarba@gmail.com' ||
+    authUser?.email?.toLowerCase() === 'orvillebarba@gmail.com'
+  const displayName =
+    userInfo?.display_name ||
+    userInfo?.email?.split('@')[0] ||
+    authUser?.email?.split('@')[0] ||
+    'User'
 
   const value: UserContextType = {
     authUser,
