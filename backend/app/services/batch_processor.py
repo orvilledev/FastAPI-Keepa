@@ -583,32 +583,6 @@ class BatchProcessor:
             job_map_vendor = resolve_map_vendor_type(job_data.get("map_vendor_type"))
             job_off_price_scope = job_data.get("off_price_scope") or "buybox_only"
 
-            # Look up the per-vendor custom email wording, if any. This is a
-            # best-effort read: any error keeps the built-in default subject/body
-            # so existing behavior is preserved for vendors without templates.
-            email_subject_template: Optional[str] = None
-            email_body_template: Optional[str] = None
-            try:
-                templates_resp = await self._execute_with_retry(
-                    lambda: (
-                        self.db.table("scheduler_settings")
-                        .select("email_subject_template, email_body_template")
-                        .eq("category", job_map_vendor)
-                        .limit(1)
-                        .execute()
-                    ),
-                    "load vendor email templates",
-                )
-                if templates_resp.data:
-                    email_subject_template = templates_resp.data[0].get("email_subject_template")
-                    email_body_template = templates_resp.data[0].get("email_body_template")
-            except Exception as templates_err:
-                logger.warning(
-                    "Could not load custom email templates for vendor %s: %s",
-                    job_map_vendor,
-                    templates_err,
-                )
-
             try:
                 report_service = ReportService(self.db)
                 csv_bytes, filename, off_price_count = report_service.generate_csv_for_job(
@@ -643,8 +617,6 @@ class BatchProcessor:
                             alerts_count=off_price_count,
                             recipient_email=custom_recipients,
                             vendor=job_map_vendor,
-                            email_subject_template=email_subject_template,
-                            email_body_template=email_body_template,
                         ),
                     )
                 except Exception as email_err:
