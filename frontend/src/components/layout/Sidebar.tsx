@@ -281,7 +281,7 @@ export default function Sidebar() {
         <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 
         {/* GENERAL */}
-        <div className="mt-auto shrink-0 space-y-0.5 pb-1 pt-1">
+        <div className="shrink-0 space-y-0.5 pb-1 pt-1">
           <p className="sidebar-section-label">GENERAL</p>
           <Link
             to="/about"
