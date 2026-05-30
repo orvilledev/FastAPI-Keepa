@@ -199,6 +199,21 @@ export async function prepareTotpEnrollment() {
   return enrollTotpFactor()
 }
 
+/**
+ * Remove ALL TOTP factors (verified + unverified) so the user can re-enroll from scratch
+ * (e.g. to pick up the "MSW Overwatch" issuer name). Requires an AAL2 session.
+ */
+export async function resetTotpEnrollment(): Promise<void> {
+  const { data: factors, error } = await supabase.auth.mfa.listFactors()
+  if (error) throw error
+
+  for (const factor of factors?.totp ?? []) {
+    const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: factor.id })
+    if (unenrollError) throw unenrollError
+  }
+  clearMfaActivity()
+}
+
 export async function verifyEnrollmentCode(factorId: string, code: string) {
   const { error } = await supabase.auth.mfa.challengeAndVerify({
     factorId,
