@@ -1,7 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useUser } from '../../contexts/UserContext'
-import { fetchMfaStatus, type MfaStatus } from '../../lib/mfa'
+import {
+  fetchMfaStatus,
+  shouldShowMfaSetup,
+  shouldShowMfaVerify,
+  type MfaStatus,
+} from '../../lib/mfa'
 
 type MfaGateProps = {
   children: ReactNode
@@ -59,7 +64,7 @@ export default function MfaGate({ children, requireFullAuth = true }: MfaGatePro
 
   if (authLoading || checking) {
     return (
-      <div className="min-h-app-screen flex items-center justify-center">
+      <div className="min-h-app-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
         <div className="w-10 h-10 border-4 border-[#404040] border-t-transparent rounded-full animate-spin" />
       </div>
     )
@@ -70,13 +75,10 @@ export default function MfaGate({ children, requireFullAuth = true }: MfaGatePro
   }
 
   if (requireFullAuth) {
-    if (status?.needsEnrollment) {
+    if (shouldShowMfaSetup(status)) {
       return <Navigate to="/mfa/setup" replace />
     }
-    if (status?.needsMfaVerify) {
-      return <Navigate to="/mfa/verify" replace />
-    }
-    if (!status?.isFullyAuthenticated) {
+    if (shouldShowMfaVerify(status)) {
       return <Navigate to="/mfa/verify" replace />
     }
   } else if (status?.isFullyAuthenticated) {

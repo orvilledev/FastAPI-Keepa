@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
+import { redirectForIncompleteMfa } from '../lib/mfa'
 import type {
   MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, MicroToolRecord, JobAid, Notification, ComprehensiveReportRow, SellerName, CliChatSession, CliChatMessage, TrackingHistorySummary, TrackingHistoryDetail, TrackingScannerRow } from '../types'
 
@@ -20,16 +21,6 @@ const API_URL = normalizeApiBaseUrl(
     : 'http://localhost:8000'
 )
 
-function redirectToMfaVerify(): void {
-  if (typeof window === 'undefined') return
-  if (window.location.protocol === 'file:') {
-    window.location.hash = '#/mfa/verify'
-  } else {
-    window.location.assign('/mfa/verify')
-  }
-}
-
-/** Packaged Electron uses HashRouter (`#/...`); plain `/login` breaks on `file:` URLs. */
 function redirectToLogin(): void {
   if (typeof window === 'undefined') return
   if (window.location.protocol === 'file:') {
@@ -105,7 +96,7 @@ api.interceptors.response.use(
       message.toLowerCase().includes('mfa verification required')
 
     if (mfaRequired) {
-      redirectToMfaVerify()
+      void redirectForIncompleteMfa()
       return Promise.reject(error)
     }
     

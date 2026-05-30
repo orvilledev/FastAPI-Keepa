@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
-import { supabase } from '../lib/supabase'
-import { authApi } from '../services/api'
+import { redirectForIncompleteMfa } from '../lib/mfa'
 
 // Extended user info from API
 export interface UserInfo {
@@ -74,7 +73,7 @@ export function UserProvider({ children }: UserProviderProps) {
       const detail = (error as { response?: { status?: number; data?: { detail?: string } } })?.response?.data?.detail
       if (status === 401 && typeof detail === 'string' && detail.toLowerCase().includes('mfa verification required')) {
         setUserInfo(null)
-        window.location.assign('/mfa/verify')
+        void redirectForIncompleteMfa()
         return
       }
       if (status === 403 && typeof detail === 'string' && detail.toLowerCase().includes('pending superadmin approval')) {

@@ -17,7 +17,7 @@ import MfaGate from './components/auth/MfaGate'
 import About from './components/About'
 import Maintenance from './components/Maintenance'
 import { systemApi } from './services/api'
-import { fetchMfaStatus } from './lib/mfa'
+import { fetchMfaStatus, shouldShowMfaSetup, shouldShowMfaVerify } from './lib/mfa'
 import { isUserHiddenFromFeedbackPage } from './constants/feedbackAccess'
 
 // Lazy load page components for code splitting (About is eager so its chunk cannot 404 behind stale CDN/cache)
@@ -88,8 +88,8 @@ function AuthenticatedEntryRedirect() {
     void fetchMfaStatus()
       .then((status) => {
         if (cancelled) return
-        if (status.needsEnrollment) setTarget('/mfa/setup')
-        else if (status.needsMfaVerify || !status.isFullyAuthenticated) setTarget('/mfa/verify')
+        if (shouldShowMfaSetup(status)) setTarget('/mfa/setup')
+        else if (shouldShowMfaVerify(status)) setTarget('/mfa/verify')
         else setTarget('/dashboard')
       })
       .catch(() => {

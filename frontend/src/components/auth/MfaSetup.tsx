@@ -1,62 +1,67 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { APP_ICON_URL } from '../../constants/app'
 import { authApi } from '../../services/api'
-import { enrollTotpFactor, fetchMfaStatus, verifyEnrollmentCode } from '../../lib/mfa'
+import {
+  fetchMfaStatus,
+  prepareTotpEnrollment,
+  shouldShowMfaVerify,
+  verifyEnrollmentCode,
+} from '../../lib/mfa'
 import { supabase } from '../../lib/supabase'
+import TotpQrCode from './TotpQrCode'
 
 export default function MfaSetup() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [factorId, setFactorId] = useState<string | null>(null)
   const [qrCode, setQrCode] = useState<string | null>(null)
+  const [otpUri, setOtpUri] = useState<string | null>(null)
   const [secret, setSecret] = useState<string | null>(null)
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
-
-    const init = async () => {
-      setError('')
-      try {
-        const { data: sessionData } = await supabase.auth.getSession()
-        if (!sessionData.session) {
-          navigate('/login', { replace: true })
-          return
-        }
-
-        const status = await fetchMfaStatus()
-        if (status.isFullyAuthenticated) {
-          navigate('/dashboard', { replace: true })
-          return
-        }
-
-        if (status.hasVerifiedTotp && status.needsMfaVerify) {
-          navigate('/login', { replace: true, state: { mfaStep: true } })
-          return
-        }
-
-        const enrollment = await enrollTotpFactor()
-        if (cancelled) return
-        setFactorId(enrollment.id)
-        setQrCode(enrollment.totp.qr_code)
-        setSecret(enrollment.totp.secret)
-      } catch (err: unknown) {
-        if (cancelled) return
-        const message = err instanceof Error ? err.message : 'Failed to start authenticator setup'
-        setError(message)
-      } finally {
-        if (!cancelled) setLoading(false)
+  const startEnrollment = useCallback(async () => {
+    setError('')
+    setLoading(true)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      if (!sessionData.session) {
+        navigate('/login', { replace: true })
+        return
       }
-    }
 
-    void init()
-    return () => {
-      cancelled = true
+      const status = await fetchMfaStatus()
+      if (status.isFullyAuthenticated) {
+        navigate('/dashboard', { replace: true })
+        return
+      }
+      if (shouldShowMfaVerify(status)) {
+        navigate('/mfa/verify', { replace: true })
+        return
+      }
+
+      const enrollment = await prepareTotpEnrollment()
+      setFactorId(enrollment.id)
+      setQrCode(enrollment.totp.qr_code ?? null)
+      setOtpUri(enrollment.totp.uri ?? null)
+      setSecret(enrollment.totp.secret ?? null)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to start authenticator setup'
+      setError(message)
+      setFactorId(null)
+      setQrCode(null)
+      setOtpUri(null)
+      setSecret(null)
+    } finally {
+      setLoading(false)
     }
   }, [navigate])
+
+  useEffect(() => {
+    void startEnrollment()
+  }, [startEnrollment])
 
   const handleVerify = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -81,6 +86,8 @@ export default function MfaSetup() {
     navigate('/login', { replace: true })
   }
 
+  const canSubmit = Boolean(factorId) && code.length === 6
+
   return (
     <div className="min-h-app-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-lg w-full">
@@ -101,15 +108,19 @@ export default function MfaSetup() {
               {error && (
                 <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
                   {error}
+                  <button
+                    type="button"
+                    onClick={() => void startEnrollment()}
+                    className="mt-3 block text-sm font-semibold text-red-900 underline"
+                  >
+                    Try again
+                  </button>
                 </div>
               )}
 
-              {qrCode && (
+              {factorId && (
                 <div className="flex flex-col items-center gap-4">
-                  <div
-                    className="rounded-lg border border-gray-200 bg-white p-4"
-                    dangerouslySetInnerHTML={{ __html: qrCode }}
-                  />
+                  <TotpQrCode qrCode={qrCode} uri={otpUri} />
                   {secret && (
                     <p className="text-xs text-gray-500 text-center break-all">
                       Manual entry key: <span className="font-mono text-gray-800">{secret}</span>
@@ -130,15 +141,16 @@ export default function MfaSetup() {
                     pattern="[0-9]*"
                     maxLength={6}
                     required
+                    disabled={!factorId}
                     value={code}
                     onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-lg tracking-[0.3em] font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-lg tracking-[0.3em] font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50"
                     placeholder="000000"
                   />
                 </div>
                 <button
                   type="submit"
-                  disabled={submitting || code.length !== 6}
+                  disabled={submitting || !canSubmit}
                   className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? 'Verifying…' : 'Enable two-factor authentication'}

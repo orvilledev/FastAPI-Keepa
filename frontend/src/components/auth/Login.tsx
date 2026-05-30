@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { authApi } from '../../services/api'
-import { fetchMfaStatus } from '../../lib/mfa'
+import { fetchMfaStatus, redirectForIncompleteMfa, shouldShowMfaSetup, shouldShowMfaVerify } from '../../lib/mfa'
 import { APP_ICON_URL } from '../../constants/app'
 
 export default function Login() {
@@ -44,11 +44,11 @@ export default function Login() {
 
   const routeAfterPasswordSignIn = async () => {
     const status = await fetchMfaStatus()
-    if (status.needsEnrollment) {
+    if (shouldShowMfaSetup(status)) {
       navigate('/mfa/setup')
       return
     }
-    if (status.needsMfaVerify) {
+    if (shouldShowMfaVerify(status)) {
       navigate('/mfa/verify')
       return
     }

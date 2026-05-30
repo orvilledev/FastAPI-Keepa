@@ -12,6 +12,18 @@ export function getVerifiedTotpFactor(factors: { totp?: Array<{ id: string; stat
   return (factors?.totp ?? []).find((factor) => factor.status === 'verified') ?? null
 }
 
+/** True when user must scan QR and complete first-time setup (no verified TOTP yet). */
+export function shouldShowMfaSetup(status: MfaStatus | null | undefined): boolean {
+  if (!status) return true
+  return !status.hasVerifiedTotp
+}
+
+/** True when authenticator is already enrolled and this session needs the 6-digit code. */
+export function shouldShowMfaVerify(status: MfaStatus | null | undefined): boolean {
+  if (!status?.hasVerifiedTotp) return false
+  return status.needsMfaVerify || !status.isFullyAuthenticated
+}
+
 export async function fetchMfaStatus(): Promise<MfaStatus> {
   const { data: sessionData } = await supabase.auth.getSession()
   if (!sessionData.session) {
@@ -46,6 +58,18 @@ export async function fetchMfaStatus(): Promise<MfaStatus> {
   }
 }
 
+export async function redirectForIncompleteMfa() {
+  const status = await fetchMfaStatus()
+  if (typeof window === 'undefined') return
+
+  const path = shouldShowMfaSetup(status) ? '/mfa/setup' : '/mfa/verify'
+  if (window.location.protocol === 'file:') {
+    window.location.hash = `#${path}`
+  } else {
+    window.location.assign(path)
+  }
+}
+
 export async function createMfaChallenge(factorId: string) {
   const { data, error } = await supabase.auth.mfa.challenge({ factorId })
   if (error) throw error
@@ -70,6 +94,24 @@ export async function enrollTotpFactor(friendlyName = 'Authenticator app') {
   if (error) throw error
   if (!data?.id || !data.totp) throw new Error('Failed to start authenticator enrollment')
   return data
+}
+
+/** Remove abandoned enrollments so a fresh QR can be generated. */
+export async function unenrollUnverifiedTotpFactors() {
+  const { data: factors, error } = await supabase.auth.mfa.listFactors()
+  if (error) throw error
+
+  for (const factor of factors?.totp ?? []) {
+    if (factor.status === 'unverified') {
+      const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: factor.id })
+      if (unenrollError) throw unenrollError
+    }
+  }
+}
+
+export async function prepareTotpEnrollment() {
+  await unenrollUnverifiedTotpFactors()
+  return enrollTotpFactor()
 }
 
 export async function verifyEnrollmentCode(factorId: string, code: string) {

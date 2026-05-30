@@ -5,6 +5,8 @@ import { authApi } from '../../services/api'
 import {
   createMfaChallenge,
   fetchMfaStatus,
+  shouldShowMfaSetup,
+  shouldShowMfaVerify,
   verifyMfaCode,
 } from '../../lib/mfa'
 import { supabase } from '../../lib/supabase'
@@ -35,12 +37,12 @@ export default function MfaVerify() {
           navigate('/dashboard', { replace: true })
           return
         }
-        if (status.needsEnrollment) {
+        if (shouldShowMfaSetup(status)) {
           navigate('/mfa/setup', { replace: true })
           return
         }
-        if (!status.verifiedFactorId) {
-          setError('No authenticator is enrolled for this account.')
+        if (!shouldShowMfaVerify(status) || !status.verifiedFactorId) {
+          navigate('/mfa/setup', { replace: true })
           return
         }
 
