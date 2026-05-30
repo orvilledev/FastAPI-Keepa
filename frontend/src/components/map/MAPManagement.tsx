@@ -589,7 +589,6 @@ export default function MAPManagement() {
 
           {/* Delete queue: add UPCs, then bulk delete */}
           <div className="mb-4 rounded-lg border border-[#81B81D]/40 bg-[#81B81D]/10 p-4">
-            <h3 className="text-sm font-semibold text-gray-900 mb-2">Delete list</h3>
             {deleteListFeedback && (
               <div
                 className={`mb-3 rounded-md border p-3 text-sm ${
@@ -601,11 +600,6 @@ export default function MAPManagement() {
                 {deleteListFeedback.message}
               </div>
             )}
-            <p className="text-xs text-gray-600 mb-3">
-              Paste UPCs below (one per line), or use the table filter + “Add search text to list.” Vendor is
-              resolved from existing rows. Duplicates ignored. Deletes every MAP row for each UPC (all vendors
-              if multiple exist).
-            </p>
             {searchTerm.trim() && (
               <div className="mb-3">
                 <button
@@ -618,10 +612,9 @@ export default function MAPManagement() {
               </div>
             )}
 
-            <div className="border-t border-[#81B81D]/40 pt-4">
-              <label htmlFor="queue-bulk" className="block text-sm font-medium text-gray-800 mb-1">
-                Paste many UPCs (one per line)
-              </label>
+            <label htmlFor="queue-bulk" className="block text-sm font-medium text-gray-800 mb-1">
+              Paste many UPCs (one per line)
+            </label>
               <p className="text-xs text-gray-600 mb-2">
                 One UPC per line. If you paste CSV, only the first column is used as the UPC.
               </p>
@@ -645,7 +638,6 @@ export default function MAPManagement() {
                   {queueBulkText.split(/\r?\n/).filter((l) => l.trim().length > 0).length} non-empty lines
                 </span>
               </div>
-            </div>
 
             {deleteQueue.length > 0 && (
               <div className="mt-3">
