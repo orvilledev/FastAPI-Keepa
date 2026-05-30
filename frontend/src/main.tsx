@@ -1,7 +1,10 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
+import { APP_NAME, APP_VERSION_LABEL } from './constants/app'
 import './index.css'
+
+document.title = `${APP_NAME} ${APP_VERSION_LABEL}`
 
 // Ensure installed-app/taskbar icon shows without badge overlays.
 const clearAppBadge = () => {
