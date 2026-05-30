@@ -51,9 +51,9 @@ export default function About() {
           </code>
         </p>
         <p className="mt-3 text-gray-600 max-w-4xl">
-          {APP_NAME} is a workspace built to help teams monitor product pricing and act quickly.
-          Its core purpose is Keepa-based compliance monitoring across vendors, with API and Upload workflows,
-          shared recipient management, and report delivery that teams can use immediately.
+          {APP_NAME} is MetroShoe Warehouse&apos;s workspace for Keepa-based pricing compliance and
+          day-to-day operational tools. The sidebar is organized into <span className="font-semibold">Menu</span>{' '}
+          (monitoring and shared data) and <span className="font-semibold">Tools</span> (document and label utilities).
         </p>
 
         {isElectron && (
@@ -79,60 +79,66 @@ export default function About() {
       </div>
 
       <div className="card p-8">
-        <h2 className="text-2xl font-semibold text-gray-900">Primary Focus: Keepa Alert Services</h2>
-        <div className="mt-4 space-y-4 text-gray-700">
-          <p>
-            Keepa Alert Services is the heart of the platform. It processes managed UPCs against Keepa data,
-            compares market pricing with MAP, and highlights off-price activity for rapid review.
-          </p>
-          <ul className="list-disc pl-6 space-y-2">
-            <li>
-              <span className="font-semibold">Express Jobs:</span> On-demand checks with report output and recipient selection.
-            </li>
-            <li>
-              <span className="font-semibold">Daily Runs:</span> Scheduled monitoring per vendor category (DNK, CLK, OBZ, REF, BOR, SFF, TEV, CHA), grouped by active and inactive runs on the dashboard.
-            </li>
-            <li>
-              <span className="font-semibold">API Mode and Import Mode:</span> API Mode uses live Keepa data, while Import Mode evaluates uploaded Keepa report data against managed MAP/UPC scope.
-            </li>
-            <li>
-              <span className="font-semibold">Mode Switching:</span> Vendors can switch between API and Import modes while keeping the same scheduled run time.
-            </li>
-            <li>
-              <span className="font-semibold">Email List and Reporting:</span> Centralized recipient directory with named contacts for runs/jobs, plus CSV/email outputs with seller-aware Amazon links.
-            </li>
-            <li>
-              <span className="font-semibold">Alert Reporting:</span> Findings are converted into downloadable and email-ready outputs when reporting and SMTP settings are configured.
-            </li>
-            <li>
-              <span className="font-semibold">UPC and MAP Support:</span> Uses managed UPC and MAP data per vendor category to evaluate pricing accurately.
-            </li>
-            <li>
-              <span className="font-semibold">Access by Role:</span> Keepa, UPC/MAP, and related workflows are permission-based, so visibility can vary by account role.
-            </li>
-          </ul>
-        </div>
+        <h2 className="text-2xl font-semibold text-gray-900">Menu</h2>
+        <p className="mt-3 text-gray-700">
+          Core pages for monitoring vendor runs, managing compliance data, and preparing report output.
+        </p>
+        <ul className="mt-4 list-disc space-y-2 pl-6 text-gray-700">
+          <li>
+            <span className="font-semibold">Dashboard:</span> Live overview of vendor daily runs with countdown timers,
+            grouped into active and inactive runs.
+          </li>
+          <li>
+            <span className="font-semibold">Express Jobs:</span> On-demand Keepa checks against managed UPCs, with
+            recipient selection and report output in API Mode or Import Mode.
+          </li>
+          <li>
+            <span className="font-semibold">Daily Runs:</span> Scheduled monitoring per vendor category (DNK, CLK, OBZ,
+            REF, BOR, SFF, TEV, CHA). Each vendor can run in API Mode (live Keepa data) or Import Mode (uploaded Keepa
+            report files).
+          </li>
+          <li>
+            <span className="font-semibold">Manage UPCs:</span> Add, search, and maintain UPC lists by vendor category
+            used in scheduled and on-demand processing.
+          </li>
+          <li>
+            <span className="font-semibold">Manage MAP:</span> Maintain minimum advertised price (MAP) values by UPC and
+            vendor for pricing compliance checks.
+          </li>
+          <li>
+            <span className="font-semibold">Seller List:</span> Maintain Amazon seller IDs and display names referenced in
+            report output.
+          </li>
+          <li>
+            <span className="font-semibold">Email List:</span> Shared directory of named email recipients for express jobs
+            and daily runs.
+          </li>
+        </ul>
+        <p className="mt-4 text-sm text-gray-600">
+          Express Jobs, Daily Runs, Manage UPCs, Manage MAP, Seller List, and Email List require Keepa access on your
+          account.
+        </p>
       </div>
 
       <div className="card p-8">
-        <h2 className="text-2xl font-semibold text-gray-900">Secondary Focus: Documentations</h2>
-        <div className="mt-4 space-y-4 text-gray-700">
-          <p>
-            The Documentations area supports daily operations by keeping commonly used tools and guidance in one place.
-          </p>
-          <ul className="list-disc pl-6 space-y-2">
-            <li>
-              <span className="font-semibold">Trainings:</span> Shared links and utilities for the team.
-            </li>
-            <li>
-              <span className="font-semibold">FAQ:</span> Common questions about using {APP_NAME} and team workflows.
-            </li>
-          </ul>
-          <p>
-            In short, Keepa Alert Services drives the monitoring and reporting outcomes, while Documentations
-            helps users execute work faster and more consistently.
-          </p>
-        </div>
+        <h2 className="text-2xl font-semibold text-gray-900">Tools</h2>
+        <p className="mt-3 text-gray-700">
+          Standalone utilities for common warehouse and operations tasks.
+        </p>
+        <ul className="mt-4 list-disc space-y-2 pl-6 text-gray-700">
+          <li>
+            <span className="font-semibold">Micro Tools:</span> Team shortcuts to external utilities and links. Signed-in
+            users can browse shared entries and add or edit tools they created.
+          </li>
+          <li>
+            <span className="font-semibold">Tracking Extractor:</span> Upload carrier PDFs or ZIP archives to extract
+            tracking numbers into an Excel file, with scan history for past uploads.
+          </li>
+          <li>
+            <span className="font-semibold">FNSKU Labels:</span> Parse FBA shipment spreadsheets and generate FNSKU label
+            PDFs or workbooks for warehouse labeling.
+          </li>
+        </ul>
       </div>
 
       <div className="card p-8">
