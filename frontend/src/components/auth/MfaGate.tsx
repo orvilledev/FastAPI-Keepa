@@ -2,7 +2,9 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useUser } from '../../contexts/UserContext'
 import {
+  ensureMfaActivityInitialized,
   fetchMfaStatus,
+  isMfaIdleReverifyDue,
   shouldShowMfaSetup,
   shouldShowMfaVerify,
   type MfaStatus,
@@ -37,6 +39,7 @@ export default function MfaGate({ children, requireFullAuth = true }: MfaGatePro
       if (!cancelled && status === null) setChecking(true)
       try {
         const nextStatus = await fetchMfaStatus()
+        if (nextStatus.isFullyAuthenticated) ensureMfaActivityInitialized()
         if (!cancelled) setStatus(nextStatus)
       } catch {
         if (!cancelled) {
@@ -81,7 +84,11 @@ export default function MfaGate({ children, requireFullAuth = true }: MfaGatePro
     if (shouldShowMfaVerify(status)) {
       return <Navigate to="/mfa/verify" replace />
     }
-  } else if (status?.isFullyAuthenticated) {
+    // Fully authenticated but idle past the limit — force a fresh TOTP code.
+    if (status?.isFullyAuthenticated && isMfaIdleReverifyDue()) {
+      return <Navigate to="/mfa/verify?reason=idle" replace />
+    }
+  } else if (status?.isFullyAuthenticated && !isMfaIdleReverifyDue()) {
     return <Navigate to="/dashboard" replace />
   }
 

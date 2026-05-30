@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import { authApi, invalidateAuthTokenCache } from '../services/api'
-import { isMfaAuthRoute, redirectForIncompleteMfa } from '../lib/mfa'
+import { clearMfaActivity, isMfaAuthRoute, redirectForIncompleteMfa } from '../lib/mfa'
 
 // Extended user info from API
 export interface UserInfo {
@@ -182,6 +182,7 @@ export function UserProvider({ children }: UserProviderProps) {
     await supabase.auth.signOut()
     setUserInfo(null)
     profileLoadedForUserId.current = null
+    clearMfaActivity()
   }
 
   // Computed properties

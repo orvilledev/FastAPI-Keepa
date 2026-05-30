@@ -8,6 +8,55 @@ export type MfaStatus = {
   verifiedFactorId: string | null
 }
 
+const MFA_ACTIVITY_KEY = 'msw_mfa_last_activity_at'
+
+/** Idle window before a fully-authenticated user must re-enter their TOTP code. Defaults to 8 hours. */
+export const MFA_IDLE_LIMIT_MS = (() => {
+  const raw = import.meta.env.VITE_MFA_IDLE_MINUTES
+  const minutes = typeof raw === 'string' ? Number(raw) : NaN
+  if (Number.isFinite(minutes) && minutes > 0) return minutes * 60 * 1000
+  return 8 * 60 * 60 * 1000
+})()
+
+/** Record the last time the user was active (persisted across reloads/tabs). */
+export function recordMfaActivity(timestamp: number = Date.now()): void {
+  try {
+    window.localStorage.setItem(MFA_ACTIVITY_KEY, String(timestamp))
+  } catch {
+    // localStorage unavailable (private mode / SSR) — idle reverify simply won't trigger.
+  }
+}
+
+export function getLastMfaActivity(): number {
+  try {
+    const raw = window.localStorage.getItem(MFA_ACTIVITY_KEY)
+    const value = raw ? Number(raw) : 0
+    return Number.isFinite(value) ? value : 0
+  } catch {
+    return 0
+  }
+}
+
+/** Start the idle clock if it isn't already running (for sessions verified before this feature). */
+export function ensureMfaActivityInitialized(): void {
+  if (!getLastMfaActivity()) recordMfaActivity()
+}
+
+export function clearMfaActivity(): void {
+  try {
+    window.localStorage.removeItem(MFA_ACTIVITY_KEY)
+  } catch {
+    // Ignore — nothing persisted.
+  }
+}
+
+/** True when the user has been idle past the limit and must re-enter their authenticator code. */
+export function isMfaIdleReverifyDue(now: number = Date.now()): boolean {
+  const last = getLastMfaActivity()
+  if (!last) return false
+  return now - last > MFA_IDLE_LIMIT_MS
+}
+
 export function getVerifiedTotpFactor(factors: { totp?: Array<{ id: string; status: string }> } | null) {
   return (factors?.totp ?? []).find((factor) => factor.status === 'verified') ?? null
 }

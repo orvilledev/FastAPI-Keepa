@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { clearMfaActivity } from '../lib/mfa'
 import type { User } from '../types'
 
 export function useAuth() {
@@ -23,6 +24,7 @@ export function useAuth() {
 
   const signOut = async () => {
     await supabase.auth.signOut()
+    clearMfaActivity()
   }
 
   return { user, loading, signOut }

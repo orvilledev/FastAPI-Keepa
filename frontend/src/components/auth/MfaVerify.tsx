@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { APP_ICON_URL } from '../../constants/app'
 import { authApi, invalidateAuthTokenCache } from '../../services/api'
 import {
   createMfaChallenge,
   fetchMfaStatus,
+  isMfaIdleReverifyDue,
+  recordMfaActivity,
   shouldShowMfaSetup,
-  shouldShowMfaVerify,
   verifyMfaCode,
 } from '../../lib/mfa'
 import { supabase } from '../../lib/supabase'
@@ -14,6 +15,8 @@ import { useUser } from '../../contexts/UserContext'
 
 export default function MfaVerify() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const isIdleReverify = searchParams.get('reason') === 'idle'
   const { refetchUserInfo } = useUser()
   const [factorId, setFactorId] = useState<string | null>(null)
   const [challengeId, setChallengeId] = useState<string | null>(null)
@@ -35,15 +38,14 @@ export default function MfaVerify() {
         }
 
         const status = await fetchMfaStatus()
-        if (status.isFullyAuthenticated) {
+        const idleReverify = isMfaIdleReverifyDue()
+        // Already AAL2 and not idle → nothing to do here.
+        if (status.isFullyAuthenticated && !idleReverify) {
           navigate('/dashboard', { replace: true })
           return
         }
-        if (shouldShowMfaSetup(status)) {
-          navigate('/mfa/setup', { replace: true })
-          return
-        }
-        if (!shouldShowMfaVerify(status) || !status.verifiedFactorId) {
+        // No verified authenticator yet → must enroll first.
+        if (shouldShowMfaSetup(status) || !status.verifiedFactorId) {
           navigate('/mfa/setup', { replace: true })
           return
         }
@@ -88,8 +90,13 @@ export default function MfaVerify() {
       }
       throw authError
     }
+    // Reset the idle clock now that the user re-verified.
+    recordMfaActivity()
     await refetchUserInfo()
-    navigate('/dashboard', { replace: true })
+    const lastPrivatePath = sessionStorage.getItem('last_private_path')
+    const destination =
+      isIdleReverify && lastPrivatePath && lastPrivatePath !== '/' ? lastPrivatePath : '/dashboard'
+    navigate(destination, { replace: true })
   }
 
   const handleVerify = async (event: React.FormEvent) => {
@@ -129,7 +136,9 @@ export default function MfaVerify() {
             <img src={APP_ICON_URL} alt="MSW Overwatch" className="w-16 h-16 mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-[#404040]">Two-factor verification</h1>
             <p className="mt-2 text-sm text-gray-600">
-              Enter the 6-digit code from your authenticator app to finish signing in.
+              {isIdleReverify
+                ? 'For your security, re-enter the 6-digit code from your authenticator app to continue.'
+                : 'Enter the 6-digit code from your authenticator app to finish signing in.'}
             </p>
           </div>
 

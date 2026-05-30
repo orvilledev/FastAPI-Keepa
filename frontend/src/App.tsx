@@ -7,6 +7,7 @@ import {
   Outlet,
   useParams,
   useLocation,
+  useNavigate,
 } from 'react-router-dom'
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { UserProvider, useUser } from './contexts/UserContext'
@@ -17,7 +18,7 @@ import MfaGate from './components/auth/MfaGate'
 import About from './components/About'
 import Maintenance from './components/Maintenance'
 import { systemApi } from './services/api'
-import { fetchMfaStatus, shouldShowMfaSetup, shouldShowMfaVerify } from './lib/mfa'
+import { fetchMfaStatus, shouldShowMfaSetup, shouldShowMfaVerify, isMfaIdleReverifyDue, recordMfaActivity } from './lib/mfa'
 import { isUserHiddenFromFeedbackPage } from './constants/feedbackAccess'
 
 // Lazy load page components for code splitting (About is eager so its chunk cannot 404 behind stale CDN/cache)
@@ -146,6 +147,47 @@ function UploadedVendorRedirect() {
  * an in-browser Tracking Extractor scan keeps running and its progress/results
  * survive navigation between pages (it only unmounts on logout).
  */
+/**
+ * Tracks user activity inside the authenticated app and forces a TOTP re-verify
+ * after the idle limit (default 8h). Only mounted once MFA has fully passed.
+ */
+function IdleMfaGuard() {
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    let lastWrite = 0
+    const onActivity = () => {
+      const now = Date.now()
+      // Throttle writes; we only need minute-level resolution for an 8h window.
+      if (now - lastWrite > 30_000) {
+        lastWrite = now
+        recordMfaActivity(now)
+      }
+    }
+    const events: Array<keyof WindowEventMap> = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click']
+    events.forEach((event) => window.addEventListener(event, onActivity, { passive: true }))
+
+    const check = () => {
+      if (isMfaIdleReverifyDue()) {
+        navigate('/mfa/verify?reason=idle', { replace: true })
+      }
+    }
+    const interval = window.setInterval(check, 60_000)
+    window.addEventListener('focus', check)
+    document.addEventListener('visibilitychange', check)
+    check()
+
+    return () => {
+      events.forEach((event) => window.removeEventListener(event, onActivity))
+      window.clearInterval(interval)
+      window.removeEventListener('focus', check)
+      document.removeEventListener('visibilitychange', check)
+    }
+  }, [navigate])
+
+  return null
+}
+
 function PrivateLayout() {
   const { authUser } = useUser()
   if (!authUser) {
@@ -153,6 +195,7 @@ function PrivateLayout() {
   }
   return (
     <MfaGate>
+      <IdleMfaGuard />
       <TrackingScanProvider>
         <Layout>
           <Outlet />

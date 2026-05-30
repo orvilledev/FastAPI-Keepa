@@ -5,6 +5,7 @@ import { authApi, invalidateAuthTokenCache } from '../../services/api'
 import {
   fetchMfaStatus,
   prepareTotpEnrollment,
+  recordMfaActivity,
   shouldShowMfaVerify,
   verifyEnrollmentCode,
 } from '../../lib/mfa'
@@ -76,6 +77,7 @@ export default function MfaSetup() {
       invalidateAuthTokenCache()
       await supabase.auth.getSession()
       await authApi.confirmMfaEnrollment()
+      recordMfaActivity()
       await refetchUserInfo()
       navigate('/dashboard', { replace: true })
     } catch (err: unknown) {
