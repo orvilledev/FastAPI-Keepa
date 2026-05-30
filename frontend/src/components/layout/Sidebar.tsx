@@ -190,8 +190,9 @@ export default function Sidebar() {
         className="flex min-h-0 flex-1 flex-col px-3 py-3"
         onMouseLeave={() => setHoveredNav(null)}
       >
-        {/* Top nav: Dashboard + Keepa items */}
+        {/* MENU: Dashboard + Keepa */}
         <div className="min-h-0 shrink overflow-y-auto overscroll-y-contain">
+          <p className="sidebar-section-label">MENU</p>
           <div className="space-y-0.5">
             <Link
               to="/dashboard"
@@ -239,8 +240,9 @@ export default function Sidebar() {
           <div className="w-full border-t-2 border-gray-300/80" role="separator" />
         </div>
 
-        {/* Center: standalone tools */}
-        <div className="shrink-0 space-y-0.5 py-3">
+        {/* TOOLS */}
+        <div className="shrink-0 space-y-0.5 pb-1 pt-1">
+          <p className="sidebar-section-label">TOOLS</p>
             <Link
               to="/micro-tools"
               onMouseEnter={() => setHoveredNav('micro-tools')}
@@ -285,8 +287,9 @@ export default function Sidebar() {
           <div className="w-full border-t-2 border-gray-300/80" role="separator" />
         </div>
 
-        {/* Bottom: About, FAQ, Feedback, User Management */}
-        <div className="shrink-0 space-y-0.5 pb-1">
+        {/* GENERAL */}
+        <div className="shrink-0 space-y-0.5 pb-1 pt-1">
+          <p className="sidebar-section-label">GENERAL</p>
           <Link
             to="/about"
             onMouseEnter={() => setHoveredNav('about')}

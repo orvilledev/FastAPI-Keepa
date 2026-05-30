@@ -80,6 +80,10 @@
   .sidebar-link-label {
     @apply min-w-0 flex-1 leading-snug break-words;
   }
+
+  .sidebar-section-label {
+    @apply px-3 pb-1.5 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500;
+  }
   
   .sidebar-link-active {
     @apply bg-[#404040] text-white shadow-md;
