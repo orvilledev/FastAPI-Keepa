@@ -206,16 +206,18 @@ export default function SellerList() {
     visibleIds.length > 0 && visibleIds.every((id) => selected.has(id))
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold text-gray-900">Add Sellers</h1>
-      <p className="mt-1 text-sm text-gray-500">
-        Amazon seller IDs and display names used in reports. One seller per line — seller code, comma, then name (e.g.{' '}
-        <span className="font-mono text-gray-700">A1HQOHOLTUK58E,Buy DBDeals</span>).
-      </p>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Add Sellers</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Amazon seller IDs and display names used in reports. One seller per line — seller code, comma, then name (e.g.{' '}
+          <span className="font-mono text-gray-700">A1HQOHOLTUK58E,Buy DBDeals</span>).
+        </p>
+      </div>
 
       {message && (
         <div
-          className={`mt-4 rounded-lg px-4 py-3 text-sm ${
+          className={`rounded-lg px-4 py-3 text-sm ${
             message.variant === 'ok' ? 'bg-green-50 text-green-800 border border-green-100' : 'bg-red-50 text-red-800 border border-red-100'
           }`}
         >
@@ -223,7 +225,7 @@ export default function SellerList() {
         </div>
       )}
 
-      <div className="mt-8 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
         <div className="px-6 py-5 space-y-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Paste or upload your list</h2>
@@ -268,7 +270,7 @@ export default function SellerList() {
         </div>
       </div>
 
-      <div className="mt-8 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-gray-900">Sellers in the system</h2>
           <div className="flex flex-wrap items-center gap-3">
