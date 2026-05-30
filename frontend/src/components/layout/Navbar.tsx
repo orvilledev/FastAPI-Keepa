@@ -2,6 +2,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useEffect, useState, useCallback } from 'react'
 import { notificationsApi } from '../../services/api'
+import NavbarSearch from './NavbarSearch'
 
 export default function Navbar() {
   const { user, signOut } = useAuth()
@@ -47,8 +48,11 @@ export default function Navbar() {
   return (
     <nav className="sticky top-0 z-50 shrink-0 border-b border-gray-200/80 bg-white/80 shadow-sm backdrop-blur-lg">
       <div className="px-6 lg:px-8">
-        <div className="flex h-20 items-center justify-end">
-          <div className="flex items-center space-x-4">
+        <div className="flex h-20 items-center gap-4">
+          <div className="min-w-0 w-full max-w-sm lg:max-w-md">
+            <NavbarSearch />
+          </div>
+          <div className="flex shrink-0 items-center space-x-4 ml-auto">
             {/* Notifications Bell */}
             <Link
               to="/notifications"
