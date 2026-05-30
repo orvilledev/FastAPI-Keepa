@@ -302,14 +302,6 @@ export default function MicroTools() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Micro Tools</h1>
-            <p className="mt-2 text-gray-600 max-w-3xl">
-              Shared shortcuts to external utilities—everyone signed in can see them. You can edit or delete only tools
-              you created. Optional built-in entries can still be defined in{' '}
-              <code className="rounded bg-gray-100 px-2 py-0.5 text-sm font-mono text-gray-800">
-                frontend/src/constants/microTools.ts
-              </code>
-              .
-            </p>
           </div>
           <button
             type="button"
@@ -457,7 +449,6 @@ export default function MicroTools() {
 
       {!loading && hasApi && (
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Team tools</h2>
           <div className="grid gap-6 md:grid-cols-2">{apiTools.map((t) => renderApiCard(t))}</div>
         </div>
       )}
