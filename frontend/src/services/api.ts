@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
-import { redirectForIncompleteMfa } from '../lib/mfa'
+import { isMfaAuthRoute, redirectForIncompleteMfa } from '../lib/mfa'
 import type {
   MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, MicroToolRecord, JobAid, Notification, ComprehensiveReportRow, SellerName, CliChatSession, CliChatMessage, TrackingHistorySummary, TrackingHistoryDetail, TrackingScannerRow } from '../types'
 
@@ -96,7 +96,9 @@ api.interceptors.response.use(
       message.toLowerCase().includes('mfa verification required')
 
     if (mfaRequired) {
-      void redirectForIncompleteMfa()
+      if (!isMfaAuthRoute()) {
+        void redirectForIncompleteMfa()
+      }
       return Promise.reject(error)
     }
     

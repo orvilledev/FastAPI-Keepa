@@ -58,11 +58,29 @@ export async function fetchMfaStatus(): Promise<MfaStatus> {
   }
 }
 
+/** Current in-app path (supports HashRouter on `file:` builds). */
+export function getAppPathname(): string {
+  if (typeof window === 'undefined') return ''
+  if (window.location.protocol === 'file:') {
+    const hash = window.location.hash.replace(/^#/, '')
+    const route = hash.startsWith('/') ? hash : `/${hash}`
+    return route.split('?')[0] || '/'
+  }
+  return window.location.pathname
+}
+
+export function isMfaAuthRoute(path = getAppPathname()): boolean {
+  return path === '/mfa/setup' || path === '/mfa/verify'
+}
+
 export async function redirectForIncompleteMfa() {
   const status = await fetchMfaStatus()
   if (typeof window === 'undefined') return
 
   const path = shouldShowMfaSetup(status) ? '/mfa/setup' : '/mfa/verify'
+  const current = getAppPathname()
+  if (current === path) return
+
   if (window.location.protocol === 'file:') {
     window.location.hash = `#${path}`
   } else {

@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import { authApi } from '../services/api'
-import { redirectForIncompleteMfa } from '../lib/mfa'
+import { fetchMfaStatus, isMfaAuthRoute, redirectForIncompleteMfa } from '../lib/mfa'
 
 // Extended user info from API
 export interface UserInfo {
@@ -75,7 +75,9 @@ export function UserProvider({ children }: UserProviderProps) {
       const detail = (error as { response?: { status?: number; data?: { detail?: string } } })?.response?.data?.detail
       if (status === 401 && typeof detail === 'string' && detail.toLowerCase().includes('mfa verification required')) {
         setUserInfo(null)
-        void redirectForIncompleteMfa()
+        if (!isMfaAuthRoute()) {
+          void redirectForIncompleteMfa()
+        }
         return
       }
       if (status === 403 && typeof detail === 'string' && detail.toLowerCase().includes('pending superadmin approval')) {
@@ -136,10 +138,27 @@ export function UserProvider({ children }: UserProviderProps) {
     }
   }, [])
 
-  // Fetch user info when auth user changes
+  // Fetch profile only after MFA step-up (AAL2). Calling the API at AAL1 returns 401 and was reloading /mfa/verify.
   useEffect(() => {
-    if (authUser && !authLoading) {
-      fetchUserInfo()
+    if (!authUser || authLoading) return
+
+    let cancelled = false
+    void (async () => {
+      try {
+        const mfaStatus = await fetchMfaStatus()
+        if (cancelled) return
+        if (!mfaStatus.isFullyAuthenticated) {
+          setUserInfo(null)
+          return
+        }
+        await fetchUserInfo()
+      } catch {
+        if (!cancelled) await fetchUserInfo()
+      }
+    })()
+
+    return () => {
+      cancelled = true
     }
   }, [authUser, authLoading, fetchUserInfo])
 

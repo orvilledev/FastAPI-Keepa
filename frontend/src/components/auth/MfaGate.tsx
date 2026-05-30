@@ -34,7 +34,7 @@ export default function MfaGate({ children, requireFullAuth = true }: MfaGatePro
         return
       }
 
-      setChecking(true)
+      if (!cancelled) setChecking(true)
       try {
         const nextStatus = await fetchMfaStatus()
         if (!cancelled) setStatus(nextStatus)
@@ -60,9 +60,9 @@ export default function MfaGate({ children, requireFullAuth = true }: MfaGatePro
     return () => {
       cancelled = true
     }
-  }, [authUser, authLoading])
+  }, [authUser?.id, authLoading])
 
-  if (authLoading || checking) {
+  if (authLoading || (checking && status === null)) {
     return (
       <div className="min-h-app-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
         <div className="w-10 h-10 border-4 border-[#404040] border-t-transparent rounded-full animate-spin" />
