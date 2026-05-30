@@ -915,11 +915,6 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
             </div>
 
             <div className="space-y-4">
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                <p className="text-xs text-gray-700">
-                  Input mode is managed from the API/Upload toggle on the page header.
-                </p>
-              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Timezone</label>
                 <select
@@ -1023,21 +1018,6 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
 
               <div className="rounded-lg border border-gray-200 p-4 bg-gray-50 space-y-3">
                 <div>
-                  <p className="text-sm font-semibold text-gray-800">
-                    Custom email wording ({VENDOR_UPPER} only) — optional
-                  </p>
-                  <p className="mt-1 text-xs text-gray-600">
-                    Leave blank to use the default email. Optional placeholders you may use anywhere:
-                    {' '}
-                    <code className="px-1 bg-white border border-gray-200 rounded">{'{vendor}'}</code>{' '}
-                    <code className="px-1 bg-white border border-gray-200 rounded">{'{job_name}'}</code>{' '}
-                    <code className="px-1 bg-white border border-gray-200 rounded">{'{total_upcs}'}</code>{' '}
-                    <code className="px-1 bg-white border border-gray-200 rounded">{'{alerts_count}'}</code>{' '}
-                    <code className="px-1 bg-white border border-gray-200 rounded">{'{run_date}'}</code>
-                  </p>
-                </div>
-
-                <div>
                   <label
                     htmlFor={`${vendor}-email-subject-template`}
                     className="block text-sm font-medium text-gray-700 mb-2"
@@ -1087,38 +1067,6 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                     HTML is not rendered. Unknown {'{tokens}'} are kept as-is.
                   </p>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Import Mode wait timeout (seconds)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="900"
-                  step="1"
-                  value={settingsForm.uploaded_wait_timeout_seconds}
-                  onChange={(e) =>
-                    setSettingsForm({
-                      ...settingsForm,
-                      uploaded_wait_timeout_seconds: Math.max(
-                        0,
-                        Math.min(900, parseInt(e.target.value, 10) || 0),
-                      ),
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#404040] focus:border-transparent"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  How long the scheduled Import run waits for just-uploaded file parsing to finish before failing.
-                </p>
-              </div>
-
-              <div className="p-4 bg-[#81B81D]/10 border border-[#81B81D]/55 rounded-lg">
-                <p className="text-sm text-[#111827]">
-                  <strong>Note:</strong> Schedule timing and email recipients here apply to {VENDOR_UPPER} only.
-                </p>
               </div>
             </div>
 
