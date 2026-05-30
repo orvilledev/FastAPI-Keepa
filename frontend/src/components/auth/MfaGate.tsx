@@ -34,7 +34,7 @@ export default function MfaGate({ children, requireFullAuth = true }: MfaGatePro
         return
       }
 
-      if (!cancelled) setChecking(true)
+      if (!cancelled && status === null) setChecking(true)
       try {
         const nextStatus = await fetchMfaStatus()
         if (!cancelled) setStatus(nextStatus)

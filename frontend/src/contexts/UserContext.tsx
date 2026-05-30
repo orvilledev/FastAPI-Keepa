@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import { authApi, invalidateAuthTokenCache } from '../services/api'
 import { fetchMfaStatus, isMfaAuthRoute, redirectForIncompleteMfa } from '../lib/mfa'
@@ -46,15 +46,18 @@ export function UserProvider({ children }: UserProviderProps) {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [userInfoLoading, setUserInfoLoading] = useState(false)
+  const profileSyncInFlight = useRef(false)
+  const profileLoadedForUserId = useRef<string | null>(null)
 
   // Fetch extended user info from API
-  const fetchUserInfo = useCallback(async () => {
+  const fetchUserInfo = useCallback(async (options?: { silent?: boolean }) => {
     if (!authUser) {
       setUserInfo(null)
       return
     }
 
-    setUserInfoLoading(true)
+    const showLoading = !options?.silent
+    if (showLoading) setUserInfoLoading(true)
     try {
       const data = await authApi.getCurrentUser()
       const emailLower = (data.email || authUser.email || '').toLowerCase()
@@ -69,6 +72,7 @@ export function UserProvider({ children }: UserProviderProps) {
         mfa_enabled: Boolean(data.mfa_enabled),
         created_at: data.created_at,
       })
+      profileLoadedForUserId.current = authUser.id
     } catch (error) {
       console.error('Failed to fetch user info:', error)
       const status = (error as { response?: { status?: number; data?: { detail?: string } } })?.response?.status
@@ -91,6 +95,7 @@ export function UserProvider({ children }: UserProviderProps) {
               mfa_enabled: Boolean(data.mfa_enabled),
               created_at: data.created_at,
             })
+            profileLoadedForUserId.current = authUser.id
             return
           } catch {
             // Continue to redirect / clear below.
@@ -136,6 +141,7 @@ export function UserProvider({ children }: UserProviderProps) {
       })
       if (!nextUser) {
         setUserInfo(null)
+        profileLoadedForUserId.current = null
       }
 
       if (event === 'INITIAL_SESSION') {
@@ -163,54 +169,40 @@ export function UserProvider({ children }: UserProviderProps) {
   const syncProfileAfterAuth = useCallback(async () => {
     if (!authUser) {
       setUserInfo(null)
+      profileLoadedForUserId.current = null
       return
     }
+    if (profileSyncInFlight.current) return
 
     try {
       const mfaStatus = await fetchMfaStatus()
       if (!mfaStatus.isFullyAuthenticated) {
         setUserInfo(null)
+        profileLoadedForUserId.current = null
         return
       }
-      invalidateAuthTokenCache()
-      await supabase.auth.refreshSession()
-      await fetchUserInfo()
+
+      if (profileLoadedForUserId.current === authUser.id) return
+
+      profileSyncInFlight.current = true
+      await fetchUserInfo({ silent: profileLoadedForUserId.current === authUser.id })
     } catch {
-      try {
-        const mfaStatus = await fetchMfaStatus()
-        if (mfaStatus.isFullyAuthenticated) {
-          invalidateAuthTokenCache()
-          await supabase.auth.refreshSession()
-          await fetchUserInfo()
-        }
-      } catch {
-        // Profile sync failed; keep existing userInfo if any.
-      }
+      // Keep existing profile on transient errors.
+    } finally {
+      profileSyncInFlight.current = false
     }
   }, [authUser, fetchUserInfo])
 
-  // Fetch profile only after MFA step-up (AAL2). Calling the API at AAL1 returns 401 and was reloading /mfa/verify.
+  // Fetch profile once after MFA step-up (AAL2). Do not refresh session here — that retriggers TOKEN_REFRESHED loops.
   useEffect(() => {
     if (!authUser || authLoading) return
     void syncProfileAfterAuth()
-  }, [authUser, authLoading, syncProfileAfterAuth])
-
-  // Re-sync profile when Supabase refreshes the session (e.g. after MFA verify).
-  useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session?.user) return
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-        void syncProfileAfterAuth()
-      }
-    })
-    return () => subscription.unsubscribe()
-  }, [syncProfileAfterAuth])
+  }, [authUser?.id, authLoading, syncProfileAfterAuth])
 
   const signOut = async () => {
     await supabase.auth.signOut()
     setUserInfo(null)
+    profileLoadedForUserId.current = null
   }
 
   // Computed properties
@@ -237,7 +229,10 @@ export function UserProvider({ children }: UserProviderProps) {
     canManageTools,
     isSuperadmin,
     displayName,
-    refetchUserInfo: fetchUserInfo,
+    refetchUserInfo: async () => {
+      profileLoadedForUserId.current = null
+      await fetchUserInfo()
+    },
     signOut,
   }
 
