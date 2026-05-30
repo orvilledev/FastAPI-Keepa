@@ -356,7 +356,7 @@ export default function UPCManagement() {
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">UPCs List</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Delete UPCs</h2>
             <div className="text-sm text-gray-500">
               Showing {currentPage * limit + 1} - {Math.min((currentPage + 1) * limit, totalCount)} of {totalCount}
             </div>
