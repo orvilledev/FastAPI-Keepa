@@ -82,7 +82,7 @@ def _redact_for_logging(value, key: str | None = None):
 app = FastAPI(
     title="MSW Overwatch API",
     description="API for MSW Overwatch productivity platform",
-    version="1.0.0",
+    version="2.0.0",
 )
 
 # Attach rate limiter to app state
@@ -210,7 +210,7 @@ async def shutdown_event():
 @app.get("/")
 async def root():
     """Root endpoint."""
-    return {"message": "MSW Overwatch API", "version": "1.0.0"}
+    return {"message": "MSW Overwatch API", "version": "2.0.0"}
 
 
 @app.get("/health")
