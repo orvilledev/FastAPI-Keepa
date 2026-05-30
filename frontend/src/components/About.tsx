@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import {
-  APP_COPYRIGHT_OWNER,
   APP_GIT_COMMIT_SHORT,
   APP_ICON_URL,
   APP_NAME,
@@ -141,13 +140,12 @@ export default function About() {
         <p className="mt-3 text-gray-700">
           &copy; {new Date().getFullYear()} {APP_NAME} {APP_VERSION_LABEL}. All rights reserved.
         </p>
-        <p className="mt-2 text-gray-700">{APP_COPYRIGHT_OWNER}</p>
         <p className="mt-2 text-gray-700">
-          Contact the Developer: <span className="font-semibold">Orville Barba via remote@metroshoewarehouse.com</span>
+          Owned and managed by <span className="font-semibold">MetroShoe Warehouse</span>.
         </p>
+        <p className="mt-2 text-gray-700">Senior Developer: Orville Barba</p>
         <p className="mt-2 text-gray-700">
-          QA (Quality Assurance) Testers:{' '}
-          <span className="font-semibold">Stephanie Roque and Sunshine Gale Ocampo</span>
+          QA (Quality Assurance) Testers: Stephanie Roque / Sunshine Gale Ocampo
         </p>
       </div>
     </div>
