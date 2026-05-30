@@ -1,26 +1,12 @@
 import { useEffect, useState, type ChangeEvent } from 'react'
-import { Link } from 'react-router-dom'
-import { jobsApi, authApi, schedulerApi } from '../../services/api'
+import { authApi, schedulerApi } from '../../services/api'
 import type { SchedulerSettings } from '../../types'
-import { formatRunDuration } from '../../utils/timeUtils'
 import EmailRecipientsPicker from './EmailRecipientsPicker'
 
 type VendorCode = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
 
 interface VendorDailyRunProps {
   vendor: VendorCode
-}
-
-interface DailyRunJob {
-  id: string
-  job_name: string
-  status: string
-  total_batches: number
-  completed_batches: number
-  initiated_by?: string
-  created_at: string
-  completed_at?: string
-  error_message?: string
 }
 
 interface UploadedReport {
@@ -62,7 +48,6 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
 
   const [loading, setLoading] = useState(true)
   const [hasKeepaAccess, setHasKeepaAccess] = useState(false)
-  const [dailyRuns, setDailyRuns] = useState<DailyRunJob[]>([])
   const [nextRun, setNextRun] = useState<any>(null)
   const [schedulerSettings, setSchedulerSettings] = useState<SchedulerSettings | null>(null)
   const [error, setError] = useState('')
@@ -116,7 +101,6 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
 
   useEffect(() => {
     if (hasKeepaAccess) {
-      loadDailyRuns()
       void loadLatestUpload()
     }
   }, [hasKeepaAccess, vendor])
@@ -318,43 +302,6 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
     setSettingsForm({ ...settingsForm, custom_days: next })
   }
 
-  const formatScheduledTime = () => {
-    if (!schedulerSettings) {
-      return '8:00 PM Taipei time'
-    }
-    const hour12 = schedulerSettings.hour % 12 || 12
-    const ampm = schedulerSettings.hour >= 12 ? 'PM' : 'AM'
-    const minuteStr = schedulerSettings.minute.toString().padStart(2, '0')
-    const timezoneName = schedulerSettings.timezone.split('/').pop() || schedulerSettings.timezone
-    const frequencyLabel =
-      schedulerSettings.run_mode === 'every_other_day'
-        ? 'every other day'
-        : schedulerSettings.run_mode === 'custom_days'
-          ? `on ${schedulerSettings.custom_days.join(', ') || 'selected days'}`
-          : 'daily'
-    return `${hour12}:${minuteStr} ${ampm} ${timezoneName} time (${frequencyLabel})`
-  }
-
-  const loadDailyRuns = async () => {
-    try {
-      setError('')
-      const allJobs = await jobsApi.listJobs(100, 0)
-      const offPricePrefix = `Daily ${VENDOR_UPPER} Off Price Report -`
-      const metroPrefix = `Daily ${VENDOR_UPPER} Metro Report -`
-      const uploadedPrefix = `Daily ${VENDOR_UPPER} Uploaded Report -`
-      const dailyJobs = allJobs.filter((job: any) =>
-        job.job_name &&
-        (job.job_name.startsWith(offPricePrefix) ||
-          job.job_name.startsWith(metroPrefix) ||
-          job.job_name.startsWith(uploadedPrefix)),
-      )
-      dailyJobs.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      setDailyRuns(dailyJobs)
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to load daily runs')
-    }
-  }
-
   // ---------------- Upload helpers ----------------
 
   const loadLatestUpload = async () => {
@@ -461,7 +408,6 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
     try {
       await schedulerApi.rerunUploadedReport(vendor)
       await pollLatestUploadStatus()
-      await loadDailyRuns()
       setSuccess('Import-mode run has been queued.')
     } catch (queueErr: any) {
       setError(queueErr?.response?.data?.detail || 'Failed to queue import run.')
@@ -508,33 +454,6 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
     } finally {
       setDeletingUpload(false)
     }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-800'
-      case 'processing':
-        return 'bg-blue-100 text-[#81B81D]'
-      case 'failed':
-        return 'bg-red-100 text-red-800'
-      case 'pending':
-        return 'bg-[#81B81D]/20 text-[#111827]'
-      default:
-        return 'bg-gray-100 text-gray-800'
-    }
-  }
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZoneName: 'short',
-    })
   }
 
   if (loading) {
@@ -827,80 +746,6 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
           <div className="text-red-800">{error}</div>
         </div>
       )}
-
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">{VENDOR_UPPER} Daily Run History</h2>
-        {dailyRuns.length === 0 ? (
-          <div className="card p-12 text-center">
-            <div className="text-gray-500 mb-4">No {VENDOR_UPPER} daily runs found yet.</div>
-            <p className="text-sm text-gray-400">
-              {VENDOR_UPPER} daily runs are automatically executed at {formatScheduledTime()}.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {dailyRuns.map((run) => (
-              <div key={run.id} className="card p-6 hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">{run.job_name}</h3>
-                      <span className={`px-2 py-1 text-xs font-medium rounded ${getStatusColor(run.status)}`}>
-                        {run.status.charAt(0).toUpperCase() + run.status.slice(1)}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-500">Created:</span>
-                        <p className="font-medium text-gray-900">{formatDate(run.created_at)}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Initiated By:</span>
-                        <p className="font-medium text-gray-900">{run.initiated_by || 'Daily Run'}</p>
-                      </div>
-                      {run.completed_at && (
-                        <div>
-                          <span className="text-gray-500">Completed:</span>
-                          <p className="font-medium text-gray-900">{formatDate(run.completed_at)}</p>
-                        </div>
-                      )}
-                      <div>
-                        <span className="text-gray-500">Run Duration:</span>
-                        <p className="font-medium text-gray-900">{formatRunDuration(run.created_at, run.completed_at)}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Progress:</span>
-                        <p className="font-medium text-gray-900">
-                          {run.completed_batches} / {run.total_batches} batches
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Completion:</span>
-                        <p className="font-medium text-gray-900">
-                          {run.total_batches > 0 ? Math.round((run.completed_batches / run.total_batches) * 100) : 0}%
-                        </p>
-                      </div>
-                    </div>
-                    {run.error_message && (
-                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <p className="text-sm text-red-800">
-                          <span className="font-medium">Error:</span> {run.error_message}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  <Link
-                    to={`/jobs/${run.id}`}
-                    className="ml-4 px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors text-sm font-medium"
-                  >
-                    View Details →
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
       {showSettingsModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
