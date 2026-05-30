@@ -1,27 +1,40 @@
 import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
+import { APP_NAME } from '../../constants/app'
 
 const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
   {
-    q: 'What is the Keepa API workflow in this project?',
+    q: `What is ${APP_NAME}?`,
     a: (
       <>
-        MSW Overwatch is built around the Keepa API workflow: teams monitor product pricing, run checks against Keepa
-        data, spot off-price listings, and receive reports they can use right away. See also the{' '}
+        {APP_NAME} is MetroShoe Warehouse&apos;s workspace for Keepa-based pricing compliance and day-to-day
+        operational tools. The sidebar is organized into <strong>Menu</strong> (monitoring and shared data) and{' '}
+        <strong>Tools</strong> (document and label utilities). See the{' '}
         <Link to="/about" className="text-[#404040] font-medium underline">
           About
         </Link>{' '}
-        page for how this fits together.
+        page for a full feature overview.
       </>
     ),
   },
   {
-    q: 'What is Keepa Alert Services?',
+    q: 'What is in the Menu section?',
     a: (
       <>
-        It is the core of the platform: processing UPC lists against Keepa data, comparing market pricing to MAP, and
-        highlighting off-price activity. The sidebar groups related tools—Express Jobs, UPC and MAP management, Daily
-        Runs, and reporting—when your account has access.
+        Menu includes <strong>Dashboard</strong>, <strong>Express Jobs</strong>, <strong>Daily Runs</strong>,{' '}
+        <strong>Manage UPCs</strong>, <strong>Manage MAP</strong>, <strong>Seller List</strong>, and{' '}
+        <strong>Email List</strong>. Express Jobs through Email List require Keepa access on your account; Dashboard is
+        available to all signed-in users.
+      </>
+    ),
+  },
+  {
+    q: 'What does the Dashboard show?',
+    a: (
+      <>
+        The Dashboard groups vendor daily runs into <strong>Active Runs</strong> (vendors with an upcoming scheduled
+        countdown) and <strong>Inactive Runs</strong> (quick links to each vendor&apos;s daily-run page). It is the
+        fastest way to see what is running now and what is idle.
       </>
     ),
   },
@@ -29,12 +42,9 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     q: 'What are Express Jobs?',
     a: (
       <>
-        Express Jobs are on-demand checks: you run batch work against selected UPCs (jobs, status, and cleanup live
-        under Express Jobs in the app). They are part of the Keepa Alert Services workflow described on{' '}
-        <Link to="/about" className="text-[#404040] font-medium underline">
-          About
-        </Link>
-        .
+        Express Jobs are on-demand Keepa checks against managed UPCs. You create a job, choose recipients, and run in{' '}
+        <strong>API Mode</strong> (live Keepa data) or <strong>Import Mode</strong> (uploaded Keepa report file). Job
+        status, results, and cleanup live under Express Jobs in the sidebar.
       </>
     ),
   },
@@ -42,8 +52,9 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     q: 'What are Daily Runs?',
     a: (
       <>
-        Daily Runs are scheduled monitoring per vendor category (DNK, CLK, OBZ, REF, BOR, SFF, TEV, CHA) so pricing
-        stays under review without starting each batch by hand.
+        Daily Runs are scheduled monitoring per vendor category (DNK, CLK, OBZ, REF, BOR, SFF, TEV, CHA). Open{' '}
+        <strong>Daily Runs</strong> in the sidebar to pick a vendor hub, then configure schedule, mode, recipients, and
+        reporting for that vendor.
       </>
     ),
   },
@@ -61,8 +72,46 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     q: 'Can I switch modes and keep the same scheduled time?',
     a: (
       <>
-        Yes. Use the mode toggle in Vendor Daily Run (<strong>API Mode</strong> / <strong>Import Mode</strong>). The next
-        scheduled run uses whichever mode is currently selected for that vendor.
+        Yes. Use the mode toggle on a vendor Daily Run page (<strong>API Mode</strong> / <strong>Import Mode</strong>).
+        The next scheduled run uses whichever mode is currently selected for that vendor.
+      </>
+    ),
+  },
+  {
+    q: 'What is Manage UPCs?',
+    a: (
+      <>
+        Manage UPCs opens a vendor hub (DNK, CLK, OBZ, and the other categories). From there you add, search, bulk-import,
+        and delete UPCs for that vendor. Those lists define which products are included in scheduled and on-demand Keepa
+        processing.
+      </>
+    ),
+  },
+  {
+    q: 'What is Manage MAP?',
+    a: (
+      <>
+        Manage MAP stores minimum advertised price (MAP) values by UPC and vendor. Daily Runs and Express Jobs compare
+        Keepa pricing against these MAP entries to flag off-price listings.
+      </>
+    ),
+  },
+  {
+    q: 'What is Seller List?',
+    a: (
+      <>
+        Seller List maintains Amazon seller IDs and display names (for example{' '}
+        <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs">A1HQOHOLTUK58E, Buy DBDeals</code>). Report output
+        uses this directory to label sellers consistently.
+      </>
+    ),
+  },
+  {
+    q: 'What is Email List?',
+    a: (
+      <>
+        Email List is the shared directory of named email recipients used when configuring Express Jobs and Daily Runs.
+        Add contacts individually or upload a list so report emails go to the right people.
       </>
     ),
   },
@@ -79,7 +128,7 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     q: 'Do Import Daily Run and Trigger Import Run Now (Express) send emails?',
     a: (
       <>
-        Yes. Both paths run through the same uploaded-mode scheduler flow and include report generation + email sending
+        Yes. Both paths run through the same uploaded-mode scheduler flow and include report generation and email sending
         when recipients and SMTP settings are configured correctly.
       </>
     ),
@@ -112,29 +161,47 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     ),
   },
   {
-    q: 'What is Alert Reporting?',
+    q: 'What is in the Tools section?',
     a: (
       <>
-        Alert Reporting turns findings into outputs your team can use: downloadable reports and email-style outputs when
-        the workflow is configured for them.
+        Tools includes <strong>Micro Tools</strong>, <strong>Tracking Extractor</strong>, and{' '}
+        <strong>FNSKU Labels</strong>. These are standalone utilities and do not require Keepa access.
       </>
     ),
   },
   {
-    q: 'How do UPC and MAP data support Keepa checks?',
+    q: 'What is Micro Tools?',
     a: (
       <>
-        Managed UPC lists and MAP (minimum advertised price) data feed the comparisons: the system evaluates listings
-        against MAP and Keepa market data so off-price activity is easier to see.
+        Micro Tools is a shared shortcut board for external utilities and team links. Everyone signed in can browse entries;
+        you can add new tools and edit or delete tools you created.
       </>
     ),
   },
   {
-    q: 'Why don’t I see Keepa or UPC/MAP features?',
+    q: 'What is Tracking Extractor?',
     a: (
       <>
-        Those areas depend on account access to the Keepa-related tools. If Express Jobs, UPC/MAP, or Daily Runs are
-        missing, your administrator may need to enable the right permissions for your role.
+        Tracking Extractor accepts carrier PDFs or ZIP archives, extracts tracking numbers, and exports them to Excel. Past
+        scans are kept in history so you can reopen or delete previous uploads.
+      </>
+    ),
+  },
+  {
+    q: 'What is FNSKU Labels?',
+    a: (
+      <>
+        FNSKU Labels parses FBA shipment spreadsheets (CSV, Excel, or ZIP bundles) and generates FNSKU label PDFs or
+        workbooks for warehouse labeling.
+      </>
+    ),
+  },
+  {
+    q: 'Why don’t I see Express Jobs, Daily Runs, or other Keepa pages?',
+    a: (
+      <>
+        Those Menu items require Keepa access on your account. If they are missing from the sidebar, ask an administrator
+        to enable the right permissions for your role.
       </>
     ),
   },
@@ -142,11 +209,11 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
 
 export default function JobAids() {
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">FAQ</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Questions about the Keepa Alert Services workflow and Documentations (Trainings and this FAQ), aligned with the{' '}
+          Common questions about {APP_NAME} Menu and Tools features, aligned with the{' '}
           <Link to="/about" className="text-[#404040] font-medium underline">
             About
           </Link>{' '}
@@ -174,7 +241,7 @@ export default function JobAids() {
       </div>
 
       <p className="text-xs text-gray-400">
-        Scope is the Keepa-related product and Documentations; availability of features may vary by account.
+        Keepa-related Menu items require account access; Tools are available to all signed-in users.
       </p>
     </div>
   )
