@@ -28,13 +28,20 @@ function FallbackVendorCard({ category }: { category: VendorCategory }) {
 }
 
 export default function Dashboard() {
-  const { hasKeepaAccess, displayName, userInfoLoading } = useUser()
+  const { hasKeepaAccess, displayName, userInfoLoading, userInfo, refetchUserInfo } = useUser()
   const [greeting, setGreeting] = useState('')
   const [statusLoading, setStatusLoading] = useState(true)
   const [statusError, setStatusError] = useState<string | null>(null)
   const [activeCategories, setActiveCategories] = useState<Set<VendorCategory>>(new Set())
   const [vendorData, setVendorData] = useState<Record<string, CalendarVendor>>({})
   const [nowMs, setNowMs] = useState(Date.now())
+
+  // Load profile if MFA completed but context missed the API response
+  useEffect(() => {
+    if (!userInfoLoading && !userInfo) {
+      void refetchUserInfo()
+    }
+  }, [userInfo, userInfoLoading, refetchUserInfo])
 
   // Set greeting from context
   useEffect(() => {

@@ -10,9 +10,11 @@ import {
   verifyMfaCode,
 } from '../../lib/mfa'
 import { supabase } from '../../lib/supabase'
+import { useUser } from '../../contexts/UserContext'
 
 export default function MfaVerify() {
   const navigate = useNavigate()
+  const { refetchUserInfo } = useUser()
   const [factorId, setFactorId] = useState<string | null>(null)
   const [challengeId, setChallengeId] = useState<string | null>(null)
   const [code, setCode] = useState('')
@@ -86,6 +88,7 @@ export default function MfaVerify() {
       }
       throw authError
     }
+    await refetchUserInfo()
     navigate('/dashboard', { replace: true })
   }
 

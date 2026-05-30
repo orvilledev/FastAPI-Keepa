@@ -9,10 +9,12 @@ import {
   verifyEnrollmentCode,
 } from '../../lib/mfa'
 import { supabase } from '../../lib/supabase'
+import { useUser } from '../../contexts/UserContext'
 import TotpQrCode from './TotpQrCode'
 
 export default function MfaSetup() {
   const navigate = useNavigate()
+  const { refetchUserInfo } = useUser()
   const [loading, setLoading] = useState(true)
   const [factorId, setFactorId] = useState<string | null>(null)
   const [qrCode, setQrCode] = useState<string | null>(null)
@@ -74,6 +76,7 @@ export default function MfaSetup() {
       invalidateAuthTokenCache()
       await supabase.auth.getSession()
       await authApi.confirmMfaEnrollment()
+      await refetchUserInfo()
       navigate('/dashboard', { replace: true })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Invalid verification code'

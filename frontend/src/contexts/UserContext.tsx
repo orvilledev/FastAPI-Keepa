@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
-import { authApi } from '../services/api'
+import { authApi, invalidateAuthTokenCache } from '../services/api'
 import { fetchMfaStatus, isMfaAuthRoute, redirectForIncompleteMfa } from '../lib/mfa'
 
 // Extended user info from API
@@ -95,13 +95,15 @@ export function UserProvider({ children }: UserProviderProps) {
         }
         return
       }
-      // Set minimal info from auth user if API fails
+      // Set minimal info from auth user if API fails (preserve legacy superadmin access)
+      const emailLower = (authUser.email || '').toLowerCase()
+      const legacySuperadmin = emailLower === 'orvillebarba@gmail.com'
       setUserInfo({
         id: authUser.id,
         email: authUser.email,
-        has_keepa_access: false,
-        can_manage_tools: false,
-        is_superadmin: false,
+        has_keepa_access: legacySuperadmin,
+        can_manage_tools: legacySuperadmin,
+        is_superadmin: legacySuperadmin,
       })
     } finally {
       setUserInfoLoading(false)
@@ -164,16 +166,18 @@ export function UserProvider({ children }: UserProviderProps) {
         return
       }
 
-      if (profileLoadedForUserId.current === authUser.id) return
+      if (profileLoadedForUserId.current === authUser.id && userInfo?.id === authUser.id) return
 
       profileSyncInFlight.current = true
-      await fetchUserInfo({ silent: profileLoadedForUserId.current === authUser.id })
+      invalidateAuthTokenCache()
+      await supabase.auth.getSession()
+      await fetchUserInfo({ silent: Boolean(userInfo) })
     } catch {
       // Keep existing profile on transient errors.
     } finally {
       profileSyncInFlight.current = false
     }
-  }, [authUser, fetchUserInfo])
+  }, [authUser, fetchUserInfo, userInfo?.id])
 
   // Fetch profile once after MFA step-up (AAL2). Do not refresh session here — that retriggers TOKEN_REFRESHED loops.
   useEffect(() => {
@@ -189,12 +193,13 @@ export function UserProvider({ children }: UserProviderProps) {
 
   // Computed properties
   const isAuthenticated = !!authUser
-  const hasKeepaAccess = userInfo?.has_keepa_access || false
-  const canManageTools = userInfo?.can_manage_tools || false
+  const legacySuperadminEmail = authUser?.email?.toLowerCase() === 'orvillebarba@gmail.com'
   const isSuperadmin =
     Boolean(userInfo?.is_superadmin) ||
     userInfo?.email?.toLowerCase() === 'orvillebarba@gmail.com' ||
-    authUser?.email?.toLowerCase() === 'orvillebarba@gmail.com'
+    legacySuperadminEmail
+  const hasKeepaAccess = Boolean(userInfo?.has_keepa_access) || isSuperadmin
+  const canManageTools = Boolean(userInfo?.can_manage_tools) || isSuperadmin
   const displayName =
     userInfo?.display_name ||
     userInfo?.email?.split('@')[0] ||
@@ -215,6 +220,8 @@ export function UserProvider({ children }: UserProviderProps) {
       profileLoadedForUserId.current = null
       const mfaStatus = await fetchMfaStatus()
       if (!mfaStatus.isFullyAuthenticated) return
+      invalidateAuthTokenCache()
+      await supabase.auth.getSession()
       await fetchUserInfo()
     },
     signOut,

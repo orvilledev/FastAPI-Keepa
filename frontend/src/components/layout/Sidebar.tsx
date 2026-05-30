@@ -184,11 +184,11 @@ export default function Sidebar() {
         </div>
       </div>
       <nav
-        className="flex min-h-0 flex-1 flex-col px-3 py-3"
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-3"
         onMouseLeave={() => setHoveredNav(null)}
       >
         {/* MENU: Dashboard + Keepa */}
-        <div className="min-h-0 shrink overflow-y-auto overscroll-y-contain">
+        <div className="shrink-0">
           <p className="sidebar-section-label">MENU</p>
           <div className="space-y-0.5">
             <Link
@@ -233,9 +233,7 @@ export default function Sidebar() {
           </div>
         </div>
 
-        <div className="flex min-h-4 flex-1 items-center" aria-hidden="true">
-          <div className="w-full border-t-2 border-gray-300/80" role="separator" />
-        </div>
+        <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 
         {/* TOOLS */}
         <div className="shrink-0 space-y-0.5 pb-1 pt-1">
@@ -280,12 +278,10 @@ export default function Sidebar() {
             </Link>
         </div>
 
-        <div className="flex min-h-4 flex-1 items-center" aria-hidden="true">
-          <div className="w-full border-t-2 border-gray-300/80" role="separator" />
-        </div>
+        <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 
         {/* GENERAL */}
-        <div className="shrink-0 space-y-0.5 pb-1 pt-1">
+        <div className="mt-auto shrink-0 space-y-0.5 pb-1 pt-1">
           <p className="sidebar-section-label">GENERAL</p>
           <Link
             to="/about"
