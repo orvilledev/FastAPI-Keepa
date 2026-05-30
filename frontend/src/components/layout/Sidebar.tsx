@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { useUser } from '../../contexts/UserContext'
-import { APP_ICON_URL, APP_NAME, APP_VERSION_LABEL } from '../../constants/app'
+import { APP_ICON_URL, APP_NAME } from '../../constants/app'
 import { isUserHiddenFromFeedbackPage } from '../../constants/feedbackAccess'
 
 // SVG Icon components that inherit text color via currentColor
@@ -178,12 +178,9 @@ export default function Sidebar() {
       <div className="shrink-0 border-b border-gray-200/80 p-4">
         <div className="flex items-center gap-2.5">
           <img src={APP_ICON_URL} alt="MSW Overwatch" className="h-8 w-8 shrink-0" />
-          <div className="min-w-0">
-            <h2 className="truncate text-base font-bold text-[#404040]">
-              {APP_NAME}
-            </h2>
-            <p className="truncate text-xs text-gray-500">Central Workspace • {APP_VERSION_LABEL}</p>
-          </div>
+          <h2 className="min-w-0 truncate text-base font-bold text-[#404040]">
+            {APP_NAME}
+          </h2>
         </div>
       </div>
       <nav
