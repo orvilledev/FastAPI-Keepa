@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import { authApi, invalidateAuthTokenCache } from '../services/api'
-import { fetchMfaStatus, isMfaAuthRoute, redirectForIncompleteMfa } from '../lib/mfa'
+import { isMfaAuthRoute, redirectForIncompleteMfa } from '../lib/mfa'
 
 // Extended user info from API
 export interface UserInfo {
@@ -156,21 +156,14 @@ export function UserProvider({ children }: UserProviderProps) {
       profileLoadedForUserId.current = null
       return
     }
+    // MFA pages drive their own routing; the backend enforces MFA on /auth/me.
+    if (isMfaAuthRoute()) return
     if (profileSyncInFlight.current) return
+    if (profileLoadedForUserId.current === authUser.id && userInfo?.id === authUser.id) return
 
+    profileSyncInFlight.current = true
     try {
-      const mfaStatus = await fetchMfaStatus()
-      if (!mfaStatus.isFullyAuthenticated) {
-        setUserInfo(null)
-        profileLoadedForUserId.current = null
-        return
-      }
-
-      if (profileLoadedForUserId.current === authUser.id && userInfo?.id === authUser.id) return
-
-      profileSyncInFlight.current = true
-      invalidateAuthTokenCache()
-      await supabase.auth.getSession()
+      // Load profile directly. fetchUserInfo handles the 401 "MFA required" case (redirects to MFA).
       await fetchUserInfo({ silent: Boolean(userInfo) })
     } catch {
       // Keep existing profile on transient errors.
@@ -179,7 +172,7 @@ export function UserProvider({ children }: UserProviderProps) {
     }
   }, [authUser, fetchUserInfo, userInfo?.id])
 
-  // Fetch profile once after MFA step-up (AAL2). Do not refresh session here — that retriggers TOKEN_REFRESHED loops.
+  // Load profile once the user is authenticated. The backend, not the frontend, decides if MFA is required.
   useEffect(() => {
     if (!authUser || authLoading) return
     void syncProfileAfterAuth()
@@ -218,8 +211,6 @@ export function UserProvider({ children }: UserProviderProps) {
     displayName,
     refetchUserInfo: async () => {
       profileLoadedForUserId.current = null
-      const mfaStatus = await fetchMfaStatus()
-      if (!mfaStatus.isFullyAuthenticated) return
       invalidateAuthTokenCache()
       await supabase.auth.getSession()
       await fetchUserInfo()
