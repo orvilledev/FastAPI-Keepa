@@ -2,11 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --app-zoom: 0.9;
+}
+
 @layer base {
   html {
     font-size: 16px;
     height: 100%;
-    zoom: 0.9;
+    zoom: var(--app-zoom);
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
   }
@@ -14,6 +18,10 @@
   @supports not (zoom: 1) {
     html {
       font-size: 14.4px;
+    }
+
+    :root {
+      --app-zoom: 1;
     }
   }
 
@@ -499,4 +507,13 @@ code {
   animation: fadeIn 0.3s ease-out;
 }
 
+@layer utilities {
+  .h-app-screen {
+    height: calc(100vh / var(--app-zoom));
+  }
+
+  .min-h-app-screen {
+    min-height: calc(100vh / var(--app-zoom));
+  }
+}
 
