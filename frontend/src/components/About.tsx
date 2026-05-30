@@ -143,9 +143,12 @@ export default function About() {
         <p className="mt-2 text-gray-700">
           Owned and managed by <span className="font-semibold">MetroShoe Warehouse</span>.
         </p>
-        <p className="mt-2 text-gray-700">Senior Developer: Orville Barba</p>
         <p className="mt-2 text-gray-700">
-          QA (Quality Assurance) Testers: Stephanie Roque / Sunshine Gale Ocampo
+          Senior Developer: <span className="font-semibold">Orville Barba</span>
+        </p>
+        <p className="mt-2 text-gray-700">
+          QA (Quality Assurance) Testers:{' '}
+          <span className="font-semibold">Stephanie Roque / Sunshine Gale Ocampo</span>
         </p>
       </div>
     </div>
