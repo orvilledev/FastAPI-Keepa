@@ -175,10 +175,10 @@ export default function Sidebar() {
 
   return (
     <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-gray-200/80 bg-white/80 shadow-lg backdrop-blur-lg">
-      <div className="flex h-16 shrink-0 items-center border-b border-gray-200/80 px-4">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <img src={APP_ICON_URL} alt="MSW Overwatch" className="h-8 w-8 shrink-0" />
-          <h2 className="min-w-0 truncate text-base font-bold text-[#404040]">
+      <div className="flex h-20 shrink-0 items-center border-b border-gray-200/80 px-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <img src={APP_ICON_URL} alt="MSW Overwatch" className="h-11 w-11 shrink-0" />
+          <h2 className="min-w-0 truncate text-lg font-bold tracking-tight text-[#404040]">
             {APP_NAME}
           </h2>
         </div>

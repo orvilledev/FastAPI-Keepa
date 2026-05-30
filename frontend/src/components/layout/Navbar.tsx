@@ -47,7 +47,7 @@ export default function Navbar() {
   return (
     <nav className="sticky top-0 z-50 shrink-0 border-b border-gray-200/80 bg-white/80 shadow-sm backdrop-blur-lg">
       <div className="px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-end">
+        <div className="flex h-20 items-center justify-end">
           <div className="flex items-center space-x-4">
             {/* Notifications Bell */}
             <Link
