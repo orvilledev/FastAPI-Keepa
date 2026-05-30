@@ -11,6 +11,7 @@ export interface UserInfo {
   has_keepa_access: boolean
   can_manage_tools: boolean
   is_superadmin?: boolean
+  mfa_enabled?: boolean
   created_at?: string
 }
 
@@ -64,12 +65,18 @@ export function UserProvider({ children }: UserProviderProps) {
         has_keepa_access: data.has_keepa_access || false,
         can_manage_tools: data.can_manage_tools || false,
         is_superadmin: Boolean(data.is_superadmin) || emailLower === 'orvillebarba@gmail.com',
+        mfa_enabled: Boolean(data.mfa_enabled),
         created_at: data.created_at,
       })
     } catch (error) {
       console.error('Failed to fetch user info:', error)
       const status = (error as { response?: { status?: number; data?: { detail?: string } } })?.response?.status
       const detail = (error as { response?: { status?: number; data?: { detail?: string } } })?.response?.data?.detail
+      if (status === 401 && typeof detail === 'string' && detail.toLowerCase().includes('mfa verification required')) {
+        setUserInfo(null)
+        window.location.assign('/mfa/verify')
+        return
+      }
       if (status === 403 && typeof detail === 'string' && detail.toLowerCase().includes('pending superadmin approval')) {
         sessionStorage.setItem('auth_notice', 'Your account is pending superadmin approval.')
         await supabase.auth.signOut()

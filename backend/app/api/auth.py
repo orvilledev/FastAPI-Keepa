@@ -1,14 +1,16 @@
 """Authentication API endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Body
-from app.dependencies import get_current_user, get_superadmin_user, is_superadmin_user
+from app.dependencies import get_current_user, get_superadmin_user, is_superadmin_user, security
 from app.database import get_supabase
 from app.middleware.rate_limiter import limiter, RateLimits
 from app.models.user import ProfileUpdate, ProfileResponse
 from app.utils.error_handler import handle_api_errors
+from app.utils.jwt_utils import get_jwt_aal
 from supabase import Client
 from pydantic import BaseModel
 from typing import List, Optional
 from app.maintenance import get_maintenance_state, set_maintenance_state
+from fastapi.security import HTTPAuthorizationCredentials
 
 router = APIRouter()
 
@@ -80,8 +82,47 @@ def get_current_user_info(
         "can_manage_tools": can_manage_tools,
         "can_assign_tasks": can_assign_tasks,
         "is_superadmin": is_superadmin,
+        "mfa_enabled": bool(row.get("mfa_enabled", False)),
         "user_metadata": current_user.get("user_metadata", {}),
     }
+
+
+@router.post("/mfa/confirm-enrollment")
+@limiter.limit(RateLimits.WRITE_OPERATIONS)
+@handle_api_errors("confirm MFA enrollment")
+def confirm_mfa_enrollment(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Client = Depends(get_supabase),
+):
+    """Mark MFA as enabled after the user verifies TOTP enrollment (requires AAL2 session)."""
+    token_aal = get_jwt_aal(credentials.credentials)
+    if token_aal != "aal2":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Verify your authenticator code before completing enrollment.",
+        )
+
+    row = _ensure_profile_row(db, current_user)
+    if row.get("mfa_enabled"):
+        return {"message": "Two-factor authentication is already enabled.", "mfa_enabled": True}
+
+    from datetime import datetime
+
+    response = (
+        db.table("profiles")
+        .update({"mfa_enabled": True, "updated_at": datetime.utcnow().isoformat()})
+        .eq("id", current_user["id"])
+        .execute()
+    )
+    if not response.data:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to record MFA enrollment",
+        )
+
+    return {"message": "Two-factor authentication enabled.", "mfa_enabled": True}
 
 
 @router.get("/profile", response_model=ProfileResponse)

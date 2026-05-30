@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { authApi } from '../../services/api'
+import { fetchMfaStatus } from '../../lib/mfa'
 import { APP_ICON_URL } from '../../constants/app'
 
 export default function Login() {
@@ -24,33 +25,52 @@ export default function Login() {
     }
   }, [])
 
+  const completeSignIn = async () => {
+    try {
+      await authApi.getCurrentUser()
+    } catch (authError: unknown) {
+      const status = (authError as { response?: { status?: number; data?: { detail?: string } } })?.response?.status
+      const detail = (authError as { response?: { status?: number; data?: { detail?: string } } })?.response?.data?.detail
+      if (status === 403 && typeof detail === 'string' && detail.toLowerCase().includes('pending superadmin approval')) {
+        await supabase.auth.signOut()
+        setError('Your account is pending superadmin approval.')
+        return false
+      }
+      throw authError
+    }
+    navigate('/dashboard')
+    return true
+  }
+
+  const routeAfterPasswordSignIn = async () => {
+    const status = await fetchMfaStatus()
+    if (status.needsEnrollment) {
+      navigate('/mfa/setup')
+      return
+    }
+    if (status.needsMfaVerify) {
+      navigate('/mfa/verify')
+      return
+    }
+    await completeSignIn()
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (error) throw error
-      try {
-        await authApi.getCurrentUser()
-      } catch (authError: any) {
-        const status = authError?.response?.status
-        const detail = authError?.response?.data?.detail
-        if (status === 403 && typeof detail === 'string' && detail.toLowerCase().includes('pending superadmin approval')) {
-          await supabase.auth.signOut()
-          setError('Your account is pending superadmin approval.')
-          return
-        }
-        throw authError
-      }
-      navigate('/dashboard')
-    } catch (error: any) {
-      setError(error.message || 'Failed to login')
+      if (signInError) throw signInError
+      await routeAfterPasswordSignIn()
+    } catch (loginError: unknown) {
+      const message = loginError instanceof Error ? loginError.message : 'Failed to login'
+      setError(message)
     } finally {
       setLoading(false)
     }
@@ -69,15 +89,16 @@ export default function Login() {
     }
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
         redirectTo: `${window.location.origin}/reset-password`,
       })
 
-      if (error) throw error
+      if (resetError) throw resetError
       setForgotPasswordSuccess(true)
       setError('')
-    } catch (error: any) {
-      setError(error.message || 'Failed to send password reset email')
+    } catch (resetError: unknown) {
+      const message = resetError instanceof Error ? resetError.message : 'Failed to send password reset email'
+      setError(message)
       setForgotPasswordSuccess(false)
     } finally {
       setForgotPasswordLoading(false)
@@ -85,7 +106,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-app-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full">
         <div className="card p-8 shadow-xl">
           <div className="text-center mb-8">
@@ -241,4 +262,3 @@ export default function Login() {
     </div>
   )
 }
-

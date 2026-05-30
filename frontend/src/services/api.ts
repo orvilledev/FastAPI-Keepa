@@ -20,6 +20,15 @@ const API_URL = normalizeApiBaseUrl(
     : 'http://localhost:8000'
 )
 
+function redirectToMfaVerify(): void {
+  if (typeof window === 'undefined') return
+  if (window.location.protocol === 'file:') {
+    window.location.hash = '#/mfa/verify'
+  } else {
+    window.location.assign('/mfa/verify')
+  }
+}
+
 /** Packaged Electron uses HashRouter (`#/...`); plain `/login` breaks on `file:` URLs. */
 function redirectToLogin(): void {
   if (typeof window === 'undefined') return
@@ -90,6 +99,15 @@ api.interceptors.response.use(
   async (error) => {
     // Extract error message from response
     const message = error.response?.data?.detail || error.message || 'An error occurred'
+    const mfaRequired =
+      error.response?.status === 401 &&
+      typeof message === 'string' &&
+      message.toLowerCase().includes('mfa verification required')
+
+    if (mfaRequired) {
+      redirectToMfaVerify()
+      return Promise.reject(error)
+    }
     
     // Handle 401 Unauthorized - try to refresh token
     if (error.response?.status === 401 && error.config && !error.config._retry) {
@@ -194,6 +212,12 @@ export const authApi = {
     const response = await api.patch('/api/v1/auth/me/display-name', {
       display_name: displayName
     })
+    return response.data
+  },
+  confirmMfaEnrollment: async () => {
+    const response = await api.post<{ message: string; mfa_enabled: boolean }>(
+      '/api/v1/auth/mfa/confirm-enrollment'
+    )
     return response.data
   },
 }

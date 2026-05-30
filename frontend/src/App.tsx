@@ -13,14 +13,18 @@ import { UserProvider, useUser } from './contexts/UserContext'
 import { TrackingScanProvider } from './contexts/TrackingScanContext'
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/common/ProtectedRoute'
+import MfaGate from './components/auth/MfaGate'
 import About from './components/About'
 import Maintenance from './components/Maintenance'
 import { systemApi } from './services/api'
+import { fetchMfaStatus } from './lib/mfa'
 import { isUserHiddenFromFeedbackPage } from './constants/feedbackAccess'
 
 // Lazy load page components for code splitting (About is eager so its chunk cannot 404 behind stale CDN/cache)
 const Landing = lazy(() => import('./components/Landing'))
 const Login = lazy(() => import('./components/auth/Login'))
+const MfaSetup = lazy(() => import('./components/auth/MfaSetup'))
+const MfaVerify = lazy(() => import('./components/auth/MfaVerify'))
 const ResetPassword = lazy(() => import('./components/auth/ResetPassword'))
 const Dashboard = lazy(() => import('./components/dashboard/Dashboard'))
 const JobList = lazy(() => import('./components/jobs/JobList'))
@@ -72,15 +76,44 @@ function LoadingSpinner() {
   )
 }
 
-/** Logged-in users hitting / are sent to the dashboard; guests see the landing page. */
+/** Sends signed-in users to the correct post-login step (MFA setup, verify, or dashboard). */
+function AuthenticatedEntryRedirect() {
+  const { authUser, authLoading } = useUser()
+  const [target, setTarget] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    if (authLoading || !authUser) return
+
+    void fetchMfaStatus()
+      .then((status) => {
+        if (cancelled) return
+        if (status.needsEnrollment) setTarget('/mfa/setup')
+        else if (status.needsMfaVerify || !status.isFullyAuthenticated) setTarget('/mfa/verify')
+        else setTarget('/dashboard')
+      })
+      .catch(() => {
+        if (!cancelled) setTarget('/mfa/setup')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [authUser, authLoading])
+
+  if (authLoading || !target) return <LoadingSpinner />
+  const lastPrivatePath = sessionStorage.getItem(LAST_PRIVATE_PATH_KEY)
+  if (target === '/dashboard' && lastPrivatePath && lastPrivatePath !== '/') {
+    return <Navigate to={lastPrivatePath} replace />
+  }
+  return <Navigate to={target} replace />
+}
+
+/** Logged-in users hitting / are sent through MFA checks first. */
 function PublicHome() {
   const { authUser } = useUser()
   if (authUser) {
-    const lastPrivatePath = sessionStorage.getItem(LAST_PRIVATE_PATH_KEY)
-    if (lastPrivatePath && lastPrivatePath !== '/') {
-      return <Navigate to={lastPrivatePath} replace />
-    }
-    return <Navigate to="/dashboard" replace />
+    return <AuthenticatedEntryRedirect />
   }
   return <Landing />
 }
@@ -89,7 +122,7 @@ function PublicHome() {
 function GuestRoute({ children }: { children: React.ReactNode }) {
   const { authUser } = useUser()
   if (authUser) {
-    return <Navigate to="/dashboard" replace />
+    return <AuthenticatedEntryRedirect />
   }
   return <>{children}</>
 }
@@ -117,11 +150,13 @@ function PrivateLayout() {
     return <Navigate to="/" replace />
   }
   return (
-    <TrackingScanProvider>
-      <Layout>
-        <Outlet />
-      </Layout>
-    </TrackingScanProvider>
+    <MfaGate>
+      <TrackingScanProvider>
+        <Layout>
+          <Outlet />
+        </Layout>
+      </TrackingScanProvider>
+    </MfaGate>
   )
 }
 
@@ -137,7 +172,9 @@ function RememberLastPrivatePath() {
       location.pathname === '/' ||
       location.pathname === '/login' ||
       location.pathname === '/signup' ||
-      location.pathname === '/reset-password'
+      location.pathname === '/reset-password' ||
+      location.pathname === '/mfa/setup' ||
+      location.pathname === '/mfa/verify'
     if (isGuestRoute) return
     sessionStorage.setItem(LAST_PRIVATE_PATH_KEY, path)
   }, [authUser, location.pathname, location.search, location.hash])
@@ -230,6 +267,22 @@ function AppRoutes() {
             <GuestRoute>
               <Login />
             </GuestRoute>
+          }
+        />
+        <Route
+          path="/mfa/setup"
+          element={
+            <MfaGate requireFullAuth={false}>
+              <MfaSetup />
+            </MfaGate>
+          }
+        />
+        <Route
+          path="/mfa/verify"
+          element={
+            <MfaGate requireFullAuth={false}>
+              <MfaVerify />
+            </MfaGate>
           }
         />
         <Route path="/notes-popout" element={<Navigate to="/dashboard" replace />} />

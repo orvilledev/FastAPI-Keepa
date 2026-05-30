@@ -8,6 +8,7 @@ from app.maintenance import get_maintenance_state
 from uuid import UUID
 import httpx
 import logging
+from app.utils.jwt_utils import get_jwt_aal
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,15 @@ async def get_current_user(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Your account is pending superadmin approval.",
                 )
+
+            mfa_enabled = bool(profile.get("mfa_enabled", False))
+            token_aal = get_jwt_aal(token)
+            if mfa_enabled and token_aal != "aal2":
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="MFA verification required",
+                )
+
             return user_data
     except HTTPException:
         raise
