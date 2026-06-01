@@ -31,14 +31,16 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   ),
-  running: (
+  biking: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <circle cx="17" cy="4" r="2" strokeWidth={2} />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 6.5l-1.5 3 1.5 1-2.5 7" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12.5 12l-1 5" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12.5 12l3-1.5" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.5 10.5l2.5-1.5 2-3.5" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.5 5.5l-1 2" />
+      <circle cx="17.5" cy="5" r="1.75" strokeWidth={2} />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.5 6.5L12 10l-1.5 7" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10l-4 1.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.5 17l2 2.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 10.5h4" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12l2.5 6M12 10l4.5 8" />
+      <circle cx="7" cy="18" r="2.25" strokeWidth={2} />
+      <circle cx="17" cy="18" r="2.25" strokeWidth={2} />
     </svg>
   ),
   user: (
@@ -134,7 +136,7 @@ export default function Sidebar() {
 
   const keepaMenuItems = [
     { path: '/jobs',         label: 'Express Jobs', icon: 'package'  as const },
-    { path: '/daily-run',    label: 'Daily Runs',   icon: 'running'  as const },
+    { path: '/daily-run',    label: 'Daily Runs',   icon: 'biking'   as const },
     { path: '/manage-upcs', label: 'Manage UPCs',  icon: 'barcode'  as const },
     { path: '/map',          label: 'Manage MAP',   icon: 'dollar'   as const },
     { path: '/seller-list',  label: 'Seller List',  icon: 'users'    as const },
