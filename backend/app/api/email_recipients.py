@@ -25,7 +25,6 @@ from app.repositories.supabase_read_all import read_all_paginated
 from app.utils.email_recipient_pool_db import (
     fetch_pool_rows,
     insert_pool_entry,
-    pool_supports_is_bcc,
     select_pool_entry,
     update_pool_entry,
 )
@@ -205,14 +204,14 @@ def sync_used_recipients_to_pool(
     try:
         settings_rows = (
             db.table("scheduler_settings")
-            .select("email_recipients")
-            .not_.is_("email_recipients", "null")
+            .select("email_recipients, email_bcc_recipients")
             .execute()
         )
         for row in settings_rows.data or []:
-            raw = row.get("email_recipients")
-            for email in _parse_recipient_string(raw):
-                discovered.add(email)
+            for field in ("email_recipients", "email_bcc_recipients"):
+                raw = row.get(field)
+                for email in _parse_recipient_string(raw):
+                    discovered.add(email)
     except Exception as exc:
         logger.warning("Could not merge scheduler settings recipients into pool sync: %s", exc)
 
@@ -227,7 +226,6 @@ def _pool_entry_response(row: dict) -> EmailPoolEntryResponse:
         id=str(row["id"]),
         email=row["email"],
         display_name=row.get("display_name"),
-        is_bcc=bool(row.get("is_bcc")),
     )
 
 
@@ -251,7 +249,6 @@ def add_email_to_pool(
     email = _validate_email(body.email)
     uid = str(current_user["id"])
     display_name = (body.display_name or "").strip() or None
-    is_bcc = bool(body.is_bcc)
 
     # Manual add re-enables previously deleted addresses for sync/list usage.
     db.table("email_recipient_pool_exclusions").delete().eq("user_id", uid).eq("email", email).execute()
@@ -261,15 +258,13 @@ def add_email_to_pool(
         update_payload = {}
         if display_name and existing.get("display_name") != display_name:
             update_payload["display_name"] = display_name
-        if pool_supports_is_bcc(db) and bool(existing.get("is_bcc")) != is_bcc:
-            update_payload["is_bcc"] = is_bcc
         if update_payload:
             updated = update_pool_entry(db, uid, str(existing["id"]), update_payload)
             if updated:
                 existing = updated
         return _pool_entry_response(existing)
 
-    row = insert_pool_entry(db, uid, email, display_name, is_bcc)
+    row = insert_pool_entry(db, uid, email, display_name)
     return _pool_entry_response(row)
 
 
@@ -282,23 +277,10 @@ def update_email_pool_entry(
     db: Client = Depends(get_supabase),
 ):
     uid = str(current_user["id"])
-    if body.display_name is None and body.is_bcc is None:
+    if body.display_name is None:
         raise HTTPException(status_code=400, detail="No fields to update")
-    display_name = (body.display_name or "").strip() or None if body.display_name is not None else None
-    update_payload = {}
-    if body.display_name is not None:
-        update_payload["display_name"] = display_name
-    if body.is_bcc is not None:
-        if not pool_supports_is_bcc(db):
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    "BCC is not available until the database migration "
-                    "add_is_bcc_to_email_recipient_pool.sql has been applied."
-                ),
-            )
-        update_payload["is_bcc"] = bool(body.is_bcc)
-    row = update_pool_entry(db, uid, str(entry_id), update_payload)
+    display_name = (body.display_name or "").strip() or None
+    row = update_pool_entry(db, uid, str(entry_id), {"display_name": display_name})
     if not row:
         raise HTTPException(status_code=404, detail="Email entry not found")
     return _pool_entry_response(row)

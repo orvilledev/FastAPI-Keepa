@@ -118,15 +118,6 @@ export default function EmailList() {
     }
   }
 
-  const handleToggleBcc = async (entry: EmailPoolEntry, nextIsBcc: boolean) => {
-    try {
-      const updated = await emailRecipientsApi.updatePoolEntry(entry.id, { is_bcc: nextIsBcc })
-      setRows((prev) => prev.map((r) => (r.id === entry.id ? updated : r)))
-    } catch {
-      alert('Could not update BCC setting')
-    }
-  }
-
   const handleUpload = async (file: File) => {
     setUploading(true)
     try {
@@ -150,8 +141,7 @@ export default function EmailList() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Email List</h1>
         <p className="text-sm text-gray-600 mt-1">
-          Manage recipient names and addresses used by Express Jobs and Daily Runs. Mark BCC recipients here; they are
-          hidden from other recipients when included in a daily run email list.
+          Manage recipient names and addresses used by Express Jobs and Daily Runs.
         </p>
         {syncingUsedRecipients && (
           <p className="text-xs text-gray-500 mt-1">Syncing used recipients in background...</p>
@@ -210,7 +200,6 @@ export default function EmailList() {
                 <tr className="text-left text-gray-500 border-b">
                   <th className="py-2 pr-4">Name shown in options</th>
                   <th className="py-2 pr-4">Email address</th>
-                  <th className="py-2 pr-4">BCC</th>
                   <th className="py-2">Actions</th>
                 </tr>
               </thead>
@@ -229,17 +218,6 @@ export default function EmailList() {
                       />
                     </td>
                     <td className="py-2 pr-4 text-gray-700">{entry.email}</td>
-                    <td className="py-2 pr-4">
-                      <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(entry.is_bcc)}
-                          onChange={(e) => void handleToggleBcc(entry, e.target.checked)}
-                          className="rounded border-gray-300 text-[#81B81D] focus:ring-indigo-500"
-                        />
-                        BCC
-                      </label>
-                    </td>
                     <td className="py-2">
                       <button
                         type="button"

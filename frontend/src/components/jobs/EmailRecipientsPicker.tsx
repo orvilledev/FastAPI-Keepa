@@ -9,22 +9,33 @@ function parseEmails(value: string): string[] {
     .filter(Boolean)
 }
 
+function joinEmails(emails: Set<string>): string {
+  return [...emails].sort().join(', ')
+}
+
 type Props = {
   id?: string
   value: string
   onChange: (commaSeparated: string) => void
+  bccValue?: string
+  onBccChange?: (commaSeparated: string) => void
   disabled?: boolean
   persistDismissed?: boolean
   /** When true, an empty selection sends no email (daily runs). Default uses report recipients. */
   emptyMeansNoRecipients?: boolean
+  /** When true, selected addresses can be marked BCC for this vendor only. */
+  allowVendorBcc?: boolean
 }
 
 export default function EmailRecipientsPicker({
   id,
   value,
   onChange,
+  bccValue = '',
+  onBccChange,
   disabled,
   emptyMeansNoRecipients = false,
+  allowVendorBcc = false,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
   const skipValueSyncRef = useRef(false)
@@ -32,7 +43,8 @@ export default function EmailRecipientsPicker({
   const [pool, setPool] = useState<EmailPoolEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(parseEmails(value)))
+  const [selectedTo, setSelectedTo] = useState<Set<string>>(() => new Set(parseEmails(value)))
+  const [selectedBcc, setSelectedBcc] = useState<Set<string>>(() => new Set(parseEmails(bccValue)))
 
   const refreshData = useCallback(async () => {
     setLoadError(null)
@@ -56,8 +68,9 @@ export default function EmailRecipientsPicker({
       skipValueSyncRef.current = false
       return
     }
-    setSelected(new Set(parseEmails(value)))
-  }, [value])
+    setSelectedTo(new Set(parseEmails(value)))
+    setSelectedBcc(new Set(parseEmails(bccValue)))
+  }, [value, bccValue])
 
   useEffect(() => {
     if (!panelOpen) return
@@ -80,50 +93,68 @@ export default function EmailRecipientsPicker({
     return labels
   }, [pool])
 
-  const bccByEmail = useMemo(() => {
-    const bcc = new Set<string>()
-    for (const p of pool) {
-      if (p.is_bcc) bcc.add(p.email.toLowerCase())
-    }
-    return bcc
-  }, [pool])
-
   const options = useMemo(() => {
     const set = new Set<string>()
     for (const p of pool) set.add(p.email.toLowerCase())
-    for (const e of selected) set.add(e)
+    for (const e of selectedTo) set.add(e)
+    for (const e of selectedBcc) set.add(e)
     return [...set].sort((a, b) => {
       const aLabel = (labelByEmail.get(a) || a).toLowerCase()
       const bLabel = (labelByEmail.get(b) || b).toLowerCase()
       return aLabel.localeCompare(bLabel)
     })
-  }, [pool, selected, labelByEmail])
+  }, [pool, selectedTo, selectedBcc, labelByEmail])
 
   const commitSelection = useCallback(
-    (next: Set<string>) => {
-      setSelected(next)
-      const arr = [...next].sort()
+    (nextTo: Set<string>, nextBcc: Set<string>) => {
+      setSelectedTo(nextTo)
+      setSelectedBcc(nextBcc)
       skipValueSyncRef.current = true
-      onChange(arr.join(', '))
+      onChange(joinEmails(nextTo))
+      if (allowVendorBcc && onBccChange) {
+        onBccChange(joinEmails(nextBcc))
+      }
     },
-    [onChange]
+    [allowVendorBcc, onBccChange, onChange]
   )
 
   const toggleEmail = (email: string) => {
     const lower = email.toLowerCase()
-    const next = new Set(selected)
-    if (next.has(lower)) next.delete(lower)
-    else next.add(lower)
-    commitSelection(next)
+    const nextTo = new Set(selectedTo)
+    const nextBcc = new Set(selectedBcc)
+    if (nextTo.has(lower) || nextBcc.has(lower)) {
+      nextTo.delete(lower)
+      nextBcc.delete(lower)
+    } else {
+      nextTo.add(lower)
+    }
+    commitSelection(nextTo, nextBcc)
   }
 
-  const count = selected.size
-  const summary =
-    count === 0
-      ? emptyMeansNoRecipients
-        ? 'No recipients selected'
-        : 'Default recipients (leave empty)'
-      : `${count} recipient${count === 1 ? '' : 's'} selected`
+  const toggleBcc = (email: string) => {
+    const lower = email.toLowerCase()
+    const nextTo = new Set(selectedTo)
+    const nextBcc = new Set(selectedBcc)
+    if (nextBcc.has(lower)) {
+      nextBcc.delete(lower)
+      nextTo.add(lower)
+    } else {
+      nextTo.delete(lower)
+      nextBcc.add(lower)
+    }
+    commitSelection(nextTo, nextBcc)
+  }
+
+  const totalCount = selectedTo.size + selectedBcc.size
+  const summary = (() => {
+    if (totalCount === 0) {
+      return emptyMeansNoRecipients ? 'No recipients selected' : 'Default recipients (leave empty)'
+    }
+    if (allowVendorBcc && selectedBcc.size > 0) {
+      return `${totalCount} recipient${totalCount === 1 ? '' : 's'} selected (${selectedBcc.size} BCC)`
+    }
+    return `${totalCount} recipient${totalCount === 1 ? '' : 's'} selected`
+  })()
 
   return (
     <div ref={rootRef} className="space-y-2">
@@ -146,7 +177,8 @@ export default function EmailRecipientsPicker({
               <Link to="/email-list" className="text-[#81B81D] underline">
                 Email List
               </Link>
-              . Mark addresses as BCC there to hide them from other recipients.
+              .
+              {allowVendorBcc ? ' Mark BCC here for this vendor only.' : null}
             </p>
             <button type="button" className="text-xs text-[#81B81D] underline" onClick={() => void refreshData()}>
               Refresh
@@ -166,13 +198,14 @@ export default function EmailRecipientsPicker({
             <ul className="space-y-2">
               {options.map((email) => {
                 const label = labelByEmail.get(email)
-                const isBcc = bccByEmail.has(email)
+                const included = selectedTo.has(email) || selectedBcc.has(email)
+                const isBcc = selectedBcc.has(email)
                 return (
                   <li key={email} className="flex items-center gap-2 border-b border-gray-100 pb-2 last:border-0 last:pb-0">
                     <input
                       type="checkbox"
                       id={`er-${email}`}
-                      checked={selected.has(email)}
+                      checked={included}
                       onChange={() => toggleEmail(email)}
                       className="shrink-0 rounded border-gray-300 text-[#81B81D] focus:ring-indigo-500"
                     />
@@ -185,8 +218,18 @@ export default function EmailRecipientsPicker({
                       ) : (
                         email
                       )}
-                      {isBcc && <span className="ml-2 text-xs font-medium text-gray-500">BCC</span>}
                     </label>
+                    {allowVendorBcc && included && (
+                      <label className="inline-flex items-center gap-1.5 text-xs text-gray-600 shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={isBcc}
+                          onChange={() => toggleBcc(email)}
+                          className="rounded border-gray-300 text-[#81B81D] focus:ring-indigo-500"
+                        />
+                        BCC
+                      </label>
+                    )}
                   </li>
                 )
               })}
@@ -197,7 +240,9 @@ export default function EmailRecipientsPicker({
 
       <p className="text-sm text-gray-500">
         {emptyMeansNoRecipients
-          ? 'Leave empty to send no email. BCC recipients are configured in Email List.'
+          ? allowVendorBcc
+            ? 'Leave empty to send no email. BCC is configured per vendor here.'
+            : 'Leave empty to send no email.'
           : 'Leave empty to use default report recipients.'}
       </p>
     </div>

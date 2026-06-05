@@ -12,7 +12,7 @@ from app.database import get_supabase
 from app.repositories.job_repository import JobRepository
 from app.repositories.map_repository import MAPRepository
 from app.repositories.supabase_read_all import read_all_paginated
-from app.utils.email_recipient_utils import lookup_bcc_emails, parse_recipient_csv
+from app.utils.email_recipient_utils import parse_recipient_csv
 from app.utils.vendor_code import resolve_map_vendor_type
 from app.utils.notifications import create_notification, create_completion_notifications_for_all_profiles
 from app.services.keepa_client import KeepaClient, MultiKeyKeepaClient
@@ -138,6 +138,7 @@ class BatchProcessor:
         upcs: List[str],
         created_by: UUID,
         email_recipients: str = None,
+        email_bcc_recipients: str = None,
         keepa_offers_limit: int = 0,
         map_vendor_type: Optional[str] = None,
         off_price_scope: str = "buybox_only",
@@ -172,6 +173,8 @@ class BatchProcessor:
         }
         if email_recipients:
             insert_data["email_recipients"] = email_recipients
+        if email_bcc_recipients:
+            insert_data["email_bcc_recipients"] = email_bcc_recipients
         
         job_response = await self._execute_with_retry(
             lambda: self.db.table("batch_jobs").insert(insert_data).execute(),
@@ -601,23 +604,23 @@ class BatchProcessor:
             else:
                 is_daily_run = JobRepository._is_daily_run_job(job_name)
                 recipient_csv = custom_recipients if custom_recipients and str(custom_recipients).strip() else None
-                if is_daily_run and not recipient_csv:
+                custom_bcc_recipients = job_data.get("email_bcc_recipients")
+                bcc_list = parse_recipient_csv(
+                    custom_bcc_recipients if custom_bcc_recipients and str(custom_bcc_recipients).strip() else None
+                )
+                has_recipients = bool(parse_recipient_csv(recipient_csv)) or bool(bcc_list)
+                if is_daily_run and not has_recipients:
                     logger.info(
                         f"Daily run job {job_id} has no recipients configured; skipping email"
                     )
                 else:
-                    bcc_emails = (
-                        lookup_bcc_emails(self.db, parse_recipient_csv(recipient_csv))
-                        if recipient_csv
-                        else []
-                    )
                     send_to = recipient_csv or self.email_service.email_to
                     logger.info(
                         f"Preparing to send email for job {job_id}: {total_upcs} UPCs, "
                         f"{off_price_count} off-price listings"
                     )
                     logger.info(
-                        f"Email recipients: {send_to} (custom={bool(recipient_csv)}, bcc={bcc_emails or []})"
+                        f"Email recipients: {send_to} (custom={bool(recipient_csv)}, bcc={bcc_list or []})"
                     )
 
                     try:
@@ -633,7 +636,7 @@ class BatchProcessor:
                                 alerts_count=off_price_count,
                                 recipient_email=recipient_csv,
                                 vendor=job_map_vendor,
-                                bcc_emails=bcc_emails,
+                                bcc_emails=bcc_list,
                                 use_default_recipients=not is_daily_run,
                             ),
                         )

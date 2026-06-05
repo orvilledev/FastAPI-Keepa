@@ -62,6 +62,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
     custom_days: [] as string[],
     anchor_date: null as string | null,
     email_recipients: '',
+    email_bcc_recipients: '',
     uploaded_wait_timeout_seconds: 90,
   })
   const [savingSettings, setSavingSettings] = useState(false)
@@ -73,6 +74,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [latestUpload, setLatestUpload] = useState<UploadedReport | null>(null)
   const [uploadEmailRecipients, setUploadEmailRecipients] = useState('')
+  const [uploadEmailBccRecipients, setUploadEmailBccRecipients] = useState('')
   const [savingUploadRecipients, setSavingUploadRecipients] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [queueing, setQueueing] = useState(false)
@@ -89,7 +91,9 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
       .join(', ')
   const uploadRecipientsDirty =
     normalizeRecipientString(uploadEmailRecipients) !==
-    normalizeRecipientString(schedulerSettings?.email_recipients)
+      normalizeRecipientString(schedulerSettings?.email_recipients) ||
+    normalizeRecipientString(uploadEmailBccRecipients) !==
+      normalizeRecipientString(schedulerSettings?.email_bcc_recipients)
 
   useEffect(() => {
     checkKeepaAccess()
@@ -144,6 +148,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
         custom_days: settings.custom_days || [],
         anchor_date: settings.anchor_date ?? null,
         email_recipients: settings.email_recipients || '',
+        email_bcc_recipients: settings.email_bcc_recipients || '',
         uploaded_wait_timeout_seconds:
           typeof settings.uploaded_wait_timeout_seconds === 'number'
             ? settings.uploaded_wait_timeout_seconds
@@ -159,12 +164,14 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
         custom_days: normalizedSettings.custom_days,
         anchor_date: normalizedSettings.anchor_date ?? null,
         email_recipients: normalizedSettings.email_recipients ?? '',
+        email_bcc_recipients: normalizedSettings.email_bcc_recipients ?? '',
         uploaded_wait_timeout_seconds:
           typeof normalizedSettings.uploaded_wait_timeout_seconds === 'number'
             ? normalizedSettings.uploaded_wait_timeout_seconds
             : 90,
       })
       setUploadEmailRecipients(normalizedSettings.email_recipients || '')
+      setUploadEmailBccRecipients(normalizedSettings.email_bcc_recipients || '')
     } catch (err: any) {
       console.error('Failed to load scheduler settings:', err)
       const defaults: SchedulerSettings = {
@@ -177,6 +184,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
         custom_days: [],
         anchor_date: null,
         email_recipients: '',
+        email_bcc_recipients: '',
         uploaded_wait_timeout_seconds: 90,
         category: vendor,
       }
@@ -190,6 +198,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
         custom_days: defaults.custom_days,
         anchor_date: defaults.anchor_date ?? null,
         email_recipients: defaults.email_recipients ?? '',
+        email_bcc_recipients: defaults.email_bcc_recipients ?? '',
         uploaded_wait_timeout_seconds: defaults.uploaded_wait_timeout_seconds ?? 90,
       })
     }
@@ -229,6 +238,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
         custom_days: schedulerSettings.custom_days || [],
         anchor_date: schedulerSettings.anchor_date || null,
         email_recipients: schedulerSettings.email_recipients || '',
+        email_bcc_recipients: schedulerSettings.email_bcc_recipients || '',
         uploaded_wait_timeout_seconds:
           typeof schedulerSettings.uploaded_wait_timeout_seconds === 'number'
             ? schedulerSettings.uploaded_wait_timeout_seconds
@@ -396,7 +406,10 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
     setSuccess('')
     try {
       await schedulerApi.updateSettings(
-        { email_recipients: uploadEmailRecipients.trim() || null },
+        {
+          email_recipients: uploadEmailRecipients.trim() || null,
+          email_bcc_recipients: uploadEmailBccRecipients.trim() || null,
+        },
         vendor,
       )
       await loadSchedulerSettings()
@@ -635,9 +648,12 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
             <label className="block text-sm font-medium text-gray-700 mb-2">Email recipients (optional)</label>
             <EmailRecipientsPicker
               value={uploadEmailRecipients}
+              bccValue={uploadEmailBccRecipients}
               onChange={setUploadEmailRecipients}
+              onBccChange={setUploadEmailBccRecipients}
               persistDismissed
               emptyMeansNoRecipients
+              allowVendorBcc
             />
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <button
@@ -826,9 +842,12 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                 </label>
                 <EmailRecipientsPicker
                   value={settingsForm.email_recipients || ''}
+                  bccValue={settingsForm.email_bcc_recipients || ''}
                   onChange={(value) => setSettingsForm({ ...settingsForm, email_recipients: value })}
+                  onBccChange={(value) => setSettingsForm({ ...settingsForm, email_bcc_recipients: value })}
                   disabled={savingSettings}
                   emptyMeansNoRecipients
+                  allowVendorBcc
                 />
               </div>
             </div>

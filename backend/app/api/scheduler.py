@@ -57,6 +57,7 @@ class SchedulerSettingsUpdate(BaseModel):
     custom_days: Optional[List[str]] = None
     anchor_date: Optional[str] = None
     email_recipients: Optional[str] = None
+    email_bcc_recipients: Optional[str] = None
     input_mode: Optional[str] = None
     uploaded_wait_timeout_seconds: Optional[int] = None
     # Optional per-vendor custom email wording. Blank string clears the
@@ -566,6 +567,7 @@ def get_scheduler_settings(
                 "custom_days": [],
                 "anchor_date": None,
                 "email_recipients": None,
+                "email_bcc_recipients": None,
                 "input_mode": "api",
                 "uploaded_wait_timeout_seconds": 90,
                 "email_subject_template": None,
@@ -582,6 +584,7 @@ def get_scheduler_settings(
             "custom_days": settings.get("custom_days", []),
             "anchor_date": settings.get("anchor_date"),
             "email_recipients": settings.get("email_recipients"),
+            "email_bcc_recipients": settings.get("email_bcc_recipients"),
             "input_mode": settings.get("input_mode", "api"),
             "uploaded_wait_timeout_seconds": settings.get("uploaded_wait_timeout_seconds", 90),
             "email_subject_template": settings.get("email_subject_template"),
@@ -599,6 +602,7 @@ def get_scheduler_settings(
             "custom_days": [],
             "anchor_date": None,
             "email_recipients": None,
+            "email_bcc_recipients": None,
             "input_mode": "api",
             "uploaded_wait_timeout_seconds": 90,
             "email_subject_template": None,
@@ -765,6 +769,11 @@ def update_scheduler_settings_endpoint(
         requested = _parse_recipients_csv(settings_data.email_recipients)
         filtered = [email for email in requested if email in allowed]
         update_data["email_recipients"] = ",".join(filtered) if filtered else None
+    if settings_data.email_bcc_recipients is not None:
+        allowed = _load_allowed_pool_emails(db, str(current_user["id"]))
+        requested_bcc = _parse_recipients_csv(settings_data.email_bcc_recipients)
+        filtered_bcc = [email for email in requested_bcc if email in allowed]
+        update_data["email_bcc_recipients"] = ",".join(filtered_bcc) if filtered_bcc else None
     if settings_data.input_mode is not None:
         normalized_input_mode = settings_data.input_mode.strip().lower()
         if normalized_input_mode not in VALID_INPUT_MODES:
@@ -859,6 +868,7 @@ def update_scheduler_settings_endpoint(
         "custom_days": updated_settings.get("custom_days", []),
         "anchor_date": updated_settings.get("anchor_date"),
         "email_recipients": updated_settings.get("email_recipients"),
+        "email_bcc_recipients": updated_settings.get("email_bcc_recipients"),
         "input_mode": updated_settings.get("input_mode", "api"),
         "uploaded_wait_timeout_seconds": updated_settings.get("uploaded_wait_timeout_seconds", 90),
         "email_subject_template": updated_settings.get("email_subject_template"),

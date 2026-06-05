@@ -6,19 +6,16 @@ from pydantic import BaseModel, Field
 class EmailPoolEntryCreate(BaseModel):
     email: str = Field(..., min_length=3, max_length=320)
     display_name: Optional[str] = Field(None, min_length=1, max_length=120)
-    is_bcc: bool = False
 
 
 class EmailPoolEntryUpdate(BaseModel):
     display_name: Optional[str] = Field(None, min_length=1, max_length=120)
-    is_bcc: Optional[bool] = None
 
 
 class EmailPoolEntryResponse(BaseModel):
     id: str
     email: str
     display_name: Optional[str] = None
-    is_bcc: bool = False
 
 
 class EmailListCreate(BaseModel):

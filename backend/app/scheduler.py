@@ -13,7 +13,7 @@ from app.repositories.map_repository import MAPRepository
 from app.services.batch_processor import BatchProcessor
 from app.services.email_service import EmailService
 from app.services.report_service import ReportService
-from app.utils.email_recipient_utils import lookup_bcc_emails, parse_recipient_csv
+from app.utils.email_recipient_utils import parse_recipient_csv
 from app.utils.notifications import create_notification, create_completion_notifications_for_all_profiles
 from typing import List, Optional
 from dataclasses import dataclass
@@ -336,6 +336,7 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
         db = get_supabase()
         processor = BatchProcessor()
         custom_recipients = None
+        custom_bcc_recipients = None
         input_mode = "api"
         normalized_forced_mode = (forced_input_mode or "").strip().lower()
         if normalized_forced_mode and normalized_forced_mode not in {"api", "uploaded"}:
@@ -350,7 +351,7 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
             category_settings_response = await _run_sync(
                 lambda: db.table("scheduler_settings")
                 .select(
-                    "email_recipients, input_mode, uploaded_wait_timeout_seconds"
+                    "email_recipients, email_bcc_recipients, input_mode, uploaded_wait_timeout_seconds"
                 )
                 .eq("category", category)
                 .limit(1)
@@ -358,6 +359,7 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
             )
             if category_settings_response.data:
                 custom_recipients = category_settings_response.data[0].get("email_recipients")
+                custom_bcc_recipients = category_settings_response.data[0].get("email_bcc_recipients")
                 raw_mode = str(category_settings_response.data[0].get("input_mode") or "").strip().lower()
                 if raw_mode in VALID_INPUT_MODES:
                     input_mode = raw_mode
@@ -547,6 +549,7 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                 upcs=upcs,
                 created_by=admin_uuid,
                 email_recipients=custom_recipients,
+                email_bcc_recipients=custom_bcc_recipients,
                 keepa_offers_limit=settings.keepa_offers_limit,
                 map_vendor_type=category,
                 off_price_scope=run_off_price_scope,
@@ -776,15 +779,19 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                     )
                     total_upcs = await _run_sync(lambda: report_service.get_total_upcs_for_job(job_id))
                     recipient_csv = custom_recipients if custom_recipients and str(custom_recipients).strip() else None
-                    if not recipient_csv:
+                    bcc_csv = (
+                        custom_bcc_recipients
+                        if custom_bcc_recipients and str(custom_bcc_recipients).strip()
+                        else None
+                    )
+                    to_list = parse_recipient_csv(recipient_csv)
+                    bcc_list = parse_recipient_csv(bcc_csv)
+                    if not to_list and not bcc_list:
                         logger.info(
                             "Daily %s uploaded run has no recipients configured; skipping email",
                             category.upper(),
                         )
                     else:
-                        bcc_emails = await _run_sync(
-                            lambda: lookup_bcc_emails(db, parse_recipient_csv(recipient_csv))
-                        )
                         await _run_sync(lambda: EmailService().send_csv_report(
                             csv_bytes=csv_bytes,
                             filename=filename,
@@ -793,7 +800,7 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                             alerts_count=alerts_count,
                             recipient_email=recipient_csv,
                             vendor=category,
-                            bcc_emails=bcc_emails,
+                            bcc_emails=bcc_list,
                             use_default_recipients=False,
                         ))
                 except Exception as email_err:
