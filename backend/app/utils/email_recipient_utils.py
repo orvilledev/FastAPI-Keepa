@@ -4,6 +4,8 @@ from typing import List, Optional, Set
 
 from supabase import Client
 
+from app.utils.email_recipient_pool_db import pool_supports_is_bcc
+
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _BULK_PAGE_SIZE = 500
 
@@ -27,7 +29,7 @@ def parse_recipient_csv(raw: Optional[str]) -> List[str]:
 
 def lookup_bcc_emails(db: Client, emails: List[str]) -> List[str]:
     """Return normalized emails marked is_bcc in the shared recipient pool."""
-    if not emails:
+    if not emails or not pool_supports_is_bcc(db):
         return []
 
     normalized = [normalize_email(email) for email in emails if email]

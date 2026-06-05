@@ -20,8 +20,9 @@ FastAPI backend for the MSW Overwatch system.
 4. Run database migrations (execute `database/schema.sql` in Supabase SQL Editor)
 
 5. If scheduler / imported Keepa settings fail with `PGRST204` and `uploaded_wait_timeout_seconds`, run `database/migrations/add_uploaded_wait_timeout_seconds.sql` once in the Supabase SQL Editor (idempotent).
+6. If Email List or daily-run recipient pickers fail with `PGRST204` and `is_bcc`, run `database/migrations/add_is_bcc_to_email_recipient_pool.sql` once in the Supabase SQL Editor (idempotent).
 
-6. Run the server:
+7. Run the server:
    ```bash
    uvicorn app.main:app --reload
    ```

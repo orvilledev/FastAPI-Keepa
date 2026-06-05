@@ -22,6 +22,13 @@ from app.models.email_recipients import (
 )
 from app.repositories.job_repository import JobRepository
 from app.repositories.supabase_read_all import read_all_paginated
+from app.utils.email_recipient_pool_db import (
+    fetch_pool_rows,
+    insert_pool_entry,
+    pool_supports_is_bcc,
+    select_pool_entry,
+    update_pool_entry,
+)
 from app.utils.error_handler import handle_api_errors
 
 logger = logging.getLogger(__name__)
@@ -215,6 +222,15 @@ def sync_used_recipients_to_pool(
     return {"ok": True, "discovered": len(discovered), "eligible": len(eligible), "inserted": inserted}
 
 
+def _pool_entry_response(row: dict) -> EmailPoolEntryResponse:
+    return EmailPoolEntryResponse(
+        id=str(row["id"]),
+        email=row["email"],
+        display_name=row.get("display_name"),
+        is_bcc=bool(row.get("is_bcc")),
+    )
+
+
 @router.get("/email-recipients/pool", response_model=List[EmailPoolEntryResponse])
 @handle_api_errors("list email pool")
 def list_email_pool(
@@ -222,18 +238,7 @@ def list_email_pool(
     db: Client = Depends(get_supabase),
 ):
     uid = str(current_user["id"])
-    response = db.table("email_recipient_pool").select("id, email, display_name, is_bcc").eq("user_id", uid).order("email").execute()
-    out: List[EmailPoolEntryResponse] = []
-    for row in response.data or []:
-        out.append(
-            EmailPoolEntryResponse(
-                id=str(row["id"]),
-                email=row["email"],
-                display_name=row.get("display_name"),
-                is_bcc=bool(row.get("is_bcc")),
-            )
-        )
-    return out
+    return [_pool_entry_response(row) for row in fetch_pool_rows(db, uid)]
 
 
 @router.post("/email-recipients/pool", response_model=EmailPoolEntryResponse, status_code=201)
@@ -251,51 +256,21 @@ def add_email_to_pool(
     # Manual add re-enables previously deleted addresses for sync/list usage.
     db.table("email_recipient_pool_exclusions").delete().eq("user_id", uid).eq("email", email).execute()
 
-    existing = (
-        db.table("email_recipient_pool")
-        .select("id, email, display_name, is_bcc")
-        .eq("user_id", uid)
-        .eq("email", email)
-        .execute()
-    )
-    if existing.data:
-        row = existing.data[0]
+    existing = select_pool_entry(db, uid, email=email)
+    if existing:
         update_payload = {}
-        if display_name and row.get("display_name") != display_name:
+        if display_name and existing.get("display_name") != display_name:
             update_payload["display_name"] = display_name
-        if bool(row.get("is_bcc")) != is_bcc:
+        if pool_supports_is_bcc(db) and bool(existing.get("is_bcc")) != is_bcc:
             update_payload["is_bcc"] = is_bcc
         if update_payload:
-            updated = (
-                db.table("email_recipient_pool")
-                .update(update_payload)
-                .eq("user_id", uid)
-                .eq("id", str(row["id"]))
-                .execute()
-            )
-            if updated.data:
-                row = updated.data[0]
-        return EmailPoolEntryResponse(
-            id=str(row["id"]),
-            email=row["email"],
-            display_name=row.get("display_name"),
-            is_bcc=bool(row.get("is_bcc")),
-        )
+            updated = update_pool_entry(db, uid, str(existing["id"]), update_payload)
+            if updated:
+                existing = updated
+        return _pool_entry_response(existing)
 
-    ins = (
-        db.table("email_recipient_pool")
-        .insert({"user_id": uid, "email": email, "display_name": display_name, "is_bcc": is_bcc})
-        .execute()
-    )
-    if not ins.data:
-        raise HTTPException(status_code=500, detail="Failed to save email")
-    row = ins.data[0]
-    return EmailPoolEntryResponse(
-        id=str(row["id"]),
-        email=row["email"],
-        display_name=row.get("display_name"),
-        is_bcc=bool(row.get("is_bcc")),
-    )
+    row = insert_pool_entry(db, uid, email, display_name, is_bcc)
+    return _pool_entry_response(row)
 
 
 @router.patch("/email-recipients/pool/{entry_id}", response_model=EmailPoolEntryResponse)
@@ -314,23 +289,19 @@ def update_email_pool_entry(
     if body.display_name is not None:
         update_payload["display_name"] = display_name
     if body.is_bcc is not None:
+        if not pool_supports_is_bcc(db):
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "BCC is not available until the database migration "
+                    "add_is_bcc_to_email_recipient_pool.sql has been applied."
+                ),
+            )
         update_payload["is_bcc"] = bool(body.is_bcc)
-    res = (
-        db.table("email_recipient_pool")
-        .update(update_payload)
-        .eq("user_id", uid)
-        .eq("id", str(entry_id))
-        .execute()
-    )
-    if not res.data:
+    row = update_pool_entry(db, uid, str(entry_id), update_payload)
+    if not row:
         raise HTTPException(status_code=404, detail="Email entry not found")
-    row = res.data[0]
-    return EmailPoolEntryResponse(
-        id=str(row["id"]),
-        email=row["email"],
-        display_name=row.get("display_name"),
-        is_bcc=bool(row.get("is_bcc")),
-    )
+    return _pool_entry_response(row)
 
 
 @router.delete("/email-recipients/pool/{entry_id}")
