@@ -390,6 +390,16 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
     setError('')
     setSuccess('')
     try {
+      if (uploadRecipientsDirty) {
+        await schedulerApi.updateSettings(
+          {
+            email_recipients: uploadEmailRecipients.trim() || null,
+            email_bcc_recipients: uploadEmailBccRecipients.trim() || null,
+          },
+          vendor,
+        )
+        await loadSchedulerSettings()
+      }
       await schedulerApi.rerunUploadedReport(vendor)
       await pollLatestUploadStatus()
       setSuccess('Import-mode run has been queued.')

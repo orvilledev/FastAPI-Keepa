@@ -149,9 +149,20 @@ class EmailService:
         else:
             all_recipients = []
 
-        bcc_set = {email.strip().lower() for email in (bcc_emails or []) if email and email.strip()}
+        bcc_recipients: List[str] = []
+        bcc_seen: set[str] = set()
+        for email in bcc_emails or []:
+            normalized = email.strip()
+            if not normalized:
+                continue
+            key = normalized.lower()
+            if key in bcc_seen:
+                continue
+            bcc_seen.add(key)
+            bcc_recipients.append(normalized)
+
+        bcc_set = set(bcc_seen)
         to_recipients = [email for email in all_recipients if email.lower() not in bcc_set]
-        bcc_recipients = [email for email in all_recipients if email.lower() in bcc_set]
         
         # Validate configuration
         if not self._bare_from_address():

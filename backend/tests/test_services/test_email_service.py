@@ -286,3 +286,37 @@ class TestEmailTemplateRendering:
             "visible@example.com",
             "hidden@example.com",
         ]
+
+    @pytest.mark.unit
+    @patch("app.services.email_service.smtplib.SMTP")
+    def test_send_csv_report_bcc_addresses_not_in_to_list(self, mock_smtp):
+        mock_server = MagicMock()
+        mock_smtp.return_value.__enter__.return_value = mock_server
+
+        service = EmailService()
+        service.email_to = "fallback@example.com"
+
+        result = service.send_csv_report(
+            csv_bytes=b"x",
+            filename="r.csv",
+            job_name="Daily SFF Uploaded Report - 2026-06-05",
+            total_upcs=1,
+            alerts_count=0,
+            recipient_email="primary@example.com",
+            bcc_emails=[
+                "bcc1@example.com",
+                "bcc2@example.com",
+            ],
+            use_default_recipients=False,
+        )
+
+        assert result is True
+        args, _ = mock_server.send_message.call_args
+        msg = args[0]
+        assert msg["To"] == "primary@example.com"
+        assert msg["Bcc"] == "bcc1@example.com, bcc2@example.com"
+        assert mock_server.send_message.call_args.kwargs["to_addrs"] == [
+            "primary@example.com",
+            "bcc1@example.com",
+            "bcc2@example.com",
+        ]
