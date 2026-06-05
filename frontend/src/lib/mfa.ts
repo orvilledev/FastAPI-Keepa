@@ -28,12 +28,12 @@ export type MfaStatus = {
 
 const MFA_ACTIVITY_KEY = 'msw_mfa_last_activity_at'
 
-/** Idle window before a fully-authenticated user must re-enter their TOTP code. Defaults to 8 hours. */
+/** Idle window before a fully-authenticated user must re-enter their TOTP code. Defaults to 15 hours. */
 export const MFA_IDLE_LIMIT_MS = (() => {
   const raw = import.meta.env.VITE_MFA_IDLE_MINUTES
   const minutes = typeof raw === 'string' ? Number(raw) : NaN
   if (Number.isFinite(minutes) && minutes > 0) return minutes * 60 * 1000
-  return 8 * 60 * 60 * 1000
+  return 15 * 60 * 60 * 1000
 })()
 
 /** Record the last time the user was active (persisted across reloads/tabs). */
