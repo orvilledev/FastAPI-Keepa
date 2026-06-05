@@ -297,7 +297,7 @@ export const jobsApi = {
   },
 }
 
-export type EmailPoolEntry = { id: string; email: string; display_name?: string | null }
+export type EmailPoolEntry = { id: string; email: string; display_name?: string | null; is_bcc?: boolean }
 export type EmailSavedList = { id: string; name: string; emails: string[] }
 
 export const emailRecipientsApi = {
@@ -315,12 +315,15 @@ export const emailRecipientsApi = {
     const response = await api.get<EmailPoolEntry[]>('/api/v1/email-recipients/pool')
     return response.data
   },
-  addToPool: async (email: string, display_name?: string): Promise<EmailPoolEntry> => {
-    const response = await api.post<EmailPoolEntry>('/api/v1/email-recipients/pool', { email, display_name })
+  addToPool: async (email: string, display_name?: string, is_bcc = false): Promise<EmailPoolEntry> => {
+    const response = await api.post<EmailPoolEntry>('/api/v1/email-recipients/pool', { email, display_name, is_bcc })
     return response.data
   },
-  updatePoolEntry: async (entryId: string, display_name?: string): Promise<EmailPoolEntry> => {
-    const response = await api.patch<EmailPoolEntry>(`/api/v1/email-recipients/pool/${entryId}`, { display_name })
+  updatePoolEntry: async (
+    entryId: string,
+    updates: { display_name?: string; is_bcc?: boolean }
+  ): Promise<EmailPoolEntry> => {
+    const response = await api.patch<EmailPoolEntry>(`/api/v1/email-recipients/pool/${entryId}`, updates)
     return response.data
   },
   deletePoolEntry: async (entryId: string): Promise<void> => {

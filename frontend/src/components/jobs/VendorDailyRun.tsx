@@ -633,7 +633,12 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Email recipients (optional)</label>
-            <EmailRecipientsPicker value={uploadEmailRecipients} onChange={setUploadEmailRecipients} persistDismissed />
+            <EmailRecipientsPicker
+              value={uploadEmailRecipients}
+              onChange={setUploadEmailRecipients}
+              persistDismissed
+              emptyMeansNoRecipients
+            />
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <button
                 type="button"
@@ -823,6 +828,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                   value={settingsForm.email_recipients || ''}
                   onChange={(value) => setSettingsForm({ ...settingsForm, email_recipients: value })}
                   disabled={savingSettings}
+                  emptyMeansNoRecipients
                 />
               </div>
             </div>

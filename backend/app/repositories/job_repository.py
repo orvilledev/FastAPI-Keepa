@@ -53,7 +53,11 @@ class JobRepository:
         normalized = job_name.lower()
         return (
             normalized.startswith("daily ")
-            and ("metro report" in normalized or "off price report" in normalized)
+            and (
+                "metro report" in normalized
+                or "off price report" in normalized
+                or "uploaded report" in normalized
+            )
         )
 
     @staticmethod

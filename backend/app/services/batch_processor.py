@@ -9,8 +9,10 @@ from functools import partial
 from fastapi import HTTPException
 from app.config import settings
 from app.database import get_supabase
+from app.repositories.job_repository import JobRepository
 from app.repositories.map_repository import MAPRepository
 from app.repositories.supabase_read_all import read_all_paginated
+from app.utils.email_recipient_utils import lookup_bcc_emails, parse_recipient_csv
 from app.utils.vendor_code import resolve_map_vendor_type
 from app.utils.notifications import create_notification, create_completion_notifications_for_all_profiles
 from app.services.keepa_client import KeepaClient, MultiKeyKeepaClient
@@ -597,40 +599,56 @@ class BatchProcessor:
                     exc_info=True,
                 )
             else:
-                send_to = custom_recipients or self.email_service.email_to
-                logger.info(
-                    f"Preparing to send email for job {job_id}: {total_upcs} UPCs, "
-                    f"{off_price_count} off-price listings"
-                )
-                logger.info(f"Email recipients: {send_to} (custom={bool(custom_recipients)})")
-
-                try:
-                    loop = asyncio.get_event_loop()
-                    email_sent = await loop.run_in_executor(
-                        None,
-                        partial(
-                            self.email_service.send_csv_report,
-                            csv_bytes=csv_bytes,
-                            filename=filename,
-                            job_name=job_name,
-                            total_upcs=total_upcs,
-                            alerts_count=off_price_count,
-                            recipient_email=custom_recipients,
-                            vendor=job_map_vendor,
-                        ),
-                    )
-                except Exception as email_err:
-                    logger.error(
-                        f"Email sending failed for job {job_id}: {email_err}",
-                        exc_info=True,
+                is_daily_run = JobRepository._is_daily_run_job(job_name)
+                recipient_csv = custom_recipients if custom_recipients and str(custom_recipients).strip() else None
+                if is_daily_run and not recipient_csv:
+                    logger.info(
+                        f"Daily run job {job_id} has no recipients configured; skipping email"
                     )
                 else:
-                    if email_sent:
-                        logger.info(f"Email sent successfully for job {job_id} to {send_to}")
+                    bcc_emails = (
+                        lookup_bcc_emails(self.db, parse_recipient_csv(recipient_csv))
+                        if recipient_csv
+                        else []
+                    )
+                    send_to = recipient_csv or self.email_service.email_to
+                    logger.info(
+                        f"Preparing to send email for job {job_id}: {total_upcs} UPCs, "
+                        f"{off_price_count} off-price listings"
+                    )
+                    logger.info(
+                        f"Email recipients: {send_to} (custom={bool(recipient_csv)}, bcc={bcc_emails or []})"
+                    )
+
+                    try:
+                        loop = asyncio.get_event_loop()
+                        email_sent = await loop.run_in_executor(
+                            None,
+                            partial(
+                                self.email_service.send_csv_report,
+                                csv_bytes=csv_bytes,
+                                filename=filename,
+                                job_name=job_name,
+                                total_upcs=total_upcs,
+                                alerts_count=off_price_count,
+                                recipient_email=recipient_csv,
+                                vendor=job_map_vendor,
+                                bcc_emails=bcc_emails,
+                                use_default_recipients=not is_daily_run,
+                            ),
+                        )
+                    except Exception as email_err:
+                        logger.error(
+                            f"Email sending failed for job {job_id}: {email_err}",
+                            exc_info=True,
+                        )
                     else:
-                        logger.error(f"Failed to send email for job {job_id}.")
-                        if getattr(self.email_service, "last_error", None):
-                            logger.error(f"Email error: {self.email_service.last_error}")
+                        if email_sent:
+                            logger.info(f"Email sent successfully for job {job_id} to {send_to}")
+                        else:
+                            logger.error(f"Failed to send email for job {job_id}.")
+                            if getattr(self.email_service, "last_error", None):
+                                logger.error(f"Email error: {self.email_service.last_error}")
 
             completion_meta = {
                 "job_name": job_name,

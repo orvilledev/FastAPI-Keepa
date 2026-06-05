@@ -15,9 +15,17 @@ type Props = {
   onChange: (commaSeparated: string) => void
   disabled?: boolean
   persistDismissed?: boolean
+  /** When true, an empty selection sends no email (daily runs). Default uses report recipients. */
+  emptyMeansNoRecipients?: boolean
 }
 
-export default function EmailRecipientsPicker({ id, value, onChange, disabled }: Props) {
+export default function EmailRecipientsPicker({
+  id,
+  value,
+  onChange,
+  disabled,
+  emptyMeansNoRecipients = false,
+}: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
   const skipValueSyncRef = useRef(false)
   const [panelOpen, setPanelOpen] = useState(false)
@@ -72,6 +80,14 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
     return labels
   }, [pool])
 
+  const bccByEmail = useMemo(() => {
+    const bcc = new Set<string>()
+    for (const p of pool) {
+      if (p.is_bcc) bcc.add(p.email.toLowerCase())
+    }
+    return bcc
+  }, [pool])
+
   const options = useMemo(() => {
     const set = new Set<string>()
     for (const p of pool) set.add(p.email.toLowerCase())
@@ -102,7 +118,12 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
   }
 
   const count = selected.size
-  const summary = count === 0 ? 'Default recipients (leave empty)' : `${count} recipient${count === 1 ? '' : 's'} selected`
+  const summary =
+    count === 0
+      ? emptyMeansNoRecipients
+        ? 'No recipients selected'
+        : 'Default recipients (leave empty)'
+      : `${count} recipient${count === 1 ? '' : 's'} selected`
 
   return (
     <div ref={rootRef} className="space-y-2">
@@ -120,14 +141,24 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
       {panelOpen && (
         <div className="border border-gray-200 rounded-xl bg-white shadow-lg p-4 space-y-3 max-h-[min(70vh,520px)] overflow-y-auto">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-gray-500">Recipients are managed in <Link to="/email-list" className="text-[#81B81D] underline">Email List</Link>.</p>
+            <p className="text-xs text-gray-500">
+              Recipients are managed in{' '}
+              <Link to="/email-list" className="text-[#81B81D] underline">
+                Email List
+              </Link>
+              . Mark addresses as BCC there to hide them from other recipients.
+            </p>
             <button type="button" className="text-xs text-[#81B81D] underline" onClick={() => void refreshData()}>
               Refresh
             </button>
           </div>
 
           {loading && <p className="text-sm text-gray-500">Loading addresses...</p>}
-          {loadError && <p className="text-sm text-[#111827] bg-[#81B81D]/10 border border-[#81B81D]/30 rounded-lg px-3 py-2">{loadError}</p>}
+          {loadError && (
+            <p className="text-sm text-[#111827] bg-[#81B81D]/10 border border-[#81B81D]/30 rounded-lg px-3 py-2">
+              {loadError}
+            </p>
+          )}
 
           {!loading && options.length === 0 && <p className="text-sm text-gray-400">No email options available yet.</p>}
 
@@ -135,6 +166,7 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
             <ul className="space-y-2">
               {options.map((email) => {
                 const label = labelByEmail.get(email)
+                const isBcc = bccByEmail.has(email)
                 return (
                   <li key={email} className="flex items-center gap-2 border-b border-gray-100 pb-2 last:border-0 last:pb-0">
                     <input
@@ -153,6 +185,7 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
                       ) : (
                         email
                       )}
+                      {isBcc && <span className="ml-2 text-xs font-medium text-gray-500">BCC</span>}
                     </label>
                   </li>
                 )
@@ -163,7 +196,9 @@ export default function EmailRecipientsPicker({ id, value, onChange, disabled }:
       )}
 
       <p className="text-sm text-gray-500">
-        Leave empty to use default report recipients.
+        {emptyMeansNoRecipients
+          ? 'Leave empty to send no email. BCC recipients are configured in Email List.'
+          : 'Leave empty to use default report recipients.'}
       </p>
     </div>
   )

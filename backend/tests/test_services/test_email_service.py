@@ -237,3 +237,52 @@ class TestEmailTemplateRendering:
         """Date helper emits M.D.YY with no leading zeros for month/day."""
         text = _format_mdyy_date()
         assert re.fullmatch(r"\d{1,2}\.\d{1,2}\.\d{2}", text)
+
+    @pytest.mark.unit
+    @patch("app.services.email_service.smtplib.SMTP")
+    def test_send_csv_report_skips_when_no_recipients_and_no_default(self, mock_smtp):
+        service = EmailService()
+        service.email_to = "default@example.com"
+
+        result = service.send_csv_report(
+            csv_bytes=b"x",
+            filename="r.csv",
+            job_name="Daily DNK Off Price Report - 2026-05-27",
+            total_upcs=1,
+            alerts_count=0,
+            recipient_email=None,
+            use_default_recipients=False,
+        )
+
+        assert result is False
+        mock_smtp.assert_not_called()
+
+    @pytest.mark.unit
+    @patch("app.services.email_service.smtplib.SMTP")
+    def test_send_csv_report_uses_bcc_header_for_marked_addresses(self, mock_smtp):
+        mock_server = MagicMock()
+        mock_smtp.return_value.__enter__.return_value = mock_server
+
+        service = EmailService()
+        service.email_to = "fallback@example.com"
+
+        result = service.send_csv_report(
+            csv_bytes=b"x",
+            filename="r.csv",
+            job_name="Daily DNK Off Price Report - 2026-05-27",
+            total_upcs=1,
+            alerts_count=0,
+            recipient_email="visible@example.com, hidden@example.com",
+            bcc_emails=["hidden@example.com"],
+            use_default_recipients=False,
+        )
+
+        assert result is True
+        args, _ = mock_server.send_message.call_args
+        msg = args[0]
+        assert msg["To"] == "visible@example.com"
+        assert msg["Bcc"] == "hidden@example.com"
+        assert mock_server.send_message.call_args.kwargs["to_addrs"] == [
+            "visible@example.com",
+            "hidden@example.com",
+        ]

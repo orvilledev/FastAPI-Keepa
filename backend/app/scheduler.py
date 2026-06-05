@@ -13,6 +13,7 @@ from app.repositories.map_repository import MAPRepository
 from app.services.batch_processor import BatchProcessor
 from app.services.email_service import EmailService
 from app.services.report_service import ReportService
+from app.utils.email_recipient_utils import lookup_bcc_emails, parse_recipient_csv
 from app.utils.notifications import create_notification, create_completion_notifications_for_all_profiles
 from typing import List, Optional
 from dataclasses import dataclass
@@ -774,15 +775,27 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                         )
                     )
                     total_upcs = await _run_sync(lambda: report_service.get_total_upcs_for_job(job_id))
-                    await _run_sync(lambda: EmailService().send_csv_report(
-                        csv_bytes=csv_bytes,
-                        filename=filename,
-                        job_name=job_name,
-                        total_upcs=total_upcs,
-                        alerts_count=alerts_count,
-                        recipient_email=custom_recipients,
-                        vendor=category,
-                    ))
+                    recipient_csv = custom_recipients if custom_recipients and str(custom_recipients).strip() else None
+                    if not recipient_csv:
+                        logger.info(
+                            "Daily %s uploaded run has no recipients configured; skipping email",
+                            category.upper(),
+                        )
+                    else:
+                        bcc_emails = await _run_sync(
+                            lambda: lookup_bcc_emails(db, parse_recipient_csv(recipient_csv))
+                        )
+                        await _run_sync(lambda: EmailService().send_csv_report(
+                            csv_bytes=csv_bytes,
+                            filename=filename,
+                            job_name=job_name,
+                            total_upcs=total_upcs,
+                            alerts_count=alerts_count,
+                            recipient_email=recipient_csv,
+                            vendor=category,
+                            bcc_emails=bcc_emails,
+                            use_default_recipients=False,
+                        ))
                 except Exception as email_err:
                     logger.warning("Uploaded daily run email/report step failed for %s: %s", category.upper(), email_err)
             else:

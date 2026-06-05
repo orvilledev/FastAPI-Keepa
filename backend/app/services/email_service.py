@@ -114,6 +114,8 @@ class EmailService:
         vendor: Optional[str] = None,
         email_subject_template: Optional[str] = None,
         email_body_template: Optional[str] = None,
+        bcc_emails: Optional[List[str]] = None,
+        use_default_recipients: bool = True,
     ) -> bool:
         """
         Send email with CSV attachment.
@@ -124,7 +126,8 @@ class EmailService:
             job_name: Name of the batch job
             total_upcs: Total number of UPCs processed
             alerts_count: Number of price alerts found
-            recipient_email: Optional recipient email, defaults to configured email_to
+            recipient_email: Optional comma-separated To recipients. When blank and
+                use_default_recipients is True, falls back to configured EMAIL_TO.
             vendor: Optional vendor/category code (e.g. dnk, clk) for `{vendor}`
                 substitution and logging context. Does not affect routing.
             email_subject_template: Optional per-vendor custom subject. Supports
@@ -132,11 +135,23 @@ class EmailService:
                 `{run_date}`. Blank/None falls back to the default subject.
             email_body_template: Optional per-vendor custom body (plain text);
                 same placeholders. Blank/None falls back to the default body.
+            bcc_emails: Optional list of addresses to BCC instead of To.
+            use_default_recipients: When recipient_email is empty, whether to use
+                EMAIL_TO. Daily runs set this to False so empty lists send nothing.
 
         Returns:
             True if email sent successfully, False otherwise
         """
-        recipients = self._parse_recipients(recipient_email or self.email_to)
+        if recipient_email and str(recipient_email).strip():
+            all_recipients = self._parse_recipients(recipient_email)
+        elif use_default_recipients:
+            all_recipients = self._parse_recipients(self.email_to)
+        else:
+            all_recipients = []
+
+        bcc_set = {email.strip().lower() for email in (bcc_emails or []) if email and email.strip()}
+        to_recipients = [email for email in all_recipients if email.lower() not in bcc_set]
+        bcc_recipients = [email for email in all_recipients if email.lower() in bcc_set]
         
         # Validate configuration
         if not self._bare_from_address():
@@ -145,12 +160,18 @@ class EmailService:
         if not self.email_password:
             logger.error("EMAIL_PASSWORD is not configured in .env file")
             return False
-        if not recipients:
-            logger.error("No recipients configured")
+        if not to_recipients and not bcc_recipients:
+            logger.info("No recipients configured; skipping email send")
             return False
+
+        if not to_recipients and bcc_recipients:
+            to_recipients = [self._bare_from_address()]
+
+        delivery_addrs = list(dict.fromkeys(to_recipients + bcc_recipients))
         
         logger.info(
-            f"Email configuration validated: from={self._bare_from_address()}, to={recipients}, host={self.smtp_host}:{self.smtp_port}"
+            f"Email configuration validated: from={self._bare_from_address()}, "
+            f"to={to_recipients}, bcc={bcc_recipients or []}, host={self.smtp_host}:{self.smtp_port}"
         )
         
         try:
@@ -203,7 +224,9 @@ class EmailService:
 
             msg = MIMEMultipart()
             msg["From"] = self._from_header()
-            msg["To"] = ", ".join(recipients)
+            msg["To"] = ", ".join(to_recipients)
+            if bcc_recipients:
+                msg["Bcc"] = ", ".join(bcc_recipients)
             msg["Subject"] = subject
 
             msg.attach(MIMEText(body, "plain"))
@@ -219,13 +242,15 @@ class EmailService:
             msg.attach(part)
             
             # Send email
-            logger.info(f"Attempting to send email to {recipients} via {self.smtp_host}:{self.smtp_port}")
+            logger.info(
+                f"Attempting to send email to {delivery_addrs} via {self.smtp_host}:{self.smtp_port}"
+            )
             with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=SMTP_TIMEOUT) as server:
                 server.starttls()
                 server.login(self._bare_from_address(), self.email_password)
-                server.send_message(msg, to_addrs=recipients)
+                server.send_message(msg, to_addrs=delivery_addrs)
             
-            logger.info(f"Email sent successfully to {', '.join(recipients)}")
+            logger.info(f"Email sent successfully to {', '.join(delivery_addrs)}")
             return True
             
         except smtplib.SMTPAuthenticationError as e:
