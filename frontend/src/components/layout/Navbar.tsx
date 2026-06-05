@@ -3,12 +3,17 @@ import { useAuth } from '../../hooks/useAuth'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { notificationsApi } from '../../services/api'
 import { resetTotpEnrollment } from '../../lib/mfa'
+import { DESKTOP_APP_DOWNLOAD_URL } from '../../constants/app'
 import NavbarSearch from './NavbarSearch'
+
+const VITE_DESKTOP_URL = DESKTOP_APP_DOWNLOAD_URL
 
 export default function Navbar() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const isElectron = Boolean(window.desktop?.isElectron)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [desktopDownloadUrl, setDesktopDownloadUrl] = useState(VITE_DESKTOP_URL)
   const [menuOpen, setMenuOpen] = useState(false)
   const [resetting, setResetting] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -43,6 +48,21 @@ export default function Navbar() {
     }
   }, [user, loadUnreadCount])
 
+  useEffect(() => {
+    const base = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+    let cancelled = false
+    fetch(`${base}/api/v1/public/client-config`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { desktop_app_download_url?: string } | null) => {
+        if (cancelled || !data) return
+        const fromApi = (data.desktop_app_download_url || '').trim()
+        setDesktopDownloadUrl(fromApi || VITE_DESKTOP_URL)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Close the user menu when clicking outside of it.
   useEffect(() => {
@@ -90,6 +110,20 @@ export default function Navbar() {
             <NavbarSearch />
           </div>
           <div className="flex shrink-0 items-center space-x-4 ml-auto">
+            {!isElectron && desktopDownloadUrl ? (
+              <a
+                href={desktopDownloadUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg transition-colors duration-200"
+                title="Download Windows desktop app (.exe)"
+              >
+                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span className="hidden sm:inline">Download app</span>
+              </a>
+            ) : null}
             {/* Notifications Bell */}
             <Link
               to="/notifications"
