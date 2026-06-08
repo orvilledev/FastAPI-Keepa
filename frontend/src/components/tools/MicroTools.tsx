@@ -215,21 +215,31 @@ export default function MicroTools() {
     </article>
   )
 
-  const renderApiCard = (t: MicroToolRecord) => {
+  const renderApiCard = (t: MicroToolRecord, variant: 'default' | 'testingMaterial' = 'default') => {
     const tags = t.tags ?? []
     const links = t.extra_links ?? []
     const isOwner = currentUserId !== null && t.user_id === currentUserId
+    const isTestingMaterial = variant === 'testingMaterial'
+
     return (
       <article
         key={t.id}
-        className="card p-6 flex flex-col h-full border border-gray-200/80 shadow-sm"
+        className={
+          isTestingMaterial
+            ? 'flex h-full flex-col rounded-xl border border-white/20 bg-[#404040] p-6 text-white shadow-xl'
+            : 'card flex h-full flex-col border border-gray-200/80 p-6 shadow-sm'
+        }
       >
         <div className="flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <h2 className="text-xl font-semibold text-gray-900">{t.name}</h2>
+              <h2 className={`text-xl font-semibold ${isTestingMaterial ? 'text-white' : 'text-gray-900'}`}>
+                {t.name}
+              </h2>
               {!isOwner && (
-                <p className="mt-1 text-xs text-gray-500">Added by a teammate</p>
+                <p className={`mt-1 text-xs ${isTestingMaterial ? 'text-white/70' : 'text-gray-500'}`}>
+                  Added by a teammate
+                </p>
               )}
             </div>
             {isOwner && (
@@ -244,7 +254,9 @@ export default function MicroTools() {
                 <button
                   type="button"
                   onClick={() => void handleDelete(t.id)}
-                  className="text-sm font-medium text-red-600 hover:underline"
+                  className={`text-sm font-medium hover:underline ${
+                    isTestingMaterial ? 'text-red-400' : 'text-red-600'
+                  }`}
                 >
                   Delete
                 </button>
@@ -252,14 +264,24 @@ export default function MicroTools() {
             )}
           </div>
           {t.description && (
-            <p className="mt-2 text-sm text-gray-600 leading-relaxed">{t.description}</p>
+            <p
+              className={`mt-2 text-sm leading-relaxed ${
+                isTestingMaterial ? 'text-white/70' : 'text-gray-600'
+              }`}
+            >
+              {t.description}
+            </p>
           )}
           {tags.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {tags.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700"
+                  className={
+                    isTestingMaterial
+                      ? 'inline-flex items-center rounded-md bg-[#81B81D]/30 px-2.5 py-0.5 text-xs font-medium text-[#E8F8C8] ring-1 ring-[#81B81D]/85'
+                      : 'inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700'
+                  }
                 >
                   {tag}
                 </span>
@@ -272,7 +294,11 @@ export default function MicroTools() {
             href={t.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex justify-center items-center rounded-lg bg-[#404040] px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-[#2d2d2d] transition-colors"
+            className={
+              isTestingMaterial
+                ? 'inline-flex items-center justify-center rounded-lg bg-[#81B81D]/30 px-4 py-2.5 text-sm font-semibold text-[#E8F8C8] shadow-sm ring-2 ring-[#81B81D]/85 transition-colors hover:bg-[#81B81D]/40'
+                : 'inline-flex items-center justify-center rounded-lg bg-[#404040] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#2d2d2d]'
+            }
           >
             {t.action_label ?? DEFAULT_ACTION}
           </a>
@@ -284,7 +310,7 @@ export default function MicroTools() {
                   href={link.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[#81B81D] font-medium hover:underline"
+                  className="font-medium text-[#81B81D] hover:underline"
                 >
                   {link.label}
                 </a>
@@ -459,9 +485,9 @@ export default function MicroTools() {
 
       {!loading && testingMaterialTools.length > 0 && (
         <div>
-          <h2 className="mb-4 mt-8 text-lg font-semibold text-gray-900">{TESTING_MATERIALS_SECTION_LABEL}</h2>
+          <h2 className="mb-4 mt-8 text-lg font-semibold text-[#404040]">{TESTING_MATERIALS_SECTION_LABEL}</h2>
           <div className="grid gap-6 md:grid-cols-2">
-            {testingMaterialTools.map((t) => renderApiCard(t))}
+            {testingMaterialTools.map((t) => renderApiCard(t, 'testingMaterial'))}
           </div>
         </div>
       )}
