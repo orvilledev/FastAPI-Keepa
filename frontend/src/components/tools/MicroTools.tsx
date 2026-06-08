@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toolsApi } from '../../services/api'
 import type { MicroToolRecord } from '../../types'
-import { MICRO_TOOLS } from '../../constants/microTools'
+import {
+  MICRO_TOOLS,
+  TESTING_MATERIALS_SECTION_LABEL,
+  isTestingMaterialTool,
+} from '../../constants/microTools'
 import type { MicroTool as StaticMicroTool } from '../../constants/microTools'
 import { useUser } from '../../contexts/UserContext'
 
@@ -292,6 +296,8 @@ export default function MicroTools() {
     )
   }
 
+  const mainTools = apiTools.filter((t) => !isTestingMaterialTool(t))
+  const testingMaterialTools = apiTools.filter((t) => isTestingMaterialTool(t))
   const hasStatic = MICRO_TOOLS.length > 0
   const hasApi = apiTools.length > 0
   const showEmpty = !loading && !hasStatic && !hasApi && !loadError
@@ -447,9 +453,16 @@ export default function MicroTools() {
         <div className="text-center py-12 text-gray-500">Loading tools…</div>
       )}
 
-      {!loading && hasApi && (
+      {!loading && mainTools.length > 0 && (
+        <div className="grid gap-6 md:grid-cols-2">{mainTools.map((t) => renderApiCard(t))}</div>
+      )}
+
+      {!loading && testingMaterialTools.length > 0 && (
         <div>
-          <div className="grid gap-6 md:grid-cols-2">{apiTools.map((t) => renderApiCard(t))}</div>
+          <h2 className="mb-4 mt-8 text-lg font-semibold text-gray-900">{TESTING_MATERIALS_SECTION_LABEL}</h2>
+          <div className="grid gap-6 md:grid-cols-2">
+            {testingMaterialTools.map((t) => renderApiCard(t))}
+          </div>
         </div>
       )}
 

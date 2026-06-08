@@ -39,3 +39,18 @@ Example entry (copy into the array below):
 */
 
 export const MICRO_TOOLS: MicroTool[] = []
+
+/** Shown in a separate section below the main Micro Tools grid. */
+export const TESTING_MATERIALS_SECTION_LABEL = 'Testing Materials'
+
+export const TESTING_MATERIALS_TOOL_NAMES: readonly string[] = [
+  'Testing Kit',
+  'MSW Overwatch Testing Logbook',
+]
+
+export function isTestingMaterialTool(tool: { name: string; tags?: string[] | null }): boolean {
+  if (TESTING_MATERIALS_TOOL_NAMES.includes(tool.name)) {
+    return true
+  }
+  return (tool.tags ?? []).some((tag) => tag.toLowerCase().replace(/\s+/g, '-') === 'testing-materials')
+}
