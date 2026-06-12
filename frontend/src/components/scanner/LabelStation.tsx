@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { warehouseProductsApi } from '../../services/api'
+import WarehouseProductCatalog from './WarehouseProductCatalog'
 import {
   buildWarehouseLabelPdfBlob,
   buildWarehouseLabelZpl,
@@ -50,6 +51,7 @@ export default function LabelStation() {
   const [error, setError] = useState<string | null>(null)
 
   const [catalogCount, setCatalogCount] = useState<number | null>(null)
+  const [catalogRefresh, setCatalogRefresh] = useState(0)
   const [importing, setImporting] = useState(false)
   const importInputRef = useRef<HTMLInputElement>(null)
 
@@ -169,6 +171,7 @@ export default function LabelStation() {
       const result = await warehouseProductsApi.importFile(file)
       const countRes = await warehouseProductsApi.getCount()
       setCatalogCount(countRes.count)
+      setCatalogRefresh((n) => n + 1)
       setMessage(
         `Imported ${result.imported} product(s). ${result.invalid} invalid row(s) skipped.`
       )
@@ -345,7 +348,7 @@ export default function LabelStation() {
 
       {/* Catalog import */}
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
-        <h2 className="text-sm font-semibold text-gray-800">Product catalog (PRODUCTS sheet)</h2>
+        <h2 className="text-sm font-semibold text-gray-800">Import catalog (PRODUCTS sheet)</h2>
         <p className="text-xs text-gray-600">
           Import <code className="bg-gray-100 px-1 rounded">scan and print.xlsx</code> or any file
           with columns UPC, fnsku, STYLE NAME, Condition. Rows upsert on UPC.
@@ -369,6 +372,15 @@ export default function LabelStation() {
           {importing ? 'Importing…' : 'Upload PRODUCTS file'}
         </button>
       </section>
+
+      <WarehouseProductCatalog
+        refreshToken={catalogRefresh}
+        onCountChange={setCatalogCount}
+        onSelectUpc={(upc) => {
+          setScanUpc(upc)
+          scanInputRef.current?.focus()
+        }}
+      />
     </div>
   )
 }
