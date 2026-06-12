@@ -28,6 +28,7 @@ function buildSearchItems(
       { label: 'Manage MAP', path: '/map', section: 'Menu' },
       { label: 'Seller List', path: '/seller-list', section: 'Menu' },
       { label: 'Email List', path: '/email-list', section: 'Menu' },
+      { label: 'Label Station', path: '/label-station', section: 'Tools' },
     )
   }
 

@@ -51,6 +51,7 @@ const JobAids = lazy(() => import('./components/tools/JobAids'))
 const MicroTools = lazy(() => import('./components/tools/MicroTools'))
 const TrackingScanner = lazy(() => import('./components/scanner/TrackingScanner'))
 const FNSKULabelGenerator = lazy(() => import('./components/scanner/FNSKULabelGenerator'))
+const LabelStation = lazy(() => import('./components/scanner/LabelStation'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
 const Feedback = lazy(() => import('./components/feedback/Feedback'))
@@ -372,6 +373,10 @@ function AppRoutes() {
           <Route path="micro-tools" element={<MicroTools />} />
           <Route path="tracking-scanner" element={<TrackingScanner />} />
           <Route path="fnsku-labels" element={<FNSKULabelGenerator />} />
+          <Route
+            path="label-station"
+            element={<ProtectedRoute requireKeepaAccess={true}><LabelStation /></ProtectedRoute>}
+          />
           {/* Assistant chat UI hidden for now — deep links go to dashboard */}
           <Route path="assistant" element={<Navigate to="/dashboard" replace />} />
           <Route path="tools/public" element={<Navigate to="/howtoguide" replace />} />

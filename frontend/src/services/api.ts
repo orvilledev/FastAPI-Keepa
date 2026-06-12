@@ -2,7 +2,8 @@ import axios from 'axios'
 import { supabase } from '../lib/supabase'
 import { isMfaAuthRoute, redirectForIncompleteMfa } from '../lib/mfa'
 import type {
-  MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, MicroToolRecord, JobAid, Notification, ComprehensiveReportRow, SellerName, CliChatSession, CliChatMessage, TrackingHistorySummary, TrackingHistoryDetail, TrackingScannerRow } from '../types'
+  MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, MicroToolRecord, JobAid, Notification, ComprehensiveReportRow, SellerName, CliChatSession, CliChatMessage, TrackingHistorySummary, TrackingHistoryDetail, TrackingScannerRow,
+  WarehouseProductLookup, WarehouseProductImportResult, WarehouseProduct } from '../types'
 
 /** All request paths begin with `/api/v1`. Strip a mistaken `/api/v1` suffix from env to avoid doubled paths (404 Not Found). */
 function normalizeApiBaseUrl(raw: string): string {
@@ -1025,6 +1026,41 @@ export const trackingScannerApi = {
   },
   clearAllHistory: async (): Promise<void> => {
     await api.delete('/api/v1/tracking-scanner/history/all')
+  },
+}
+
+export const warehouseProductsApi = {
+  lookup: async (upc: string): Promise<WarehouseProductLookup> => {
+    const response = await api.get<WarehouseProductLookup>('/api/v1/warehouse-products/lookup', {
+      params: { upc: upc.trim() },
+    })
+    return response.data
+  },
+  getCount: async (): Promise<{ count: number }> => {
+    const response = await api.get<{ count: number }>('/api/v1/warehouse-products/count')
+    return response.data
+  },
+  list: async (
+    limit = 50,
+    offset = 0,
+    search?: string
+  ): Promise<{ items: WarehouseProduct[]; total: number; limit: number; offset: number }> => {
+    const response = await api.get('/api/v1/warehouse-products', {
+      params: { limit, offset, search: search || undefined },
+    })
+    return response.data
+  },
+  importFile: async (file: File): Promise<WarehouseProductImportResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    const response = await api.post<WarehouseProductImportResult>(
+      '/api/v1/warehouse-products/import',
+      form
+    )
+    return response.data
+  },
+  delete: async (upc: string): Promise<void> => {
+    await api.delete(`/api/v1/warehouse-products/${encodeURIComponent(upc.trim())}`)
   },
 }
 

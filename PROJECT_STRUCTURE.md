@@ -1,7 +1,9 @@
-# FastAPI Keepa Dashboard - Project Structure
+# MSW Overwatch — Project Structure
 
-## Overview
-This document provides a comprehensive overview of the project directory structure for the FastAPI Keepa Dashboard application. The project is divided into two main parts: backend (FastAPI/Python) and frontend (React/TypeScript).
+**Last Updated**: June 10, 2026  
+**Version**: 2.0.0
+
+This document describes the directory layout for **MSW Overwatch** (repo: `FastAPI-Keepa-Dashboard`): a FastAPI backend, React/Vite web app, and optional Electron Windows desktop client.
 
 ---
 
@@ -9,17 +11,21 @@ This document provides a comprehensive overview of the project directory structu
 
 ```
 FastAPI-Keepa-Dashboard/
-├── backend/                    # Backend API server
-├── frontend/                   # Frontend React application
-├── README.md                   # Project documentation
-├── STARTUP_TROUBLESHOOTING.md  # Troubleshooting guide
-├── start-dev.bat              # Windows batch script to start development
-├── start-dev.ps1              # PowerShell script to start development
-├── stop-dev.bat               # Windows batch script to stop development
-├── stop-dev.ps1               # PowerShell script to stop development
-├── check-dev.ps1              # PowerShell script to check development status
-├── project_structure.txt      # Generated project structure (raw)
-└── project_files.txt          # Generated project files list (raw)
+├── backend/                      # FastAPI API (deployed to Render)
+├── frontend/                     # React app + Electron wrapper (web on Vercel)
+├── README.md                     # Setup and feature overview
+├── PROJECT_STRUCTURE.md          # This file
+├── PROJECT_ANALYSIS_REPORT.md    # Architecture audit and grades
+├── IMPLEMENTATION_SUMMARY.md     # Jan 2026 security/testing improvements log
+├── RATE_LIMITING_SUMMARY.md      # Rate limiting overview
+├── STARTUP_TROUBLESHOOTING.md    # Common dev issues
+├── start-dev.ps1 / start-dev.bat # Start backend + frontend
+├── stop-dev.ps1 / stop-dev.bat   # Stop dev servers
+├── check-dev.ps1                 # Check dev server status
+├── requirements.txt              # Root-level Python deps (if used)
+├── vercel.json                   # Vercel monorepo hint (frontend root set in dashboard)
+├── project_structure.txt         # Generated snapshot (may be stale)
+└── project_files.txt             # Generated file list (may be stale)
 ```
 
 ---
@@ -30,141 +36,133 @@ FastAPI-Keepa-Dashboard/
 
 ```
 backend/
-├── app/                       # Main application directory
-├── database/                  # Database schema and migration files
-├── scripts/                   # Utility scripts
-├── venv/                      # Python virtual environment (excluded from git)
-└── requirements.txt           # Python dependencies
+├── app/                          # Application package
+├── database/                     # SQL schemas and migrations
+├── scripts/                      # Utility scripts (CLI chat, Keepa key verify, etc.)
+├── tests/                        # Pytest suite (85 tests, ~29% coverage)
+├── venv/                         # Local virtualenv (gitignored)
+├── requirements.txt              # Python dependencies
+├── pytest.ini                    # Pytest + coverage config
+├── .env.example                  # Environment variable template
+├── DEPLOY_RENDER.md              # Render deployment guide
+├── CSV_OUTPUT_LOGIC.md           # Excel report column calculations
+├── INPUT_SANITIZATION_GUIDE.md   # bleach sanitization usage
+├── RATE_LIMITING_IMPLEMENTATION.md
+└── SENTRY_SETUP_GUIDE.md
 ```
 
-### Application Directory (`backend/app/`)
+### Application (`backend/app/`)
 
 ```
 backend/app/
-├── __init__.py               # App initialization
-├── main.py                   # FastAPI application entry point
-├── config.py                 # Configuration management
-├── database.py               # Database connection setup
-├── dependencies.py           # Dependency injection utilities
-├── scheduler.py              # APScheduler job scheduling
+├── main.py                       # FastAPI entry, CORS, rate-limit handler, router mount
+├── config.py                     # Settings from environment
+├── database.py                   # Supabase client
+├── dependencies.py               # Auth, MFA AAL2, app access, superadmin
+├── scheduler.py                  # APScheduler daily jobs (8 vendor categories)
+├── maintenance.py                # Maintenance mode state
 │
-├── api/                      # API route handlers
-│   ├── __init__.py
-│   ├── auth.py              # Authentication endpoints
-│   ├── batches.py           # Batch job endpoints
-│   ├── dashboard.py         # Dashboard data endpoints
-│   ├── jobs.py              # Keepa job endpoints
-│   ├── map.py               # MAP (Minimum Advertised Price) endpoints
-│   ├── notes.py             # User notes endpoints
-│   ├── notifications.py     # Notification endpoints
-│   ├── quick_access.py      # Quick access link endpoints
-│   ├── reports.py           # Report generation endpoints
-│   ├── scheduler.py         # Scheduler management endpoints
-│   ├── task_attachments.py  # Task attachment endpoints
-│   ├── task_validations.py  # Task validation endpoints
-│   ├── tasks.py             # Task management endpoints
-│   ├── tools.py             # Tool management endpoints
-│   └── upcs.py              # UPC management endpoints
+├── api/                          # HTTP route handlers
+│   ├── auth.py                   # Profile, MFA confirm, user admin, maintenance
+│   ├── public.py                 # Unauthenticated client config (desktop URL)
+│   ├── jobs.py                   # Keepa batch jobs
+│   ├── batches.py                # Batch processing control
+│   ├── reports.py                # Report generation / download
+│   ├── upcs.py                   # UPC CRUD and bulk upload
+│   ├── map.py                    # MAP (MSRP) management
+│   ├── sellers.py                # Seller name lists
+│   ├── scheduler.py              # Per-vendor schedules, uploaded reports
+│   ├── dashboard.py              # Dashboard widget data
+│   ├── quick_access.py           # Quick access links
+│   ├── tools.py                  # Public tools, job aids, toolbox, micro-tools
+│   ├── notifications.py          # In-app notifications
+│   ├── email_recipients.py       # Email recipient pools and lists
+│   ├── feedback.py               # App feedback submissions
+│   ├── feedback_blocklist.py     # Feedback access blocklist helpers
+│   ├── tracking_scanner.py       # PDF/OCR tracking extraction API
+│   └── cli_chat.py               # CLI-style assistant chat
 │
-├── models/                   # Pydantic models and schemas
-│   ├── __init__.py
-│   ├── batch.py             # Batch job models
-│   ├── dashboard_widget.py  # Dashboard widget models
-│   ├── job_aid.py           # Job aid models
-│   ├── keepa.py             # Keepa API models
-│   ├── map.py               # MAP models
-│   ├── note.py              # Note models
-│   ├── notification.py      # Notification models
-│   ├── price_alert.py       # Price alert models
-│   ├── public_tool.py       # Public tool models
-│   ├── quick_access.py      # Quick access models
-│   ├── subtask.py           # Subtask models
-│   ├── task.py              # Task models
-│   ├── task_attachment.py   # Task attachment models
-│   ├── task_validation.py   # Task validation models
-│   ├── upc.py               # UPC models
-│   ├── user.py              # User models
-│   └── user_tool.py         # User tool models
+├── models/                       # Pydantic request/response schemas
+│   ├── user.py, batch.py, keepa.py, upc.py, map.py
+│   ├── notification.py, price_alert.py, dashboard_widget.py
+│   ├── public_tool.py, user_tool.py, job_aid.py, micro_tool.py
+│   ├── email_recipients.py, feedback.py, tracking_history.py
+│   └── cli_chat.py, quick_access.py
 │
-├── repositories/             # Data access layer
-│   ├── batch_repository.py  # Batch data access
-│   ├── job_repository.py    # Job data access
-│   ├── map_repository.py    # MAP data access
-│   ├── note_repository.py   # Note data access
-│   ├── report_repository.py # Report data access
-│   └── upc_repository.py    # UPC data access
+├── repositories/                 # Data access
+│   ├── batch_repository.py, job_repository.py, report_repository.py
+│   ├── upc_repository.py, map_repository.py
+│   ├── seller_name_repository.py
+│   └── supabase_read_all.py
 │
-├── services/                 # Business logic layer
-│   ├── __init__.py
-│   ├── batch_processor.py   # Batch processing logic
-│   ├── csv_generator.py     # CSV file generation
-│   ├── email_service.py     # Email notification service
-│   ├── job_status_service.py # Job status management
-│   ├── keepa_client.py      # Keepa API client
-│   ├── price_analyzer.py    # Price analysis logic
-│   └── report_service.py    # Report generation service
+├── services/                     # Business logic
+│   ├── batch_processor.py        # Keepa batch orchestration
+│   ├── keepa_client.py           # Keepa API client
+│   ├── keepa_sellers.py          # Seller extraction helpers
+│   ├── price_analyzer.py         # Off-price detection
+│   ├── csv_generator.py          # Excel (.xlsx) comprehensive reports
+│   ├── report_service.py         # Report assembly per job
+│   ├── email_service.py          # SMTP report delivery
+│   ├── job_status_service.py     # Job lifecycle
+│   └── tracking_scanner.py       # Server-side tracking PDF/OCR
 │
-└── utils/                    # Utility functions
-    ├── error_handler.py     # Error handling utilities
-    ├── notifications.py     # Notification utilities
-    └── permissions.py       # Permission checking utilities
+├── middleware/
+│   └── rate_limiter.py           # SlowAPI limiter + tier constants
+│
+└── utils/
+    ├── error_handler.py          # API error decorator
+    ├── jwt_utils.py              # JWT AAL (aal1/aal2) parsing
+    ├── permissions.py            # Role / feature permission checks
+    ├── notifications.py          # Notification creation helpers
+    ├── sanitization.py           # bleach HTML/text sanitization
+    ├── sentry_config.py          # Sentry init helpers (wire in main.py)
+    ├── vendor_code.py            # Vendor category normalization
+    ├── email_recipient_utils.py
+    └── email_recipient_pool_db.py
 ```
 
-### Database Directory (`backend/database/`)
+**Retired API modules** (no longer in `backend/app/api/`): `notes.py`, `tasks.py`, `task_attachments.py`, `task_validations.py`. Legacy SQL for notes/tasks remains under `backend/database/` for existing deployments.
+
+### Tests (`backend/tests/`)
 
 ```
-backend/database/
-├── schema.sql                              # Main database schema
-├── add_can_assign_tasks_field.sql          # Add task assignment permission
-├── add_can_manage_tools_field.sql          # Add tool management permission
-├── add_display_name.sql                    # Add display name field
-├── add_keepa_access_field.sql              # Add Keepa access permission
-├── batch_jobs_migration_add_fields.sql     # Batch jobs migration
-├── check_and_add_display_name.sql          # Check display name migration
-├── check_notifications_table.sql           # Check notifications setup
-├── dashboard_widgets_schema.sql            # Dashboard widgets table
-├── ENSURE_USER_ISOLATION.sql               # User data isolation policies
-├── job_aids_migration_add_video_url.sql    # Job aids video support
-├── job_aids_schema.sql                     # Job aids table
-├── map_schema.sql                          # MAP table
-├── notes_migration_add_category.sql        # Notes category field
-├── notes_migration_add_color.sql           # Notes color field
-├── notes_migration_add_importance.sql      # Notes importance field
-├── notes_migration_add_password.sql        # Notes password protection
-├── notes_migration_add_position.sql        # Notes position field
-├── notes_migration_add_protection.sql      # Notes protection field
-├── notes_migration_add_require_password_always.sql
-├── notes_schema.sql                        # Notes table
-├── notifications_schema.sql                # Notifications table
-├── profile_fields_migration.sql            # Profile fields migration
-├── profile_insert_policy.sql               # Profile insert policy
-├── public_tools_migration_add_video_url.sql # Public tools video support
-├── public_tools_schema.sql                 # Public tools table
-├── quick_access_schema.sql                 # Quick access links table
-├── scheduler_settings_add_category.sql     # Scheduler category field
-├── scheduler_settings_schema.sql           # Scheduler settings table
-├── subtasks_add_assigned_to.sql            # Subtask assignment field
-├── subtasks_rls_team_visibility.sql        # Subtask visibility policies
-├── subtasks_schema.sql                     # Subtasks table
-├── task_attachments_rls_team_visibility.sql
-├── task_attachments_schema.sql             # Task attachments table
-├── task_attachments_storage_setup.sql      # Task attachment storage
-├── task_validations_rls_team_visibility.sql
-├── task_validations_schema.sql             # Task validations table
-├── task_validations_storage_setup.sql      # Task validation storage
-├── tasks_add_urgent_field.sql              # Task urgency field
-├── tasks_migration_add_assigned_to.sql     # Task assignment field
-├── tasks_migration_add_purpose.sql         # Task purpose field
-├── tasks_rls_team_visibility.sql           # Task visibility policies
-├── tasks_schema.sql                        # Tasks table
-├── tasks_team_visibility_migration.sql     # Team visibility migration
-├── upcs_add_category.sql                   # UPC category field
-├── user_toolbox_migration_add_job_aids.sql # User toolbox job aids
-├── user_toolbox_schema.sql                 # User toolbox table
-├── user_tools_add_developer.sql            # Developer tools field
-├── user_tools_schema.sql                   # User tools table
-└── verify_user_isolation.sql               # Verify data isolation
+backend/tests/
+├── conftest.py
+├── test_api/
+│   ├── test_auth.py
+│   └── test_jobs.py
+├── test_services/
+│   ├── test_email_service.py
+│   ├── test_price_analyzer.py
+│   ├── test_keepa_sellers.py
+│   └── test_csv_report_exclusions.py
+├── test_repositories/
+│   ├── test_upc_repository.py
+│   └── test_supabase_read_all.py
+├── test_utils/
+│   └── test_email_recipient_pool_db.py
+└── test_scheduler_mode_selection.py
 ```
+
+Run: `cd backend && pytest`
+
+### Database (`backend/database/`)
+
+SQL files are applied manually or via Supabase SQL editor. Notable groups:
+
+| Area | Examples |
+|------|----------|
+| Core | `schema.sql`, `profile_fields_migration.sql`, `profiles_add_is_active.sql` |
+| Keepa / jobs | `batch_jobs_*`, `delete_batch_job_cascade_rpc.sql` |
+| UPC / MAP | `upcs_add_category.sql`, `map_schema.sql`, `map_upcs_rls_msw_overwatch_access.sql` |
+| Scheduler | `scheduler_settings_schema.sql`, `scheduler_uploaded_reports.sql`, `migrations/enforce_single_uploaded_report_per_category.sql` |
+| Email | `email_recipients_pool_and_lists.sql`, `migrations/add_email_bcc_recipients.sql` |
+| Tools | `public_tools_schema.sql`, `job_aids_schema.sql`, `user_toolbox_schema.sql`, `migrations/create_micro_tools.sql` |
+| Feedback | `app_feedback_schema.sql`, `app_feedback_migration_*.sql` |
+| Tracking | `migrations/create_tracking_scan_history.sql` |
+| MFA | `migrations/add_mfa_enabled.sql` |
+| CLI chat | `migrations/create_cli_chat.sql` |
+| Legacy (inactive UI) | `notes_*.sql`, `tasks_*.sql`, `subtasks_*.sql`, `task_*` |
 
 ---
 
@@ -174,337 +172,270 @@ backend/database/
 
 ```
 frontend/
-├── public/                   # Static assets
-├── src/                      # Source code
-├── node_modules/            # NPM dependencies (excluded from git)
-├── index.html               # HTML entry point
-├── package.json             # NPM dependencies and scripts
-├── package-lock.json        # Locked NPM dependencies
-├── postcss.config.js        # PostCSS configuration
-├── tailwind.config.js       # Tailwind CSS configuration
-├── tsconfig.json            # TypeScript configuration
-├── tsconfig.node.json       # TypeScript Node configuration
-└── vite.config.ts           # Vite build configuration
+├── electron/                     # Desktop shell (Windows)
+│   ├── main.cjs                  # BrowserWindow, auto-updater, IPC
+│   ├── preload.cjs               # contextBridge → window.desktop
+│   └── icon.ico
+├── public/                       # Static assets (app-icon.svg, sw.js, favicon)
+├── scripts/
+│   └── build-win-icon.mjs        # SVG → .ico for electron-builder
+├── src/                          # React application source
+├── dist/                         # Production build output (gitignored)
+├── package.json                  # v2.0.0, electron-builder config
+├── vite.config.ts                # Vite; base `./` in electron mode
+├── tailwind.config.js
+├── tsconfig.json
+├── .env.example
+├── DEPLOY_VERCEL.md
+├── ELECTRON_SETUP.md
+└── UPDATE_FRONTEND_FOR_RATE_LIMITING.md
 ```
 
-### Source Directory (`frontend/src/`)
+### Source (`frontend/src/`)
 
 ```
 frontend/src/
-├── main.tsx                 # Application entry point
-├── App.tsx                  # Root component
-├── index.css                # Global styles
-├── vite-env.d.ts           # Vite type definitions
+├── main.tsx                      # React mount; service worker (web only)
+├── App.tsx                       # Routes, MfaGate, maintenance, lazy pages
+├── index.css
+├── vite-env.d.ts                 # window.desktop types
 │
-├── components/              # React components
-│   ├── Landing.tsx         # Landing page
-│   │
-│   ├── admin/              # Admin components
-│   │   └── UserManagement.tsx
-│   │
-│   ├── auth/               # Authentication components
-│   │   ├── Login.tsx
-│   │   ├── Signup.tsx
-│   │   └── ResetPassword.tsx
-│   │
-│   ├── common/             # Common/shared components
-│   │   └── ProtectedRoute.tsx
-│   │
-│   ├── dashboard/          # Dashboard components
-│   │   ├── BatchStatus.tsx
-│   │   ├── CLKSchedulerCountdown.tsx
-│   │   ├── Dashboard.tsx
-│   │   ├── DNKSchedulerCountdown.tsx
-│   │   ├── JobCard.tsx
-│   │   ├── QuickAccess.tsx
-│   │   ├── SchedulerCountdown.tsx
-│   │   └── UPCMAPStats.tsx
-│   │
-│   ├── jobs/               # Job management components
-│   │   ├── CLKDailyRun.tsx
-│   │   ├── CreateJob.tsx
-│   │   ├── DailyRun.tsx
-│   │   ├── DNKDailyRun.tsx
-│   │   ├── JobDetail.tsx
-│   │   └── JobList.tsx
-│   │
-│   ├── layout/             # Layout components
-│   │   ├── Layout.tsx
-│   │   ├── Navbar.tsx
-│   │   └── Sidebar.tsx
-│   │
-│   ├── map/                # MAP management components
-│   │   └── MAPManagement.tsx
-│   │
-│   ├── notes/              # Notes components
-│   │   ├── index.ts
-│   │   ├── MyNotes.tsx
-│   │   ├── NoteCard.tsx
-│   │   └── PasswordModal.tsx
-│   │
-│   ├── notifications/      # Notification components
-│   │   └── Notifications.tsx
-│   │
-│   ├── reports/            # Report components
-│   │   ├── ReportList.tsx
-│   │   └── ReportView.tsx
-│   │
-│   ├── tasks/              # Task management components
-│   │   ├── index.ts
-│   │   ├── SubtaskList.tsx
-│   │   ├── TaskDetail.tsx
-│   │   ├── TaskFilters.tsx
-│   │   └── TeamTasks.tsx
-│   │
-│   ├── tools/              # Tool components
-│   │   ├── JobAids.tsx
-│   │   ├── MyToolbox.tsx
-│   │   └── PublicTools.tsx
-│   │
-│   └── upcs/               # UPC management components
-│       └── UPCManagement.tsx
+├── components/
+│   ├── Landing.tsx, About.tsx, Maintenance.tsx
+│   ├── auth/
+│   │   ├── Login.tsx, ResetPassword.tsx
+│   │   ├── MfaSetup.tsx, MfaVerify.tsx, MfaGate.tsx
+│   │   └── TotpQrCode.tsx
+│   ├── admin/UserManagement.tsx
+│   ├── common/ProtectedRoute.tsx
+│   ├── layout/Layout.tsx, Navbar.tsx, Sidebar.tsx, NavbarSearch.tsx
+│   ├── dashboard/
+│   │   ├── Dashboard.tsx, JobCard.tsx, BatchStatus.tsx, UPCMAPStats.tsx
+│   │   ├── VendorSchedulerCountdown.tsx, VendorRunCard.tsx
+│   │   └── *SchedulerCountdown.tsx  # DNK, CLK, OBZ, REF, BOR, SFF, TEV, CHA
+│   ├── jobs/
+│   │   ├── JobList.tsx, JobDetail.tsx, CreateJob.tsx
+│   │   ├── DailyRunsMenu.tsx, DailyRun.tsx, VendorDailyRun.tsx
+│   │   ├── *DailyRun.tsx            # Per-vendor daily run pages
+│   │   └── EmailRecipientsPicker.tsx
+│   ├── reports/ReportList.tsx, ReportView.tsx
+│   ├── upcs/UPCManagement.tsx, ManageUPCsHub.tsx
+│   ├── map/MAPManagement.tsx
+│   ├── sellers/SellerList.tsx
+│   ├── email/EmailList.tsx
+│   ├── tools/PublicTools.tsx, JobAids.tsx, MyToolbox.tsx, MicroTools.tsx
+│   ├── scanner/TrackingScanner.tsx, FNSKULabelGenerator.tsx
+│   ├── feedback/Feedback.tsx
+│   ├── notifications/Notifications.tsx
+│   └── chat/CliChat.tsx
 │
-├── contexts/                # React contexts
-│   └── UserContext.tsx     # User authentication context
+├── contexts/
+│   ├── UserContext.tsx           # Auth, profile, permissions
+│   └── TrackingScanContext.tsx   # Persists scan across navigation
 │
-├── hooks/                   # Custom React hooks
+├── hooks/
 │   ├── index.ts
-│   ├── useAuth.ts
-│   ├── useNoteProtection.ts
-│   ├── usePermissions.ts
-│   └── useTaskManagement.ts
+│   └── useAuth.ts
 │
-├── lib/                     # Third-party library setup
-│   └── supabase.ts         # Supabase client configuration
+├── lib/
+│   ├── supabase.ts               # Supabase client
+│   └── mfa.ts                    # TOTP status, enrollment, idle re-verify
 │
-├── services/                # API service layer
-│   └── api.ts              # API client and endpoints
+├── services/api.ts               # Axios client, interceptors, API methods
+├── types/index.ts
+├── constants/
+│   ├── app.ts                    # APP_NAME, version, desktop download URL
+│   ├── feedbackAccess.ts
+│   └── microTools.ts
 │
-├── types/                   # TypeScript type definitions
-│   └── index.ts            # Shared type definitions
-│
-└── utils/                   # Utility functions
-    ├── index.ts
-    ├── noteUtils.ts
-    ├── statusColors.ts
-    └── taskUtils.ts
+└── utils/
+    ├── index.ts, statusColors.ts, timeUtils.ts
+    ├── trackingExtractor.ts      # Client-side PDF/OCR tracking logic
+    └── fnskuLabelGenerator.ts
 ```
 
+**Retired frontend** (removed; routes redirect to `/dashboard`): `components/notes/`, `components/tasks/`, `Signup.tsx`, ReactQuill-based My Notes UI. Hooks `useNoteProtection.ts`, `useTaskManagement.ts`, and utils `noteUtils.ts`, `taskUtils.ts` are no longer present.
+
+### Electron desktop
+
+| Script | Purpose |
+|--------|---------|
+| `npm run electron:dev` | Vite dev server + Electron window |
+| `npm run electron:build` | NSIS installer → `frontend/dist/*.exe` |
+| `npm run electron:release` | Build + publish to GitHub Releases |
+
+Packaged app uses **HashRouter** (`file://`); web uses **BrowserRouter**. See `frontend/ELECTRON_SETUP.md`.
+
 ---
 
-## Key Technology Stack
+## Technology Stack
 
 ### Backend
-- **Framework**: FastAPI (Python)
-- **Database**: Supabase (PostgreSQL)
-- **Authentication**: Supabase Auth
-- **Scheduling**: APScheduler
-- **Email**: SMTP (email notifications)
-- **External APIs**: Keepa API
+| Layer | Choice |
+|-------|--------|
+| Framework | FastAPI 0.104, Uvicorn |
+| Database | Supabase (PostgreSQL) |
+| Auth | Supabase Auth + JWT AAL2 for MFA |
+| Scheduler | APScheduler (in-process, 8 vendors) |
+| Email | SMTP |
+| External | Keepa API |
+| Security | SlowAPI rate limits, bleach (utils), optional Sentry |
+| Testing | pytest, pytest-asyncio, pytest-cov |
 
 ### Frontend
-- **Framework**: React 18 with TypeScript
-- **Build Tool**: Vite
-- **Styling**: Tailwind CSS
-- **Routing**: React Router v6
-- **HTTP Client**: Axios
-- **State Management**: React Context API
-- **Rich Text Editor**: React Quill (for notes)
+| Layer | Choice |
+|-------|--------|
+| UI | React 18, TypeScript |
+| Build | Vite 5 |
+| Styling | Tailwind CSS 3 |
+| Routing | React Router 6 (Browser or Hash) |
+| HTTP | Axios |
+| State | React Context |
+| Desktop | Electron 37, electron-updater |
+| Barcode/OCR | @zxing/library, tesseract.js, pdfjs-dist |
+| Charts | recharts |
 
 ---
 
-## Development Scripts
+## Deployment
 
-### Backend
-```bash
+| Component | Platform | Doc |
+|-----------|----------|-----|
+| API | Render (`backend/` root) | `backend/DEPLOY_RENDER.md` |
+| Web | Vercel (`frontend/` root) | `frontend/DEPLOY_VERCEL.md` |
+| Desktop | GitHub Releases (NSIS `.exe`) | `frontend/ELECTRON_SETUP.md` |
+| Database | Supabase | SQL in `backend/database/` |
+
+**Health**: `GET /health`  
+**Maintenance**: `GET /api/v1/system/maintenance-status`  
+**Public config**: `GET /api/v1/public/client-config` (desktop download URL)
+
+---
+
+## Environment Variables
+
+### Backend (`backend/.env.example`)
+- **Keepa**: `KEEPA_API_KEY`, `KEEPA_API_KEYS`, rate-limit tuning
+- **Supabase**: `SUPABASE_URL`, `SUPABASE_KEY`
+- **Email**: `EMAIL_SMTP_*`, `EMAIL_FROM`, `EMAIL_PASSWORD`, `EMAIL_TO`
+- **App**: `ENVIRONMENT`, `CORS_ORIGINS`, `API_V1_STR`
+- **Scheduler**: `SCHEDULER_HOUR`, `SCHEDULER_MINUTE`
+- **Optional**: `SENTRY_DSN`, `DESKTOP_APP_DOWNLOAD_URL`, `REPORT_EXCLUDED_SELLER_SUBSTRINGS`
+
+### Frontend (`frontend/.env.example`)
+- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+- `VITE_API_URL` (origin only, no `/api/v1`)
+- Optional: `VITE_DESKTOP_APP_DOWNLOAD_URL`, `VITE_MFA_IDLE_MINUTES`
+
+---
+
+## Features (Current)
+
+### Authentication & access
+- Email/password login (Supabase)
+- **TOTP MFA** — setup, verify, 15h idle re-verify
+- Superadmin user approval for new accounts
+- `has_keepa_access`, `can_manage_tools`, `can_assign_tasks` flags
+- Maintenance mode (superadmin)
+
+### Keepa & daily operations
+- Batch jobs (~2500 UPCs, multi-batch processing)
+- Off-price seller detection → Excel reports
+- **8 vendor categories**: DNK, CLK, OBZ, REF, BOR, SFF, TEV, CHA
+- Per-vendor scheduler settings and daily-run UI
+- MAP management, seller lists, email recipient pools
+- Automated email on job completion
+
+### Tools & operations
+- Public tools, job aids, personal toolbox, micro-tools
+- Tracking Extractor (PDF + OCR)
+- FNSKU label generator
+- App feedback with electronic signature
+- In-app notifications
+- CLI chat API (UI component exists; assistant route may be hidden)
+
+### Dashboard
+- Drag-and-drop widgets, quick access links
+- Per-vendor scheduler countdowns
+- UPC/MAP statistics
+
+### Desktop
+- Windows installer with auto-update from GitHub Releases
+- Same auth/MFA as web
+
+### Retired (legacy DB may remain)
+- My Notes (rich text, password protection)
+- Team Tasks (assignments, subtasks, attachments)
+
+---
+
+## API Overview
+
+Base path: `/api/v1` (see FastAPI `/docs` when running locally).
+
+| Prefix / router | Examples |
+|-----------------|----------|
+| `/auth` | `GET /me`, `POST /mfa/confirm-enrollment`, `GET /users`, maintenance |
+| `/jobs`, `/batches`, `/reports` | Job CRUD, batch control, report download |
+| `/upcs`, `/map`, `/sellers` | Catalog and seller data |
+| `/scheduler` | Settings, manual run, uploaded reports |
+| `/dashboard`, `/quick-access` | Widgets and links |
+| `/tools` | Public tools, job aids, toolbox, micro-tools |
+| `/notifications` | User notifications |
+| `/email-recipients` | Recipient pools |
+| `/feedback` | Feedback submit/list |
+| `/tracking-scanner` | Server tracking extraction |
+| `/cli-chat` | Chat turns |
+| `/public` | `client-config` (no auth) |
+
+Protected Keepa routes require `require_app_access` (active user + MFA AAL2 when enabled).
+
+---
+
+## Development
+
+```powershell
+# Repo root — both servers
+.\start-dev.ps1
+
+# Backend only
 cd backend
-python -m uvicorn app.main:app --reload
-```
+python -m uvicorn app.main:app --reload --port 8000
 
-### Frontend
-```bash
+# Frontend only
 cd frontend
 npm run dev
-```
 
-### Combined (PowerShell)
-```powershell
-.\start-dev.ps1    # Start both backend and frontend
-.\stop-dev.ps1     # Stop both servers
-.\check-dev.ps1    # Check server status
-```
-
----
-
-## Environment Configuration
-
-### Backend Environment Variables
-- `SUPABASE_URL`: Supabase project URL
-- `SUPABASE_KEY`: Supabase service key
-- `KEEPA_API_KEY`: Keepa API key
-- `SMTP_*`: Email configuration variables
-
-### Frontend Environment Variables
-- `VITE_SUPABASE_URL`: Supabase project URL
-- `VITE_SUPABASE_ANON_KEY`: Supabase anonymous key
-- `VITE_API_URL`: Backend API URL (default: http://localhost:8000)
-
----
-
-## Features
-
-### Core Features
-1. **Authentication & Authorization**
-   - User registration and login
-   - Role-based access control (superadmin, regular user)
-   - Keepa access permissions
-
-2. **Keepa Alert Services**
-   - Express job creation and management
-   - UPC management (DNK and CLK categories)
-   - MAP (Minimum Advertised Price) tracking
-   - Daily scheduled runs (DNK and CLK)
-   - Batch processing
-
-3. **Dashboard**
-   - Quick access links
-   - Job statistics
-   - UPC and MAP stats
-   - Scheduler countdowns
-
-4. **Task Management**
-   - Create and assign tasks
-   - Subtask support with user assignment
-   - Task validation and attachments
-   - Team-wide visibility
-   - Urgent task flagging
-
-5. **Notes**
-   - Personal note taking
-   - Rich text formatting
-   - Color coding and categories
-   - Password protection
-   - Importance levels
-
-6. **Resources**
-   - Public tools directory
-   - Job aids with video support
-   - Personal toolbox
-
-7. **Notifications**
-   - Real-time notifications
-   - Task assignment alerts
-   - System notifications
-
-8. **Reports**
-   - Job report generation
-   - CSV export functionality
-
----
-
-## Database Schema Highlights
-
-### Main Tables
-- `profiles`: User profiles and permissions
-- `batch_jobs`: Keepa batch jobs
-- `upcs`: UPC codes with category support (DNK/CLK)
-- `map`: Minimum Advertised Price records
-- `tasks`: Team tasks with assignment
-- `subtasks`: Task subtasks with user assignment
-- `notes`: User notes with protection
-- `notifications`: User notifications
-- `scheduler_settings`: Automated job scheduling
-- `quick_access`: Dashboard quick links
-- `public_tools`: Shared tool resources
-- `user_tools`: Personal toolbox
-- `job_aids`: Training resources
-
-### Security Features
-- Row Level Security (RLS) policies
-- User data isolation
-- Team-based visibility controls
-- Password-protected notes
-
----
-
-## API Endpoints Overview
-
-### Authentication
-- `POST /auth/signup` - User registration
-- `POST /auth/login` - User login
-- `GET /auth/user` - Get current user
-
-### Jobs
-- `GET /jobs` - List jobs
-- `POST /jobs` - Create job
-- `GET /jobs/{id}` - Get job details
-- `PUT /jobs/{id}` - Update job
-
-### UPCs
-- `GET /upcs` - List UPCs
-- `POST /upcs` - Add UPC
-- `PUT /upcs/{id}` - Update UPC
-- `DELETE /upcs/{id}` - Delete UPC
-- `POST /upcs/upload` - Bulk upload
-
-### Tasks
-- `GET /tasks` - List tasks
-- `POST /tasks` - Create task
-- `PUT /tasks/{id}` - Update task
-- `DELETE /tasks/{id}` - Delete task
-
-### Notes
-- `GET /notes` - List notes
-- `POST /notes` - Create note
-- `PUT /notes/{id}` - Update note
-- `DELETE /notes/{id}` - Delete note
-
-### Scheduler
-- `GET /scheduler/settings` - Get scheduler settings
-- `PUT /scheduler/settings` - Update scheduler
-- `POST /scheduler/run-now` - Trigger manual run
-
----
-
-## Build and Deployment
-
-### Backend Build
-The backend is deployed as a Python application with:
-- Virtual environment for dependencies
-- Uvicorn ASGI server
-- Environment-based configuration
-
-### Frontend Build
-```bash
+# Electron
 cd frontend
-npm run build
+npm run electron:dev
 ```
-Produces optimized static files in `frontend/dist/`
 
 ---
 
-## Documentation Files
-- `README.md`: Project overview and setup instructions
-- `STARTUP_TROUBLESHOOTING.md`: Common issues and solutions
-- `PROJECT_STRUCTURE.md`: This file - comprehensive project structure
-- `backend/scripts/README.md`: Backend utility scripts documentation
+## Documentation Index
+
+| File | Topic |
+|------|-------|
+| `README.md` | Full setup and feature list |
+| `PROJECT_ANALYSIS_REPORT.md` | Audit, grades, roadmap |
+| `STARTUP_TROUBLESHOOTING.md` | Dev environment issues |
+| `backend/DEPLOY_RENDER.md` | API deployment |
+| `backend/CSV_OUTPUT_LOGIC.md` | Report Excel columns |
+| `frontend/DEPLOY_VERCEL.md` | Web deployment |
+| `frontend/ELECTRON_SETUP.md` | Desktop builds and updates |
+| `backend/RATE_LIMITING_IMPLEMENTATION.md` | SlowAPI decorators |
+| `backend/INPUT_SANITIZATION_GUIDE.md` | bleach usage |
+| `backend/SENTRY_SETUP_GUIDE.md` | Error tracking setup |
 
 ---
 
-## Version Control
+## Git Ignored (typical)
 
-### Git Ignored Files/Directories
-- `node_modules/` - Frontend dependencies
-- `backend/venv/` - Python virtual environment
-- `backend/__pycache__/` - Python bytecode
-- `frontend/dist/` - Build output
-- `.env` - Environment variables
-- `.idea/` - IDE configuration
+- `node_modules/`, `frontend/dist/`
+- `backend/venv/`, `**/__pycache__/`, `htmlcov/`
+- `.env` (never commit secrets)
 
 ---
 
-## License & Credits
-This project is built for Orbit Hub using modern web technologies and best practices.
-
-**Generated**: 2026-01-15
-**Last Updated**: 2026-01-15
+**Product**: MSW Overwatch — owned and managed by MetroShoe Warehouse.

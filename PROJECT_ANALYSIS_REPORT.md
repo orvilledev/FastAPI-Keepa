@@ -1,20 +1,137 @@
-# Orbit Hub - Project Analysis Report
+# MSW Overwatch - Project Analysis Report
 
-**Generated**: January 15, 2026
-**Last Updated**: January 15, 2026 (Rate Limiting Implementation)
-**Project**: FastAPI Keepa Dashboard (Orbit Hub)
-**Version**: 2.1
+**Generated**: January 15, 2026  
+**Last Updated**: June 10, 2026  
+**Project**: FastAPI Keepa Dashboard (MSW Overwatch)  
+**Version**: 2.0.0
 
 ---
 
 ## Executive Summary
 
-Orbit Hub is a comprehensive full-stack productivity platform combining Keepa price monitoring services with team collaboration tools. The project demonstrates solid architecture with modern technologies, and has recently improved its security posture with comprehensive rate limiting infrastructure.
+MSW Overwatch is a full-stack productivity and price-monitoring platform built with FastAPI and React. It combines Keepa-powered seller/price workflows for multiple vendors with team tools (notifications, job aids, micro-tools, feedback), a Windows Electron desktop client, and Supabase-backed authentication including TOTP two-factor authentication.
 
-**Overall Assessment**: **B+ (84/100)** - Good with clear improvement path
-**Recent Improvement**: +1 point from rate limiting implementation (was 83/100)
+**Overall Assessment**: **B+ (87/100)** — Production-capable with a clear improvement path  
+**Recent Improvement**: +3 points from MFA, Electron desktop, expanded vendor schedulers, and backend test suite (was 84/100 in Jan 2026)
 
-**Latest Update (Jan 15, 2026)**: Comprehensive rate limiting infrastructure has been implemented with SlowAPI, including tiered limits for all endpoint types, custom error handling, and complete documentation guides.
+**Latest Update (Jun 10, 2026)**: Report refreshed to match the current codebase — MSW Overwatch branding, 8-vendor daily runs, Electron + auto-updater, TOTP MFA, partial backend test coverage (85 tests), and updated deployment/security posture.
+
+---
+
+## Current Setup (June 2026)
+
+### Deployment & Clients
+
+| Layer | Technology | Hosting / Distribution |
+|-------|------------|------------------------|
+| **Backend API** | FastAPI 0.104, Python 3, Uvicorn | [Render](backend/DEPLOY_RENDER.md) (`backend/` root) |
+| **Web frontend** | React 18, TypeScript, Vite 5, Tailwind | [Vercel](frontend/DEPLOY_VERCEL.md) (`frontend/` root) |
+| **Desktop app** | Electron 37 + electron-builder + electron-updater | Windows NSIS installer via [GitHub Releases](frontend/ELECTRON_SETUP.md) |
+| **Database & Auth** | Supabase (PostgreSQL + Auth) | Supabase cloud |
+| **Scheduler** | APScheduler (in-process with API) | Runs on Render web service |
+
+### Environment Configuration
+
+Both apps ship `.env.example` files:
+
+- `backend/.env.example` — Keepa keys, Supabase, SMTP, CORS, scheduler, Sentry, desktop download URL
+- `frontend/.env.example` — `VITE_SUPABASE_*`, `VITE_API_URL`, optional desktop installer URL
+
+Production desktop download URL can be set on the API (`DESKTOP_APP_DOWNLOAD_URL`) and exposed via `GET /api/v1/public/client-config` so the installer link can change without a Vercel rebuild.
+
+### Local Development
+
+```powershell
+# From repo root (Windows)
+.\start-dev.ps1      # Starts backend + frontend
+.\check-dev.ps1      # Health check
+.\stop-dev.ps1       # Stop services
+
+# Electron desktop dev (from frontend/)
+npm run electron:dev
+```
+
+### Backend API Surface (`backend/app/api/`)
+
+| Router | Purpose |
+|--------|---------|
+| `auth` | Profile, MFA enrollment, user admin, maintenance controls |
+| `jobs` / `batches` / `reports` | Keepa batch jobs, processing, Excel reports |
+| `upcs` / `map` / `sellers` | UPC & MAP management, seller lists |
+| `scheduler` | Per-vendor daily runs, uploaded reports, schedule settings |
+| `dashboard` / `quick_access` | Dashboard widgets and quick links |
+| `tools` | Public tools, job aids, user toolbox, micro-tools |
+| `notifications` | In-app notifications |
+| `email_recipients` | Report email recipient pools |
+| `feedback` | App feedback with electronic signature |
+| `tracking_scanner` | PDF/OCR tracking extraction API |
+| `cli_chat` | CLI-style assistant chat (rate-limited) |
+| `public` | Unauthenticated client config (desktop download URL, etc.) |
+
+Protected Keepa routes use `require_app_access` (active profile + optional MFA AAL2).
+
+### Vendor / Scheduler Categories
+
+Daily automation supports **8 vendor categories**: **DNK, CLK, OBZ, REF, BOR, SFF, TEV, CHA**. Each has its own scheduler settings row, countdown widget on the dashboard, and daily-run page in the frontend.
+
+### Authentication & MFA
+
+- **Supabase Auth** — email/password login, password reset
+- **TOTP MFA** — enrollment (`/mfa/setup`), verification (`/mfa/verify`), idle re-verify (default **15 hours**, configurable via `VITE_MFA_IDLE_MINUTES`)
+- **Backend enforcement** — when `profiles.mfa_enabled` is true, API requires JWT **AAL2** (`backend/app/dependencies.py`)
+- **Electron** — same MFA flow as web; no desktop bypass
+- **Account approval** — new signups default to inactive pending superadmin approval
+
+### Electron Desktop
+
+- Wrapper: `frontend/electron/main.cjs`, `preload.cjs`
+- Security: `contextIsolation`, `nodeIntegration: false`, `sandbox: true`
+- Packaged builds use `HashRouter` for `file://` routing
+- Auto-updates via `electron-updater` → GitHub Releases (`orvilledev/FastAPI-Keepa`)
+- Build: `npm run electron:build` (local) / `npm run electron:release` (publish)
+
+### Frontend Feature Areas
+
+| Area | Routes / Components |
+|------|---------------------|
+| Dashboard | Widgets, vendor scheduler countdowns, UPC/MAP stats |
+| Keepa jobs | Job list, create, detail, reports |
+| Daily runs | Per-vendor pages (`/daily-run/{dnk,clk,obz,ref,bor,sff,tev,cha}`) |
+| UPC / MAP | Manage UPCs hub, MAP management |
+| Sellers & email | Seller list, email recipient management |
+| Tools | How-to guide, job aids, micro-tools, personal toolbox |
+| Scanner | Tracking Extractor (PDF/OCR), FNSKU label generator |
+| Admin | User management, maintenance mode |
+| Feedback | App feedback form (with signature) |
+| About | Version info; desktop build shows app version + update check |
+
+**Retired / redirected UI**: My Notes and Team Tasks routes redirect to dashboard (`/my-space/notes`, `/notes-popout`). Legacy DB schemas may remain; active API routers for notes/tasks are not in the current backend.
+
+### Security Infrastructure Status
+
+| Control | Status |
+|---------|--------|
+| RLS on user tables | ✅ Active (Supabase) |
+| TOTP MFA (Supabase + backend AAL2) | ✅ Active |
+| Rate limiting (SlowAPI) | ✅ Infrastructure + **partial** endpoint decorators (`auth`, `jobs`, `scheduler`, `tracking_scanner`, `cli_chat`) |
+| Input sanitization (`bleach`) | ⚠️ Utilities + guide exist; **not yet applied** in API route handlers |
+| Sentry (`sentry-sdk`) | ⚠️ Config module + guide exist; **`init_sentry()` not wired** in `main.py` |
+| Validation error log redaction | ✅ Sensitive fields masked in `main.py` |
+| CORS | ✅ Configured via `CORS_ORIGINS` |
+
+### Testing Status
+
+| Area | Status |
+|------|--------|
+| Backend (`pytest`) | ✅ **85 tests** collected; **~29% line coverage** (`backend/pytest.ini`, `backend/tests/`) |
+| Frontend (`vitest`) | ❌ Not configured |
+| CI/CD (GitHub Actions) | ❌ Not present |
+
+```bash
+cd backend
+pytest              # Run all tests
+pytest --cov=app    # Coverage report (htmlcov/)
+```
 
 ---
 
@@ -23,219 +140,202 @@ Orbit Hub is a comprehensive full-stack productivity platform combining Keepa pr
 ### 1.1 Architecture & Design
 
 #### **Modern Tech Stack**
-- ✅ **Backend**: FastAPI (Python) - Fast, async-capable, auto-documented API
-- ✅ **Frontend**: React 18 + TypeScript + Vite - Modern, type-safe, fast builds
-- ✅ **Database**: Supabase (PostgreSQL) - Robust, scalable, built-in auth
-- ✅ **Styling**: Tailwind CSS - Utility-first, consistent design system
+- ✅ **Backend**: FastAPI (Python) — async-capable, OpenAPI docs at `/docs`
+- ✅ **Frontend**: React 18 + TypeScript + Vite — type-safe, code-split lazy routes
+- ✅ **Desktop**: Electron 37 — Windows installer + GitHub auto-updates
+- ✅ **Database**: Supabase (PostgreSQL) — RLS, auth, storage
+- ✅ **Styling**: Tailwind CSS — consistent utility-first UI
 
 #### **Clean Separation of Concerns**
 ```
-✅ Well-organized backend structure:
-   - api/        → Route handlers (presentation layer)
-   - services/   → Business logic (service layer)
-   - repositories/ → Data access (persistence layer)
-   - models/     → Pydantic schemas (validation & serialization)
-   - utils/      → Shared utilities
+✅ Backend structure:
+   api/           → Route handlers
+   services/      → Business logic (Keepa, email, reports, batch processing)
+   repositories/  → Data access (UPC, MAP, jobs, sellers)
+   models/        → Pydantic schemas
+   middleware/    → Rate limiting
+   utils/         → Sanitization, JWT, notifications, Sentry helpers
 ```
 
 #### **Security-First Approach**
-- ✅ Row Level Security (RLS) policies on all user-specific tables
-- ✅ User data isolation enforced at database level
-- ✅ Password protection for sensitive notes (with bcrypt)
-- ✅ Role-based access control (RBAC)
-- ✅ Protected routes on frontend
-- ✅ CORS configuration properly set up
+- ✅ Row Level Security on user-specific tables
+- ✅ TOTP two-factor authentication with backend AAL2 enforcement
+- ✅ Role-based access (`superadmin`, `has_keepa_access`, tool permissions)
+- ✅ Protected frontend routes (`ProtectedRoute`, `MfaGate`)
+- ✅ Electron hardened defaults (context isolation, sandbox)
+- ✅ Rate limiting middleware with tiered limits and 429 handling
 
 ### 1.2 Features & Functionality
 
 #### **Rich Feature Set**
-- ✅ **Keepa Integration**: Automated price monitoring (2500 UPCs, 21 batches)
-- ✅ **Task Management**: Team collaboration with assignments, subtasks, attachments
-- ✅ **Notes System**: Rich text editor with password protection
-- ✅ **Notifications**: Real-time task assignments and completions
-- ✅ **Scheduler**: Automated daily runs with APScheduler
-- ✅ **Email Integration**: Multi-recipient email reports
-- ✅ **Dual Category Support**: DNK and CLK categories for UPCs/Scheduler
+- ✅ **Keepa Integration**: Batch UPC processing, off-price seller detection, Excel reports
+- ✅ **Multi-vendor daily runs**: 8 vendor categories with per-vendor scheduler settings
+- ✅ **MAP management**: Minimum advertised price tracking
+- ✅ **Seller & email tooling**: Seller lists, multi-recipient report emails
+- ✅ **Operations tools**: Tracking Extractor (PDF + OCR), FNSKU label generator
+- ✅ **Micro-tools & job aids**: Admin-managed and personal tool collections
+- ✅ **App feedback**: Structured feedback with electronic signature
+- ✅ **Notifications**: In-app notification system
+- ✅ **Maintenance mode**: Superadmin-controlled downtime page
+- ✅ **Desktop client**: Native Windows app with auto-update
 
 #### **User Experience**
-- ✅ Responsive dashboard with drag-and-drop widgets
-- ✅ Quick access links for personalization
-- ✅ Real-time countdowns for scheduled jobs
-- ✅ Lazy loading for performance optimization
-- ✅ Context-based state management (UserContext)
-- ✅ Rich text formatting with ReactQuill
+- ✅ Personalized dashboard with drag-and-drop widgets
+- ✅ Per-vendor scheduler countdowns
+- ✅ Lazy-loaded routes for fast initial load
+- ✅ `UserContext` — centralized auth/profile state
+- ✅ Service worker (web only) for deploy refresh signaling
+- ✅ API-driven desktop installer URL (no rebuild to change link)
 
 ### 1.3 Performance Optimizations
 
-- ✅ **Lazy loading** of page components (code splitting)
-- ✅ **Centralized user context** (eliminates duplicate API calls)
-- ✅ **Memoized computations** for expensive operations
-- ✅ **Dynamic CSS loading** (ReactQuill loads on-demand)
-- ✅ **Cached auth tokens** to reduce session fetches
+- ✅ Lazy loading of page components
+- ✅ Centralized user context (fewer duplicate `/auth/me` calls)
+- ✅ Cached auth tokens in API client
+- ✅ Memoized expensive UI computations
+- ✅ Tracking scan state persisted across navigation (`TrackingScanProvider`)
 
 ### 1.4 Database Design
 
-- ✅ Comprehensive schema with 20+ tables
-- ✅ Proper foreign key relationships
-- ✅ Timestamps (created_at, updated_at) on all tables
-- ✅ Migration files organized and documented
-- ✅ Indexes for performance (mentioned in docs)
+- ✅ Comprehensive schema with migrations in `backend/database/`
+- ✅ Foreign keys, timestamps, indexes
+- ✅ SQL migration files per feature (feedback, micro-tools, tracking history, MFA flag, etc.)
+- ✅ `CSV_OUTPUT_LOGIC.md` documents report column calculations
 
 ### 1.5 Developer Experience
 
-- ✅ Clear project structure and file organization
-- ✅ TypeScript for type safety on frontend
-- ✅ Pydantic for validation on backend
-- ✅ Development scripts (start-dev.ps1, stop-dev.ps1)
-- ✅ Comprehensive README with setup instructions
-- ✅ Environment-based configuration
+- ✅ Clear monorepo layout (`backend/`, `frontend/`)
+- ✅ TypeScript + Pydantic validation
+- ✅ Dev scripts (`start-dev.ps1`, `check-dev.ps1`)
+- ✅ Deployment guides for Render, Vercel, and Electron
+- ✅ `.env.example` files for both apps
+- ✅ Backend pytest with fixtures (`conftest.py`)
 
 ---
 
 ## 2. WEAKNESSES ⚠️
 
-### 2.1 Testing (CRITICAL)
+### 2.1 Testing
 
-❌ **No Test Coverage Detected**
+⚠️ **Partial Backend Coverage; No Frontend Tests**
 ```
-Issue: No test files found in:
-- backend/app/**/*.test.py
-- frontend/src/**/*.test.{ts,tsx}
-- No pytest.ini, jest.config, vitest.config
+Backend:
++ 85 pytest tests across API, services, repositories
++ pytest.ini with coverage reporting (~29% line coverage)
+- Coverage still low for production confidence
+- No integration tests against live Supabase
 
-Impact:
-- High risk of regression bugs
-- Difficult to refactor with confidence
-- No CI/CD validation
-- Production issues harder to catch
+Frontend:
+- No vitest/jest configuration
+- No component or E2E tests
 
-Severity: HIGH
+Severity: MEDIUM-HIGH (improved from HIGH)
 ```
 
 ### 2.2 Documentation
 
-⚠️ **Missing Critical Documentation**
+⚠️ **Good Operational Docs; Some Gaps Remain**
 ```
-Missing:
-- API documentation (Swagger/OpenAPI accessible but not committed)
-- Environment setup (.env.example files)
-- Contributing guidelines
-- Changelog
-- Architecture diagrams
-- Database ERD (Entity Relationship Diagram)
-- Deployment guides for production
+Present:
++ README.md (comprehensive)
++ DEPLOY_RENDER.md, DEPLOY_VERCEL.md, ELECTRON_SETUP.md
++ CSV_OUTPUT_LOGIC.md, INPUT_SANITIZATION_GUIDE.md
++ SENTRY_SETUP_GUIDE.md, RATE_LIMITING_IMPLEMENTATION.md
++ backend/.env.example, frontend/.env.example
 
-Existing:
-+ README.md (excellent)
-+ STARTUP_TROUBLESHOOTING.md
-+ PROJECT_STRUCTURE.md (just created)
-+ backend/scripts/README.md (basic)
+Missing / stale:
+- PROJECT_STRUCTURE.md lists removed APIs (notes.py, tasks.py)
+- No architecture diagrams or ERD
+- No CONTRIBUTING.md or CHANGELOG
+- OpenAPI spec not committed to repo
 
-Severity: MEDIUM
+Severity: LOW-MEDIUM (improved from MEDIUM)
 ```
 
 ### 2.3 Security Concerns
 
-⚠️ **Potential Security Issues**
+⚠️ **Strong MFA; Some Hardening Still Pending**
 ```
-1. ✅ RESOLVED: Rate limiting infrastructure implemented
-   → Status: SlowAPI integrated with tiered limits
-   → Remaining: Apply decorators to individual endpoints
+1. Rate limiting — partially applied to endpoints
+   → auth, jobs, scheduler upload, tracking scanner, cli_chat decorated
+   → Many read/write routes still unlimited
 
-2. No input sanitization documented for XSS
-   → Risk: Cross-site scripting in notes/tasks
+2. Input sanitization — utilities exist, not wired into handlers
+   → bleach helpers in app/utils/sanitization.py
+   → Risk: XSS if rich HTML surfaces are reintroduced
 
-3. Password storage in notes uses bcrypt (good)
-   → But: No password complexity requirements enforced server-side
+3. Sentry — dependency installed, init not called in main.py
+   → No production error tracking until wired
 
-4. No API key rotation strategy documented
-   → Risk: Compromised keys remain valid indefinitely
+4. Secrets in environment variables
+   → Standard for Render/Vercel; consider secret manager at scale
 
-5. No HTTPS enforcement documented
-   → Risk: MITM attacks in production
-
-6. Email credentials in environment variables
-   → Consider: Secret management service (AWS Secrets Manager, etc.)
+5. Electron bypass of MFA — correctly NOT implemented
+   → Desktop uses same TOTP flow as web
 
 Severity: MEDIUM (improved from MEDIUM-HIGH)
 ```
 
 ### 2.4 Error Handling & Monitoring
 
-⚠️ **Limited Observability**
+⚠️ **Limited Production Observability**
 ```
-Missing:
-- Centralized error logging (Sentry, Rollbar)
-- Application performance monitoring (APM)
-- Health check endpoints beyond basic /health
-- Request tracing/correlation IDs
-- Metrics collection (Prometheus, DataDog)
-- Alert system for critical failures
+Present:
++ Python logging with validation error redaction
++ /health and /api/v1/system/maintenance-status endpoints
++ Sentry config module (ready to enable)
 
-Existing:
-+ Basic logging with Python logging module
-+ Error handler for validation errors
+Missing:
+- Sentry not active in main.py
+- No APM, metrics, or alerting
+- No request correlation IDs
+- Frontend Sentry not integrated
 
 Severity: MEDIUM
 ```
 
 ### 2.5 Code Quality & Consistency
 
-⚠️ **Missing Quality Checks**
+⚠️ **Decent Structure; Enforcement Gaps**
 ```
 Backend:
-- No linting configuration (flake8, black, mypy)
-- No pre-commit hooks
-- No code formatting standards enforced
-- Type hints incomplete in some places
+- No black/flake8/mypy/pre-commit in repo
+- Type hints incomplete in some modules
 
 Frontend:
-+ ESLint configured (good)
-+ TypeScript enabled (good)
-- No Prettier configuration
++ ESLint configured
++ TypeScript strict usage
+- No Prettier config
 - No pre-commit hooks
-- Inconsistent component structure
 
 Severity: LOW-MEDIUM
 ```
 
 ### 2.6 Scalability Concerns
 
-⚠️ **Potential Bottlenecks**
+⚠️ **Fine for Current Scale**
 ```
-1. Scheduler runs in-process with web server
-   → Issue: If app restarts, scheduled jobs interrupted
-   → Better: Separate worker process or external scheduler
+1. Scheduler runs in-process with the web server on Render
+   → App restart interrupts in-flight scheduled jobs
 
-2. File uploads stored in Supabase Storage
-   → Current: Good for small scale
-   → Consider: CDN for large files (CloudFront, Cloudflare)
+2. Rate limiter uses in-memory storage (SlowAPI default)
+   → Not shared across multiple Render instances
 
-3. No database connection pooling configuration visible
-   → Risk: Connection exhaustion under load
+3. No Redis/caching layer for hot reads
 
-4. No caching layer (Redis, Memcached)
-   → Risk: Repeated expensive queries
+4. Long batch jobs may approach HTTP timeout limits
 
-5. Batch processing runs synchronously
-   → Risk: Long-running requests, timeouts
-
-Severity: MEDIUM (scales fine to ~1000 users)
+Severity: MEDIUM (adequate for ~100–1000 users)
 ```
 
 ### 2.7 Dependency Management
 
-⚠️ **Outdated/Missing Practices**
+⚠️ **Functional but Manual**
 ```
-Backend:
-- requirements.txt (works, but consider poetry/pipenv)
-- No dependency vulnerability scanning
-- Some packages may have newer versions
-
-Frontend:
-- package-lock.json present (good)
-- No Dependabot or Renovate configured
-- react-quill 2.0.0 (check for updates)
+Backend: requirements.txt (no poetry/pipenv lock beyond pins)
+Frontend: package-lock.json present
+- No Dependabot/Renovate
+- No automated vulnerability scanning in CI
 
 Severity: LOW
 ```
@@ -244,812 +344,249 @@ Severity: LOW
 
 ## 3. NEEDED IMPROVEMENTS 🔧
 
-### 3.1 Critical Priority (Do Immediately)
+### 3.1 Critical Priority
 
-#### **A. Implement Testing Framework**
+#### **A. Expand Test Coverage** (in progress)
 
-**Backend Testing** (Priority: CRITICAL)
-```python
-# Install
-pip install pytest pytest-asyncio pytest-cov httpx
+Backend foundation exists (85 tests, ~29% coverage). Next steps:
 
-# Create tests/
-backend/tests/
-├── __init__.py
-├── conftest.py              # Fixtures, test db setup
-├── test_api/
-│   ├── test_auth.py
-│   ├── test_jobs.py
-│   ├── test_tasks.py
-│   └── test_notes.py
-├── test_services/
-│   ├── test_keepa_client.py
-│   ├── test_email_service.py
-│   └── test_batch_processor.py
-└── test_repositories/
-    └── test_upc_repository.py
+- Add tests for MFA/AAL2 enforcement, scheduler modes, feedback, tracking scanner
+- Target **70%+ coverage** on `services/` and `api/`
+- Introduce Vitest for critical frontend flows (login, MFA gate, protected routes)
 
-Target Coverage: 80% minimum
+#### **B. Wire Security Utilities** (partially done)
 
-Example test:
-# tests/test_api/test_auth.py
-@pytest.mark.asyncio
-async def test_get_current_user(client, auth_token):
-    response = await client.get(
-        "/api/v1/auth/me",
-        headers={"Authorization": f"Bearer {auth_token}"}
-    )
-    assert response.status_code == 200
-    assert "email" in response.json()
-```
+| Item | Status |
+|------|--------|
+| `.env.example` files | ✅ Done |
+| Rate limiting infrastructure | ✅ Done |
+| Rate limits on all sensitive endpoints | ⬜ Partial |
+| Input sanitization in API handlers | ⬜ Utils only |
+| Sentry `init_sentry()` in `main.py` | ⬜ Guide only |
+| Frontend 429 retry handling | ⬜ Optional |
 
-**Frontend Testing** (Priority: CRITICAL)
-```bash
-# Install
-npm install -D vitest @testing-library/react @testing-library/jest-dom jsdom
+#### **C. CI/CD Pipeline** (not started)
 
-# Create tests/
-frontend/src/
-├── components/
-│   ├── auth/
-│   │   ├── Login.tsx
-│   │   └── Login.test.tsx     # Component tests
-│   └── tasks/
-│       ├── TeamTasks.tsx
-│       └── TeamTasks.test.tsx
-├── hooks/
-│   ├── useAuth.ts
-│   └── useAuth.test.ts        # Hook tests
-└── utils/
-    ├── taskUtils.ts
-    └── taskUtils.test.ts      # Utility tests
+Add `.github/workflows/ci.yml` to run `pytest` and `npm run lint` on every PR.
 
-Target Coverage: 70% minimum
+### 3.2 High Priority
 
-Example test:
-// src/components/auth/Login.test.tsx
-import { render, screen, fireEvent } from '@testing-library/react'
-import Login from './Login'
+- **Enable Sentry** — call `init_sentry()` on startup when `SENTRY_DSN` is set
+- **Apply sanitization** — use `sanitize_html_content` / `sanitize_text_input` on user-written fields (feedback, tool descriptions)
+- **Complete rate limit decorators** — per `RATE_LIMITING_IMPLEMENTATION.md`
+- **Separate scheduler worker** — optional dedicated Render background worker
+- **Update PROJECT_STRUCTURE.md** — remove references to retired notes/tasks APIs
 
-test('login form submits with email and password', () => {
-  render(<Login />)
-  fireEvent.change(screen.getByLabelText(/email/i), {
-    target: { value: 'test@example.com' }
-  })
-  // ... assertions
-})
-```
+### 3.3 Medium Priority
 
-#### **B. Add Environment Examples**
+- Redis-backed rate limiting for multi-instance Render
+- Alembic or formal migration runner for `backend/database/`
+- Architecture diagram and database ERD
+- Prettier + pre-commit hooks
+- Frontend test suite (Vitest + Testing Library)
 
-```bash
-# Create these files:
-backend/.env.example
-frontend/.env.example
+### 3.4 Low Priority
 
-# Content:
-# backend/.env.example
-KEEPA_API_KEY=your_keepa_api_key_here
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your_supabase_service_key_here
-EMAIL_SMTP_HOST=smtp.gmail.com
-EMAIL_SMTP_PORT=587
-EMAIL_FROM=your-email@gmail.com
-EMAIL_PASSWORD=your_gmail_app_password
-EMAIL_TO=recipient@example.com
-ENVIRONMENT=development
-CORS_ORIGINS=http://localhost:5173
-SCHEDULER_HOUR=20
-SCHEDULER_MINUTE=0
-
-# frontend/.env.example
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
-VITE_API_URL=http://localhost:8000
-```
-
-#### **C. Add Input Sanitization**
-
-```python
-# backend/app/utils/sanitization.py
-import html
-import re
-from typing import Optional
-
-def sanitize_html_input(text: str) -> str:
-    """Sanitize user input to prevent XSS attacks."""
-    # For ReactQuill content, use bleach library
-    import bleach
-    allowed_tags = ['p', 'br', 'strong', 'em', 'u', 'ol', 'ul', 'li', 'a', 'h1', 'h2', 'h3']
-    allowed_attrs = {'a': ['href', 'title']}
-    return bleach.clean(text, tags=allowed_tags, attributes=allowed_attrs)
-
-def sanitize_text_input(text: str) -> str:
-    """Basic HTML escape for text inputs."""
-    return html.escape(text)
-
-# Add to requirements.txt
-# bleach==6.1.0
-```
-
-#### **D. Implement Rate Limiting** ✅ **COMPLETED**
-
-**Status**: Infrastructure implemented on January 15, 2026
-
-```python
-# ✅ COMPLETED: Rate limiting infrastructure is now integrated
-# Files created:
-# - backend/app/middleware/rate_limiter.py
-# - backend/RATE_LIMITING_IMPLEMENTATION.md
-# - frontend/UPDATE_FRONTEND_FOR_RATE_LIMITING.md
-# - RATE_LIMITING_SUMMARY.md
-
-# Next step: Apply decorators to endpoints (see implementation guide)
-# Example usage:
-from app.middleware.rate_limiter import limiter, RateLimits
-
-@router.post("/auth/login")
-@limiter.limit(RateLimits.AUTH_LOGIN)  # 5/minute
-async def login(request: Request, credentials: LoginRequest):
-    # ... login logic
-
-# Comprehensive rate limit tiers:
-# - AUTH_LOGIN: 5/minute
-# - AUTH_SIGNUP: 3/minute
-# - JOB_CREATE: 10/hour
-# - FILE_UPLOAD: 20/hour
-# - READ_OPERATIONS: 100/minute
-# - WRITE_OPERATIONS: 50/minute
-# - ADMIN_OPERATIONS: 120/minute
-# ... and more (see rate_limiter.py)
-```
-
-**What was implemented**:
-- ✅ SlowAPI library integrated (slowapi==0.1.9)
-- ✅ Custom rate limit key function (user-based + IP-based)
-- ✅ Tiered rate limits for different endpoint types
-- ✅ 429 error handler with Retry-After headers
-- ✅ Logging for rate limit violations
-- ✅ User-friendly error messages
-- ✅ Complete implementation guide for applying to endpoints
-- ✅ Frontend error handling guide with retry logic
-
-**Documentation created**:
-- `backend/RATE_LIMITING_IMPLEMENTATION.md` - Backend integration guide
-- `frontend/UPDATE_FRONTEND_FOR_RATE_LIMITING.md` - Frontend error handling
-- `RATE_LIMITING_SUMMARY.md` - Executive summary
-
-**Remaining work** (optional):
-- Apply `@limiter.limit()` decorators to individual endpoints
-- Update frontend API service for 429 error handling
-- Test rate limits on all endpoints
-- Upgrade to Redis storage for production (currently using in-memory)
-
-### 3.2 High Priority (Do Soon)
-
-#### **E. Add Monitoring & Error Tracking**
-
-```python
-# Install Sentry
-# pip install sentry-sdk[fastapi]
-
-# backend/app/main.py
-import sentry_sdk
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-
-if settings.environment == "production":
-    sentry_sdk.init(
-        dsn=settings.sentry_dsn,
-        environment=settings.environment,
-        traces_sample_rate=0.1,
-        integrations=[FastApiIntegration()]
-    )
-```
-
-```typescript
-// Frontend monitoring
-// npm install @sentry/react
-
-// frontend/src/main.tsx
-import * as Sentry from "@sentry/react";
-
-if (import.meta.env.PROD) {
-  Sentry.init({
-    dsn: import.meta.env.VITE_SENTRY_DSN,
-    integrations: [new Sentry.BrowserTracing()],
-    tracesSampleRate: 0.1,
-  });
-}
-```
-
-#### **F. Separate Scheduler from Web Server**
-
-```python
-# Create backend/app/worker.py for dedicated scheduler process
-"""Dedicated worker process for scheduled jobs."""
-import logging
-from app.scheduler import setup_scheduler, start_scheduler
-from app.database import init_db
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-if __name__ == "__main__":
-    logger.info("Starting scheduler worker...")
-    init_db()
-    setup_scheduler(category='dnk')
-    setup_scheduler(category='clk')
-    start_scheduler()
-
-    # Keep worker running
-    import time
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        logger.info("Shutting down worker...")
-
-# Run separately: python -m app.worker
-```
-
-#### **G. Add Database Connection Pooling**
-
-```python
-# backend/app/database.py
-from supabase import create_client, Client
-from app.config import settings
-
-# Add connection pool settings
-_supabase_client: Client = None
-
-def get_supabase() -> Client:
-    """Get Supabase client with connection pooling."""
-    global _supabase_client
-    if _supabase_client is None:
-        _supabase_client = create_client(
-            settings.supabase_url,
-            settings.supabase_key,
-            options={
-                'schema': 'public',
-                'auto_refresh_token': True,
-                'persist_session': False,
-                'pool_size': 10,  # Connection pool
-                'max_overflow': 5,  # Max connections beyond pool_size
-            }
-        )
-    return _supabase_client
-```
-
-#### **H. Add API Documentation Endpoint**
-
-```python
-# backend/app/main.py
-from fastapi.openapi.docs import get_swagger_ui_html
-
-@app.get("/docs", include_in_schema=False)
-async def custom_swagger_ui_html():
-    """Custom Swagger UI."""
-    return get_swagger_ui_html(
-        openapi_url=f"{settings.api_v1_str}/openapi.json",
-        title="Orbit API Documentation",
-        swagger_favicon_url="/favicon.ico"
-    )
-
-# Commit openapi.json to repo for reference
-```
-
-### 3.3 Medium Priority (Plan For)
-
-#### **I. Add CI/CD Pipeline**
-
-```yaml
-# .github/workflows/ci.yml
-name: CI/CD Pipeline
-
-on: [push, pull_request]
-
-jobs:
-  backend-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
-        run: |
-          cd backend
-          pip install -r requirements.txt
-          pip install pytest pytest-cov
-      - name: Run tests
-        run: |
-          cd backend
-          pytest --cov=app --cov-report=xml
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
-
-  frontend-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      - name: Install dependencies
-        run: |
-          cd frontend
-          npm ci
-      - name: Run tests
-        run: |
-          cd frontend
-          npm run test:coverage
-      - name: Lint
-        run: |
-          cd frontend
-          npm run lint
-
-  deploy:
-    needs: [backend-tests, frontend-tests]
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to production
-        run: echo "Deploy to Render/Vercel"
-```
-
-#### **J. Add Code Quality Tools**
-
-```bash
-# Backend
-pip install black flake8 mypy isort
-
-# Create backend/pyproject.toml
-[tool.black]
-line-length = 100
-target-version = ['py311']
-
-[tool.isort]
-profile = "black"
-
-[tool.mypy]
-python_version = "3.11"
-warn_return_any = true
-warn_unused_configs = true
-
-# Frontend
-npm install -D prettier eslint-config-prettier
-
-# Create frontend/.prettierrc
-{
-  "semi": false,
-  "singleQuote": true,
-  "trailingComma": "es5",
-  "printWidth": 100
-}
-```
-
-#### **K. Add Caching Layer**
-
-```python
-# For frequently accessed data
-# pip install aiocache redis
-
-from aiocache import caches
-from aiocache.decorators import cached
-
-caches.set_config({
-    'default': {
-        'cache': "aiocache.RedisCache",
-        'endpoint': settings.redis_url,
-        'timeout': 300,  # 5 minutes
-    }
-})
-
-@cached(ttl=300, key="upc_count")
-async def get_upc_count() -> int:
-    """Cached UPC count."""
-    # ... query database
-    return count
-```
-
-#### **L. Add Database Migrations Tool**
-
-```bash
-# Consider Alembic for version-controlled migrations
-pip install alembic
-
-# Initialize
-cd backend
-alembic init alembic
-
-# Benefits:
-# - Version control for schema changes
-# - Automatic migration generation
-# - Rollback capability
-# - Better than manual SQL files
-```
-
-### 3.4 Low Priority (Nice to Have)
-
-#### **M. Add API Versioning Strategy**
-
-```python
-# Currently: /api/v1/*
-# Consider:
-# - /api/v2/* for breaking changes
-# - Deprecation warnings in v1
-# - Documentation of version lifecycle
-```
-
-#### **N. Add GraphQL Layer (Optional)**
-
-```python
-# If REST becomes limiting
-# pip install strawberry-graphql
-
-# Provides:
-# - Single endpoint for complex queries
-# - Reduced over-fetching
-# - Better for mobile apps
-```
-
-#### **O. Add Internationalization (i18n)**
-
-```typescript
-// Frontend
-// npm install react-i18next i18next
-
-// Support multiple languages
-// - English (default)
-// - Chinese (if Taiwan-focused)
-// - Others as needed
-```
+- API versioning strategy beyond `/api/v1`
+- i18n if expanding beyond English
+- Code signing for Windows Electron releases (currently unsigned local builds)
 
 ---
 
 ## 4. NEXT STEPS (Recommended Roadmap) 🗺️
 
-### Phase 1: Foundation (Weeks 1-2)
-**Goal: Establish testing and security baseline**
+### Phase 1: Security & Quality Baseline
+1. ✅ `.env.example` files
+2. ✅ Backend pytest foundation (85 tests)
+3. ✅ Rate limiting infrastructure
+4. ✅ Input sanitization utilities
+5. ⬜ Wire Sentry in `main.py`
+6. ⬜ Apply sanitization + remaining rate limits
+7. ⬜ Raise backend coverage to 50%+
 
-1. ⬜ **Add .env.example files** (1 hour)
-2. ⬜ **Set up pytest for backend** (4 hours)
-3. ⬜ **Set up Vitest for frontend** (4 hours)
-4. ⬜ **Write critical path tests** (16 hours)
-   - Auth flows
-   - Job creation
-   - Task management
-5. ⬜ **Add input sanitization** (4 hours)
-6. ✅ **Implement rate limiting** (2 hours) - **COMPLETED Jan 15, 2026**
+### Phase 2: CI/CD & Monitoring
+1. ⬜ GitHub Actions (pytest + lint)
+2. ⬜ Enable Sentry in production
+3. ⬜ Frontend Vitest for auth/MFA paths
 
-**Progress**: 1/6 items completed (Rate limiting infrastructure)
-**Deliverable**: 50% test coverage, basic security hardening
+### Phase 3: Documentation & Structure
+1. ⬜ Refresh `PROJECT_STRUCTURE.md`
+2. ⬜ Architecture diagram + ERD
+3. ⬜ CONTRIBUTING.md
 
-### Phase 2: Monitoring (Week 3)
-**Goal: Add observability**
-
-1. ⬜ **Set up Sentry** (2 hours)
-2. ⬜ **Add health check endpoints** (2 hours)
-3. ⬜ **Add request logging** (2 hours)
-4. ⬜ **Set up alerts** (2 hours)
-
-**Progress**: 0/4 items completed
-**Deliverable**: Error tracking, performance monitoring
-
-### Phase 3: Quality (Week 4)
-**Goal: Improve code quality**
-
-1. ⬜ **Add linting configs** (2 hours)
-2. ⬜ **Add pre-commit hooks** (2 hours)
-3. ⬜ **Add CI/CD pipeline** (8 hours)
-4. ⬜ **Code review and refactor** (8 hours)
-
-**Progress**: 0/4 items completed
-**Deliverable**: Automated quality checks, CI/CD
-
-### Phase 4: Documentation (Week 5)
-**Goal: Complete documentation**
-
-1. ⬜ **API documentation** (4 hours)
-2. ⬜ **Architecture diagrams** (4 hours)
-3. ⬜ **Database ERD** (2 hours)
-4. ⬜ **Contributing guidelines** (2 hours)
-5. ⬜ **Deployment guides** (4 hours)
-
-**Progress**: 0/5 items completed
-**Deliverable**: Comprehensive documentation
-
-### Phase 5: Scalability (Week 6+)
-**Goal: Prepare for growth**
-
-1. ⬜ **Separate scheduler worker** (4 hours)
-2. ⬜ **Add connection pooling** (2 hours)
-3. ⬜ **Implement caching** (8 hours)
-4. ⬜ **Add Alembic migrations** (8 hours)
-5. ⬜ **Load testing** (4 hours)
-
-**Progress**: 0/5 items completed
-**Deliverable**: Production-ready, scalable system
+### Phase 4: Scalability
+1. ⬜ Optional scheduler worker process
+2. ⬜ Redis rate limit storage
+3. ⬜ Load testing on batch job endpoints
 
 ---
 
 ## 5. TECHNICAL DEBT ASSESSMENT 📊
 
-### Current Debt Level: **MEDIUM** (Improving)
+### Current Debt Level: **MEDIUM-LOW** (improving)
 
 ```
-Legend:
-🟢 Low Debt (Easy to maintain)
-🟡 Medium Debt (Needs attention soon)
-🔴 High Debt (Urgent action needed)
-
 Area                    Status  Impact                              Updated
 ──────────────────────────────────────────────────────────────────────────────
-Testing                 🔴      HIGH - No tests means high risk     No change
-Documentation           🟡      MEDIUM - Good README, some gaps     Added guides
-Security                🟢      LOW - Rate limiting implemented     ✅ Jan 15
-Scalability             🟡      MEDIUM - Fine for now              No change
-Code Quality            🟡      MEDIUM - Decent structure          No change
-Monitoring              🔴      HIGH - Limited visibility           No change
-Error Handling          🟡      MEDIUM - Basic logging             No change
-Dependencies            🟢      LOW - Mostly up to date            Updated
-Architecture            🟢      LOW - Clean separation             No change
-Performance             🟢      LOW - Optimized lazy loading       No change
+Testing                 🟡      MEDIUM — 85 tests, 29% coverage     Jun 2026
+Documentation           🟢      LOW — deploy + feature guides       Jun 2026
+Security                🟡      MEDIUM — MFA strong; wiring pending   Jun 2026
+Scalability             🟡      MEDIUM — in-process scheduler       No change
+Code Quality            🟡      MEDIUM — no pre-commit/CI           No change
+Monitoring              🟡      MEDIUM — Sentry ready, not active   Jun 2026
+Architecture            🟢      LOW — clean separation + Electron   Jun 2026
+Performance             🟢      LOW — lazy loading, context caching   No change
+Dependencies            🟢      LOW — pinned requirements           No change
 ```
 
-**Recent Improvements** (January 15, 2026):
-- ✅ Rate limiting infrastructure fully implemented
-- ✅ Security posture improved from MEDIUM-HIGH to MEDIUM
-- ✅ Added 4 comprehensive documentation files for rate limiting
-- ✅ Dependencies updated (added slowapi==0.1.9)
-
-### Estimated Effort to Reduce Debt
-
-```
-Current State → Target State
-
-Technical Debt: 60/100 → 85/100
-Estimated Effort: 120-160 hours (3-4 weeks full-time)
-ROI: High (reduced bugs, faster development, better maintainability)
-```
+**Estimated effort to reach target state**: 80–120 hours  
+**Technical debt score**: 72/100 → target 88/100
 
 ---
 
 ## 6. RISK ASSESSMENT ⚠️
 
 ### High Risk
-
-1. **No automated testing**
-   - Risk: Production bugs go undetected
-   - Mitigation: Implement Phase 1 testing immediately
-
-2. **No monitoring in production**
-   - Risk: User issues unknown until reported
-   - Mitigation: Set up Sentry/logging ASAP
-
-3. **Scheduler runs in web process**
-   - Risk: App restart interrupts scheduled jobs
-   - Mitigation: Separate worker process
+1. **Low test coverage relative to feature surface** — Mitigation: expand pytest + add CI
+2. **No active error tracking in production** — Mitigation: enable Sentry
 
 ### Medium Risk
-
-4. ✅ **Rate limiting implemented** (Resolved - Jan 15, 2026)
-   - Status: Infrastructure complete, ready to apply
-   - Remaining: Apply decorators to endpoints
-
-5. **No input sanitization visible**
-   - Risk: XSS attacks in notes/tasks
-   - Mitigation: Add bleach/DOMPurify
-
-6. **Secrets in environment variables**
-   - Risk: Exposure if server compromised
-   - Mitigation: Use secrets manager in production
+3. **Scheduler in web process** — Mitigation: background worker on Render
+4. **Sanitization not applied** — Mitigation: wire bleach helpers before new HTML features
+5. **In-memory rate limits** — Mitigation: Redis if scaling to multiple instances
 
 ### Low Risk
-
-7. **Outdated dependencies** (minor versions)
-   - Risk: Missing security patches
-   - Mitigation: Regular dependency audits
+6. **Unsigned Electron builds** — Acceptable for internal distribution; sign for wide release
+7. **Dependency drift** — Periodic `pip audit` / `npm audit`
 
 ---
 
 ## 7. COMPETITIVE ANALYSIS 🎯
 
-### Strengths vs Competitors
+**Compared to generic project management tools (Trello, Asana, Notion):**
 
-**Compared to similar tools (Trello, Asana, Notion):**
+✅ **Advantages**
+- Integrated Keepa price monitoring and multi-vendor daily runs (unique)
+- Custom workflow for warehouse/MSW operations
+- Full data ownership (self-hosted API + Supabase)
+- Windows desktop client with auto-update
+- No per-seat SaaS licensing
 
-✅ **Advantages:**
-- Integrated Keepa price monitoring (unique)
-- Custom-built for specific workflow (DNK/CLK)
-- Full control over data and features
-- No per-user licensing costs
-- Can customize to exact business needs
+⚠️ **Disadvantages**
+- No native mobile apps (web + Windows desktop only)
+- Narrower scope than general PM tools (notes/tasks de-emphasized)
+- Self-hosted maintenance burden
+- MFA adds friction (by design)
 
-⚠️ **Disadvantages:**
-- No mobile apps (web-only)
-- Smaller feature set (no kanban, calendar, etc.)
-- Manual hosting/maintenance required
-- No built-in integrations (Slack, etc.)
-
-### Market Position
-
-**Best suited for:**
-- Small to medium teams (5-50 users)
-- Price monitoring focused businesses
-- Teams needing custom workflows
-- Budget-conscious organizations
-
-**Not ideal for:**
-- Large enterprises (100+ users)
-- Teams needing mobile apps
-- Organizations requiring 24/7 support
-- Teams wanting plug-and-play SaaS
+**Best suited for**: Small to medium operations teams (5–50 users) focused on Amazon/Keepa price monitoring and warehouse tooling.
 
 ---
 
 ## 8. RECOMMENDATIONS SUMMARY 📋
 
-### Immediate Actions (This Week)
-1. ⬜ Create `.env.example` files
-2. ⬜ Set up pytest and write 10 critical tests
-3. ⬜ Add input sanitization for user content
-4. ✅ **Implement basic rate limiting** - COMPLETED Jan 15, 2026
-5. ⬜ Set up Sentry error tracking
+### Immediate (This Month)
+1. Enable Sentry in `main.py` when `SENTRY_DSN` is set
+2. Add GitHub Actions for backend tests + frontend lint
+3. Apply rate limits and sanitization to remaining user-input endpoints
+4. Raise backend test coverage toward 50%
 
-### Short Term (This Month)
-1. ⬜ Achieve 70% test coverage
-2. ⬜ Add CI/CD pipeline
-3. ⬜ Separate scheduler into worker process
-4. ⬜ Add comprehensive API documentation
-5. ⬜ Implement connection pooling
-6. ✅ **Apply rate limits to all endpoints** - Infrastructure ready
+### Short Term (This Quarter)
+1. Frontend Vitest for login/MFA/protected routes
+2. Refresh `PROJECT_STRUCTURE.md` to match current API surface
+3. Redis rate limiting if running multiple API instances
+4. Evaluate scheduler worker split on Render
 
-### Long Term (Next Quarter)
-1. ⬜ Migrate to Alembic for database migrations
-2. ⬜ Add caching layer (Redis)
-3. ⬜ Implement comprehensive monitoring
-4. ⬜ Add load testing and performance benchmarks
-5. ⬜ Consider mobile-responsive improvements
-6. ✅ **Upgrade rate limiting to Redis storage** - For production scale
+### Long Term
+1. Windows code signing for Electron releases
+2. Formal migration tooling (Alembic)
+3. Architecture documentation and ERD
 
 ---
 
 ## 9. CONCLUSION
 
-### Overall Grade: **B+ (84/100)** ⬆️ Improved from 83/100
+### Overall Grade: **B+ (87/100)** ⬆️ Improved from 84/100 (Jan 2026)
 
 **Breakdown:**
-- Architecture: A- (90/100) - Clean, modern, well-structured
-- Features: A- (90/100) - Rich, well-integrated
-- Security: B+ (82/100) - ⬆️ Rate limiting implemented (was 75/100)
-- Testing: D (40/100) - Critical gap
-- Documentation: B (82/100) - ⬆️ Added rate limiting guides (was 80/100)
-- Scalability: B (80/100) - Fine for current scale
-- Maintainability: B+ (85/100) - Good structure, needs tooling
-- Performance: A- (90/100) - Optimized, fast
-- Monitoring: C (60/100) - Limited visibility
-- Code Quality: B (80/100) - Decent, no enforcement
 
-**Recent Changes** (January 15, 2026):
-- Security improved by 7 points (rate limiting infrastructure)
-- Documentation improved by 2 points (comprehensive guides)
-- Overall grade increased from 83/100 to 84/100
+| Area | Score | Notes |
+|------|-------|-------|
+| Architecture | A (92) | Clean layers; web + Electron + Supabase |
+| Features | A (93) | Keepa, 8 vendors, scanner, desktop, MFA |
+| Security | B+ (85) | MFA + RLS + partial rate limits; Sentry/sanitization pending |
+| Testing | C+ (58) | 85 backend tests; no frontend tests; ~29% coverage |
+| Documentation | B+ (86) | Deploy guides, CSV logic, env examples |
+| Scalability | B (80) | Adequate for current scale |
+| Maintainability | B+ (85) | Good structure; needs CI |
+| Performance | A- (90) | Lazy routes, cached auth |
+| Monitoring | C+ (65) | Logging only; Sentry not wired |
+| Code Quality | B (82) | ESLint + types; no pre-commit |
 
 ### Final Thoughts
 
-**This is a solid, production-ready application with a strong foundation.** The architecture is clean, the feature set is impressive, and the codebase is generally well-organized. However, the lack of automated testing and comprehensive monitoring are significant gaps that should be addressed before scaling.
+MSW Overwatch is a mature internal operations platform with a strong Keepa-centric core, meaningful desktop distribution, and proper MFA. The largest gaps versus an A-grade system are **test coverage**, **production monitoring activation**, and **CI/CD** — all well-defined next steps with existing foundations (pytest, Sentry module, sanitization utils, rate limiter).
 
-**Investment Priority:**
-1. **Testing** (40 hours) - Highest ROI
-2. **Monitoring** (8 hours) - Critical for production
-3. **Security hardening** (16 hours) - Protect users
-4. **Documentation** (16 hours) - Onboard contributors
-5. **Scalability improvements** (24 hours) - Prepare for growth
-
-**With 2-3 weeks of focused effort on the recommended improvements, this project can easily become an A-grade, enterprise-ready application.**
+**Investment priority:**
+1. CI + expand backend tests (24–40 h)
+2. Enable Sentry + apply sanitization (8–12 h)
+3. Complete rate limiting on all write endpoints (4–8 h)
+4. Frontend test bootstrap (16–24 h)
 
 ---
 
 ## 10. RECENT UPDATES & CHANGELOG 🆕
 
-### January 15, 2026 - Rate Limiting Implementation
+### June 10, 2026 — Current Setup Audit
 
-**What was implemented:**
+**Product**
+- Rebranded to **MSW Overwatch** (v2.0.0); API title `MSW Overwatch API`
+- **8 vendor schedulers**: DNK, CLK, OBZ, REF, BOR, SFF, TEV, CHA
+- **Electron desktop** — Windows NSIS installer, GitHub Releases auto-update
+- **TOTP MFA** — Supabase enrollment, `MfaGate`, backend AAL2 enforcement, 15h idle re-verify
+- **New tools**: Tracking Extractor, FNSKU labels, micro-tools, app feedback
+- **Maintenance mode** — public status endpoint + superadmin controls
+- Notes/Team Tasks UI retired (routes redirect to dashboard)
 
-A comprehensive rate limiting system has been fully integrated into the Orbit Hub backend to protect against API abuse, DDoS attacks, and brute force attempts.
+**Infrastructure**
+- `backend/.env.example` and `frontend/.env.example` in place
+- Backend: **85 pytest tests**, ~29% coverage
+- Rate limits on auth, jobs, scheduler upload, tracking scanner, cli_chat
+- `bleach` sanitization utilities + `INPUT_SANITIZATION_GUIDE.md`
+- `sentry-sdk` dependency + `SENTRY_SETUP_GUIDE.md` (init pending)
+- Deployment docs: `DEPLOY_RENDER.md`, `DEPLOY_VERCEL.md`, `ELECTRON_SETUP.md`
 
-**Infrastructure Components:**
+**Grade impact**: 84 → **87** (+3) — MFA, Electron, tests, and operational docs
 
-1. **Core Middleware** (`backend/app/middleware/rate_limiter.py`):
-   - SlowAPI library integration (slowapi==0.1.9)
-   - Custom rate limit key function (user-based + IP-based)
-   - Fixed-window rate limiting strategy
-   - In-memory storage (production upgrade to Redis recommended)
-   - Comprehensive rate limit constants for all endpoint types
+---
 
-2. **Rate Limit Tiers Configured**:
-   ```
-   Authentication:
-   - AUTH_LOGIN: 5/minute
-   - AUTH_SIGNUP: 3/minute
-   - PASSWORD_RESET: 3/minute
+### January 15, 2026 — Rate Limiting Implementation
 
-   Job Operations:
-   - JOB_CREATE: 10/hour
-   - JOB_TRIGGER: 20/hour
-   - JOB_DELETE: 30/hour
-
-   File Operations:
-   - FILE_UPLOAD: 20/hour
-   - FILE_DOWNLOAD: 100/minute
-
-   General Operations:
-   - READ_OPERATIONS: 100/minute
-   - WRITE_OPERATIONS: 50/minute
-   - ADMIN_OPERATIONS: 120/minute
-
-   And 15+ more endpoint-specific limits...
-   ```
-
-3. **Error Handling** (integrated in `backend/app/main.py`):
-   - Custom 429 (Too Many Requests) error handler
-   - Retry-After headers for client guidance
-   - Detailed logging of rate limit violations
-   - User-friendly error messages with guidance
-
-4. **Documentation Created**:
-   - `backend/RATE_LIMITING_IMPLEMENTATION.md` - Complete backend integration guide with copy-paste examples
-   - `frontend/UPDATE_FRONTEND_FOR_RATE_LIMITING.md` - Frontend error handling strategies
-   - `RATE_LIMITING_SUMMARY.md` - Executive summary and implementation roadmap
-
-**Benefits:**
-- ✅ Protection against brute force attacks (login, signup)
-- ✅ Prevention of API abuse and resource exhaustion
-- ✅ Cost control (limits Keepa API calls)
-- ✅ Improved system stability under load
-- ✅ Intelligent rate limiting (authenticated users get higher limits than IPs)
-- ✅ Graceful degradation with informative error messages
-
-**Next Steps:**
-1. Apply `@limiter.limit()` decorators to individual API endpoints (guide provided)
-2. Update frontend API service to handle 429 errors with retry logic
-3. Add cooldown timers for strict limits (job creation, file uploads)
-4. Test rate limits on all critical endpoints
-5. Upgrade to Redis storage for production deployment
-
-**Impact on Project Grade:**
-- Security score: 75/100 → 82/100 (+7 points)
-- Documentation score: 80/100 → 82/100 (+2 points)
-- Overall grade: 83/100 → 84/100 (+1 point)
+- SlowAPI integrated (`backend/app/middleware/rate_limiter.py`)
+- Tiered limits (auth, jobs, uploads, read/write, admin)
+- Custom 429 handler with `Retry-After` headers
+- Guides: `RATE_LIMITING_IMPLEMENTATION.md`, `RATE_LIMITING_SUMMARY.md`
 
 ---
 
 ## 11. RESOURCES & REFERENCES
 
-### Testing
+### Project Docs
+- [README.md](README.md) — Setup and feature overview
+- [backend/DEPLOY_RENDER.md](backend/DEPLOY_RENDER.md) — API deployment
+- [frontend/DEPLOY_VERCEL.md](frontend/DEPLOY_VERCEL.md) — Web deployment
+- [frontend/ELECTRON_SETUP.md](frontend/ELECTRON_SETUP.md) — Desktop builds
+- [backend/CSV_OUTPUT_LOGIC.md](backend/CSV_OUTPUT_LOGIC.md) — Report calculations
+
+### External
 - [FastAPI Testing](https://fastapi.tiangolo.com/tutorial/testing/)
-- [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/)
-- [Vitest Documentation](https://vitest.dev/)
-
-### Security
-- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
-- [FastAPI Security](https://fastapi.tiangolo.com/tutorial/security/)
-- [Input Sanitization with Bleach](https://bleach.readthedocs.io/)
-
-### Monitoring
-- [Sentry FastAPI Integration](https://docs.sentry.io/platforms/python/guides/fastapi/)
-- [Application Performance Monitoring](https://www.datadoghq.com/product/apm/)
-
-### CI/CD
-- [GitHub Actions](https://docs.github.com/en/actions)
-- [Render Deployment](https://render.com/docs)
-- [Vercel Deployment](https://vercel.com/docs)
+- [Supabase MFA](https://supabase.com/docs/guides/auth/auth-mfa)
+- [Electron Security](https://www.electronjs.org/docs/latest/tutorial/security)
+- [Sentry FastAPI](https://docs.sentry.io/platforms/python/guides/fastapi/)
+- [Render Docs](https://render.com/docs) · [Vercel Docs](https://vercel.com/docs)
 
 ---
 
-**Report compiled by**: Claude (Anthropic AI Assistant)
-**Methodology**: Code review, structure analysis, best practices comparison
-**Scope**: Full-stack application (backend + frontend + database)
-**Next Review**: Recommended after Phase 3 completion
-
+**Report compiled by**: Claude (Anthropic AI Assistant)  
+**Methodology**: Codebase audit, dependency review, test collection, doc inventory  
+**Scope**: Backend + frontend + Electron + Supabase  
+**Next review**: After CI/CD and Sentry are enabled, or Q3 2026

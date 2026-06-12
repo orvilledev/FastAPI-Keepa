@@ -5,4 +5,5 @@ contextBridge.exposeInMainWorld('desktop', {
   isElectron: true,
   getVersion: () => ipcRenderer.invoke('app:getVersion'),
   checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
+  printZpl: (payload) => ipcRenderer.invoke('printer:printZpl', payload),
 })

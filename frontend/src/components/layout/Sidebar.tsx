@@ -278,6 +278,21 @@ export default function Sidebar() {
               <span className="shrink-0">{Icons.fnskuLabels}</span>
               <span className="sidebar-link-label">FNSKU Labels</span>
             </Link>
+
+            {hasKeepaAccess && (
+              <Link
+                to="/label-station"
+                onMouseEnter={() => setHoveredNav('label-station')}
+                className={`sidebar-link ${
+                  navHighlighted('label-station', isActive('/label-station'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.scanner}</span>
+                <span className="sidebar-link-label">Label Station</span>
+              </Link>
+            )}
         </div>
 
         <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />

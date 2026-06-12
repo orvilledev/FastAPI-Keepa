@@ -292,3 +292,28 @@ export interface TrackingHistoryDetail extends TrackingHistorySummary {
   rows: TrackingScannerRow[]
 }
 
+export interface WarehouseProduct {
+  id: string
+  upc: string
+  fnsku: string
+  style_name: string
+  condition: string
+  created_at: string
+  updated_at: string
+}
+
+export interface WarehouseProductLookup {
+  upc: string
+  fnsku: string
+  style_name: string
+  condition: string
+}
+
+export interface WarehouseProductImportResult {
+  imported: number
+  updated: number
+  skipped: number
+  invalid: number
+  total_in_file: number
+}
+

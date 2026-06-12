@@ -20,6 +20,11 @@ interface DesktopBridge {
   isElectron: boolean
   getVersion: () => Promise<string>
   checkForUpdates: () => Promise<{ ok: boolean; message: string }>
+  printZpl?: (payload: {
+    host: string
+    port: number
+    zpl: string
+  }) => Promise<{ ok: boolean; message: string }>
 }
 
 interface Window {

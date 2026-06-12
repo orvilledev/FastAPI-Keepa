@@ -1,5 +1,6 @@
 const path = require('node:path')
 const os = require('node:os')
+const net = require('node:net')
 const { app, BrowserWindow, ipcMain, shell } = require('electron')
 
 const isDev = !app.isPackaged
@@ -56,6 +57,49 @@ function createWindow() {
 }
 
 ipcMain.handle('app:getVersion', () => app.getVersion())
+
+/**
+ * Send raw ZPL to a Zebra printer (TCP port 9100 by default).
+ */
+ipcMain.handle('printer:printZpl', async (_event, payload) => {
+  const host = String(payload?.host || '').trim()
+  const port = Number(payload?.port) || 9100
+  const zpl = String(payload?.zpl || '')
+  if (!host) {
+    return { ok: false, message: 'Printer host/IP is required.' }
+  }
+  if (!zpl.trim()) {
+    return { ok: false, message: 'No label data to print.' }
+  }
+
+  return new Promise((resolve) => {
+    const socket = new net.Socket()
+    let settled = false
+
+    const finish = (result) => {
+      if (settled) return
+      settled = true
+      try {
+        socket.destroy()
+      } catch {
+        // ignore
+      }
+      resolve(result)
+    }
+
+    socket.setTimeout(8000)
+    socket.on('timeout', () => finish({ ok: false, message: 'Printer connection timed out.' }))
+    socket.on('error', (err) =>
+      finish({ ok: false, message: err?.message || 'Failed to connect to printer.' })
+    )
+    socket.connect(port, host, () => {
+      socket.write(zpl, 'utf8', () => {
+        socket.end()
+        finish({ ok: true, message: 'Label sent to printer.' })
+      })
+    })
+  })
+})
 
 ipcMain.handle('app:checkForUpdates', async () => {
   if (isDev) {
