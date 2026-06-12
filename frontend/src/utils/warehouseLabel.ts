@@ -16,15 +16,18 @@ export type WarehouseLabelProduct = {
   condition: string
 }
 
-export type ScanPrintStatus = 'awaiting' | 'not_found' | 'ready'
+export type ScanPrintStatus = 'awaiting' | 'looking_up' | 'not_found' | 'ready'
 
 export function computeScanStatus(
   upc: string,
   product: WarehouseLabelProduct | null,
-  lookupError: boolean
+  lookupError: boolean,
+  isLookingUp = false
 ): ScanPrintStatus {
-  if (!upc.trim()) return 'awaiting'
-  if (lookupError || !product) return 'not_found'
+  const trimmed = upc.trim()
+  if (!trimmed) return 'awaiting'
+  if (isLookingUp) return 'looking_up'
+  if (lookupError || !product || product.upc !== trimmed) return 'not_found'
   return 'ready'
 }
 
@@ -32,6 +35,8 @@ export function scanStatusLabel(status: ScanPrintStatus): string {
   switch (status) {
     case 'awaiting':
       return 'Awaiting scan'
+    case 'looking_up':
+      return 'Looking up…'
     case 'not_found':
       return 'UPC not found'
     case 'ready':

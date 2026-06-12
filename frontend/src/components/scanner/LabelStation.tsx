@@ -34,6 +34,8 @@ function statusBadgeClass(status: ScanPrintStatus): string {
       return 'bg-emerald-100 text-emerald-800 border-emerald-200'
     case 'not_found':
       return 'bg-red-100 text-red-800 border-red-200'
+    case 'looking_up':
+      return 'bg-amber-100 text-amber-800 border-amber-200'
     default:
       return 'bg-gray-100 text-gray-600 border-gray-200'
   }
@@ -41,6 +43,8 @@ function statusBadgeClass(status: ScanPrintStatus): string {
 
 export default function LabelStation() {
   const scanInputRef = useRef<HTMLInputElement>(null)
+  const pendingPrintUpcRef = useRef<string | null>(null)
+  const printingRef = useRef(false)
   const [scanUpc, setScanUpc] = useState('')
   const [product, setProduct] = useState<WarehouseLabelProduct | null>(null)
   const [lookupError, setLookupError] = useState(false)
@@ -68,44 +72,12 @@ export default function LabelStation() {
   }, [])
 
   const status = useMemo(
-    () => computeScanStatus(scanUpc, product, lookupError),
-    [scanUpc, product, lookupError]
+    () => computeScanStatus(scanUpc, product, lookupError, lookingUp),
+    [scanUpc, product, lookupError, lookingUp]
   )
 
-  const lookupUpc = useCallback(async (raw: string) => {
-    const upc = raw.trim()
-    if (!upc) {
-      setProduct(null)
-      setLookupError(false)
-      return
-    }
-    setLookingUp(true)
-    setError(null)
-    try {
-      const row = await warehouseProductsApi.lookup(upc)
-      setProduct({
-        upc: row.upc,
-        fnsku: row.fnsku,
-        style_name: row.style_name,
-        condition: row.condition,
-      })
-      setLookupError(false)
-    } catch {
-      setProduct(null)
-      setLookupError(true)
-    } finally {
-      setLookingUp(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void lookupUpc(scanUpc)
-    }, 200)
-    return () => window.clearTimeout(timer)
-  }, [scanUpc, lookupUpc])
-
   const clearScan = useCallback(() => {
+    pendingPrintUpcRef.current = null
     setScanUpc('')
     setProduct(null)
     setLookupError(false)
@@ -114,48 +86,116 @@ export default function LabelStation() {
     scanInputRef.current?.focus()
   }, [])
 
-  const handlePrint = useCallback(async () => {
-    if (!product || status !== 'ready') return
-    setPrinting(true)
-    setError(null)
-    setMessage(null)
+  const printProduct = useCallback(
+    async (item: WarehouseLabelProduct) => {
+      if (printingRef.current) return
+      printingRef.current = true
+      setPrinting(true)
+      setError(null)
+      setMessage(null)
 
-    const zpl = buildWarehouseLabelZpl(product, quantity)
-    const host = printerHost.trim()
-    const port = printerPort || 9100
+      const zpl = buildWarehouseLabelZpl(item, quantity)
+      const host = printerHost.trim()
+      const port = printerPort || 9100
 
-    try {
-      if (isElectron && host && window.desktop?.printZpl) {
-        const result = await window.desktop.printZpl({ host, port, zpl })
-        if (!result.ok) {
-          throw new Error(result.message || 'Print failed')
+      try {
+        if (isElectron && host && window.desktop?.printZpl) {
+          const result = await window.desktop.printZpl({ host, port, zpl })
+          if (!result.ok) {
+            throw new Error(result.message || 'Print failed')
+          }
+          setMessage(`Sent ${quantity} label(s) to printer ${host}:${port}.`)
+        } else if (isElectron && host) {
+          throw new Error('Desktop print bridge unavailable. Rebuild the Electron app.')
+        } else {
+          const blob = buildWarehouseLabelPdfBlob(item, quantity)
+          downloadBlob(blob, suggestedWarehouseLabelPdfFilename(item))
+          setMessage(
+            host
+              ? `Downloaded PDF (${quantity} label(s)). Configure Electron for direct Zebra printing.`
+              : `Downloaded PDF (${quantity} label(s)). Set printer IP below for Zebra direct print in desktop app.`
+          )
         }
-        setMessage(`Sent ${quantity} label(s) to printer ${host}:${port}.`)
-      } else if (isElectron && host) {
-        throw new Error('Desktop print bridge unavailable. Rebuild the Electron app.')
-      } else {
-        const blob = buildWarehouseLabelPdfBlob(product, quantity)
-        downloadBlob(blob, suggestedWarehouseLabelPdfFilename(product))
-        setMessage(
-          host
-            ? `Downloaded PDF (${quantity} label(s)). Configure Electron for direct Zebra printing.`
-            : `Downloaded PDF (${quantity} label(s)). Set printer IP below for Zebra direct print in desktop app.`
-        )
+        clearScan()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Print failed')
+      } finally {
+        printingRef.current = false
+        setPrinting(false)
+        scanInputRef.current?.focus()
       }
-      clearScan()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Print failed')
-    } finally {
-      setPrinting(false)
-      scanInputRef.current?.focus()
+    },
+    [quantity, printerHost, printerPort, isElectron, clearScan]
+  )
+
+  const lookupUpc = useCallback(
+    async (raw: string) => {
+      const upc = raw.trim()
+      if (!upc) {
+        setProduct(null)
+        setLookupError(false)
+        return
+      }
+      setLookingUp(true)
+      setError(null)
+      try {
+        const row = await warehouseProductsApi.lookup(upc)
+        const item: WarehouseLabelProduct = {
+          upc: row.upc,
+          fnsku: row.fnsku,
+          style_name: row.style_name,
+          condition: row.condition,
+        }
+        setProduct(item)
+        setLookupError(false)
+        if (pendingPrintUpcRef.current === upc) {
+          pendingPrintUpcRef.current = null
+          await printProduct(item)
+        }
+      } catch {
+        setProduct(null)
+        setLookupError(true)
+        if (pendingPrintUpcRef.current === upc) {
+          pendingPrintUpcRef.current = null
+        }
+      } finally {
+        setLookingUp(false)
+      }
+    },
+    [printProduct]
+  )
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void lookupUpc(scanUpc)
+    }, 200)
+    return () => window.clearTimeout(timer)
+  }, [scanUpc, lookupUpc])
+
+  useEffect(() => {
+    const upc = scanUpc.trim()
+    if (pendingPrintUpcRef.current && pendingPrintUpcRef.current !== upc) {
+      pendingPrintUpcRef.current = null
     }
-  }, [product, status, quantity, printerHost, printerPort, isElectron, clearScan])
+  }, [scanUpc])
+
+  const handlePrint = useCallback(async () => {
+    const upc = scanUpc.trim()
+    if (!product || !upc || product.upc !== upc || status !== 'ready') return
+    await printProduct(product)
+  }, [product, scanUpc, status, printProduct])
 
   const handleScanKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter' && status === 'ready' && product) {
-      event.preventDefault()
+    if (event.key !== 'Enter') return
+    event.preventDefault()
+    const upc = scanUpc.trim()
+    if (!upc) return
+    if (status === 'ready' && product?.upc === upc) {
       void handlePrint()
+      return
     }
+    pendingPrintUpcRef.current = upc
+    void lookupUpc(upc)
   }
 
   const handleSavePrinter = () => {
@@ -190,8 +230,8 @@ export default function LabelStation() {
       <div>
         <h1 className="text-2xl font-bold text-[#404040]">Label Station</h1>
         <p className="text-sm text-gray-600 mt-1">
-          Scan a product UPC to look up FNSKU and print a warehouse label (matches Scan &amp; Print
-          workbook).
+          Scan a product UPC to look up FNSKU and print a warehouse label. A successful scan
+          auto-prints when your scanner sends Enter (matches Scan &amp; Print workbook).
           {catalogCount !== null && (
             <span className="ml-1 font-medium">{catalogCount.toLocaleString()} products in catalog.</span>
           )}
