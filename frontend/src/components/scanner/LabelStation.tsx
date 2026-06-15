@@ -12,6 +12,10 @@ import {
   type ScanPrintStatus,
   type WarehouseLabelProduct,
 } from '../../utils/warehouseLabel'
+import {
+  buildWarehouseProductsTemplateBlob,
+  WAREHOUSE_PRODUCTS_TEMPLATE_FILENAME,
+} from '../../utils/warehouseProductTemplate'
 
 const ACCEPTED_IMPORT =
   '.csv,.xlsx,.xls,.xlsm,text/csv,application/vnd.ms-excel,' +
@@ -390,8 +394,8 @@ export default function LabelStation() {
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
         <h2 className="text-sm font-semibold text-gray-800">Import catalog (PRODUCTS sheet)</h2>
         <p className="text-xs text-gray-600">
-          Import <code className="bg-gray-100 px-1 rounded">scan and print.xlsx</code> or any file
-          with columns UPC, fnsku, STYLE NAME, Condition. Rows upsert on UPC.
+          Download the template, fill in your catalog, then upload. Rows upsert on UPC. CSV is also
+          accepted if it uses the same column headers.
         </p>
         <input
           ref={importInputRef}
@@ -403,14 +407,26 @@ export default function LabelStation() {
             if (file) void handleImport(file)
           }}
         />
-        <button
-          type="button"
-          disabled={importing}
-          onClick={() => importInputRef.current?.click()}
-          className="rounded-lg border border-dashed border-gray-400 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-        >
-          {importing ? 'Importing…' : 'Upload PRODUCTS file'}
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              const blob = buildWarehouseProductsTemplateBlob()
+              downloadBlob(blob, WAREHOUSE_PRODUCTS_TEMPLATE_FILENAME)
+            }}
+            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Download template
+          </button>
+          <button
+            type="button"
+            disabled={importing}
+            onClick={() => importInputRef.current?.click()}
+            className="rounded-lg border border-dashed border-gray-400 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {importing ? 'Importing…' : 'Upload PRODUCTS file'}
+          </button>
+        </div>
       </section>
 
       <WarehouseProductCatalog
