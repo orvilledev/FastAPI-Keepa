@@ -1,4 +1,5 @@
 """Authentication API endpoints."""
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Body
 from app.dependencies import get_current_user, get_superadmin_user, is_mfa_exempt_user, is_superadmin_user, security
 from app.database import get_supabase
@@ -12,30 +13,80 @@ from typing import List, Optional
 from app.maintenance import get_maintenance_state, set_maintenance_state
 from fastapi.security import HTTPAuthorizationCredentials
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
-def _ensure_profile_row(db: Client, current_user: dict) -> dict:
-    """Return the profiles row for this user; insert a default row if missing (e.g. new signup)."""
+def _default_profile_data(user_id: str, email: str | None) -> dict:
+    """Build a new profiles row for a Supabase Auth user."""
     from datetime import datetime
 
-    response = db.table("profiles").select("*").eq("id", current_user["id"]).execute()
-    if response.data:
-        return response.data[0]
-
-    user_email = (current_user.get("email") or "").lower()
+    user_email = (email or "").lower()
     is_legacy_superadmin = user_email == "orvillebarba@gmail.com"
-    profile_data = {
-        "id": current_user["id"],
-        "email": current_user.get("email"),
+    now = datetime.utcnow().isoformat()
+    return {
+        "id": user_id,
+        "email": email,
         "role": "superadmin" if is_legacy_superadmin else "user",
         "is_active": True if is_legacy_superadmin else False,
         "has_keepa_access": True if is_legacy_superadmin else False,
         "can_manage_tools": True if is_legacy_superadmin else False,
         "can_assign_tasks": True if is_legacy_superadmin else False,
-        "created_at": datetime.utcnow().isoformat(),
-        "updated_at": datetime.utcnow().isoformat(),
+        "created_at": now,
+        "updated_at": now,
     }
+
+
+def _sync_missing_profiles_from_auth(db: Client) -> int:
+    """Create profiles rows for Auth users created outside the app (e.g. Supabase dashboard)."""
+    existing = db.table("profiles").select("id").execute()
+    existing_ids = {row["id"] for row in (existing.data or [])}
+
+    page = 1
+    per_page = 200
+    created = 0
+
+    while True:
+        try:
+            auth_users = db.auth.admin.list_users(page=page, per_page=per_page)
+        except Exception as exc:
+            logger.warning("Profile sync: could not list auth users: %s", exc)
+            break
+
+        if not auth_users:
+            break
+
+        for auth_user in auth_users:
+            user_id = auth_user.id
+            if user_id in existing_ids:
+                continue
+            try:
+                ins = db.table("profiles").insert(
+                    _default_profile_data(user_id, auth_user.email)
+                ).execute()
+                if ins.data:
+                    existing_ids.add(user_id)
+                    created += 1
+            except Exception as exc:
+                logger.warning("Profile sync: failed to create profile for %s: %s", user_id, exc)
+
+        if len(auth_users) < per_page:
+            break
+        page += 1
+
+    if created:
+        logger.info("Profile sync: created %s missing profile row(s) from auth.users", created)
+    return created
+
+
+def _ensure_profile_row(db: Client, current_user: dict) -> dict:
+    """Return the profiles row for this user; insert a default row if missing (e.g. new signup)."""
+    response = db.table("profiles").select("*").eq("id", current_user["id"]).execute()
+    if response.data:
+        return response.data[0]
+
+    profile_data = _default_profile_data(current_user["id"], current_user.get("email"))
     create_response = db.table("profiles").insert(profile_data).execute()
     if create_response.data:
         return create_response.data[0]
@@ -266,6 +317,9 @@ def get_all_users(
 ):
     """Get all users (any authenticated user can view users for task assignment)."""
     try:
+        if is_superadmin_user(current_user, db):
+            _sync_missing_profiles_from_auth(db)
+
         response = (
             db.table("profiles")
             .select("id, email, role, display_name, has_keepa_access, can_manage_tools, can_assign_tasks, created_at, is_active")
