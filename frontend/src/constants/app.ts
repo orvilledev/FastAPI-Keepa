@@ -1,6 +1,6 @@
 export const APP_NAME = 'MSW Overwatch'
 export const APP_ICON_URL = `${import.meta.env.BASE_URL}app-icon.svg`
-export const APP_VERSION = '2.2.8'
+export const APP_VERSION = '2.2.9'
 export const APP_VERSION_LABEL = `v${APP_VERSION}`
 
 /** Short git SHA for the built bundle (e.g. 35c26a2); "unknown" when not built from git. */

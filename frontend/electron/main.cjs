@@ -193,6 +193,59 @@ function setupAutoUpdater() {
   setInterval(runBackgroundCheck, DAY_MS)
 }
 
+const RENDERER_INDEX = path.join(__dirname, '..', 'dist', 'index.html')
+
+function loadRenderer(win) {
+  if (isDev) {
+    void win.loadURL('http://localhost:5173')
+  } else {
+    void win.loadFile(RENDERER_INDEX)
+  }
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+/**
+ * Replace a blank window with a visible, actionable error page when the
+ * renderer fails to load (e.g. a broken install/update left resources missing).
+ */
+function showRendererError(win, info) {
+  if (!win || win.isDestroyed()) return
+  const { pathToFileURL } = require('node:url')
+  const retryHref = isDev ? 'http://localhost:5173' : pathToFileURL(RENDERER_INDEX).href
+  const code = escapeHtml(info?.errorCode ?? '')
+  const desc = escapeHtml(info?.errorDescription || 'The app could not load its content.')
+  const version = escapeHtml(app.getVersion())
+  const html = `<!doctype html>
+<html><head><meta charset="utf-8" />
+<style>
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8f8f8; color: #2d2d2d;
+    margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .card { max-width: 520px; padding: 32px 36px; background: #fff; border: 1px solid #e5e5e5;
+    border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.06); text-align: center; }
+  h1 { font-size: 18px; margin: 0 0 8px; color: #404040; }
+  p { font-size: 13px; line-height: 1.5; color: #555; margin: 0 0 16px; }
+  .retry { display: inline-block; background: #404040; color: #fff; text-decoration: none;
+    padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; }
+  .retry:hover { background: #2d2d2d; }
+  .detail { margin-top: 18px; font-size: 11px; color: #999; font-family: monospace; }
+</style></head>
+<body><div class="card">
+  <h1>MSW Overwatch couldn't load</h1>
+  <p>The app started but its content failed to load. This can happen right after an
+  interrupted update. Click Retry — if it keeps happening, reinstall the latest version
+  from a fresh installer.</p>
+  <a class="retry" href="${retryHref}">Retry</a>
+  <div class="detail">v${version} &middot; ${code} ${desc}</div>
+</div></body></html>`
+  void win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
+}
+
 function createWindow() {
   const iconPath = path.join(__dirname, 'icon.ico')
   const win = new BrowserWindow({
@@ -218,13 +271,33 @@ function createWindow() {
     return { action: 'deny' }
   })
 
-  if (isDev) {
-    win.loadURL('http://localhost:5173')
-  } else {
-    win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
-  }
+  loadRenderer(win)
+
+  let rendererLoadAttempts = 0
+
+  // Retry transient load failures, then surface a visible error instead of a blank window.
+  win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, _url, isMainFrame) => {
+    // -3 is ERR_ABORTED (e.g. a superseded navigation); not a real failure.
+    if (!isMainFrame || errorCode === -3) return
+    rendererLoadAttempts += 1
+    if (rendererLoadAttempts <= 2) {
+      setTimeout(() => loadRenderer(win), 600)
+      return
+    }
+    console.error('[renderer] load failed', errorCode, errorDescription)
+    showRendererError(win, { errorCode, errorDescription })
+  })
+
+  win.webContents.on('render-process-gone', (_event, details) => {
+    console.error('[renderer] process gone', details?.reason)
+    showRendererError(win, {
+      errorCode: details?.reason || 'crashed',
+      errorDescription: 'The display process stopped unexpectedly.',
+    })
+  })
 
   win.webContents.on('did-finish-load', () => {
+    rendererLoadAttempts = 0
     if (lastUpdateStatus.phase !== 'idle') {
       sendUpdateStatus(lastUpdateStatus)
       if (lastUpdateStatus.phase === 'ready' || lastUpdateStatus.phase === 'downloading') {
