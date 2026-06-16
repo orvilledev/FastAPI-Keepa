@@ -28,6 +28,55 @@ export type MfaStatus = {
 
 const MFA_ACTIVITY_KEY = 'msw_mfa_last_activity_at'
 
+function normalizeApiBaseUrl(raw: string): string {
+  let base = raw.trim().replace(/\/+$/, '')
+  const lower = base.toLowerCase()
+  const suffix = '/api/v1'
+  if (lower.endsWith(suffix)) {
+    base = base.slice(0, base.length - suffix.length).replace(/\/+$/, '')
+  }
+  return base || 'http://localhost:8000'
+}
+
+const API_BASE_URL = normalizeApiBaseUrl(
+  typeof import.meta.env.VITE_API_URL === 'string' && import.meta.env.VITE_API_URL.length > 0
+    ? import.meta.env.VITE_API_URL
+    : 'http://localhost:8000'
+)
+
+let cachedMfaExemptEmails: string[] | null = null
+let mfaExemptEmailsPromise: Promise<string[]> | null = null
+
+/** Load MFA-exempt emails from the public client config (cached). */
+export async function getMfaExemptEmails(): Promise<string[]> {
+  if (cachedMfaExemptEmails) return cachedMfaExemptEmails
+  if (!mfaExemptEmailsPromise) {
+    mfaExemptEmailsPromise = fetch(`${API_BASE_URL}/api/v1/public/client-config`)
+      .then(async (res) => {
+        if (!res.ok) return []
+        const data = (await res.json()) as { mfa_exempt_emails?: string[] }
+        const emails = (data.mfa_exempt_emails ?? []).map((email) => email.trim().toLowerCase())
+        cachedMfaExemptEmails = emails
+        return emails
+      })
+      .catch(() => {
+        cachedMfaExemptEmails = []
+        return []
+      })
+  }
+  return mfaExemptEmailsPromise
+}
+
+/** True when this account skips TOTP MFA (password-only sign-in). */
+export function isMfaExemptEmail(
+  email: string | null | undefined,
+  exemptEmails: readonly string[]
+): boolean {
+  const normalized = (email || '').trim().toLowerCase()
+  if (!normalized) return false
+  return exemptEmails.includes(normalized)
+}
+
 /** Idle window before a fully-authenticated user must re-enter their TOTP code. Defaults to 15 hours. */
 export const MFA_IDLE_LIMIT_MS = (() => {
   const raw = import.meta.env.VITE_MFA_IDLE_MINUTES
@@ -141,6 +190,10 @@ export function isMfaAuthRoute(path = getAppPathname()): boolean {
 }
 
 export async function redirectForIncompleteMfa() {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const exemptEmails = await getMfaExemptEmails()
+  if (isMfaExemptEmail(sessionData.session?.user?.email, exemptEmails)) return
+
   const status = await fetchMfaStatus()
   if (typeof window === 'undefined') return
 

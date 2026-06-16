@@ -13,6 +13,7 @@ export interface UserInfo {
   can_manage_tools: boolean
   is_superadmin?: boolean
   mfa_enabled?: boolean
+  mfa_exempt?: boolean
   created_at?: string
 }
 
@@ -70,6 +71,7 @@ export function UserProvider({ children }: UserProviderProps) {
         can_manage_tools: data.can_manage_tools || false,
         is_superadmin: Boolean(data.is_superadmin) || emailLower === 'orvillebarba@gmail.com',
         mfa_enabled: Boolean(data.mfa_enabled),
+        mfa_exempt: Boolean(data.mfa_exempt),
         created_at: data.created_at,
       })
       profileLoadedForUserId.current = authUser.id

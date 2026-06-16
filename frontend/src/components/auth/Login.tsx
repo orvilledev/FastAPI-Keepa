@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { fetchMfaStatus, shouldShowMfaSetup, shouldShowMfaVerify } from '../../lib/mfa'
+import { fetchMfaStatus, getMfaExemptEmails, isMfaExemptEmail, shouldShowMfaSetup, shouldShowMfaVerify } from '../../lib/mfa'
 import { APP_ICON_URL } from '../../constants/app'
 
 export default function Login() {
@@ -39,6 +39,12 @@ export default function Login() {
   }
 
   const routeAfterPasswordSignIn = async () => {
+    const exemptEmails = await getMfaExemptEmails()
+    if (isMfaExemptEmail(email, exemptEmails)) {
+      navigate('/dashboard')
+      return
+    }
+
     const status = await fetchMfaStatus()
     if (shouldShowMfaSetup(status)) {
       navigate('/mfa/setup')

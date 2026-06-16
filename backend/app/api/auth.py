@@ -1,6 +1,6 @@
 """Authentication API endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Body
-from app.dependencies import get_current_user, get_superadmin_user, is_superadmin_user, security
+from app.dependencies import get_current_user, get_superadmin_user, is_mfa_exempt_user, is_superadmin_user, security
 from app.database import get_supabase
 from app.middleware.rate_limiter import limiter, RateLimits
 from app.models.user import ProfileUpdate, ProfileResponse
@@ -72,6 +72,7 @@ def get_current_user_info(
     can_assign_tasks = row.get("can_assign_tasks", False) or False
 
     is_superadmin = is_superadmin_user(current_user, db)
+    mfa_exempt = is_mfa_exempt_user(current_user)
 
     return {
         "id": current_user.get("id"),
@@ -83,6 +84,7 @@ def get_current_user_info(
         "can_assign_tasks": can_assign_tasks,
         "is_superadmin": is_superadmin,
         "mfa_enabled": bool(row.get("mfa_enabled", False)),
+        "mfa_exempt": mfa_exempt,
         "user_metadata": current_user.get("user_metadata", {}),
     }
 

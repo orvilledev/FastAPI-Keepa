@@ -121,6 +121,9 @@ class Settings(BaseSettings):
     maintenance_message: str = "App is currently under maintenance. Please try again later."
     maintenance_allowlist_emails: str = ""
 
+    # Comma-separated emails that skip TOTP MFA (password-only sign-in for shared stations).
+    mfa_exempt_emails: str = "warehouse1@metroshoewarehouse.com"
+
     # Report: comma-separated substrings matched case-insensitively (after removing
     # spaces/punctuation) against resolved seller display text. Rows for matching
     # sellers are omitted from off-price Excel/CSV. Default drops MetroShoe variants.
@@ -172,7 +175,15 @@ class Settings(BaseSettings):
         if not raw:
             return []
         return [email.strip().lower() for email in raw.split(",") if email.strip()]
-    
+
+    @property
+    def mfa_exempt_emails_list(self) -> List[str]:
+        """Normalized emails that skip TOTP MFA enrollment and verification."""
+        raw = (self.mfa_exempt_emails or "").strip()
+        if not raw:
+            return []
+        return [email.strip().lower() for email in raw.split(",") if email.strip()]
+
     class Config:
         # Use absolute path to .env file relative to backend directory
         # Falls back to ".env" in current directory if backend/.env doesn't exist

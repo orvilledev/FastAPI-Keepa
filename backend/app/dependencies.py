@@ -94,7 +94,7 @@ async def get_current_user(
 
             mfa_enabled = bool(profile.get("mfa_enabled", False))
             token_aal = get_jwt_aal(token)
-            if mfa_enabled and token_aal != "aal2":
+            if mfa_enabled and token_aal != "aal2" and not is_mfa_exempt_user(user_data):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="MFA verification required",
@@ -241,6 +241,12 @@ def get_job_runner_user(
         )
     
     return current_user
+
+
+def is_mfa_exempt_user(current_user: dict) -> bool:
+    """Return True when this account skips TOTP MFA (password-only sign-in)."""
+    user_email = (current_user.get("email") or "").strip().lower()
+    return user_email in set(settings.mfa_exempt_emails_list)
 
 
 def _is_maintenance_bypass_user(current_user: dict, db: Client) -> bool:

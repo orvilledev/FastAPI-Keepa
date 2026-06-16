@@ -4,6 +4,8 @@ import { useUser } from '../../contexts/UserContext'
 import {
   ensureMfaActivityInitialized,
   fetchMfaStatus,
+  getMfaExemptEmails,
+  isMfaExemptEmail,
   isMfaIdleReverifyDue,
   shouldShowMfaSetup,
   shouldShowMfaVerify,
@@ -18,17 +20,44 @@ type MfaGateProps = {
 /**
  * Ensures MFA enrollment and verification are complete before rendering protected UI.
  * `requireFullAuth=false` allows the enrollment page while the user is at AAL1.
+ * Accounts on the MFA-exempt list (shared warehouse stations) skip this gate.
  */
 export default function MfaGate({ children, requireFullAuth = true }: MfaGateProps) {
-  const { authUser, authLoading } = useUser()
+  const { authUser, authLoading, userInfo } = useUser()
   const [status, setStatus] = useState<MfaStatus | null>(null)
+  const [exemptEmails, setExemptEmails] = useState<string[] | null>(null)
   const [checking, setChecking] = useState(true)
+
+  const userEmail = authUser?.email ?? userInfo?.email
+  const isExempt =
+    Boolean(userInfo?.mfa_exempt) ||
+    (exemptEmails !== null && isMfaExemptEmail(userEmail, exemptEmails))
+
+  useEffect(() => {
+    let cancelled = false
+    void getMfaExemptEmails().then((emails) => {
+      if (!cancelled) setExemptEmails(emails)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
 
     const check = async () => {
       if (!authUser) {
+        if (!cancelled) {
+          setStatus(null)
+          setChecking(false)
+        }
+        return
+      }
+
+      if (exemptEmails === null) return
+
+      if (isMfaExemptEmail(authUser.email, exemptEmails) || userInfo?.mfa_exempt) {
         if (!cancelled) {
           setStatus(null)
           setChecking(false)
@@ -63,9 +92,9 @@ export default function MfaGate({ children, requireFullAuth = true }: MfaGatePro
     return () => {
       cancelled = true
     }
-  }, [authUser?.id, authLoading])
+  }, [authUser?.id, authUser?.email, authLoading, exemptEmails, userInfo?.mfa_exempt])
 
-  if (authLoading || (checking && status === null)) {
+  if (authLoading || exemptEmails === null || (checking && status === null && !isExempt)) {
     return (
       <div className="min-h-app-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
         <div className="w-10 h-10 border-4 border-[#404040] border-t-transparent rounded-full animate-spin" />
@@ -75,6 +104,10 @@ export default function MfaGate({ children, requireFullAuth = true }: MfaGatePro
 
   if (!authUser) {
     return <Navigate to="/login" replace />
+  }
+
+  if (isExempt) {
+    return <>{children}</>
   }
 
   if (requireFullAuth) {

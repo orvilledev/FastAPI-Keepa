@@ -18,7 +18,7 @@ import MfaGate from './components/auth/MfaGate'
 import About from './components/About'
 import Maintenance from './components/Maintenance'
 import { systemApi } from './services/api'
-import { fetchMfaStatus, shouldShowMfaSetup, shouldShowMfaVerify, isMfaIdleReverifyDue, recordMfaActivity } from './lib/mfa'
+import { fetchMfaStatus, getMfaExemptEmails, isMfaExemptEmail, isMfaIdleReverifyDue, recordMfaActivity, shouldShowMfaSetup, shouldShowMfaVerify } from './lib/mfa'
 import { isUserHiddenFromFeedbackPage } from './constants/feedbackAccess'
 
 // Lazy load page components for code splitting (About is eager so its chunk cannot 404 behind stale CDN/cache)
@@ -87,12 +87,19 @@ function AuthenticatedEntryRedirect() {
     let cancelled = false
     if (authLoading || !authUser) return
 
-    void fetchMfaStatus()
-      .then((status) => {
+    void getMfaExemptEmails()
+      .then((exemptEmails) => {
         if (cancelled) return
-        if (shouldShowMfaSetup(status)) setTarget('/mfa/setup')
-        else if (shouldShowMfaVerify(status)) setTarget('/mfa/verify')
-        else setTarget('/dashboard')
+        if (isMfaExemptEmail(authUser.email, exemptEmails)) {
+          setTarget('/dashboard')
+          return
+        }
+        return fetchMfaStatus().then((status) => {
+          if (cancelled) return
+          if (shouldShowMfaSetup(status)) setTarget('/mfa/setup')
+          else if (shouldShowMfaVerify(status)) setTarget('/mfa/verify')
+          else setTarget('/dashboard')
+        })
       })
       .catch(() => {
         if (!cancelled) setTarget('/mfa/setup')
@@ -154,37 +161,57 @@ function UploadedVendorRedirect() {
  */
 function IdleMfaGuard() {
   const navigate = useNavigate()
+  const { authUser, userInfo } = useUser()
 
   useEffect(() => {
-    let lastWrite = 0
-    const onActivity = () => {
-      const now = Date.now()
-      // Throttle writes; we only need minute-level resolution for a 15h window.
-      if (now - lastWrite > 30_000) {
-        lastWrite = now
-        recordMfaActivity(now)
-      }
-    }
-    const events: Array<keyof WindowEventMap> = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click']
-    events.forEach((event) => window.addEventListener(event, onActivity, { passive: true }))
+    let cancelled = false
+    let isExempt = Boolean(userInfo?.mfa_exempt)
 
-    const check = () => {
-      if (isMfaIdleReverifyDue()) {
-        navigate('/mfa/verify?reason=idle', { replace: true })
+    const startGuards = (exemptEmails: string[]) => {
+      if (cancelled) return
+      isExempt = isExempt || isMfaExemptEmail(authUser?.email, exemptEmails)
+      if (isExempt) return
+
+      let lastWrite = 0
+      const onActivity = () => {
+        const now = Date.now()
+        // Throttle writes; we only need minute-level resolution for a 15h window.
+        if (now - lastWrite > 30_000) {
+          lastWrite = now
+          recordMfaActivity(now)
+        }
+      }
+      const events: Array<keyof WindowEventMap> = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click']
+      events.forEach((event) => window.addEventListener(event, onActivity, { passive: true }))
+
+      const check = () => {
+        if (isMfaIdleReverifyDue()) {
+          navigate('/mfa/verify?reason=idle', { replace: true })
+        }
+      }
+      const interval = window.setInterval(check, 60_000)
+      window.addEventListener('focus', check)
+      document.addEventListener('visibilitychange', check)
+      check()
+
+      return () => {
+        events.forEach((event) => window.removeEventListener(event, onActivity))
+        window.clearInterval(interval)
+        window.removeEventListener('focus', check)
+        document.removeEventListener('visibilitychange', check)
       }
     }
-    const interval = window.setInterval(check, 60_000)
-    window.addEventListener('focus', check)
-    document.addEventListener('visibilitychange', check)
-    check()
+
+    let cleanup: (() => void) | undefined
+    void getMfaExemptEmails().then((emails) => {
+      cleanup = startGuards(emails)
+    })
 
     return () => {
-      events.forEach((event) => window.removeEventListener(event, onActivity))
-      window.clearInterval(interval)
-      window.removeEventListener('focus', check)
-      document.removeEventListener('visibilitychange', check)
+      cancelled = true
+      cleanup?.()
     }
-  }, [navigate])
+  }, [navigate, authUser?.email, userInfo?.mfa_exempt])
 
   return null
 }
