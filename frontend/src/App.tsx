@@ -409,6 +409,7 @@ function AppRoutes() {
           <Route path="tools/my-toolbox" element={<Navigate to="/dashboard" replace />} />
           <Route path="admin/users" element={<UserManagement />} />
         </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
     </>

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { APP_NAME } from '../../constants/app'
 import { recordMfaActivity } from '../../lib/mfa'
-import { setLastPrivatePath } from '../../lib/privatePath'
 
 const UPDATE_TARGET_VERSION_KEY = 'msw_desktop_update_target_version'
 
@@ -103,8 +102,9 @@ export default function DesktopUpdateOverlay() {
   const handleInstall = useCallback(async () => {
     if (!window.desktop?.installUpdate) return
     const version = status.version
-    const path = `${window.location.pathname}${window.location.search}${window.location.hash}`
-    setLastPrivatePath(path)
+    // RememberLastPrivatePath already saves the correct React-Router path to localStorage.
+    // Do NOT overwrite it with window.location (file:// path in Electron) — that would
+    // cause a blank screen on restart because HashRouter can't match a filesystem path.
     recordMfaActivity()
     if (version) {
       localStorage.setItem(UPDATE_TARGET_VERSION_KEY, version)
