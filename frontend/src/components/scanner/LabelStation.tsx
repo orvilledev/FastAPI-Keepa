@@ -5,8 +5,8 @@ import {
   buildWarehouseLabelPdfBlob,
   buildWarehouseLabelZpl,
   computeScanStatus,
-  getPrinterSettings,
-  savePrinterSettings,
+  getSelectedPrinter,
+  saveSelectedPrinter,
   scanStatusLabel,
   suggestedWarehouseLabelPdfFilename,
   type ScanPrintStatus,
@@ -63,17 +63,37 @@ export default function LabelStation() {
   const [importing, setImporting] = useState(false)
   const importInputRef = useRef<HTMLInputElement>(null)
 
-  const [printerHost, setPrinterHost] = useState('')
-  const [printerPort, setPrinterPort] = useState(9100)
+  const [printers, setPrinters] = useState<DesktopPrinter[]>([])
+  const [selectedPrinter, setSelectedPrinter] = useState('')
+  const [loadingPrinters, setLoadingPrinters] = useState(false)
   const isElectron = Boolean(window.desktop?.isElectron)
 
-  useEffect(() => {
-    const settings = getPrinterSettings()
-    setPrinterHost(settings.host)
-    setPrinterPort(settings.port)
-    void warehouseProductsApi.getCount().then((r) => setCatalogCount(r.count))
-    scanInputRef.current?.focus()
+  const refreshPrinters = useCallback(async () => {
+    if (!window.desktop?.listPrinters) return
+    setLoadingPrinters(true)
+    try {
+      const result = await window.desktop.listPrinters()
+      const found = result.printers || []
+      setPrinters(found)
+      setSelectedPrinter((current) => {
+        if (current && found.some((p) => p.name === current)) return current
+        const saved = getSelectedPrinter()
+        if (saved && found.some((p) => p.name === saved)) return saved
+        const fallback = found.find((p) => p.isDefault)?.name || found[0]?.name || ''
+        if (fallback) saveSelectedPrinter(fallback)
+        return fallback
+      })
+    } finally {
+      setLoadingPrinters(false)
+    }
   }, [])
+
+  useEffect(() => {
+    setSelectedPrinter(getSelectedPrinter())
+    void warehouseProductsApi.getCount().then((r) => setCatalogCount(r.count))
+    if (isElectron) void refreshPrinters()
+    scanInputRef.current?.focus()
+  }, [isElectron, refreshPrinters])
 
   const status = useMemo(
     () => computeScanStatus(scanUpc, product, lookupError, lookingUp),
@@ -99,25 +119,22 @@ export default function LabelStation() {
       setMessage(null)
 
       const zpl = buildWarehouseLabelZpl(item, quantity)
-      const host = printerHost.trim()
-      const port = printerPort || 9100
+      const printerName = selectedPrinter.trim()
 
       try {
-        if (isElectron && host && window.desktop?.printZpl) {
-          const result = await window.desktop.printZpl({ host, port, zpl })
+        if (isElectron && printerName && window.desktop?.printZpl) {
+          const result = await window.desktop.printZpl({ printerName, zpl })
           if (!result.ok) {
             throw new Error(result.message || 'Print failed')
           }
-          setMessage(`Sent ${quantity} label(s) to printer ${host}:${port}.`)
-        } else if (isElectron && host) {
-          throw new Error('Desktop print bridge unavailable. Rebuild the Electron app.')
+          setMessage(`Sent ${quantity} label(s) to ${printerName}.`)
+        } else if (isElectron) {
+          throw new Error('No printer selected. Connect a Zebra printer and pick it below.')
         } else {
           const blob = buildWarehouseLabelPdfBlob(item, quantity)
           downloadBlob(blob, suggestedWarehouseLabelPdfFilename(item))
           setMessage(
-            host
-              ? `Downloaded PDF (${quantity} label(s)). Configure Electron for direct Zebra printing.`
-              : `Downloaded PDF (${quantity} label(s)). Set printer IP below for Zebra direct print in desktop app.`
+            `Downloaded PDF (${quantity} label(s)). Open the desktop app for direct Zebra printing.`
           )
         }
         clearScan()
@@ -129,7 +146,7 @@ export default function LabelStation() {
         scanInputRef.current?.focus()
       }
     },
-    [quantity, printerHost, printerPort, isElectron, clearScan]
+    [quantity, selectedPrinter, isElectron, clearScan]
   )
 
   const lookupUpc = useCallback(
@@ -202,9 +219,9 @@ export default function LabelStation() {
     void lookupUpc(upc)
   }
 
-  const handleSavePrinter = () => {
-    savePrinterSettings(printerHost, printerPort)
-    setMessage('Printer settings saved on this device.')
+  const handleSelectPrinter = (name: string) => {
+    setSelectedPrinter(name)
+    saveSelectedPrinter(name)
   }
 
   const handleImport = async (file: File) => {
@@ -353,41 +370,53 @@ export default function LabelStation() {
         </div>
       </section>
 
-      {/* Printer settings */}
+      {/* Printer selection */}
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
-        <h2 className="text-sm font-semibold text-gray-800">Zebra printer (Electron)</h2>
-        <p className="text-xs text-gray-600">
-          Enter your Zebra printer IP for direct ZPL over port 9100. Web users get a PDF download
-          instead.
-        </p>
-        <div className="flex flex-wrap gap-3 items-end">
-          <label className="text-sm">
-            <span className="block text-gray-600 mb-1">Host / IP</span>
-            <input
-              type="text"
-              value={printerHost}
-              onChange={(e) => setPrinterHost(e.target.value)}
-              placeholder="192.168.1.50"
-              className="rounded border border-gray-300 px-3 py-2 w-44 font-mono text-sm"
-            />
-          </label>
-          <label className="text-sm">
-            <span className="block text-gray-600 mb-1">Port</span>
-            <input
-              type="number"
-              value={printerPort}
-              onChange={(e) => setPrinterPort(Number(e.target.value) || 9100)}
-              className="rounded border border-gray-300 px-3 py-2 w-24 font-mono text-sm"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={handleSavePrinter}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50"
-          >
-            Save printer
-          </button>
-        </div>
+        <h2 className="text-sm font-semibold text-gray-800">Zebra printer</h2>
+        {isElectron ? (
+          <>
+            <p className="text-xs text-gray-600">
+              Printers connected to this computer are detected automatically — no IP or port needed.
+              Plug in your Zebra printer, then pick it below. Use Refresh after connecting a new one.
+            </p>
+            <div className="flex flex-wrap gap-3 items-end">
+              <label className="text-sm">
+                <span className="block text-gray-600 mb-1">Printer</span>
+                <select
+                  value={selectedPrinter}
+                  onChange={(e) => handleSelectPrinter(e.target.value)}
+                  disabled={loadingPrinters}
+                  className="rounded border border-gray-300 px-3 py-2 text-sm w-72 bg-white disabled:opacity-50"
+                >
+                  {printers.length === 0 && (
+                    <option value="">
+                      {loadingPrinters ? 'Detecting printers…' : 'No printers detected'}
+                    </option>
+                  )}
+                  {printers.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.displayName}
+                      {p.isDefault ? ' (default)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={() => void refreshPrinters()}
+                disabled={loadingPrinters}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+              >
+                {loadingPrinters ? 'Refreshing…' : 'Refresh'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-gray-600">
+            Open the desktop app to print directly to a connected Zebra printer. In the browser,
+            labels download as a PDF you can print manually.
+          </p>
+        )}
       </section>
 
       {/* Catalog import */}

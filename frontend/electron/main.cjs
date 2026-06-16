@@ -1,7 +1,7 @@
 const path = require('node:path')
 const os = require('node:os')
-const net = require('node:net')
 const fs = require('node:fs')
+const { execFile } = require('node:child_process')
 const { app, BrowserWindow, ipcMain, shell } = require('electron')
 
 const isDev = !app.isPackaged
@@ -243,45 +243,77 @@ ipcMain.handle('app:getVersion', () => app.getVersion())
 ipcMain.handle('app:getUpdateStatus', () => lastUpdateStatus)
 
 /**
- * Send raw ZPL to a Zebra printer (TCP port 9100 by default).
+ * List printers the OS already knows about (USB Zebra printers installed via
+ * their Windows driver show up here automatically once plugged in).
+ */
+ipcMain.handle('printer:list', async () => {
+  try {
+    const wc = mainWindow?.webContents
+    if (!wc) return { ok: false, message: 'Window not ready.', printers: [] }
+    const printers = await wc.getPrintersAsync()
+    return {
+      ok: true,
+      printers: printers.map((p) => ({
+        name: p.name,
+        displayName: p.displayName || p.name,
+        isDefault: Boolean(p.isDefault),
+      })),
+    }
+  } catch (err) {
+    return { ok: false, message: err?.message || 'Failed to list printers.', printers: [] }
+  }
+})
+
+/**
+ * Send raw ZPL to an OS-installed (USB) Zebra printer by name. On Windows this
+ * pushes the bytes straight through the print spooler's RAW datatype so the
+ * driver does not rasterize/alter the ZPL.
  */
 ipcMain.handle('printer:printZpl', async (_event, payload) => {
-  const host = String(payload?.host || '').trim()
-  const port = Number(payload?.port) || 9100
+  const printerName = String(payload?.printerName || '').trim()
   const zpl = String(payload?.zpl || '')
-  if (!host) {
-    return { ok: false, message: 'Printer host/IP is required.' }
+  if (!printerName) {
+    return { ok: false, message: 'Select a printer first.' }
   }
   if (!zpl.trim()) {
     return { ok: false, message: 'No label data to print.' }
   }
+  if (process.platform !== 'win32') {
+    return { ok: false, message: 'Direct printing is only supported on Windows.' }
+  }
+
+  const tmpFile = path.join(os.tmpdir(), `msw-zpl-${Date.now()}-${process.pid}.txt`)
+  try {
+    fs.writeFileSync(tmpFile, zpl, 'latin1')
+  } catch (err) {
+    return { ok: false, message: err?.message || 'Could not stage label data.' }
+  }
+
+  const scriptPath = path.join(__dirname, 'raw-print.ps1')
 
   return new Promise((resolve) => {
-    const socket = new net.Socket()
-    let settled = false
-
-    const finish = (result) => {
-      if (settled) return
-      settled = true
-      try {
-        socket.destroy()
-      } catch {
-        // ignore
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath],
+      {
+        windowsHide: true,
+        timeout: 15000,
+        env: { ...process.env, ZPL_PRINTER: printerName, ZPL_FILE: tmpFile },
+      },
+      (err, _stdout, stderr) => {
+        try {
+          fs.unlinkSync(tmpFile)
+        } catch {
+          // ignore cleanup failure
+        }
+        if (err) {
+          const detail = String(stderr || err.message || '').trim()
+          resolve({ ok: false, message: detail || 'Print failed.' })
+          return
+        }
+        resolve({ ok: true, message: 'Label sent to printer.' })
       }
-      resolve(result)
-    }
-
-    socket.setTimeout(8000)
-    socket.on('timeout', () => finish({ ok: false, message: 'Printer connection timed out.' }))
-    socket.on('error', (err) =>
-      finish({ ok: false, message: err?.message || 'Failed to connect to printer.' })
     )
-    socket.connect(port, host, () => {
-      socket.write(zpl, 'utf8', () => {
-        socket.end()
-        finish({ ok: true, message: 'Label sent to printer.' })
-      })
-    })
   })
 })
 

@@ -160,24 +160,20 @@ export function suggestedWarehouseLabelPdfFilename(product: WarehouseLabelProduc
   return `warehouse-label-${safe}.pdf`
 }
 
-export const PRINTER_HOST_KEY = 'warehouse_printer_host'
-export const PRINTER_PORT_KEY = 'warehouse_printer_port'
+export const PRINTER_NAME_KEY = 'warehouse_printer_name'
 
-export function getPrinterSettings(): { host: string; port: number } {
+/** Name of the OS printer the user last selected for direct ZPL printing. */
+export function getSelectedPrinter(): string {
   try {
-    const host = (localStorage.getItem(PRINTER_HOST_KEY) || '').trim()
-    const portRaw = localStorage.getItem(PRINTER_PORT_KEY)
-    const port = portRaw ? Number(portRaw) : 9100
-    return { host, port: Number.isFinite(port) && port > 0 ? port : 9100 }
+    return (localStorage.getItem(PRINTER_NAME_KEY) || '').trim()
   } catch {
-    return { host: '', port: 9100 }
+    return ''
   }
 }
 
-export function savePrinterSettings(host: string, port: number): void {
+export function saveSelectedPrinter(name: string): void {
   try {
-    localStorage.setItem(PRINTER_HOST_KEY, host.trim())
-    localStorage.setItem(PRINTER_PORT_KEY, String(port))
+    localStorage.setItem(PRINTER_NAME_KEY, name.trim())
   } catch {
     // ignore
   }

@@ -34,11 +34,21 @@ interface DesktopBridge {
   getUpdateStatus?: () => Promise<DesktopUpdateStatus>
   installUpdate: () => Promise<{ ok: boolean; message?: string }>
   onUpdateStatus?: (callback: (status: DesktopUpdateStatus) => void) => () => void
+  listPrinters?: () => Promise<{
+    ok: boolean
+    message?: string
+    printers: DesktopPrinter[]
+  }>
   printZpl?: (payload: {
-    host: string
-    port: number
+    printerName: string
     zpl: string
   }) => Promise<{ ok: boolean; message: string }>
+}
+
+interface DesktopPrinter {
+  name: string
+  displayName: string
+  isDefault: boolean
 }
 
 interface Window {

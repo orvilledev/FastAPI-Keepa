@@ -12,5 +12,6 @@ contextBridge.exposeInMainWorld('desktop', {
     ipcRenderer.on('app:update-status', handler)
     return () => ipcRenderer.removeListener('app:update-status', handler)
   },
+  listPrinters: () => ipcRenderer.invoke('printer:list'),
   printZpl: (payload) => ipcRenderer.invoke('printer:printZpl', payload),
 })
