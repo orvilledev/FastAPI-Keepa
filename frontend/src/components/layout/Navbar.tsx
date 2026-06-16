@@ -115,7 +115,7 @@ export default function Navbar() {
                 href={desktopDownloadUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg transition-colors duration-200"
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-white border border-purple-600 bg-purple-600 hover:bg-purple-700 hover:border-purple-700 rounded-lg transition-colors duration-200"
                 title="Download Windows desktop app (.exe)"
               >
                 <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
