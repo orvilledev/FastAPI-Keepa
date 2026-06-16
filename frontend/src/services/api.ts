@@ -177,6 +177,21 @@ export const authApi = {
     const response = await api.get<{ users: Array<{ id: string; email: string; role: string; display_name?: string; has_keepa_access: boolean; can_manage_tools: boolean; is_active?: boolean; created_at: string }> }>('/api/v1/auth/users')
     return response.data
   },
+  createUser: async (payload: {
+    email: string
+    password: string
+    has_keepa_access?: boolean
+    is_active?: boolean
+  }) => {
+    const response = await api.post<{
+      user_id: string
+      email: string
+      is_active: boolean
+      has_keepa_access: boolean
+      message: string
+    }>('/api/v1/auth/users', payload)
+    return response.data
+  },
   approveUser: async (userId: string) => {
     const response = await api.post<{ user_id: string; message: string }>(`/api/v1/auth/users/${userId}/approve`)
     return response.data

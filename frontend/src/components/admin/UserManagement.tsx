@@ -40,6 +40,13 @@ export default function UserManagement() {
   const [maintenanceExpectedEndAt, setMaintenanceExpectedEndAt] = useState<string | null>(null)
   const [maintenanceSaving, setMaintenanceSaving] = useState(false)
 
+  const [newEmail, setNewEmail] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newKeepaAccess, setNewKeepaAccess] = useState(true)
+  const [newActive, setNewActive] = useState(true)
+  const [creatingUser, setCreatingUser] = useState(false)
+  const [createUserMessage, setCreateUserMessage] = useState<string | null>(null)
+
   const loadUsers = async () => {
     try {
       setError('')
@@ -230,6 +237,37 @@ export default function UserManagement() {
     }
   }
 
+  const handleCreateUser = async (event: React.FormEvent) => {
+    event.preventDefault()
+    const email = newEmail.trim()
+    if (!email || !newPassword) {
+      setCreateUserMessage('Email and password are required.')
+      return
+    }
+    setCreatingUser(true)
+    setCreateUserMessage(null)
+    try {
+      const result = await authApi.createUser({
+        email,
+        password: newPassword,
+        has_keepa_access: newKeepaAccess,
+        is_active: newActive,
+      })
+      setCreateUserMessage(result.message || `Created ${result.email}`)
+      setNewEmail('')
+      setNewPassword('')
+      await loadUsers()
+    } catch (err: unknown) {
+      const detail =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined
+      setCreateUserMessage(typeof detail === 'string' ? detail : 'Failed to create user')
+    } finally {
+      setCreatingUser(false)
+    }
+  }
+
   if (userInfoLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -266,6 +304,72 @@ export default function UserManagement() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
         <p className="mt-1 text-sm text-gray-500">Manage user permissions and access</p>
+      </div>
+
+      <div className="card p-4 space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Create user</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            Add a login for warehouse stations or other accounts. Users created here appear in the list
+            immediately.
+          </p>
+        </div>
+        <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={(e) => void handleCreateUser(e)}>
+          <label className="block text-sm font-medium text-gray-700">
+            Email
+            <input
+              type="email"
+              required
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="warehouse1@metroshoewarehouse.com"
+              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg"
+              autoComplete="off"
+            />
+          </label>
+          <label className="block text-sm font-medium text-gray-700">
+            Password
+            <input
+              type="password"
+              required
+              minLength={8}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg"
+              autoComplete="new-password"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={newActive}
+              onChange={(e) => setNewActive(e.target.checked)}
+            />
+            Approved (can sign in)
+          </label>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={newKeepaAccess}
+              onChange={(e) => setNewKeepaAccess(e.target.checked)}
+            />
+            MSW Overwatch access (Label Station)
+          </label>
+          <div className="md:col-span-2 flex flex-wrap items-center gap-3">
+            <button
+              type="submit"
+              disabled={creatingUser}
+              className="px-4 py-2 rounded-lg bg-[#404040] text-white text-sm font-medium disabled:opacity-50"
+            >
+              {creatingUser ? 'Creating…' : 'Create user'}
+            </button>
+            {createUserMessage && (
+              <p className={`text-sm ${createUserMessage.includes('success') || createUserMessage.includes('Created') ? 'text-emerald-700' : 'text-red-700'}`}>
+                {createUserMessage}
+              </p>
+            )}
+          </div>
+        </form>
       </div>
 
       <div className="card p-4 space-y-3">

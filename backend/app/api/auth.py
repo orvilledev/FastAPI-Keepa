@@ -309,6 +309,13 @@ class MaintenanceUpdate(BaseModel):
     duration_hours: Optional[float] = None
 
 
+class CreateUserRequest(BaseModel):
+    email: str
+    password: str
+    has_keepa_access: bool = True
+    is_active: bool = True
+
+
 @router.get("/users")
 @handle_api_errors("get all users")
 def get_all_users(
@@ -317,8 +324,7 @@ def get_all_users(
 ):
     """Get all users (any authenticated user can view users for task assignment)."""
     try:
-        if is_superadmin_user(current_user, db):
-            _sync_missing_profiles_from_auth(db)
+        _sync_missing_profiles_from_auth(db)
 
         response = (
             db.table("profiles")
@@ -334,6 +340,122 @@ def get_all_users(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch users: {str(e)}"
         )
+
+
+@router.post("/users", status_code=status.HTTP_201_CREATED)
+@limiter.limit(RateLimits.ADMIN_OPERATIONS)
+@handle_api_errors("create user")
+def create_user(
+    request: Request,
+    payload: CreateUserRequest,
+    current_user: dict = Depends(get_superadmin_user),
+    db: Client = Depends(get_supabase),
+):
+    """Create a Supabase Auth user and profiles row (superadmin only)."""
+    from gotrue.errors import AuthApiError
+
+    email = payload.email.strip()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A valid email is required.")
+    if len(payload.password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters.",
+        )
+
+    email_lower = email.lower()
+    try:
+        page = 1
+        while True:
+            auth_users = db.auth.admin.list_users(page=page, per_page=200)
+            if not auth_users:
+                break
+            for auth_user in auth_users:
+                if (auth_user.email or "").lower() == email_lower:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="A user with this email already exists.",
+                    )
+            if len(auth_users) < 200:
+                break
+            page += 1
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Create user: could not check existing auth users: %s", exc)
+
+    try:
+        created = db.auth.admin.create_user(
+            {
+                "email": email,
+                "password": payload.password,
+                "email_confirm": True,
+            }
+        )
+    except AuthApiError as exc:
+        message = getattr(exc, "message", None) or str(exc)
+        if "already" in message.lower():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A user with this email already exists.",
+            ) from exc
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Could not create login for this user: {message}",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Could not create login for this user: {exc}",
+        ) from exc
+
+    auth_user = getattr(created, "user", None) or created
+    user_id = getattr(auth_user, "id", None) or auth_user.get("id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Auth user was created but no user id was returned.",
+        )
+
+    profile_data = _default_profile_data(user_id, email)
+    profile_data["is_active"] = payload.is_active
+    profile_data["has_keepa_access"] = payload.has_keepa_access
+
+    existing = db.table("profiles").select("id").eq("id", user_id).execute()
+    if existing.data:
+        from datetime import datetime
+
+        response = (
+            db.table("profiles")
+            .update(
+                {
+                    "email": email,
+                    "is_active": payload.is_active,
+                    "has_keepa_access": payload.has_keepa_access,
+                    "updated_at": datetime.utcnow().isoformat(),
+                }
+            )
+            .eq("id", user_id)
+            .execute()
+        )
+    else:
+        response = db.table("profiles").insert(profile_data).execute()
+
+    if not response.data:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Login was created but profile could not be saved.",
+        )
+
+    row = response.data[0]
+    logger.info("Superadmin %s created user %s", current_user.get("email"), email)
+    return {
+        "user_id": user_id,
+        "email": email,
+        "is_active": row.get("is_active", payload.is_active),
+        "has_keepa_access": row.get("has_keepa_access", payload.has_keepa_access),
+        "message": "User created successfully",
+    }
 
 
 @router.get("/maintenance")
