@@ -147,9 +147,9 @@ export default function WarehouseProductCatalog({
                   <td className="px-4 py-2.5 text-gray-700 align-top whitespace-nowrap">
                     {row.condition}
                   </td>
-                  <td className="px-4 py-2.5 align-top text-right whitespace-nowrap">
-                    <div className="flex justify-end gap-2">
-                      {onSelectUpc && (
+                  <td className="px-4 py-2.5 align-top whitespace-nowrap w-28">
+                    <div className="flex items-center justify-between gap-6">
+                      {onSelectUpc ? (
                         <button
                           type="button"
                           onClick={() => onSelectUpc(row.upc)}
@@ -157,6 +157,8 @@ export default function WarehouseProductCatalog({
                         >
                           Scan
                         </button>
+                      ) : (
+                        <span />
                       )}
                       <button
                         type="button"
