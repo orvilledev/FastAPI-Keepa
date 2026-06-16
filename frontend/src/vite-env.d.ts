@@ -20,7 +20,7 @@ interface ImportMeta {
 }
 
 interface DesktopUpdateStatus {
-  phase: 'idle' | 'checking' | 'downloading' | 'ready' | 'installing' | 'installed' | 'error'
+  phase: 'idle' | 'checking' | 'downloading' | 'ready' | 'installing' | 'installed' | 'uptodate' | 'error'
   percent?: number
   version?: string
   message?: string

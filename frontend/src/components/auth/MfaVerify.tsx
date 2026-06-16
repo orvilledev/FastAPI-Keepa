@@ -10,6 +10,7 @@ import {
   shouldShowMfaSetup,
   verifyMfaCode,
 } from '../../lib/mfa'
+import { getLastPrivatePath } from '../../lib/privatePath'
 import { supabase } from '../../lib/supabase'
 import { useUser } from '../../contexts/UserContext'
 
@@ -93,7 +94,7 @@ export default function MfaVerify() {
     // Reset the idle clock now that the user re-verified.
     recordMfaActivity()
     await refetchUserInfo()
-    const lastPrivatePath = sessionStorage.getItem('last_private_path')
+    const lastPrivatePath = getLastPrivatePath()
     const destination =
       isIdleReverify && lastPrivatePath && lastPrivatePath !== '/' ? lastPrivatePath : '/dashboard'
     navigate(destination, { replace: true })

@@ -21,6 +21,7 @@ import DesktopUpdateOverlay from './components/desktop/DesktopUpdateOverlay'
 import { systemApi } from './services/api'
 import { fetchMfaStatus, isMfaIdleReverifyDue, recordMfaActivity, shouldShowMfaSetup, shouldShowMfaVerify, shouldSkipMfaForEmail } from './lib/mfa'
 import { isUserHiddenFromFeedbackPage } from './constants/feedbackAccess'
+import { getLastPrivatePath, setLastPrivatePath } from './lib/privatePath'
 
 // Lazy load page components for code splitting (About is eager so its chunk cannot 404 behind stale CDN/cache)
 const Landing = lazy(() => import('./components/Landing'))
@@ -56,7 +57,6 @@ const LabelStation = lazy(() => import('./components/scanner/LabelStation'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
 const Feedback = lazy(() => import('./components/feedback/Feedback'))
-const LAST_PRIVATE_PATH_KEY = 'last_private_path'
 
 /** Packaged Electron loads `index.html` over `file:`; BrowserRouter cannot match routes there. */
 function AppRouter({ children }: { children: ReactNode }) {
@@ -112,7 +112,7 @@ function AuthenticatedEntryRedirect() {
   }, [authUser, authLoading])
 
   if (authLoading || !target) return <LoadingSpinner />
-  const lastPrivatePath = sessionStorage.getItem(LAST_PRIVATE_PATH_KEY)
+  const lastPrivatePath = getLastPrivatePath()
   if (target === '/dashboard' && lastPrivatePath && lastPrivatePath !== '/') {
     return <Navigate to={lastPrivatePath} replace />
   }
@@ -247,7 +247,7 @@ function RememberLastPrivatePath() {
       location.pathname === '/mfa/setup' ||
       location.pathname === '/mfa/verify'
     if (isGuestRoute) return
-    sessionStorage.setItem(LAST_PRIVATE_PATH_KEY, path)
+    setLastPrivatePath(path)
   }, [authUser, location.pathname, location.search, location.hash])
 
   return null

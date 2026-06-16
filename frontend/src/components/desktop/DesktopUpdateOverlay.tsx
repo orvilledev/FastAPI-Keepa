@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { APP_NAME } from '../../constants/app'
+import { recordMfaActivity } from '../../lib/mfa'
+import { setLastPrivatePath } from '../../lib/privatePath'
 
 const UPDATE_TARGET_VERSION_KEY = 'msw_desktop_update_target_version'
 
@@ -10,6 +12,7 @@ export type DesktopUpdatePhase =
   | 'ready'
   | 'installing'
   | 'installed'
+  | 'uptodate'
   | 'error'
 
 export type DesktopUpdateStatus = {
@@ -67,6 +70,7 @@ export default function DesktopUpdateOverlay() {
       status.phase === 'ready' ||
       status.phase === 'installing' ||
       status.phase === 'installed' ||
+      status.phase === 'uptodate' ||
       status.phase === 'error')
 
   useEffect(() => {
@@ -99,12 +103,19 @@ export default function DesktopUpdateOverlay() {
   const handleInstall = useCallback(async () => {
     if (!window.desktop?.installUpdate) return
     const version = status.version
+    const path = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    setLastPrivatePath(path)
+    recordMfaActivity()
     if (version) {
       localStorage.setItem(UPDATE_TARGET_VERSION_KEY, version)
     }
     setStatus((prev) => ({ ...prev, phase: 'installing', percent: 100 }))
     await window.desktop.installUpdate()
   }, [status.version])
+
+  const handleInstallLater = useCallback(() => {
+    setDismissed(true)
+  }, [])
 
   const handleDismiss = useCallback(() => {
     setDismissed(true)
@@ -113,41 +124,58 @@ export default function DesktopUpdateOverlay() {
 
   if (!visible) return null
 
-  const percent = clampPercent(status.percent ?? (status.phase === 'ready' || status.phase === 'installing' ? 100 : 0))
+  const percent = clampPercent(
+    status.percent ??
+      (status.phase === 'ready' ||
+      status.phase === 'installing' ||
+      status.phase === 'installed' ||
+      status.phase === 'uptodate'
+        ? 100
+        : 0)
+  )
   const indeterminate = status.phase === 'checking'
 
   let title = 'Checking for updates'
   let body = 'Please wait while we look for a newer version.'
   let showInstall = false
+  let showInstallLater = false
   let showContinue = false
 
   switch (status.phase) {
     case 'checking':
       title = 'Checking for updates'
-      body = 'Looking for a newer version of MSW Overwatch…'
+      body = 'Looking for a newer version…'
       break
     case 'downloading':
       title = 'Downloading update'
       body = status.version
-        ? `Version ${status.version} is downloading. Keep this window open.`
-        : 'Downloading the latest version. Keep this window open.'
+        ? `Version ${status.version} is downloading. You can keep working while it finishes.`
+        : 'Downloading the latest version. You can keep working while it finishes.'
       break
     case 'ready':
       title = 'Update ready to install'
       body = status.version
-        ? `Version ${status.version} has finished downloading.`
-        : 'The update has finished downloading.'
+        ? `Version ${status.version} is ready. Install now or continue working and install later.`
+        : 'The update is ready. Install now or continue working and install later.'
       showInstall = true
+      showInstallLater = true
       break
     case 'installing':
       title = 'Installing update'
-      body = 'MSW Overwatch will restart in a moment to complete the installation.'
+      body = 'MSW Overwatch will restart briefly to finish installing. Your session will be kept.'
       break
     case 'installed':
-      title = 'Update installed'
+      title = 'Update complete'
       body = status.version
-        ? `You are now on version ${status.version}.`
-        : 'The update was installed successfully.'
+        ? `You are on the latest version (${status.version}).`
+        : 'You are on the latest version.'
+      showContinue = true
+      break
+    case 'uptodate':
+      title = 'You are up to date'
+      body = status.version
+        ? `You are already on the latest version (${status.version}).`
+        : status.message || 'You are on the latest version.'
       showContinue = true
       break
     case 'error':
@@ -180,24 +208,21 @@ export default function DesktopUpdateOverlay() {
         </div>
 
         {status.phase === 'ready' && (
-          <ul className="mt-6 space-y-2 text-sm text-gray-700">
-            <li>1. Click <strong>Install and restart</strong> below.</li>
-            <li>2. Wait for the app to close and reopen automatically.</li>
-            <li>3. Sign in again if prompted after the restart.</li>
-          </ul>
+          <p className="mt-6 text-center text-sm text-gray-700">
+            Choose <strong>Install now</strong> to restart and apply the update, or{' '}
+            <strong>Install later</strong> to keep using the app.
+          </p>
         )}
 
         {status.phase === 'installed' && (
-          <ul className="mt-6 space-y-2 text-sm text-gray-700">
-            <li>• You can continue using the app normally.</li>
-            <li>• Warehouse stations: open <strong>Label Station</strong> from the sidebar.</li>
-            <li>• If anything looks wrong, use <strong>Check for Updates</strong> in the sidebar.</li>
-          </ul>
+          <p className="mt-6 text-center text-sm text-gray-700">
+            You are still signed in and can continue where you left off.
+          </p>
         )}
 
         {status.phase === 'installing' && (
           <p className="mt-6 text-center text-sm text-amber-700">
-            Do not close the app manually — it will restart on its own.
+            Please wait — the app will reopen automatically in a few seconds.
           </p>
         )}
 
@@ -208,7 +233,16 @@ export default function DesktopUpdateOverlay() {
               onClick={() => void handleInstall()}
               className="w-full rounded-lg bg-purple-600 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-700"
             >
-              Install and restart
+              Install now
+            </button>
+          )}
+          {showInstallLater && (
+            <button
+              type="button"
+              onClick={handleInstallLater}
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Install later
             </button>
           )}
           {showContinue && (

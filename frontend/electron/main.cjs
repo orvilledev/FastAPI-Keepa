@@ -1,6 +1,7 @@
 const path = require('node:path')
 const os = require('node:os')
 const net = require('node:net')
+const fs = require('node:fs')
 const { app, BrowserWindow, ipcMain, shell } = require('electron')
 
 const isDev = !app.isPackaged
@@ -21,6 +22,33 @@ let autoUpdater = null
 let updaterEventsWired = false
 let userRequestedUpdateCheck = false
 let lastUpdateStatus = { phase: 'idle' }
+
+const UPDATE_CACHE_TTL_MS = 15 * 60 * 1000
+
+function updateCachePath() {
+  return path.join(app.getPath('userData'), 'update-check-cache.json')
+}
+
+function readUpdateCache() {
+  try {
+    return JSON.parse(fs.readFileSync(updateCachePath(), 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+function writeUpdateCache(data) {
+  try {
+    fs.writeFileSync(updateCachePath(), JSON.stringify(data))
+  } catch (err) {
+    console.error('[autoUpdater] could not write update cache', err)
+  }
+}
+
+function isUpdateCacheFresh(cache) {
+  if (!cache?.checkedAt || cache.version !== app.getVersion()) return false
+  return Date.now() - cache.checkedAt < UPDATE_CACHE_TTL_MS
+}
 
 /** Block electron-updater's bottom-left Windows toast; we show a centered in-app overlay instead. */
 function suppressNativeUpdateNotifications() {
@@ -88,6 +116,12 @@ function wireAutoUpdaterEvents(updater) {
   })
 
   updater.on('update-available', (info) => {
+    writeUpdateCache({
+      version: app.getVersion(),
+      noUpdate: false,
+      checkedAt: Date.now(),
+      availableVersion: info?.version,
+    })
     presentUpdateStatus({
       phase: 'downloading',
       percent: 0,
@@ -96,11 +130,20 @@ function wireAutoUpdaterEvents(updater) {
   })
 
   updater.on('update-not-available', () => {
+    writeUpdateCache({
+      version: app.getVersion(),
+      noUpdate: true,
+      checkedAt: Date.now(),
+    })
     if (userRequestedUpdateCheck) {
       presentUpdateStatus({
-        phase: 'idle',
-        message: 'You are on the latest version.',
+        phase: 'uptodate',
+        percent: 100,
+        version: app.getVersion(),
+        message: `You are on the latest version (${app.getVersion()}).`,
       })
+    } else {
+      lastUpdateStatus = { phase: 'idle' }
     }
     userRequestedUpdateCheck = false
   })
@@ -136,15 +179,18 @@ function setupAutoUpdater() {
   if (isDev) return
   const updater = getAutoUpdater()
   if (!updater) return
-  void updater.checkForUpdates().catch((err) => {
-    console.error('[autoUpdater] startup check failed', err)
-  })
-  const DAY_MS = 24 * 60 * 60 * 1000
-  setInterval(() => {
+
+  const runBackgroundCheck = () => {
     void updater.checkForUpdates().catch((err) => {
-      console.error('[autoUpdater] scheduled check failed', err)
+      console.error('[autoUpdater] background check failed', err)
     })
-  }, DAY_MS)
+  }
+
+  // Defer the first check so startup and sign-in are not blocked on GitHub.
+  setTimeout(runBackgroundCheck, 8_000)
+
+  const DAY_MS = 24 * 60 * 60 * 1000
+  setInterval(runBackgroundCheck, DAY_MS)
 }
 
 function createWindow() {
@@ -252,9 +298,37 @@ ipcMain.handle('app:checkForUpdates', async () => {
     if (!updater) {
       return { ok: false, message: 'Auto-updater is not available.' }
     }
+
+    if (lastUpdateStatus.phase === 'ready') {
+      presentUpdateStatus(lastUpdateStatus)
+      return { ok: true, message: 'Update ready to install.' }
+    }
+
     userRequestedUpdateCheck = true
+
+    const cache = readUpdateCache()
+    if (cache?.noUpdate && isUpdateCacheFresh(cache)) {
+      userRequestedUpdateCheck = false
+      presentUpdateStatus({
+        phase: 'uptodate',
+        percent: 100,
+        version: app.getVersion(),
+        message: `You are on the latest version (${app.getVersion()}).`,
+      })
+      void updater.checkForUpdates().catch((err) => {
+        console.error('[autoUpdater] refresh check failed', err)
+      })
+      return { ok: true, message: 'You are on the latest version.' }
+    }
+
     presentUpdateStatus({ phase: 'checking', percent: 0 })
-    await updater.checkForUpdates()
+    void updater.checkForUpdates().catch((err) => {
+      userRequestedUpdateCheck = false
+      presentUpdateStatus({
+        phase: 'error',
+        message: err?.message || 'Failed to check for updates.',
+      })
+    })
     return {
       ok: true,
       message: 'Checking for updates…',
