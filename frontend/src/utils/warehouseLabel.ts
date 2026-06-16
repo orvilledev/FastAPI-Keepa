@@ -48,11 +48,9 @@ function escapeZplText(value: string): string {
   return (value || '').replace(/\\/g, '\\\\').replace(/\^/g, '').replace(/~/g, '').slice(0, 200)
 }
 
-/** Human-readable line under the barcode: `{upc}-FNSKU` (warehouse standard). */
+/** Human-readable line under the barcode: UPC/SKU exactly as stored (no forced suffix). */
 export function formatUpcFnskuLine(upc: string): string {
-  const trimmed = (upc || '').trim()
-  if (!trimmed) return ''
-  return `${trimmed}-FNSKU`
+  return (upc || '').trim()
 }
 
 /** ZPL for Zebra 203 dpi, ~3×1.5 inch label. Repeat ^XA…^XZ per copy. */
