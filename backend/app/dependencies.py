@@ -14,6 +14,44 @@ logger = logging.getLogger(__name__)
 
 security = HTTPBearer()
 
+# Full MSW Overwatch access for MFA-exempt shared-station accounts (password-only login).
+MFA_EXEMPT_ACCESS_GRANTS: dict[str, bool] = {
+    "is_active": True,
+    "has_keepa_access": True,
+    "can_run_jobs": True,
+}
+
+
+def is_mfa_exempt_user(current_user: dict) -> bool:
+    """Return True when this account skips TOTP MFA (password-only sign-in)."""
+    user_email = (current_user.get("email") or "").strip().lower()
+    return user_email in set(settings.mfa_exempt_emails_list)
+
+
+def ensure_mfa_exempt_profile_access(
+    db: Client, user_data: dict, profile: dict
+) -> dict:
+    """Persist full app access for MFA-exempt accounts when flags are missing."""
+    if not is_mfa_exempt_user(user_data):
+        return profile
+
+    updates: dict[str, object] = {}
+    for key, value in MFA_EXEMPT_ACCESS_GRANTS.items():
+        if not profile.get(key):
+            updates[key] = value
+
+    if not updates:
+        return profile
+
+    from datetime import datetime
+
+    updates["updated_at"] = datetime.utcnow().isoformat()
+    user_id = profile.get("id") or user_data.get("id")
+    response = db.table("profiles").update(updates).eq("id", user_id).execute()
+    if response.data:
+        return response.data[0]
+    return {**profile, **updates}
+
 
 def _ensure_profile_row_for_access(db: Client, user_data: dict) -> dict:
     """Ensure a profile exists for access checks; new signups default to inactive pending approval."""
@@ -23,7 +61,7 @@ def _ensure_profile_row_for_access(db: Client, user_data: dict) -> dict:
     user_email = (user_data.get("email") or "").lower()
     response = db.table("profiles").select("*").eq("id", user_id).execute()
     if response.data:
-        return response.data[0]
+        return ensure_mfa_exempt_profile_access(db, user_data, response.data[0])
 
     is_legacy_superadmin = user_email == "orvillebarba@gmail.com"
     profile_data = {
@@ -37,13 +75,15 @@ def _ensure_profile_row_for_access(db: Client, user_data: dict) -> dict:
         "created_at": datetime.utcnow().isoformat(),
         "updated_at": datetime.utcnow().isoformat(),
     }
+    if is_mfa_exempt_user(user_data):
+        profile_data.update(MFA_EXEMPT_ACCESS_GRANTS)
     created = db.table("profiles").insert(profile_data).execute()
     if created.data:
         return created.data[0]
 
     retry = db.table("profiles").select("*").eq("id", user_id).execute()
     if retry.data:
-        return retry.data[0]
+        return ensure_mfa_exempt_profile_access(db, user_data, retry.data[0])
     return profile_data
 
 
@@ -86,7 +126,7 @@ async def get_current_user(
             user_email = (user_data.get("email") or "").lower()
             role = (profile.get("role") or "").lower()
             is_superadmin = user_email == "orvillebarba@gmail.com" or role == "superadmin"
-            if not is_active and not is_superadmin:
+            if not is_active and not is_superadmin and not is_mfa_exempt_user(user_data):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Your account is pending superadmin approval.",
@@ -178,8 +218,8 @@ def get_keepa_access_user(
     has_keepa_access = profile.get("has_keepa_access", False)
     is_admin = profile.get("role") == "admin"
     
-    # Allow if user has Keepa access OR is admin
-    if not has_keepa_access and not is_admin:
+    # Allow if user has Keepa access OR is admin OR is MFA-exempt (shared warehouse stations)
+    if not has_keepa_access and not is_admin and not is_mfa_exempt_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="MSW Overwatch access required"
@@ -234,19 +274,18 @@ def get_job_runner_user(
     has_keepa_access = profile.get("has_keepa_access", False)
     is_admin = profile.get("role") == "admin"
     
-    if not can_run_jobs and not has_keepa_access and not is_admin:
+    if (
+        not can_run_jobs
+        and not has_keepa_access
+        and not is_admin
+        and not is_mfa_exempt_user(current_user)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Express job access required. Contact an admin to enable this permission."
         )
     
     return current_user
-
-
-def is_mfa_exempt_user(current_user: dict) -> bool:
-    """Return True when this account skips TOTP MFA (password-only sign-in)."""
-    user_email = (current_user.get("email") or "").strip().lower()
-    return user_email in set(settings.mfa_exempt_emails_list)
 
 
 def _is_maintenance_bypass_user(current_user: dict, db: Client) -> bool:

@@ -1,7 +1,15 @@
 """Authentication API endpoints."""
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Body
-from app.dependencies import get_current_user, get_superadmin_user, is_mfa_exempt_user, is_superadmin_user, security
+from app.dependencies import (
+    get_current_user,
+    get_superadmin_user,
+    ensure_mfa_exempt_profile_access,
+    is_mfa_exempt_user,
+    is_superadmin_user,
+    MFA_EXEMPT_ACCESS_GRANTS,
+    security,
+)
 from app.database import get_supabase
 from app.middleware.rate_limiter import limiter, RateLimits
 from app.models.user import ProfileUpdate, ProfileResponse
@@ -35,6 +43,11 @@ def _default_profile_data(user_id: str, email: str | None) -> dict:
         "can_assign_tasks": True if is_legacy_superadmin else False,
         "created_at": now,
         "updated_at": now,
+        **(
+            MFA_EXEMPT_ACCESS_GRANTS
+            if is_mfa_exempt_user({"email": email})
+            else {}
+        ),
     }
 
 
@@ -84,7 +97,7 @@ def _ensure_profile_row(db: Client, current_user: dict) -> dict:
     """Return the profiles row for this user; insert a default row if missing (e.g. new signup)."""
     response = db.table("profiles").select("*").eq("id", current_user["id"]).execute()
     if response.data:
-        return response.data[0]
+        return ensure_mfa_exempt_profile_access(db, current_user, response.data[0])
 
     profile_data = _default_profile_data(current_user["id"], current_user.get("email"))
     create_response = db.table("profiles").insert(profile_data).execute()
@@ -94,7 +107,7 @@ def _ensure_profile_row(db: Client, current_user: dict) -> dict:
     # Concurrent signup: another request may have inserted first.
     retry = db.table("profiles").select("*").eq("id", current_user["id"]).execute()
     if retry.data:
-        return retry.data[0]
+        return ensure_mfa_exempt_profile_access(db, current_user, retry.data[0])
 
     raise HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -118,12 +131,12 @@ def get_current_user_info(
     display_name = row.get("display_name")
     if display_name == "":
         display_name = None
-    has_keepa_access = row.get("has_keepa_access", False) or False
     can_manage_tools = row.get("can_manage_tools", False) or False
     can_assign_tasks = row.get("can_assign_tasks", False) or False
 
     is_superadmin = is_superadmin_user(current_user, db)
     mfa_exempt = is_mfa_exempt_user(current_user)
+    has_keepa_access = bool(row.get("has_keepa_access", False)) or mfa_exempt
 
     return {
         "id": current_user.get("id"),

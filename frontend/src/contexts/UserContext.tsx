@@ -194,7 +194,7 @@ export function UserProvider({ children }: UserProviderProps) {
     Boolean(userInfo?.is_superadmin) ||
     userInfo?.email?.toLowerCase() === 'orvillebarba@gmail.com' ||
     legacySuperadminEmail
-  const hasKeepaAccess = Boolean(userInfo?.has_keepa_access) || isSuperadmin
+  const hasKeepaAccess = Boolean(userInfo?.has_keepa_access || userInfo?.mfa_exempt) || isSuperadmin
   const canManageTools = Boolean(userInfo?.can_manage_tools) || isSuperadmin
   const displayName =
     userInfo?.display_name ||
