@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import { authApi, invalidateAuthTokenCache } from '../services/api'
-import { clearMfaActivity, isMfaAuthRoute, redirectForIncompleteMfa } from '../lib/mfa'
+import { clearMfaActivity, getMfaExemptEmails, isMfaAuthRoute, isMfaExemptEmail, redirectForIncompleteMfa } from '../lib/mfa'
 
 // Extended user info from API
 export interface UserInfo {
@@ -47,8 +47,13 @@ export function UserProvider({ children }: UserProviderProps) {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [userInfoLoading, setUserInfoLoading] = useState(false)
+  const [mfaExemptEmails, setMfaExemptEmails] = useState<string[]>([])
   const profileSyncInFlight = useRef(false)
   const profileLoadedForUserId = useRef<string | null>(null)
+
+  useEffect(() => {
+    void getMfaExemptEmails().then(setMfaExemptEmails)
+  }, [])
 
   // Fetch extended user info from API
   const fetchUserInfo = useCallback(async (options?: { silent?: boolean }) => {
@@ -62,16 +67,17 @@ export function UserProvider({ children }: UserProviderProps) {
     try {
       const data = await authApi.getCurrentUser()
       const emailLower = (data.email || authUser.email || '').toLowerCase()
+      const mfaExempt = Boolean(data.mfa_exempt)
       setUserInfo({
         id: data.id || authUser.id,
         email: data.email || authUser.email,
         role: data.role,
         display_name: data.display_name,
-        has_keepa_access: data.has_keepa_access || false,
+        has_keepa_access: Boolean(data.has_keepa_access) || mfaExempt,
         can_manage_tools: data.can_manage_tools || false,
         is_superadmin: Boolean(data.is_superadmin) || emailLower === 'orvillebarba@gmail.com',
         mfa_enabled: Boolean(data.mfa_enabled),
-        mfa_exempt: Boolean(data.mfa_exempt),
+        mfa_exempt: mfaExempt,
         created_at: data.created_at,
       })
       profileLoadedForUserId.current = authUser.id
@@ -194,7 +200,11 @@ export function UserProvider({ children }: UserProviderProps) {
     Boolean(userInfo?.is_superadmin) ||
     userInfo?.email?.toLowerCase() === 'orvillebarba@gmail.com' ||
     legacySuperadminEmail
-  const hasKeepaAccess = Boolean(userInfo?.has_keepa_access || userInfo?.mfa_exempt) || isSuperadmin
+  const accountEmail = userInfo?.email ?? authUser?.email
+  const mfaExemptAccount =
+    Boolean(userInfo?.mfa_exempt) || isMfaExemptEmail(accountEmail, mfaExemptEmails)
+  const hasKeepaAccess =
+    Boolean(userInfo?.has_keepa_access || mfaExemptAccount) || isSuperadmin
   const canManageTools = Boolean(userInfo?.can_manage_tools) || isSuperadmin
   const displayName =
     userInfo?.display_name ||

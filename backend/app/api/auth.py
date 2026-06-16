@@ -26,6 +26,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _lift_auth_ban(db: Client, user_id: str) -> None:
+    """Remove a Supabase Auth ban so the user can sign in again."""
+    from gotrue.errors import AuthApiError
+
+    try:
+        db.auth.admin.update_user_by_id(user_id, {"ban_duration": "none"})
+    except AuthApiError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Could not restore login for this user: {getattr(e, 'message', str(e))}",
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Could not restore login for this user: {str(e)}",
+        ) from e
+
+
 def _default_profile_data(user_id: str, email: str | None) -> dict:
     """Build a new profiles row for a Supabase Auth user."""
     from datetime import datetime
@@ -602,6 +620,11 @@ def deactivate_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This account cannot be deactivated",
         )
+    if is_mfa_exempt_user({"email": target_email}):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="MFA-exempt shared station accounts cannot be deactivated",
+        )
 
     try:
         db.auth.admin.update_user_by_id(user_id, {"ban_duration": "876000h"})
@@ -644,15 +667,24 @@ def approve_user(
     current_user: dict = Depends(get_superadmin_user),
     db: Client = Depends(get_supabase),
 ):
-    """Approve a pending user account (superadmin only)."""
+    """Approve a pending or deactivated user (lifts Auth ban and activates profile)."""
     from datetime import datetime
 
-    response = (
-        db.table("profiles")
-        .update({"is_active": True, "updated_at": datetime.utcnow().isoformat()})
-        .eq("id", user_id)
-        .execute()
-    )
+    profile_response = db.table("profiles").select("id, email").eq("id", user_id).execute()
+    if not profile_response.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    _lift_auth_ban(db, user_id)
+
+    profile_row = profile_response.data[0]
+    updates: dict[str, object] = {
+        "is_active": True,
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+    if is_mfa_exempt_user({"email": profile_row.get("email")}):
+        updates.update(MFA_EXEMPT_ACCESS_GRANTS)
+
+    response = db.table("profiles").update(updates).eq("id", user_id).execute()
     if not response.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return {"user_id": user_id, "message": "User approved successfully"}
