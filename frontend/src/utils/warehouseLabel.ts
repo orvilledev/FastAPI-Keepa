@@ -48,10 +48,18 @@ function escapeZplText(value: string): string {
   return (value || '').replace(/\\/g, '\\\\').replace(/\^/g, '').replace(/~/g, '').slice(0, 200)
 }
 
+/** Human-readable line under the barcode: `{upc}-FNSKU` (warehouse standard). */
+export function formatUpcFnskuLine(upc: string): string {
+  const trimmed = (upc || '').trim()
+  if (!trimmed) return ''
+  return `${trimmed}-FNSKU`
+}
+
 /** ZPL for Zebra 203 dpi, ~3×1.5 inch label. Repeat ^XA…^XZ per copy. */
 export function buildWarehouseLabelZpl(product: WarehouseLabelProduct, copies = 1): string {
   const count = Math.max(1, Math.min(copies, 99))
   const fnsku = escapeZplText(product.fnsku)
+  const upcLine = escapeZplText(formatUpcFnskuLine(product.upc))
   const style = escapeZplText(product.style_name)
   const condition = escapeZplText(product.condition || 'New')
 
@@ -59,8 +67,9 @@ export function buildWarehouseLabelZpl(product: WarehouseLabelProduct, copies = 
 ^CI28
 ^FO30,15^A0N,26,26^FD${fnsku}^FS
 ^FO30,48^BY2^BCN,65,Y,N,N^FD${fnsku}^FS
-^FO30,125^A0N,18,18^FB550,3,0,C^FD${style}^FS
-^FO30,175^A0N,16,16^FD${condition}^FS
+^FO30,118^A0N,18,18^FD${upcLine}^FS
+^FO320,118^A0N,18,18^FB280,1,0,R^FD${condition}^FS
+^FO30,140^A0N,18,18^FB550,3,0,C^FD${style}^FS
 ^XZ`
 
   return Array.from({ length: count }, () => single).join('\n')
@@ -107,6 +116,10 @@ function drawLabelPage(doc: jsPDF, product: WarehouseLabelProduct) {
   const metaY = barcodeY + BARCODE_HEIGHT_PT + 7
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
+  const upcLine = formatUpcFnskuLine(product.upc)
+  if (upcLine) {
+    doc.text(upcLine, MARGIN_PT + 1, metaY)
+  }
   if (product.condition) {
     doc.text(product.condition, LABEL_WIDTH_PT - MARGIN_PT - 1, metaY, { align: 'right' })
   }
