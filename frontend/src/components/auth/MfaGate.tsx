@@ -4,11 +4,10 @@ import { useUser } from '../../contexts/UserContext'
 import {
   ensureMfaActivityInitialized,
   fetchMfaStatus,
-  getMfaExemptEmails,
-  isMfaExemptEmail,
   isMfaIdleReverifyDue,
   shouldShowMfaSetup,
   shouldShowMfaVerify,
+  shouldSkipMfaForEmail,
   type MfaStatus,
 } from '../../lib/mfa'
 
@@ -25,23 +24,31 @@ type MfaGateProps = {
 export default function MfaGate({ children, requireFullAuth = true }: MfaGateProps) {
   const { authUser, authLoading, userInfo } = useUser()
   const [status, setStatus] = useState<MfaStatus | null>(null)
-  const [exemptEmails, setExemptEmails] = useState<string[] | null>(null)
+  const [skipMfa, setSkipMfa] = useState<boolean | null>(null)
   const [checking, setChecking] = useState(true)
-
-  const userEmail = authUser?.email ?? userInfo?.email
-  const isExempt =
-    Boolean(userInfo?.mfa_exempt) ||
-    (exemptEmails !== null && isMfaExemptEmail(userEmail, exemptEmails))
 
   useEffect(() => {
     let cancelled = false
-    void getMfaExemptEmails().then((emails) => {
-      if (!cancelled) setExemptEmails(emails)
-    })
+
+    const resolveExemption = async () => {
+      if (!authUser) {
+        if (!cancelled) setSkipMfa(false)
+        return
+      }
+      if (userInfo?.mfa_exempt) {
+        if (!cancelled) setSkipMfa(true)
+        return
+      }
+      const exempt = await shouldSkipMfaForEmail(authUser.email)
+      if (!cancelled) setSkipMfa(exempt)
+    }
+
+    void resolveExemption()
+
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [authUser?.id, authUser?.email, userInfo?.mfa_exempt])
 
   useEffect(() => {
     let cancelled = false
@@ -55,9 +62,9 @@ export default function MfaGate({ children, requireFullAuth = true }: MfaGatePro
         return
       }
 
-      if (exemptEmails === null) return
+      if (skipMfa === null) return
 
-      if (isMfaExemptEmail(authUser.email, exemptEmails) || userInfo?.mfa_exempt) {
+      if (skipMfa) {
         if (!cancelled) {
           setStatus(null)
           setChecking(false)
@@ -92,9 +99,9 @@ export default function MfaGate({ children, requireFullAuth = true }: MfaGatePro
     return () => {
       cancelled = true
     }
-  }, [authUser?.id, authUser?.email, authLoading, exemptEmails, userInfo?.mfa_exempt])
+  }, [authUser?.id, authUser?.email, authLoading, skipMfa])
 
-  if (authLoading || exemptEmails === null || (checking && status === null && !isExempt)) {
+  if (authLoading || skipMfa === null || (checking && status === null && !skipMfa)) {
     return (
       <div className="min-h-app-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
         <div className="w-10 h-10 border-4 border-[#404040] border-t-transparent rounded-full animate-spin" />
@@ -106,7 +113,7 @@ export default function MfaGate({ children, requireFullAuth = true }: MfaGatePro
     return <Navigate to="/login" replace />
   }
 
-  if (isExempt) {
+  if (skipMfa) {
     return <>{children}</>
   }
 

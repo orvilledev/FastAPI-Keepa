@@ -44,24 +44,56 @@ const API_BASE_URL = normalizeApiBaseUrl(
     : 'http://localhost:8000'
 )
 
+/** Built-in exempt emails (env + Electron fallback when client-config fetch fails). */
+function parseBuiltInMfaExemptEmails(): string[] {
+  const raw = import.meta.env.VITE_MFA_EXEMPT_EMAILS
+  if (typeof raw === 'string' && raw.trim()) {
+    return raw
+      .split(',')
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean)
+  }
+  const isElectron =
+    typeof window !== 'undefined' && Boolean(window.desktop?.isElectron)
+  if (isElectron) {
+    return ['warehouse1@metroshoewarehouse.com']
+  }
+  return []
+}
+
+function mergeMfaExemptEmailLists(...lists: readonly (readonly string[])[]): string[] {
+  const seen = new Set<string>()
+  for (const list of lists) {
+    for (const email of list) {
+      if (email) seen.add(email)
+    }
+  }
+  return [...seen]
+}
+
 let cachedMfaExemptEmails: string[] | null = null
 let mfaExemptEmailsPromise: Promise<string[]> | null = null
 
-/** Load MFA-exempt emails from the public client config (cached). */
+/** Load MFA-exempt emails from built-in config and public client config (cached). */
 export async function getMfaExemptEmails(): Promise<string[]> {
-  if (cachedMfaExemptEmails) return cachedMfaExemptEmails
+  const builtIn = parseBuiltInMfaExemptEmails()
+  if (cachedMfaExemptEmails) {
+    return mergeMfaExemptEmailLists(cachedMfaExemptEmails, builtIn)
+  }
   if (!mfaExemptEmailsPromise) {
     mfaExemptEmailsPromise = fetch(`${API_BASE_URL}/api/v1/public/client-config`)
       .then(async (res) => {
-        if (!res.ok) return []
+        if (!res.ok) return builtIn
         const data = (await res.json()) as { mfa_exempt_emails?: string[] }
-        const emails = (data.mfa_exempt_emails ?? []).map((email) => email.trim().toLowerCase())
-        cachedMfaExemptEmails = emails
-        return emails
+        const fromApi = (data.mfa_exempt_emails ?? []).map((email) => email.trim().toLowerCase())
+        const merged = mergeMfaExemptEmailLists(fromApi, builtIn)
+        cachedMfaExemptEmails = merged
+        return merged
       })
       .catch(() => {
-        cachedMfaExemptEmails = []
-        return []
+        const fallback = mergeMfaExemptEmailLists(builtIn)
+        cachedMfaExemptEmails = fallback
+        return fallback
       })
   }
   return mfaExemptEmailsPromise
@@ -75,6 +107,35 @@ export function isMfaExemptEmail(
   const normalized = (email || '').trim().toLowerCase()
   if (!normalized) return false
   return exemptEmails.includes(normalized)
+}
+
+/** Ask the API whether the current session is MFA-exempt (works when client-config fetch fails). */
+export async function fetchMfaExemptFromProfile(): Promise<boolean> {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData.session?.access_token
+  if (!token) return false
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+    if (!res.ok) return false
+    const data = (await res.json()) as { mfa_exempt?: boolean }
+    return Boolean(data.mfa_exempt)
+  } catch {
+    return false
+  }
+}
+
+/** True when this user should skip MFA setup/verify (list match or API profile flag). */
+export async function shouldSkipMfaForEmail(
+  email: string | null | undefined
+): Promise<boolean> {
+  const exemptEmails = await getMfaExemptEmails()
+  if (isMfaExemptEmail(email, exemptEmails)) return true
+  return fetchMfaExemptFromProfile()
 }
 
 /** Idle window before a fully-authenticated user must re-enter their TOTP code. Defaults to 15 hours. */
@@ -191,8 +252,7 @@ export function isMfaAuthRoute(path = getAppPathname()): boolean {
 
 export async function redirectForIncompleteMfa() {
   const { data: sessionData } = await supabase.auth.getSession()
-  const exemptEmails = await getMfaExemptEmails()
-  if (isMfaExemptEmail(sessionData.session?.user?.email, exemptEmails)) return
+  if (await shouldSkipMfaForEmail(sessionData.session?.user?.email)) return
 
   const status = await fetchMfaStatus()
   if (typeof window === 'undefined') return

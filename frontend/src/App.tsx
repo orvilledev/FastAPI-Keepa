@@ -18,7 +18,7 @@ import MfaGate from './components/auth/MfaGate'
 import About from './components/About'
 import Maintenance from './components/Maintenance'
 import { systemApi } from './services/api'
-import { fetchMfaStatus, getMfaExemptEmails, isMfaExemptEmail, isMfaIdleReverifyDue, recordMfaActivity, shouldShowMfaSetup, shouldShowMfaVerify } from './lib/mfa'
+import { fetchMfaStatus, isMfaIdleReverifyDue, recordMfaActivity, shouldShowMfaSetup, shouldShowMfaVerify, shouldSkipMfaForEmail } from './lib/mfa'
 import { isUserHiddenFromFeedbackPage } from './constants/feedbackAccess'
 
 // Lazy load page components for code splitting (About is eager so its chunk cannot 404 behind stale CDN/cache)
@@ -87,10 +87,10 @@ function AuthenticatedEntryRedirect() {
     let cancelled = false
     if (authLoading || !authUser) return
 
-    void getMfaExemptEmails()
-      .then((exemptEmails) => {
+    void shouldSkipMfaForEmail(authUser.email)
+      .then((skipMfa) => {
         if (cancelled) return
-        if (isMfaExemptEmail(authUser.email, exemptEmails)) {
+        if (skipMfa) {
           setTarget('/dashboard')
           return
         }
@@ -165,12 +165,12 @@ function IdleMfaGuard() {
 
   useEffect(() => {
     let cancelled = false
-    let isExempt = Boolean(userInfo?.mfa_exempt)
+    let cleanup: (() => void) | undefined
 
-    const startGuards = (exemptEmails: string[]) => {
+    const run = async () => {
+      if (userInfo?.mfa_exempt) return
+      if (await shouldSkipMfaForEmail(authUser?.email)) return
       if (cancelled) return
-      isExempt = isExempt || isMfaExemptEmail(authUser?.email, exemptEmails)
-      if (isExempt) return
 
       let lastWrite = 0
       const onActivity = () => {
@@ -194,7 +194,7 @@ function IdleMfaGuard() {
       document.addEventListener('visibilitychange', check)
       check()
 
-      return () => {
+      cleanup = () => {
         events.forEach((event) => window.removeEventListener(event, onActivity))
         window.clearInterval(interval)
         window.removeEventListener('focus', check)
@@ -202,10 +202,7 @@ function IdleMfaGuard() {
       }
     }
 
-    let cleanup: (() => void) | undefined
-    void getMfaExemptEmails().then((emails) => {
-      cleanup = startGuards(emails)
-    })
+    void run()
 
     return () => {
       cancelled = true
