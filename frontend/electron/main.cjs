@@ -362,7 +362,14 @@ ipcMain.handle('printer:printZpl', async (_event, payload) => {
     return { ok: false, message: err?.message || 'Could not stage label data.' }
   }
 
-  const scriptPath = path.join(__dirname, 'raw-print.ps1')
+  // PowerShell cannot execute scripts inside app.asar; asarUnpack copies this file
+  // to app.asar.unpacked where the OS can read it.
+  const scriptPath = path
+    .join(__dirname, 'raw-print.ps1')
+    .replace('app.asar', 'app.asar.unpacked')
+  if (!fs.existsSync(scriptPath)) {
+    return { ok: false, message: `Print script not found: ${scriptPath}` }
+  }
 
   return new Promise((resolve) => {
     execFile(
