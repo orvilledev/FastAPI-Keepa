@@ -24,17 +24,19 @@ function clampPercent(value: number | undefined): number {
   return Math.max(0, Math.min(100, Math.round(value)))
 }
 
-function BatteryProgress({ percent }: { percent: number }) {
+function BatteryProgress({ percent, indeterminate = false }: { percent: number; indeterminate?: boolean }) {
   const fill = clampPercent(percent)
   return (
     <div className="flex flex-col items-center gap-3">
       <div className="relative flex h-16 w-56 items-center rounded-xl border-2 border-gray-300 bg-gray-100 p-1.5 shadow-inner">
         <div
-          className="h-full rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 transition-[width] duration-300 ease-out"
-          style={{ width: `${fill}%` }}
+          className={`h-full rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 transition-[width] duration-300 ease-out ${
+            indeterminate ? 'animate-pulse w-1/3' : ''
+          }`}
+          style={indeterminate ? undefined : { width: `${fill}%` }}
         />
         <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-lg font-bold text-gray-800">
-          {fill}%
+          {indeterminate ? '…' : `${fill}%`}
         </span>
         <div
           className="absolute -right-2 top-1/2 h-8 w-2 -translate-y-1/2 rounded-r-sm border-2 border-l-0 border-gray-300 bg-gray-200"
@@ -46,10 +48,18 @@ function BatteryProgress({ percent }: { percent: number }) {
 }
 
 export default function DesktopUpdateOverlay() {
+  const isElectron = Boolean(window.desktop?.isElectron)
   const [status, setStatus] = useState<DesktopUpdateStatus>({ phase: 'idle' })
   const [dismissed, setDismissed] = useState(false)
 
+  const applyStatus = useCallback((payload: DesktopUpdateStatus) => {
+    if (payload.phase === 'idle') return
+    setDismissed(false)
+    setStatus(payload)
+  }, [])
+
   const visible =
+    isElectron &&
     !dismissed &&
     status.phase !== 'idle' &&
     (status.phase === 'checking' ||
@@ -61,11 +71,17 @@ export default function DesktopUpdateOverlay() {
 
   useEffect(() => {
     if (!window.desktop?.onUpdateStatus) return undefined
-    return window.desktop.onUpdateStatus((payload) => {
-      setDismissed(false)
-      setStatus(payload)
+    return window.desktop.onUpdateStatus(applyStatus)
+  }, [applyStatus])
+
+  useEffect(() => {
+    if (!window.desktop?.getUpdateStatus) return
+    void window.desktop.getUpdateStatus().then((payload) => {
+      if (payload?.phase && payload.phase !== 'idle') {
+        applyStatus(payload)
+      }
     })
-  }, [])
+  }, [applyStatus])
 
   useEffect(() => {
     if (!window.desktop?.getVersion) return
@@ -98,6 +114,7 @@ export default function DesktopUpdateOverlay() {
   if (!visible) return null
 
   const percent = clampPercent(status.percent ?? (status.phase === 'ready' || status.phase === 'installing' ? 100 : 0))
+  const indeterminate = status.phase === 'checking'
 
   let title = 'Checking for updates'
   let body = 'Please wait while we look for a newer version.'
@@ -159,7 +176,7 @@ export default function DesktopUpdateOverlay() {
         <p className="mt-2 text-center text-sm text-gray-600">{body}</p>
 
         <div className="mt-8">
-          <BatteryProgress percent={percent} />
+          <BatteryProgress percent={percent} indeterminate={indeterminate} />
         </div>
 
         {status.phase === 'ready' && (

@@ -5,6 +5,8 @@ const { app, BrowserWindow, ipcMain, shell } = require('electron')
 
 const isDev = !app.isPackaged
 
+app.setName('MSW Overwatch')
+
 if (isDev) {
   const devDataDir = path.join(os.tmpdir(), 'msw-overwatch-electron-dev')
   app.commandLine.appendSwitch('user-data-dir', devDataDir)
@@ -18,10 +20,47 @@ let mainWindow = null
 let autoUpdater = null
 let updaterEventsWired = false
 let userRequestedUpdateCheck = false
+let lastUpdateStatus = { phase: 'idle' }
+
+/** Block electron-updater's bottom-left Windows toast; we show a centered in-app overlay instead. */
+function suppressNativeUpdateNotifications() {
+  if (isDev) return
+  try {
+    const { Notification } = require('electron')
+    const originalShow = Notification.prototype.show
+    Notification.prototype.show = function patchedShow() {
+      const title = String(this.title || '').toLowerCase()
+      const body = String(this.body || '').toLowerCase()
+      const isUpdaterToast =
+        title.includes('update is ready') ||
+        body.includes('has been downloaded') ||
+        body.includes('automatically installed on exit')
+      if (isUpdaterToast) return
+      return originalShow.call(this)
+    }
+  } catch (err) {
+    console.error('[autoUpdater] could not patch Notification.show', err)
+  }
+}
+
+function focusMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
 
 function sendUpdateStatus(payload) {
+  lastUpdateStatus = payload
   if (!mainWindow || mainWindow.isDestroyed()) return
   mainWindow.webContents.send('app:update-status', payload)
+}
+
+function presentUpdateStatus(payload) {
+  sendUpdateStatus(payload)
+  if (payload.phase === 'downloading' || payload.phase === 'ready' || payload.phase === 'installing') {
+    focusMainWindow()
+  }
 }
 
 function getAutoUpdater() {
@@ -30,6 +69,9 @@ function getAutoUpdater() {
     autoUpdater = require('electron-updater').autoUpdater
     autoUpdater.autoDownload = true
     autoUpdater.autoInstallOnAppQuit = false
+    if ('disableNotifications' in autoUpdater) {
+      autoUpdater.disableNotifications = true
+    }
   }
   if (!updaterEventsWired) {
     wireAutoUpdaterEvents(autoUpdater)
@@ -41,12 +83,12 @@ function getAutoUpdater() {
 function wireAutoUpdaterEvents(updater) {
   updater.on('checking-for-update', () => {
     if (userRequestedUpdateCheck) {
-      sendUpdateStatus({ phase: 'checking', percent: 0 })
+      presentUpdateStatus({ phase: 'checking', percent: 0 })
     }
   })
 
   updater.on('update-available', (info) => {
-    sendUpdateStatus({
+    presentUpdateStatus({
       phase: 'downloading',
       percent: 0,
       version: info?.version,
@@ -55,7 +97,7 @@ function wireAutoUpdaterEvents(updater) {
 
   updater.on('update-not-available', () => {
     if (userRequestedUpdateCheck) {
-      sendUpdateStatus({
+      presentUpdateStatus({
         phase: 'idle',
         message: 'You are on the latest version.',
       })
@@ -64,7 +106,7 @@ function wireAutoUpdaterEvents(updater) {
   })
 
   updater.on('download-progress', (progress) => {
-    sendUpdateStatus({
+    presentUpdateStatus({
       phase: 'downloading',
       percent: Math.round(progress?.percent ?? 0),
       version: progress?.version,
@@ -73,7 +115,7 @@ function wireAutoUpdaterEvents(updater) {
 
   updater.on('update-downloaded', (info) => {
     userRequestedUpdateCheck = false
-    sendUpdateStatus({
+    presentUpdateStatus({
       phase: 'ready',
       percent: 100,
       version: info?.version,
@@ -82,7 +124,7 @@ function wireAutoUpdaterEvents(updater) {
 
   updater.on('error', (err) => {
     userRequestedUpdateCheck = false
-    sendUpdateStatus({
+    presentUpdateStatus({
       phase: 'error',
       message: err?.message || 'Failed to download update.',
     })
@@ -113,6 +155,7 @@ function createWindow() {
     minWidth: 1100,
     minHeight: 700,
     autoHideMenuBar: true,
+    title: 'MSW Overwatch',
     icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -135,12 +178,23 @@ function createWindow() {
     win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
   }
 
+  win.webContents.on('did-finish-load', () => {
+    if (lastUpdateStatus.phase !== 'idle') {
+      sendUpdateStatus(lastUpdateStatus)
+      if (lastUpdateStatus.phase === 'ready' || lastUpdateStatus.phase === 'downloading') {
+        focusMainWindow()
+      }
+    }
+  })
+
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null
   })
 }
 
 ipcMain.handle('app:getVersion', () => app.getVersion())
+
+ipcMain.handle('app:getUpdateStatus', () => lastUpdateStatus)
 
 /**
  * Send raw ZPL to a Zebra printer (TCP port 9100 by default).
@@ -199,7 +253,7 @@ ipcMain.handle('app:checkForUpdates', async () => {
       return { ok: false, message: 'Auto-updater is not available.' }
     }
     userRequestedUpdateCheck = true
-    sendUpdateStatus({ phase: 'checking', percent: 0 })
+    presentUpdateStatus({ phase: 'checking', percent: 0 })
     await updater.checkForUpdates()
     return {
       ok: true,
@@ -207,7 +261,7 @@ ipcMain.handle('app:checkForUpdates', async () => {
     }
   } catch (err) {
     userRequestedUpdateCheck = false
-    sendUpdateStatus({
+    presentUpdateStatus({
       phase: 'error',
       message: err?.message || 'Failed to check for updates.',
     })
@@ -227,19 +281,21 @@ ipcMain.handle('app:installUpdate', async () => {
     if (!updater) {
       return { ok: false, message: 'Auto-updater is not available.' }
     }
-    sendUpdateStatus({ phase: 'installing', percent: 100 })
+    presentUpdateStatus({ phase: 'installing', percent: 100 })
     setImmediate(() => {
       updater.quitAndInstall(false, true)
     })
     return { ok: true }
   } catch (err) {
-    sendUpdateStatus({
+    presentUpdateStatus({
       phase: 'error',
       message: err?.message || 'Failed to install update.',
     })
     return { ok: false, message: err?.message || 'Failed to install update.' }
   }
 })
+
+suppressNativeUpdateNotifications()
 
 app.whenReady().then(() => {
   createWindow()

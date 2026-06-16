@@ -31,6 +31,7 @@ interface DesktopBridge {
   isElectron: boolean
   getVersion: () => Promise<string>
   checkForUpdates: () => Promise<{ ok: boolean; message: string }>
+  getUpdateStatus?: () => Promise<DesktopUpdateStatus>
   installUpdate: () => Promise<{ ok: boolean; message?: string }>
   onUpdateStatus?: (callback: (status: DesktopUpdateStatus) => void) => () => void
   printZpl?: (payload: {

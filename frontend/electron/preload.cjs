@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('desktop', {
   isElectron: true,
   getVersion: () => ipcRenderer.invoke('app:getVersion'),
   checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
+  getUpdateStatus: () => ipcRenderer.invoke('app:getUpdateStatus'),
   installUpdate: () => ipcRenderer.invoke('app:installUpdate'),
   onUpdateStatus: (callback) => {
     const handler = (_event, payload) => callback(payload)
