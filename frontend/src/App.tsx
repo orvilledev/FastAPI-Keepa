@@ -17,6 +17,7 @@ import ProtectedRoute from './components/common/ProtectedRoute'
 import MfaGate from './components/auth/MfaGate'
 import About from './components/About'
 import Maintenance from './components/Maintenance'
+import DesktopUpdateOverlay from './components/desktop/DesktopUpdateOverlay'
 import { systemApi } from './services/api'
 import { fetchMfaStatus, isMfaIdleReverifyDue, recordMfaActivity, shouldShowMfaSetup, shouldShowMfaVerify, shouldSkipMfaForEmail } from './lib/mfa'
 import { isUserHiddenFromFeedbackPage } from './constants/feedbackAccess'
@@ -420,6 +421,7 @@ function App() {
     <AppRouter>
       <UserProvider>
         <AppRoutes />
+        <DesktopUpdateOverlay />
       </UserProvider>
     </AppRouter>
   )

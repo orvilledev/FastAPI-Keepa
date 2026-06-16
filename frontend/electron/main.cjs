@@ -14,17 +14,95 @@ if (isDev) {
   app.commandLine.appendSwitch('disable-http-cache')
 }
 
+let mainWindow = null
+let autoUpdater = null
+let updaterEventsWired = false
+let userRequestedUpdateCheck = false
+
+function sendUpdateStatus(payload) {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  mainWindow.webContents.send('app:update-status', payload)
+}
+
+function getAutoUpdater() {
+  if (isDev) return null
+  if (!autoUpdater) {
+    autoUpdater = require('electron-updater').autoUpdater
+    autoUpdater.autoDownload = true
+    autoUpdater.autoInstallOnAppQuit = false
+  }
+  if (!updaterEventsWired) {
+    wireAutoUpdaterEvents(autoUpdater)
+    updaterEventsWired = true
+  }
+  return autoUpdater
+}
+
+function wireAutoUpdaterEvents(updater) {
+  updater.on('checking-for-update', () => {
+    if (userRequestedUpdateCheck) {
+      sendUpdateStatus({ phase: 'checking', percent: 0 })
+    }
+  })
+
+  updater.on('update-available', (info) => {
+    sendUpdateStatus({
+      phase: 'downloading',
+      percent: 0,
+      version: info?.version,
+    })
+  })
+
+  updater.on('update-not-available', () => {
+    if (userRequestedUpdateCheck) {
+      sendUpdateStatus({
+        phase: 'idle',
+        message: 'You are on the latest version.',
+      })
+    }
+    userRequestedUpdateCheck = false
+  })
+
+  updater.on('download-progress', (progress) => {
+    sendUpdateStatus({
+      phase: 'downloading',
+      percent: Math.round(progress?.percent ?? 0),
+      version: progress?.version,
+    })
+  })
+
+  updater.on('update-downloaded', (info) => {
+    userRequestedUpdateCheck = false
+    sendUpdateStatus({
+      phase: 'ready',
+      percent: 100,
+      version: info?.version,
+    })
+  })
+
+  updater.on('error', (err) => {
+    userRequestedUpdateCheck = false
+    sendUpdateStatus({
+      phase: 'error',
+      message: err?.message || 'Failed to download update.',
+    })
+  })
+}
+
 /** GitHub Releases feed is embedded at build time via `build.publish` in package.json. */
 function setupAutoUpdater() {
   if (isDev) return
-  try {
-    const { autoUpdater } = require('electron-updater')
-    autoUpdater.checkForUpdatesAndNotify()
-    const DAY_MS = 24 * 60 * 60 * 1000
-    setInterval(() => autoUpdater.checkForUpdatesAndNotify(), DAY_MS)
-  } catch (err) {
-    console.error('[autoUpdater]', err)
-  }
+  const updater = getAutoUpdater()
+  if (!updater) return
+  void updater.checkForUpdates().catch((err) => {
+    console.error('[autoUpdater] startup check failed', err)
+  })
+  const DAY_MS = 24 * 60 * 60 * 1000
+  setInterval(() => {
+    void updater.checkForUpdates().catch((err) => {
+      console.error('[autoUpdater] scheduled check failed', err)
+    })
+  }, DAY_MS)
 }
 
 function createWindow() {
@@ -44,6 +122,8 @@ function createWindow() {
     },
   })
 
+  mainWindow = win
+
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
     return { action: 'deny' }
@@ -54,6 +134,10 @@ function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
   }
+
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null
+  })
 }
 
 ipcMain.handle('app:getVersion', () => app.getVersion())
@@ -110,13 +194,23 @@ ipcMain.handle('app:checkForUpdates', async () => {
   }
 
   try {
-    const { autoUpdater } = require('electron-updater')
-    await autoUpdater.checkForUpdatesAndNotify()
+    const updater = getAutoUpdater()
+    if (!updater) {
+      return { ok: false, message: 'Auto-updater is not available.' }
+    }
+    userRequestedUpdateCheck = true
+    sendUpdateStatus({ phase: 'checking', percent: 0 })
+    await updater.checkForUpdates()
     return {
       ok: true,
-      message: 'Update check started. You will be notified if an update is available.',
+      message: 'Checking for updates…',
     }
   } catch (err) {
+    userRequestedUpdateCheck = false
+    sendUpdateStatus({
+      phase: 'error',
+      message: err?.message || 'Failed to check for updates.',
+    })
     return {
       ok: false,
       message: err?.message || 'Failed to check for updates.',
@@ -124,9 +218,32 @@ ipcMain.handle('app:checkForUpdates', async () => {
   }
 })
 
+ipcMain.handle('app:installUpdate', async () => {
+  if (isDev) {
+    return { ok: false, message: 'Install is only available in packaged builds.' }
+  }
+  try {
+    const updater = getAutoUpdater()
+    if (!updater) {
+      return { ok: false, message: 'Auto-updater is not available.' }
+    }
+    sendUpdateStatus({ phase: 'installing', percent: 100 })
+    setImmediate(() => {
+      updater.quitAndInstall(false, true)
+    })
+    return { ok: true }
+  } catch (err) {
+    sendUpdateStatus({
+      phase: 'error',
+      message: err?.message || 'Failed to install update.',
+    })
+    return { ok: false, message: err?.message || 'Failed to install update.' }
+  }
+})
+
 app.whenReady().then(() => {
-  setupAutoUpdater()
   createWindow()
+  setupAutoUpdater()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

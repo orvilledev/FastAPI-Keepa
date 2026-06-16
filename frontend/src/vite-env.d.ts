@@ -19,11 +19,20 @@ interface ImportMeta {
   readonly env: ImportMetaEnv
 }
 
+interface DesktopUpdateStatus {
+  phase: 'idle' | 'checking' | 'downloading' | 'ready' | 'installing' | 'installed' | 'error'
+  percent?: number
+  version?: string
+  message?: string
+}
+
 interface DesktopBridge {
   platform: string
   isElectron: boolean
   getVersion: () => Promise<string>
   checkForUpdates: () => Promise<{ ok: boolean; message: string }>
+  installUpdate: () => Promise<{ ok: boolean; message?: string }>
+  onUpdateStatus?: (callback: (status: DesktopUpdateStatus) => void) => () => void
   printZpl?: (payload: {
     host: string
     port: number

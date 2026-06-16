@@ -5,5 +5,11 @@ contextBridge.exposeInMainWorld('desktop', {
   isElectron: true,
   getVersion: () => ipcRenderer.invoke('app:getVersion'),
   checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
+  installUpdate: () => ipcRenderer.invoke('app:installUpdate'),
+  onUpdateStatus: (callback) => {
+    const handler = (_event, payload) => callback(payload)
+    ipcRenderer.on('app:update-status', handler)
+    return () => ipcRenderer.removeListener('app:update-status', handler)
+  },
   printZpl: (payload) => ipcRenderer.invoke('printer:printZpl', payload),
 })
