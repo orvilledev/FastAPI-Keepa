@@ -65,9 +65,9 @@ export function buildWarehouseLabelZpl(product: WarehouseLabelProduct, copies = 
 ^CI28
 ^FO30,15^A0N,26,26^FD${fnsku}^FS
 ^FO30,48^BY2^BCN,65,N,N,N^FD${fnsku}^FS
-^FO30,118^A0N,22,22^FB550,1,0,C^FD${upcLine}^FS
-^FO320,118^A0N,18,18^FB280,1,0,R^FD${condition}^FS
-^FO30,140^A0N,18,18^FB550,3,0,C^FD${style}^FS
+^FO30,128^A0N,24,24^FB550,1,0,C^FD${upcLine}^FS
+^FO320,128^A0N,20,20^FB280,1,0,R^FD${condition}^FS
+^FO30,154^A0N,20,20^FB550,3,0,C^FD${style}^FS
 ^XZ`
 
   return Array.from({ length: count }, () => single).join('\n')
@@ -111,9 +111,9 @@ function drawLabelPage(doc: jsPDF, product: WarehouseLabelProduct) {
     doc.addImage(barcode, 'PNG', barcodeX, barcodeY, BARCODE_WIDTH_PT, BARCODE_HEIGHT_PT)
   }
 
-  const metaY = barcodeY + BARCODE_HEIGHT_PT + 7
+  const metaY = barcodeY + BARCODE_HEIGHT_PT + 12
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10.5)
+  doc.setFontSize(11.5)
   const upcLine = formatUpcFnskuLine(product.upc)
   if (upcLine) {
     doc.text(upcLine, centerX, metaY, { align: 'center' })
@@ -122,9 +122,9 @@ function drawLabelPage(doc: jsPDF, product: WarehouseLabelProduct) {
     doc.text(product.condition, LABEL_WIDTH_PT - MARGIN_PT - 1, metaY, { align: 'right' })
   }
 
-  doc.setFontSize(8.5)
+  doc.setFontSize(9)
   const titleLines = doc.splitTextToSize(product.style_name || '', contentWidth) as string[]
-  let y = metaY + 12
+  let y = metaY + 11
   for (const line of titleLines.slice(0, 4)) {
     doc.text(line, centerX, y, { align: 'center' })
     y += 9.5
