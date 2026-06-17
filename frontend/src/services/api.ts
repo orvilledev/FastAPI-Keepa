@@ -22,6 +22,11 @@ const API_URL = normalizeApiBaseUrl(
     : 'http://localhost:8000'
 )
 
+/** API origin baked in at build time (for error messages). */
+export function getApiBaseUrl(): string {
+  return API_URL
+}
+
 function redirectToLogin(): void {
   if (typeof window === 'undefined') return
   if (window.location.protocol === 'file:') {

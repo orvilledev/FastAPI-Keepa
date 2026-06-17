@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useUser } from '../../contexts/UserContext'
-import { feedbackApi, type FeedbackItem } from '../../services/api'
+import { feedbackApi, getApiBaseUrl, type FeedbackItem } from '../../services/api'
+import { formatFeedbackActionError, formatFeedbackLoadError } from '../../utils/apiErrorMessage'
 
 const FEEDBACK_COMPANY = 'MetroShoe Warehouse'
 
@@ -112,10 +113,8 @@ export default function Feedback() {
         ? await feedbackApi.listAllForAdmin()
         : await feedbackApi.listMine()
       setItems(rows)
-    } catch {
-      setListError(
-        'Could not load submissions. Deploy the latest API and run DB migration, or check VITE_API_URL (must be origin only, no /api/v1).',
-      )
+    } catch (err) {
+      setListError(formatFeedbackLoadError(err, getApiBaseUrl()))
       setItems([])
     } finally {
       setListLoading(false)
@@ -211,27 +210,9 @@ export default function Feedback() {
       setJustSubmitted(true)
       window.setTimeout(() => setJustSubmitted(false), 5000)
     } catch (err: unknown) {
-      const ax = err as {
-        response?: { status?: number; data?: { detail?: string | unknown } }
-      }
-      const statusCode = ax.response?.status
-      const detail = ax.response?.data?.detail
-
-      let msg =
-        typeof detail === 'string'
-          ? detail
-          : Array.isArray(detail)
-            ? 'Please check your input and try again.'
-            : 'Failed to submit feedback. Please try again.'
-
-      if (statusCode === 404) {
-        msg =
-          'Feedback API was not found (404). Deploy the latest backend, or fix VITE_API_URL: it must be the API root without /api/v1 (e.g. https://metro-api.onrender.com).'
-      }
-      if (statusCode === 409 && typeof detail === 'string') {
-        msg = detail
-      }
-      setError(msg)
+      setError(
+        formatFeedbackActionError(err, getApiBaseUrl(), 'Failed to submit feedback. Please try again.'),
+      )
     } finally {
       setLoading(false)
     }
@@ -246,8 +227,10 @@ export default function Feedback() {
     try {
       await feedbackApi.delete(row.id)
       setItems((prev) => prev.filter((item) => item.id !== row.id))
-    } catch {
-      setListError('Could not delete feedback.')
+    } catch (err) {
+      setListError(
+        formatFeedbackActionError(err, getApiBaseUrl(), 'Could not delete feedback.'),
+      )
     } finally {
       setDeletingId(null)
     }
