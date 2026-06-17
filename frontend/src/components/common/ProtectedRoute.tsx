@@ -4,10 +4,15 @@ import { useUser } from '../../contexts/UserContext'
 interface ProtectedRouteProps {
   children: React.ReactNode
   requireKeepaAccess?: boolean
+  requireLabelStationAccess?: boolean
 }
 
-export default function ProtectedRoute({ children, requireKeepaAccess = false }: ProtectedRouteProps) {
-  const { hasKeepaAccess, userInfoLoading, userInfo } = useUser()
+export default function ProtectedRoute({
+  children,
+  requireKeepaAccess = false,
+  requireLabelStationAccess = false,
+}: ProtectedRouteProps) {
+  const { hasKeepaAccess, hasLabelStationAccess, isWarehouseOnly, userInfoLoading, userInfo } = useUser()
 
   // Wait for profile bootstrap before enforcing access checks on refresh.
   // Without this guard, Keepa-protected routes can briefly redirect to
@@ -21,6 +26,10 @@ export default function ProtectedRoute({ children, requireKeepaAccess = false }:
   }
 
   if (requireKeepaAccess && !hasKeepaAccess) {
+    return <Navigate to={isWarehouseOnly ? '/label-station' : '/dashboard'} replace />
+  }
+
+  if (requireLabelStationAccess && !hasLabelStationAccess) {
     return <Navigate to="/dashboard" replace />
   }
 

@@ -14,6 +14,7 @@ import { UserProvider, useUser } from './contexts/UserContext'
 import { TrackingScanProvider } from './contexts/TrackingScanContext'
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/common/ProtectedRoute'
+import WarehouseRouteGuard from './components/common/WarehouseRouteGuard'
 import MfaGate from './components/auth/MfaGate'
 import About from './components/About'
 import Maintenance from './components/Maintenance'
@@ -22,6 +23,7 @@ import { systemApi } from './services/api'
 import { fetchMfaStatus, isMfaIdleReverifyDue, recordMfaActivity, shouldShowMfaSetup, shouldShowMfaVerify, shouldSkipMfaForEmail } from './lib/mfa'
 import { isUserHiddenFromFeedbackPage } from './constants/feedbackAccess'
 import { getLastPrivatePath, setLastPrivatePath } from './lib/privatePath'
+import { WAREHOUSE_HOME_PATH, isWarehouseAllowedPath } from './constants/warehouseAccess'
 
 // Lazy load page components for code splitting (About is eager so its chunk cannot 404 behind stale CDN/cache)
 const Landing = lazy(() => import('./components/Landing'))
@@ -79,9 +81,9 @@ function LoadingSpinner() {
   )
 }
 
-/** Sends signed-in users to the correct post-login step (MFA setup, verify, or dashboard). */
+/** Sends signed-in users to the correct post-login step (MFA setup, verify, or home). */
 function AuthenticatedEntryRedirect() {
-  const { authUser, authLoading } = useUser()
+  const { authUser, authLoading, isWarehouseOnly, userInfoLoading } = useUser()
   const [target, setTarget] = useState<string | null>(null)
 
   useEffect(() => {
@@ -92,7 +94,7 @@ function AuthenticatedEntryRedirect() {
       .then((skipMfa) => {
         if (cancelled) return
         if (skipMfa) {
-          setTarget('/dashboard')
+          setTarget(WAREHOUSE_HOME_PATH)
           return
         }
         return fetchMfaStatus().then((status) => {
@@ -111,12 +113,21 @@ function AuthenticatedEntryRedirect() {
     }
   }, [authUser, authLoading])
 
-  if (authLoading || !target) return <LoadingSpinner />
-  const lastPrivatePath = getLastPrivatePath()
-  if (target === '/dashboard' && lastPrivatePath && lastPrivatePath !== '/') {
-    return <Navigate to={lastPrivatePath} replace />
+  if (authLoading || !authUser || !target || (userInfoLoading && target === '/dashboard')) {
+    return <LoadingSpinner />
   }
-  return <Navigate to={target} replace />
+
+  let destination = isWarehouseOnly ? WAREHOUSE_HOME_PATH : target
+  const lastPrivatePath = getLastPrivatePath()
+  if (
+    !isWarehouseOnly &&
+    destination === '/dashboard' &&
+    lastPrivatePath &&
+    lastPrivatePath !== '/'
+  ) {
+    destination = lastPrivatePath
+  }
+  return <Navigate to={destination} replace />
 }
 
 /** Logged-in users hitting / are sent through MFA checks first. */
@@ -223,9 +234,11 @@ function PrivateLayout() {
     <MfaGate>
       <IdleMfaGuard />
       <TrackingScanProvider>
-        <Layout>
-          <Outlet />
-        </Layout>
+        <WarehouseRouteGuard>
+          <Layout>
+            <Outlet />
+          </Layout>
+        </WarehouseRouteGuard>
       </TrackingScanProvider>
     </MfaGate>
   )
@@ -233,7 +246,7 @@ function PrivateLayout() {
 
 /** Remembers the last in-app private URL for refresh recovery. */
 function RememberLastPrivatePath() {
-  const { authUser } = useUser()
+  const { authUser, isWarehouseOnly } = useUser()
   const location = useLocation()
 
   useEffect(() => {
@@ -247,14 +260,15 @@ function RememberLastPrivatePath() {
       location.pathname === '/mfa/setup' ||
       location.pathname === '/mfa/verify'
     if (isGuestRoute) return
+    if (isWarehouseOnly && !isWarehouseAllowedPath(location.pathname)) return
     setLastPrivatePath(path)
-  }, [authUser, location.pathname, location.search, location.hash])
+  }, [authUser, isWarehouseOnly, location.pathname, location.search, location.hash])
 
   return null
 }
 
 function FeedbackRoute() {
-  const { userInfoLoading, userInfo, authUser } = useUser()
+  const { userInfoLoading, userInfo, authUser, isWarehouseOnly } = useUser()
   if (userInfoLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
@@ -265,7 +279,7 @@ function FeedbackRoute() {
   if (
     isUserHiddenFromFeedbackPage(userInfo?.display_name, userInfo?.email, authUser?.email)
   ) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={isWarehouseOnly ? WAREHOUSE_HOME_PATH : '/dashboard'} replace />
   }
   return <Feedback />
 }
@@ -400,7 +414,7 @@ function AppRoutes() {
           <Route path="fnsku-labels" element={<FNSKULabelGenerator />} />
           <Route
             path="label-station"
-            element={<ProtectedRoute requireKeepaAccess={true}><LabelStation /></ProtectedRoute>}
+            element={<ProtectedRoute requireLabelStationAccess={true}><LabelStation /></ProtectedRoute>}
           />
           {/* Assistant chat UI hidden for now — deep links go to dashboard */}
           <Route path="assistant" element={<Navigate to="/dashboard" replace />} />

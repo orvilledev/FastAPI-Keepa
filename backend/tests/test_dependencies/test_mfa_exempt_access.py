@@ -1,9 +1,10 @@
-"""Tests for MFA-exempt full app access grants."""
+"""Tests for MFA-exempt warehouse station access grants."""
 import pytest
 from unittest.mock import MagicMock, patch
 
 from app.dependencies import (
-    MFA_EXEMPT_ACCESS_GRANTS,
+    MFA_EXEMPT_STATION_GRANTS,
+    WAREHOUSE_ROLE,
     ensure_mfa_exempt_profile_access,
     is_mfa_exempt_user,
 )
@@ -19,21 +20,23 @@ class TestMfaExemptProfileAccess:
             "id": "user-1",
             "email": "warehouse1@metroshoewarehouse.com",
             "is_active": False,
-            "has_keepa_access": False,
-            "can_run_jobs": False,
+            "has_keepa_access": True,
+            "can_run_jobs": True,
+            "role": "user",
         }
 
         db = MagicMock()
-        updated_row = {**profile, **MFA_EXEMPT_ACCESS_GRANTS, "updated_at": "now"}
+        updated_row = {**profile, **MFA_EXEMPT_STATION_GRANTS, "updated_at": "now"}
         db.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(
             data=[updated_row]
         )
 
         result = ensure_mfa_exempt_profile_access(db, user, profile)
 
-        assert result["has_keepa_access"] is True
+        assert result["has_keepa_access"] is False
         assert result["is_active"] is True
-        assert result["can_run_jobs"] is True
+        assert result["can_run_jobs"] is False
+        assert result["role"] == WAREHOUSE_ROLE
         db.table.return_value.update.assert_called_once()
 
     @pytest.mark.unit

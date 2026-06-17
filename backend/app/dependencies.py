@@ -14,12 +14,18 @@ logger = logging.getLogger(__name__)
 
 security = HTTPBearer()
 
-# Full MSW Overwatch access for MFA-exempt shared-station accounts (password-only login).
-MFA_EXEMPT_ACCESS_GRANTS: dict[str, bool] = {
+WAREHOUSE_ROLE = "warehouse"
+
+# MFA-exempt shared stations: Label Station only (password-only login, no full Keepa access).
+MFA_EXEMPT_STATION_GRANTS: dict[str, object] = {
     "is_active": True,
-    "has_keepa_access": True,
-    "can_run_jobs": True,
+    "role": WAREHOUSE_ROLE,
+    "has_keepa_access": False,
+    "can_run_jobs": False,
 }
+
+# Back-compat alias for auth approval paths that import MFA_EXEMPT_ACCESS_GRANTS.
+MFA_EXEMPT_ACCESS_GRANTS = MFA_EXEMPT_STATION_GRANTS
 
 
 def is_mfa_exempt_user(current_user: dict) -> bool:
@@ -28,16 +34,21 @@ def is_mfa_exempt_user(current_user: dict) -> bool:
     return user_email in set(settings.mfa_exempt_emails_list)
 
 
+def is_warehouse_role(profile: dict) -> bool:
+    """True when the profile is restricted to Label Station and general pages."""
+    return (profile.get("role") or "").lower() == WAREHOUSE_ROLE
+
+
 def ensure_mfa_exempt_profile_access(
     db: Client, user_data: dict, profile: dict
 ) -> dict:
-    """Persist full app access for MFA-exempt accounts when flags are missing."""
+    """Persist warehouse-station access for MFA-exempt accounts (Label Station only)."""
     if not is_mfa_exempt_user(user_data):
         return profile
 
     updates: dict[str, object] = {}
-    for key, value in MFA_EXEMPT_ACCESS_GRANTS.items():
-        if not profile.get(key):
+    for key, value in MFA_EXEMPT_STATION_GRANTS.items():
+        if profile.get(key) != value:
             updates[key] = value
 
     if not updates:
@@ -76,7 +87,7 @@ def _ensure_profile_row_for_access(db: Client, user_data: dict) -> dict:
         "updated_at": datetime.utcnow().isoformat(),
     }
     if is_mfa_exempt_user(user_data):
-        profile_data.update(MFA_EXEMPT_ACCESS_GRANTS)
+        profile_data.update(MFA_EXEMPT_STATION_GRANTS)
     created = db.table("profiles").insert(profile_data).execute()
     if created.data:
         return created.data[0]
@@ -218,13 +229,44 @@ def get_keepa_access_user(
     has_keepa_access = profile.get("has_keepa_access", False)
     is_admin = profile.get("role") == "admin"
     
-    # Allow if user has Keepa access OR is admin OR is MFA-exempt (shared warehouse stations)
-    if not has_keepa_access and not is_admin and not is_mfa_exempt_user(current_user):
+    if not has_keepa_access and not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="MSW Overwatch access required"
         )
     
+    return current_user
+
+
+def get_label_station_user(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase)
+) -> dict:
+    """Verify user may use Label Station (warehouse role or full Keepa access)."""
+    profile_response = db.table("profiles").select("has_keepa_access, role").eq("id", current_user["id"]).execute()
+
+    if not profile_response.data:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+
+    profile = profile_response.data[0]
+    has_keepa_access = profile.get("has_keepa_access", False)
+    role = (profile.get("role") or "").lower()
+    is_admin = role == "admin"
+
+    if (
+        not has_keepa_access
+        and not is_admin
+        and not is_warehouse_role(profile)
+        and not is_superadmin_user(current_user, db)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Label Station access required"
+        )
+
     return current_user
 
 
@@ -278,7 +320,6 @@ def get_job_runner_user(
         not can_run_jobs
         and not has_keepa_access
         and not is_admin
-        and not is_mfa_exempt_user(current_user)
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

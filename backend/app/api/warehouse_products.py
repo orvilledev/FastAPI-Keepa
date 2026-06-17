@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from supabase import Client
 
 from app.database import get_supabase
-from app.dependencies import get_keepa_access_user
+from app.dependencies import get_label_station_user
 from app.middleware.rate_limiter import limiter, RateLimits
 from app.models.warehouse_product import (
     WarehouseProductImportResult,
@@ -45,7 +45,7 @@ def _validate_import_file(file: UploadFile) -> None:
 @handle_api_errors("lookup warehouse product")
 def lookup_warehouse_product(
     upc: str = Query(..., min_length=1, max_length=64),
-    current_user: dict = Depends(get_keepa_access_user),
+    current_user: dict = Depends(get_label_station_user),
     db: Client = Depends(get_supabase),
 ):
     """Resolve a scanned UPC to FNSKU and label fields (PRODUCTS catalog)."""
@@ -65,7 +65,7 @@ def lookup_warehouse_product(
 @handle_api_errors("count warehouse products")
 def count_warehouse_products(
     search: Optional[str] = Query(None),
-    current_user: dict = Depends(get_keepa_access_user),
+    current_user: dict = Depends(get_label_station_user),
     db: Client = Depends(get_supabase),
 ):
     repo = WarehouseProductRepository(db)
@@ -78,7 +78,7 @@ def list_warehouse_products(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     search: Optional[str] = Query(None),
-    current_user: dict = Depends(get_keepa_access_user),
+    current_user: dict = Depends(get_label_station_user),
     db: Client = Depends(get_supabase),
 ):
     repo = WarehouseProductRepository(db)
@@ -97,7 +97,7 @@ def list_warehouse_products(
 async def import_warehouse_products(
     request: Request,
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_keepa_access_user),
+    current_user: dict = Depends(get_label_station_user),
     db: Client = Depends(get_supabase),
 ):
     """Import or upsert rows from a PRODUCTS sheet (.xlsx / .csv)."""
@@ -138,7 +138,7 @@ async def import_warehouse_products(
 @handle_api_errors("delete warehouse product")
 def delete_warehouse_product(
     upc: str,
-    current_user: dict = Depends(get_keepa_access_user),
+    current_user: dict = Depends(get_label_station_user),
     db: Client = Depends(get_supabase),
 ):
     repo = WarehouseProductRepository(db)

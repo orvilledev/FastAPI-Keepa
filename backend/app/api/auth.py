@@ -7,7 +7,8 @@ from app.dependencies import (
     ensure_mfa_exempt_profile_access,
     is_mfa_exempt_user,
     is_superadmin_user,
-    MFA_EXEMPT_ACCESS_GRANTS,
+    is_warehouse_role,
+    MFA_EXEMPT_STATION_GRANTS,
     security,
 )
 from app.database import get_supabase
@@ -62,7 +63,7 @@ def _default_profile_data(user_id: str, email: str | None) -> dict:
         "created_at": now,
         "updated_at": now,
         **(
-            MFA_EXEMPT_ACCESS_GRANTS
+            MFA_EXEMPT_STATION_GRANTS
             if is_mfa_exempt_user({"email": email})
             else {}
         ),
@@ -154,7 +155,8 @@ def get_current_user_info(
 
     is_superadmin = is_superadmin_user(current_user, db)
     mfa_exempt = is_mfa_exempt_user(current_user)
-    has_keepa_access = bool(row.get("has_keepa_access", False)) or mfa_exempt
+    has_keepa_access = bool(row.get("has_keepa_access", False))
+    is_warehouse_only = is_warehouse_role(row)
 
     return {
         "id": current_user.get("id"),
@@ -162,6 +164,8 @@ def get_current_user_info(
         "role": role,
         "display_name": display_name,
         "has_keepa_access": has_keepa_access,
+        "is_warehouse_only": is_warehouse_only,
+        "has_label_station_access": has_keepa_access or is_warehouse_only or is_superadmin,
         "can_manage_tools": can_manage_tools,
         "can_assign_tasks": can_assign_tasks,
         "is_superadmin": is_superadmin,
@@ -682,7 +686,7 @@ def approve_user(
         "updated_at": datetime.utcnow().isoformat(),
     }
     if is_mfa_exempt_user({"email": profile_row.get("email")}):
-        updates.update(MFA_EXEMPT_ACCESS_GRANTS)
+        updates.update(MFA_EXEMPT_STATION_GRANTS)
 
     response = db.table("profiles").update(updates).eq("id", user_id).execute()
     if not response.data:

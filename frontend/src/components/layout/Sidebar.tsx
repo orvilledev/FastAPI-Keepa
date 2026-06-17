@@ -87,7 +87,7 @@ const Icons = {
 
 export default function Sidebar() {
   const location = useLocation()
-  const { hasKeepaAccess, isSuperadmin, userInfo, authUser, userInfoLoading } = useUser()
+  const { hasKeepaAccess, isWarehouseOnly, isSuperadmin, userInfo, authUser, userInfoLoading } = useUser()
   const isElectron = Boolean(window.desktop?.isElectron)
   const [desktopVersion, setDesktopVersion] = useState<string | null>(null)
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false)
@@ -189,6 +189,71 @@ export default function Sidebar() {
         className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-3"
         onMouseLeave={() => setHoveredNav(null)}
       >
+        {isWarehouseOnly ? (
+          <>
+            <div className="shrink-0 space-y-0.5">
+              <Link
+                to="/label-station"
+                onMouseEnter={() => setHoveredNav('label-station')}
+                className={`sidebar-link ${
+                  navHighlighted('label-station', isActive('/label-station'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.barcode}</span>
+                <span className="sidebar-link-label">Label Station</span>
+              </Link>
+            </div>
+
+            <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
+
+            <div className="shrink-0 space-y-0.5 pb-1 pt-1">
+              <p className="sidebar-section-label">GENERAL</p>
+              <Link
+                to="/about"
+                onMouseEnter={() => setHoveredNav('about')}
+                className={`sidebar-link ${
+                  navHighlighted('about', isActive('/about'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.info}</span>
+                <span className="sidebar-link-label">About</span>
+              </Link>
+
+              <Link
+                to="/faq"
+                onMouseEnter={() => setHoveredNav('faq')}
+                className={`sidebar-link ${
+                  navHighlighted('faq', isActive('/faq'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.wrench}</span>
+                <span className="sidebar-link-label">FAQ</span>
+              </Link>
+
+              {showFeedbackNav && (
+                <Link
+                  to="/feedback"
+                  onMouseEnter={() => setHoveredNav('feedback')}
+                  className={`sidebar-link ${
+                    navHighlighted('feedback', isActive('/feedback'))
+                      ? 'sidebar-link-active'
+                      : 'sidebar-link-inactive'
+                  }`}
+                >
+                  <span className="shrink-0">{Icons.feedback}</span>
+                  <span className="sidebar-link-label">Feedback From Users</span>
+                </Link>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
         {/* MENU: Dashboard + Keepa */}
         <div className="shrink-0">
           <p className="sidebar-section-label">MENU</p>
@@ -356,6 +421,8 @@ export default function Sidebar() {
             </Link>
           )}
         </div>
+          </>
+        )}
       </nav>
       {isElectron && (
         <div className="mx-4 mb-4 mt-3 shrink-0 rounded-lg border border-gray-200 bg-gray-50 p-3">

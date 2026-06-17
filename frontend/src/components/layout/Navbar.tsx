@@ -1,5 +1,6 @@
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
+import { useUser } from '../../contexts/UserContext'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { notificationsApi } from '../../services/api'
 import { resetTotpEnrollment } from '../../lib/mfa'
@@ -10,6 +11,7 @@ const VITE_DESKTOP_URL = DESKTOP_APP_DOWNLOAD_URL
 
 export default function Navbar() {
   const { user, signOut } = useAuth()
+  const { isWarehouseOnly } = useUser()
   const navigate = useNavigate()
   const isElectron = Boolean(window.desktop?.isElectron)
   const [unreadCount, setUnreadCount] = useState(0)
@@ -106,9 +108,13 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 shrink-0 border-b border-gray-200/80 bg-white/80 shadow-sm backdrop-blur-lg">
       <div className="px-6 lg:px-8">
         <div className="flex h-20 items-center gap-4">
-          <div className="min-w-0 w-full max-w-sm lg:max-w-md">
-            <NavbarSearch />
-          </div>
+          {!isWarehouseOnly ? (
+            <div className="min-w-0 w-full max-w-sm lg:max-w-md">
+              <NavbarSearch />
+            </div>
+          ) : (
+            <div className="min-w-0 flex-1" />
+          )}
           <div className="flex shrink-0 items-center space-x-4 ml-auto">
             {!isElectron && desktopDownloadUrl ? (
               <a
@@ -124,7 +130,7 @@ export default function Navbar() {
                 <span className="hidden sm:inline">Download app</span>
               </a>
             ) : null}
-            {/* Notifications Bell */}
+            {!isWarehouseOnly && (
             <Link
               to="/notifications"
               className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200"
@@ -139,6 +145,7 @@ export default function Navbar() {
                 </span>
               )}
             </Link>
+            )}
             <div className="relative" ref={menuRef}>
               <button
                 type="button"

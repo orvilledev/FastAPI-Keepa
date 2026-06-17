@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { fetchMfaStatus, shouldSkipMfaForEmail, shouldShowMfaSetup, shouldShowMfaVerify } from '../../lib/mfa'
 import { APP_ICON_URL } from '../../constants/app'
+import { WAREHOUSE_HOME_PATH } from '../../constants/warehouseAccess'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -40,7 +41,7 @@ export default function Login() {
 
   const routeAfterPasswordSignIn = async () => {
     if (await shouldSkipMfaForEmail(email)) {
-      navigate('/dashboard')
+      navigate(WAREHOUSE_HOME_PATH)
       return
     }
 

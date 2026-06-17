@@ -12,9 +12,22 @@ type SearchItem = {
 
 function buildSearchItems(
   hasKeepaAccess: boolean,
+  isWarehouseOnly: boolean,
   isSuperadmin: boolean,
   showFeedbackNav: boolean,
 ): SearchItem[] {
+  if (isWarehouseOnly) {
+    const items: SearchItem[] = [
+      { label: 'Label Station', path: '/label-station', section: 'Tools' },
+      { label: 'About', path: '/about', section: 'General' },
+      { label: 'FAQ', path: '/faq', section: 'General' },
+    ]
+    if (showFeedbackNav) {
+      items.push({ label: 'Feedback From Users', path: '/feedback', section: 'General' })
+    }
+    return items
+  }
+
   const items: SearchItem[] = [
     { label: 'Dashboard', path: '/dashboard', section: 'Menu' },
     { label: 'Notifications', path: '/notifications', section: 'Menu' },
@@ -54,7 +67,7 @@ function buildSearchItems(
 export default function NavbarSearch() {
   const navigate = useNavigate()
   const { user: authUser } = useAuth()
-  const { hasKeepaAccess, isSuperadmin, userInfo, userInfoLoading } = useUser()
+  const { hasKeepaAccess, isWarehouseOnly, isSuperadmin, userInfo, userInfoLoading } = useUser()
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -69,8 +82,8 @@ export default function NavbarSearch() {
     )
 
   const searchItems = useMemo(
-    () => buildSearchItems(hasKeepaAccess, isSuperadmin, showFeedbackNav),
-    [hasKeepaAccess, isSuperadmin, showFeedbackNav],
+    () => buildSearchItems(hasKeepaAccess, isWarehouseOnly, isSuperadmin, showFeedbackNav),
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showFeedbackNav],
   )
 
   const results = useMemo(() => {

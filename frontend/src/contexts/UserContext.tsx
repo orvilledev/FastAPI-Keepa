@@ -10,6 +10,8 @@ export interface UserInfo {
   role?: string
   display_name?: string
   has_keepa_access: boolean
+  is_warehouse_only?: boolean
+  has_label_station_access?: boolean
   can_manage_tools: boolean
   is_superadmin?: boolean
   mfa_enabled?: boolean
@@ -28,6 +30,8 @@ interface UserContextType {
   // Helper computed properties
   isAuthenticated: boolean
   hasKeepaAccess: boolean
+  isWarehouseOnly: boolean
+  hasLabelStationAccess: boolean
   canManageTools: boolean
   isSuperadmin: boolean
   displayName: string
@@ -73,7 +77,9 @@ export function UserProvider({ children }: UserProviderProps) {
         email: data.email || authUser.email,
         role: data.role,
         display_name: data.display_name,
-        has_keepa_access: Boolean(data.has_keepa_access) || mfaExempt,
+        has_keepa_access: Boolean(data.has_keepa_access),
+        is_warehouse_only: Boolean(data.is_warehouse_only) || data.role === 'warehouse',
+        has_label_station_access: Boolean(data.has_label_station_access),
         can_manage_tools: data.can_manage_tools || false,
         is_superadmin: Boolean(data.is_superadmin) || emailLower === 'orvillebarba@gmail.com',
         mfa_enabled: Boolean(data.mfa_enabled),
@@ -203,8 +209,13 @@ export function UserProvider({ children }: UserProviderProps) {
   const accountEmail = userInfo?.email ?? authUser?.email
   const mfaExemptAccount =
     Boolean(userInfo?.mfa_exempt) || isMfaExemptEmail(accountEmail, mfaExemptEmails)
-  const hasKeepaAccess =
-    Boolean(userInfo?.has_keepa_access || mfaExemptAccount) || isSuperadmin
+  const isWarehouseOnly =
+    Boolean(userInfo?.is_warehouse_only) ||
+    userInfo?.role === 'warehouse' ||
+    (mfaExemptAccount && !Boolean(userInfo?.has_keepa_access) && !isSuperadmin)
+  const hasKeepaAccess = Boolean(userInfo?.has_keepa_access) || isSuperadmin
+  const hasLabelStationAccess =
+    Boolean(userInfo?.has_label_station_access) || hasKeepaAccess || isWarehouseOnly
   const canManageTools = Boolean(userInfo?.can_manage_tools) || isSuperadmin
   const displayName =
     userInfo?.display_name ||
@@ -219,6 +230,8 @@ export function UserProvider({ children }: UserProviderProps) {
     userInfoLoading,
     isAuthenticated,
     hasKeepaAccess,
+    isWarehouseOnly,
+    hasLabelStationAccess,
     canManageTools,
     isSuperadmin,
     displayName,
