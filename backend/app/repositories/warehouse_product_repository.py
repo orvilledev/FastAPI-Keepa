@@ -12,6 +12,24 @@ def normalize_upc_key(upc: str) -> str:
     return (upc or "").strip()
 
 
+def build_warehouse_product_search_filter(search: Optional[str]) -> Optional[str]:
+    """Build a PostgREST OR filter for catalog search.
+
+    Values are double-quoted so dots, commas, and other punctuation in UPCs
+    or style names do not break filter parsing.
+    """
+    if not search or not search.strip():
+        return None
+    term = " ".join(search.strip().replace(",", " ").split())
+    if not term:
+        return None
+    escaped = term.replace("\\", "\\\\").replace('"', '\\"')
+    escaped = escaped.replace("%", "\\%").replace("_", "\\_")
+    pattern = f'"%{escaped}%"'
+    columns = ("upc", "fnsku", "style_name", "condition")
+    return ",".join(f"{col}.ilike.{pattern}" for col in columns)
+
+
 class WarehouseProductRepository:
     def __init__(self, db: Client):
         self.db = db
@@ -33,11 +51,9 @@ class WarehouseProductRepository:
 
     def count(self, search: Optional[str] = None) -> int:
         query = self.db.table("warehouse_products").select("id", count="exact")
-        if search and search.strip():
-            s = search.strip().replace(",", " ")
-            query = query.or_(
-                f"upc.ilike.%{s}%,fnsku.ilike.%{s}%,style_name.ilike.%{s}%"
-            )
+        search_filter = build_warehouse_product_search_filter(search)
+        if search_filter:
+            query = query.or_(search_filter)
         response = query.execute()
         return int(response.count or 0)
 
@@ -50,11 +66,9 @@ class WarehouseProductRepository:
         limit = max(1, min(limit, 200))
         offset = max(0, offset)
         query = self.db.table("warehouse_products").select("*", count="exact")
-        if search and search.strip():
-            s = search.strip().replace(",", " ")
-            query = query.or_(
-                f"upc.ilike.%{s}%,fnsku.ilike.%{s}%,style_name.ilike.%{s}%"
-            )
+        search_filter = build_warehouse_product_search_filter(search)
+        if search_filter:
+            query = query.or_(search_filter)
         response = (
             query.order("upc")
             .range(offset, offset + limit - 1)

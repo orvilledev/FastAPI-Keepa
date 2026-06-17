@@ -202,6 +202,14 @@ export default function WarehouseProductCatalog({
             >
               Next
             </button>
+            <button
+              type="button"
+              disabled={page >= totalPages - 1 || loading}
+              onClick={() => setPage(totalPages - 1)}
+              className="rounded border border-gray-300 bg-white px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-40"
+            >
+              Last
+            </button>
           </div>
         </div>
       )}

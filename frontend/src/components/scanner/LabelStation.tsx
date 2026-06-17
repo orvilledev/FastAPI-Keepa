@@ -68,25 +68,32 @@ export default function LabelStation() {
   const [loadingPrinters, setLoadingPrinters] = useState(false)
   const isElectron = Boolean(window.desktop?.isElectron)
 
-  const refreshPrinters = useCallback(async () => {
-    if (!window.desktop?.listPrinters) return
+  const refreshPrinters = useCallback(async (): Promise<string> => {
+    if (!window.desktop?.listPrinters) return ''
     setLoadingPrinters(true)
     try {
       const result = await window.desktop.listPrinters()
       const found = result.printers || []
       setPrinters(found)
-      setSelectedPrinter((current) => {
-        if (current && found.some((p) => p.name === current)) return current
-        const saved = getSelectedPrinter()
-        if (saved && found.some((p) => p.name === saved)) return saved
-        const fallback = found.find((p) => p.isDefault)?.name || found[0]?.name || ''
-        if (fallback) saveSelectedPrinter(fallback)
-        return fallback
-      })
+
+      const saved = getSelectedPrinter()
+      const current = selectedPrinter.trim()
+      let chosen = ''
+      if (current && found.some((p) => p.name === current)) {
+        chosen = current
+      } else if (saved && found.some((p) => p.name === saved)) {
+        chosen = saved
+      } else {
+        chosen = found.find((p) => p.isDefault)?.name || found[0]?.name || ''
+      }
+
+      if (chosen) saveSelectedPrinter(chosen)
+      setSelectedPrinter(chosen)
+      return chosen
     } finally {
       setLoadingPrinters(false)
     }
-  }, [])
+  }, [selectedPrinter])
 
   useEffect(() => {
     setSelectedPrinter(getSelectedPrinter())
@@ -119,7 +126,7 @@ export default function LabelStation() {
       setMessage(null)
 
       const zpl = buildWarehouseLabelZpl(item, quantity)
-      const printerName = selectedPrinter.trim()
+      let printerName = selectedPrinter.trim()
 
       try {
         if (isElectron && printerName && window.desktop?.printZpl) {
@@ -129,7 +136,16 @@ export default function LabelStation() {
           }
           setMessage(`Sent ${quantity} label(s) to ${printerName}.`)
         } else if (isElectron) {
-          throw new Error('No printer selected. Connect a Zebra printer and pick it below.')
+          printerName = (await refreshPrinters()).trim()
+          if (printerName && window.desktop?.printZpl) {
+            const result = await window.desktop.printZpl({ printerName, zpl })
+            if (!result.ok) {
+              throw new Error(result.message || 'Print failed')
+            }
+            setMessage(`Sent ${quantity} label(s) to ${printerName}.`)
+          } else {
+            throw new Error('No printer selected. Connect a Zebra printer and pick it below.')
+          }
         } else {
           const blob = buildWarehouseLabelPdfBlob(item, quantity)
           downloadBlob(blob, suggestedWarehouseLabelPdfFilename(item))
@@ -146,7 +162,7 @@ export default function LabelStation() {
         scanInputRef.current?.focus()
       }
     },
-    [quantity, selectedPrinter, isElectron, clearScan]
+    [quantity, selectedPrinter, isElectron, clearScan, refreshPrinters]
   )
 
   const lookupUpc = useCallback(

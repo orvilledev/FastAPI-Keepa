@@ -25,6 +25,31 @@ let lastUpdateStatus = { phase: 'idle' }
 
 const UPDATE_CACHE_TTL_MS = 15 * 60 * 1000
 
+function resolveRawPrintScriptPath() {
+  const candidates = [
+    path.join(__dirname, 'raw-print.ps1').replace('app.asar', 'app.asar.unpacked'),
+    path.join(__dirname, 'raw-print.ps1'),
+  ]
+  if (app.isPackaged && process.resourcesPath) {
+    candidates.push(
+      path.join(process.resourcesPath, 'app.asar.unpacked', 'electron', 'raw-print.ps1')
+    )
+  }
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate
+  }
+  return candidates[0]
+}
+
+let cachedRawPrintScriptPath = null
+
+function getRawPrintScriptPath() {
+  if (!cachedRawPrintScriptPath || !fs.existsSync(cachedRawPrintScriptPath)) {
+    cachedRawPrintScriptPath = resolveRawPrintScriptPath()
+  }
+  return cachedRawPrintScriptPath
+}
+
 function updateCachePath() {
   return path.join(app.getPath('userData'), 'update-check-cache.json')
 }
@@ -364,11 +389,13 @@ ipcMain.handle('printer:printZpl', async (_event, payload) => {
 
   // PowerShell cannot execute scripts inside app.asar; asarUnpack copies this file
   // to app.asar.unpacked where the OS can read it.
-  const scriptPath = path
-    .join(__dirname, 'raw-print.ps1')
-    .replace('app.asar', 'app.asar.unpacked')
+  let scriptPath = getRawPrintScriptPath()
   if (!fs.existsSync(scriptPath)) {
-    return { ok: false, message: `Print script not found: ${scriptPath}` }
+    cachedRawPrintScriptPath = null
+    scriptPath = getRawPrintScriptPath()
+    if (!fs.existsSync(scriptPath)) {
+      return { ok: false, message: `Print script not found: ${scriptPath}` }
+    }
   }
 
   return new Promise((resolve) => {
