@@ -65,7 +65,7 @@ export function buildWarehouseLabelZpl(product: WarehouseLabelProduct, copies = 
 ^CI28
 ^FO30,15^A0N,26,26^FD${fnsku}^FS
 ^FO30,48^BY2^BCN,65,N,N,N^FD${fnsku}^FS
-^FO30,118^A0N,18,18^FD${upcLine}^FS
+^FO30,118^A0N,22,22^FB550,1,0,C^FD${upcLine}^FS
 ^FO320,118^A0N,18,18^FB280,1,0,R^FD${condition}^FS
 ^FO30,140^A0N,18,18^FB550,3,0,C^FD${style}^FS
 ^XZ`
@@ -113,10 +113,10 @@ function drawLabelPage(doc: jsPDF, product: WarehouseLabelProduct) {
 
   const metaY = barcodeY + BARCODE_HEIGHT_PT + 7
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
+  doc.setFontSize(10.5)
   const upcLine = formatUpcFnskuLine(product.upc)
   if (upcLine) {
-    doc.text(upcLine, MARGIN_PT + 1, metaY)
+    doc.text(upcLine, centerX, metaY, { align: 'center' })
   }
   if (product.condition) {
     doc.text(product.condition, LABEL_WIDTH_PT - MARGIN_PT - 1, metaY, { align: 'right' })
