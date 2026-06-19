@@ -22,7 +22,7 @@ import DesktopUpdateOverlay from './components/desktop/DesktopUpdateOverlay'
 import { systemApi } from './services/api'
 import { fetchMfaStatus, isMfaIdleReverifyDue, recordMfaActivity, shouldShowMfaSetup, shouldShowMfaVerify, shouldSkipMfaForEmail } from './lib/mfa'
 import { isUserHiddenFromFeedbackPage } from './constants/feedbackAccess'
-import { getLastPrivatePath, setLastPrivatePath } from './lib/privatePath'
+import { getLastPrivatePath, getCurrentRememberedPath, setLastPrivatePath } from './lib/privatePath'
 import { WAREHOUSE_HOME_PATH, isWarehouseAllowedPath } from './constants/warehouseAccess'
 
 // Lazy load page components for code splitting (About is eager so its chunk cannot 404 behind stale CDN/cache)
@@ -90,6 +90,10 @@ function AuthenticatedEntryRedirect() {
     let cancelled = false
     if (authLoading || !authUser) return
 
+    const fallbackTimer = window.setTimeout(() => {
+      if (!cancelled) setTarget((prev) => prev ?? '/dashboard')
+    }, 12_000)
+
     void shouldSkipMfaForEmail(authUser.email)
       .then((skipMfa) => {
         if (cancelled) return
@@ -110,6 +114,7 @@ function AuthenticatedEntryRedirect() {
 
     return () => {
       cancelled = true
+      window.clearTimeout(fallbackTimer)
     }
   }, [authUser, authLoading])
 
@@ -251,17 +256,17 @@ function RememberLastPrivatePath() {
 
   useEffect(() => {
     if (!authUser) return
-    const path = `${location.pathname}${location.search}${location.hash}`
+    const routePath = getCurrentRememberedPath().split('?')[0]
     const isGuestRoute =
-      location.pathname === '/' ||
-      location.pathname === '/login' ||
-      location.pathname === '/signup' ||
-      location.pathname === '/reset-password' ||
-      location.pathname === '/mfa/setup' ||
-      location.pathname === '/mfa/verify'
+      routePath === '/' ||
+      routePath === '/login' ||
+      routePath === '/signup' ||
+      routePath === '/reset-password' ||
+      routePath === '/mfa/setup' ||
+      routePath === '/mfa/verify'
     if (isGuestRoute) return
-    if (isWarehouseOnly && !isWarehouseAllowedPath(location.pathname)) return
-    setLastPrivatePath(path)
+    if (isWarehouseOnly && !isWarehouseAllowedPath(routePath)) return
+    setLastPrivatePath(getCurrentRememberedPath())
   }, [authUser, isWarehouseOnly, location.pathname, location.search, location.hash])
 
   return null
@@ -295,9 +300,16 @@ function AppRoutes() {
 
   useEffect(() => {
     let active = true
+    const STARTUP_TIMEOUT_MS = 8_000
+
     const loadMaintenanceStatus = async () => {
       try {
-        const status = await systemApi.getMaintenanceStatus()
+        const status = await Promise.race([
+          systemApi.getMaintenanceStatus(),
+          new Promise<never>((_, reject) =>
+            window.setTimeout(() => reject(new Error('maintenance status timeout')), STARTUP_TIMEOUT_MS)
+          ),
+        ])
         if (!active) return
         setMaintenanceMode(Boolean(status.maintenance_mode))
         setMaintenanceMessage((status.effective_message || status.message || '').trim())

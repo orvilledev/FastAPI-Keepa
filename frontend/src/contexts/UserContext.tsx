@@ -142,7 +142,7 @@ export function UserProvider({ children }: UserProviderProps) {
         profileLoadedForUserId.current = null
       }
 
-      if (event === 'INITIAL_SESSION') {
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         setAuthLoading(false)
       }
     })
@@ -156,7 +156,7 @@ export function UserProvider({ children }: UserProviderProps) {
         })
         return false
       })
-    }, 10_000)
+    }, 5_000)
 
     return () => {
       subscription.unsubscribe()

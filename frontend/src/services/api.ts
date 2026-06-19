@@ -38,6 +38,7 @@ function redirectToLogin(): void {
 
 const api = axios.create({
   baseURL: API_URL,
+  timeout: 25_000,
   headers: {
     'Content-Type': 'application/json',
   },

@@ -81,20 +81,23 @@ export async function getMfaExemptEmails(): Promise<string[]> {
     return mergeMfaExemptEmailLists(cachedMfaExemptEmails, builtIn)
   }
   if (!mfaExemptEmailsPromise) {
-    mfaExemptEmailsPromise = fetch(`${API_BASE_URL}/api/v1/public/client-config`)
-      .then(async (res) => {
+    mfaExemptEmailsPromise = Promise.race([
+      fetch(`${API_BASE_URL}/api/v1/public/client-config`, {
+        signal: AbortSignal.timeout(8_000),
+      }).then(async (res) => {
         if (!res.ok) return builtIn
         const data = (await res.json()) as { mfa_exempt_emails?: string[] }
         const fromApi = (data.mfa_exempt_emails ?? []).map((email) => email.trim().toLowerCase())
         const merged = mergeMfaExemptEmailLists(fromApi, builtIn)
         cachedMfaExemptEmails = merged
         return merged
-      })
-      .catch(() => {
-        const fallback = mergeMfaExemptEmailLists(builtIn)
-        cachedMfaExemptEmails = fallback
-        return fallback
-      })
+      }),
+      new Promise<string[]>((resolve) => window.setTimeout(() => resolve(builtIn), 8_000)),
+    ]).catch(() => {
+      const fallback = mergeMfaExemptEmailLists(builtIn)
+      cachedMfaExemptEmails = fallback
+      return fallback
+    })
   }
   return mfaExemptEmailsPromise
 }

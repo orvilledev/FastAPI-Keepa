@@ -1,7 +1,7 @@
 {
   "name": "msw-overwatch-frontend",
   "private": true,
-  "version": "2.2.19",
+  "version": "2.2.20",
   "description": "MSW Overwatch dashboard (web and Electron)",
   "author": "MSW Overwatch",
   "type": "module",
