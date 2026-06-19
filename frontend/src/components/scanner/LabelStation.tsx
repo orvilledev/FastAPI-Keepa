@@ -5,10 +5,15 @@ import {
   buildWarehouseLabelPdfBlob,
   buildWarehouseLabelZpl,
   computeScanStatus,
+  detectPrinterDpi,
+  getSelectedDpi,
   getSelectedPrinter,
+  saveSelectedDpi,
   saveSelectedPrinter,
   scanStatusLabel,
   suggestedWarehouseLabelPdfFilename,
+  SUPPORTED_DPIS,
+  type LabelDpi,
   type ScanPrintStatus,
   type WarehouseLabelProduct,
 } from '../../utils/warehouseLabel'
@@ -65,6 +70,7 @@ export default function LabelStation() {
 
   const [printers, setPrinters] = useState<DesktopPrinter[]>([])
   const [selectedPrinter, setSelectedPrinter] = useState('')
+  const [selectedDpi, setSelectedDpi] = useState<LabelDpi>(getSelectedDpi())
   const [loadingPrinters, setLoadingPrinters] = useState(false)
   const isElectron = Boolean(window.desktop?.isElectron)
 
@@ -89,6 +95,15 @@ export default function LabelStation() {
 
       if (chosen) saveSelectedPrinter(chosen)
       setSelectedPrinter(chosen)
+
+      // Auto-detect dpi from the chosen printer's driver name (best effort).
+      const detected = detectPrinterDpi(
+        found.find((p) => p.name === chosen)?.displayName || chosen
+      )
+      if (detected) {
+        setSelectedDpi(detected)
+        saveSelectedDpi(detected)
+      }
       return chosen
     } finally {
       setLoadingPrinters(false)
@@ -125,7 +140,7 @@ export default function LabelStation() {
       setError(null)
       setMessage(null)
 
-      const zpl = buildWarehouseLabelZpl(item, quantity)
+      const zpl = buildWarehouseLabelZpl(item, quantity, selectedDpi)
       let printerName = selectedPrinter.trim()
 
       try {
@@ -147,7 +162,7 @@ export default function LabelStation() {
             throw new Error('No printer selected. Connect a Zebra printer and pick it below.')
           }
         } else {
-          const blob = buildWarehouseLabelPdfBlob(item, quantity)
+          const blob = buildWarehouseLabelPdfBlob(item, quantity, selectedDpi)
           downloadBlob(blob, suggestedWarehouseLabelPdfFilename(item))
           setMessage(
             `Downloaded PDF (${quantity} label(s)). Open the desktop app for direct Zebra printing.`
@@ -162,7 +177,7 @@ export default function LabelStation() {
         scanInputRef.current?.focus()
       }
     },
-    [quantity, selectedPrinter, isElectron, clearScan, refreshPrinters]
+    [quantity, selectedPrinter, selectedDpi, isElectron, clearScan, refreshPrinters]
   )
 
   const lookupUpc = useCallback(
@@ -238,6 +253,18 @@ export default function LabelStation() {
   const handleSelectPrinter = (name: string) => {
     setSelectedPrinter(name)
     saveSelectedPrinter(name)
+    const detected = detectPrinterDpi(
+      printers.find((p) => p.name === name)?.displayName || name
+    )
+    if (detected) {
+      setSelectedDpi(detected)
+      saveSelectedDpi(detected)
+    }
+  }
+
+  const handleSelectDpi = (dpi: LabelDpi) => {
+    setSelectedDpi(dpi)
+    saveSelectedDpi(dpi)
   }
 
   const handleImport = async (file: File) => {
@@ -376,7 +403,7 @@ export default function LabelStation() {
               className="text-sm text-gray-600 underline hover:text-gray-900"
               onClick={() => {
                 if (!product) return
-                const blob = buildWarehouseLabelPdfBlob(product, quantity)
+                const blob = buildWarehouseLabelPdfBlob(product, quantity, selectedDpi)
                 downloadBlob(blob, suggestedWarehouseLabelPdfFilename(product))
               }}
             >
@@ -417,6 +444,20 @@ export default function LabelStation() {
                   ))}
                 </select>
               </label>
+              <label className="text-sm">
+                <span className="block text-gray-600 mb-1">Print resolution</span>
+                <select
+                  value={selectedDpi}
+                  onChange={(e) => handleSelectDpi(Number(e.target.value) as LabelDpi)}
+                  className="rounded border border-gray-300 px-3 py-2 text-sm w-40 bg-white"
+                >
+                  {SUPPORTED_DPIS.map((dpi) => (
+                    <option key={dpi} value={dpi}>
+                      {dpi} dpi
+                    </option>
+                  ))}
+                </select>
+              </label>
               <button
                 type="button"
                 onClick={() => void refreshPrinters()}
@@ -426,6 +467,11 @@ export default function LabelStation() {
                 {loadingPrinters ? 'Refreshing…' : 'Refresh'}
               </button>
             </div>
+            <p className="text-xs text-gray-500">
+              Match this to your printer's print head (e.g. ZD420-203 = 203 dpi, ZD420-300 = 300
+              dpi). It's auto-detected from the printer name when possible; set it manually if the
+              label prints too small or gets cut off.
+            </p>
           </>
         ) : (
           <p className="text-xs text-gray-600">

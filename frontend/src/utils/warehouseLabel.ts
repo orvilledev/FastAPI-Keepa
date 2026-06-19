@@ -2,29 +2,42 @@ import JsBarcode from 'jsbarcode'
 import { jsPDF } from 'jspdf'
 
 /**
- * Canonical label geometry: 3" × 1.5" at Zebra 203 dpi (the industry-standard
- * resolution for FNSKU / shipping label printers such as the Zebra GK420d,
- * GX430, ZD420, etc.). Everything below is drawn ONCE into a monochrome canvas
- * at this exact pixel grid, then shipped to BOTH outputs:
- *   - the PDF preview (the canvas is embedded as an image), and
+ * The label is designed once on a base 203-dpi grid (3" × 1.5") and then
+ * rendered at the printer's NATIVE resolution. Everything is drawn into a
+ * monochrome canvas at the target dpi, then shipped to BOTH outputs:
+ *   - the PDF preview (the canvas is embedded, page stays a physical 3" × 1.5"), and
  *   - the printer (the same canvas is sent as a ZPL ^GFA raster graphic).
  *
- * Because both paths consume the identical thresholded bitmap, the preview is a
- * pixel-for-pixel match of what prints, on every Zebra model — there are no
- * device fonts to substitute and no ^FB word-wrap that varies by firmware.
+ * Because the bitmap is generated at the printer's own dpi, a 3" × 1.5" label
+ * comes out 3" × 1.5" on a 203, 300, or 600 dpi Zebra — no shrinking, no
+ * clipping — and the preview is a pixel-for-pixel match of the print.
  */
-const LABEL_W_DOTS = 609 // 3.0" × 203 dpi
-const LABEL_H_DOTS = 305 // 1.5" × 203 dpi (rounded)
 
-/** PDF page size in points (72 pt/in): 3" × 1.5". */
-export const LABEL_WIDTH_PT = 216
-export const LABEL_HEIGHT_PT = 108
+/** Base design grid: 3" × 1.5" at 203 dpi. All layout numbers below are in these units. */
+const BASE_DPI = 203
+const BASE_W = 609 // 3.0" × 203 dpi
+const BASE_H = 305 // 1.5" × 203 dpi (rounded)
 
 const PAD = 12
 /** Pixels darker than this become solid black; lighter become white. */
 const MONO_THRESHOLD = 150
 const MAX_TITLE_LINES = 3
 const FONT_FAMILY = 'Helvetica, Arial, sans-serif'
+
+/** PDF page size in points (72 pt/in): 3" × 1.5". Physical size is dpi-independent. */
+export const LABEL_WIDTH_PT = 216
+export const LABEL_HEIGHT_PT = 108
+
+/** Supported Zebra print-head resolutions. */
+export const SUPPORTED_DPIS = [203, 300, 600] as const
+export type LabelDpi = (typeof SUPPORTED_DPIS)[number]
+export const DEFAULT_LABEL_DPI: LabelDpi = 203
+
+function normalizeDpi(dpi: number | undefined): LabelDpi {
+  return (SUPPORTED_DPIS as readonly number[]).includes(dpi ?? NaN)
+    ? (dpi as LabelDpi)
+    : DEFAULT_LABEL_DPI
+}
 
 export type WarehouseLabelProduct = {
   upc: string
@@ -66,23 +79,44 @@ function formatUpcFnskuLine(upc: string): string {
   return (upc || '').trim()
 }
 
-/** Code 128 module width (dots) chosen so the barcode fits within the label margins. */
-function barcodeModuleWidth(value: string): number {
+/**
+ * Best-effort detection of a Windows/ZDesigner printer's dpi from its name,
+ * e.g. "ZDesigner ZD420-300dpi ZPL" or "ZDesigner GX430t". Returns null when
+ * the name gives no hint so the caller can fall back to a default/manual value.
+ */
+export function detectPrinterDpi(name: string | undefined | null): LabelDpi | null {
+  const n = (name || '').toLowerCase()
+  if (!n) return null
+  if (/600\s*dpi|24\s*dpmm/.test(n)) return 600
+  if (/300\s*dpi|12\s*dpmm|-?300\b|gx430|gk430|gt800-300|zt230-300|zd420-300|zd620-300/.test(n)) {
+    return 300
+  }
+  if (/203\s*dpi|8\s*dpmm|-?203\b/.test(n)) return 203
+  return null
+}
+
+/** Code 128 module width (device dots) chosen so the barcode fits the label margins. */
+function barcodeModuleWidth(value: string, deviceWidth: number, scale: number): number {
   const len = Math.max(1, value.trim().length)
   // Code 128 ≈ 11 modules/char + ~35 modules of start/checksum/stop/quiet zones.
   const estimatedModules = 11 * len + 35
-  const maxWidth = LABEL_W_DOTS - PAD * 2
-  return Math.max(2, Math.min(4, Math.floor(maxWidth / estimatedModules)))
+  const maxWidth = deviceWidth - Math.round(PAD * scale) * 2
+  const upper = Math.max(2, Math.round(4 * scale))
+  return Math.max(2, Math.min(upper, Math.floor(maxWidth / estimatedModules)))
 }
 
-function renderBarcodeCanvas(value: string): HTMLCanvasElement | null {
+function renderBarcodeCanvas(
+  value: string,
+  deviceWidth: number,
+  scale: number
+): HTMLCanvasElement | null {
   if (!value || typeof document === 'undefined') return null
   try {
     const canvas = document.createElement('canvas')
     JsBarcode(canvas, value, {
       format: 'CODE128',
-      width: barcodeModuleWidth(value),
-      height: 84,
+      width: barcodeModuleWidth(value, deviceWidth, scale),
+      height: Math.round(84 * scale),
       displayValue: false,
       margin: 0,
       background: '#ffffff',
@@ -133,26 +167,33 @@ function wrapLines(
 }
 
 /**
- * Draw the label into a 609×305 monochrome canvas, then threshold to pure
- * black/white so the preview and the thermal print are identical. This is the
- * single source of truth for the label layout.
+ * Draw the label into a monochrome canvas sized for the target dpi, then
+ * threshold to pure black/white so the preview and the thermal print match.
+ * This is the single source of truth for the label layout.
  */
-export function renderWarehouseLabelCanvas(product: WarehouseLabelProduct): HTMLCanvasElement {
+export function renderWarehouseLabelCanvas(
+  product: WarehouseLabelProduct,
+  dpi: number = DEFAULT_LABEL_DPI
+): HTMLCanvasElement {
+  const targetDpi = normalizeDpi(dpi)
+  const scale = targetDpi / BASE_DPI
+  const d = (value: number) => Math.round(value * scale)
+
+  const W = Math.round(BASE_W * scale)
+  const H = Math.round(BASE_H * scale)
+
   const canvas = document.createElement('canvas')
-  canvas.width = LABEL_W_DOTS
-  canvas.height = LABEL_H_DOTS
+  canvas.width = W
+  canvas.height = H
   const ctx = canvas.getContext('2d')
   if (!ctx) return canvas
-
-  const W = LABEL_W_DOTS
-  const H = LABEL_H_DOTS
 
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, W, H)
 
   // Thin label border (matches the preview's framed look).
   ctx.strokeStyle = '#000000'
-  ctx.lineWidth = 1
+  ctx.lineWidth = Math.max(1, d(1))
   ctx.strokeRect(0.5, 0.5, W - 1, H - 1)
 
   ctx.fillStyle = '#000000'
@@ -160,13 +201,13 @@ export function renderWarehouseLabelCanvas(product: WarehouseLabelProduct): HTML
 
   // FNSKU (bold, centered, top).
   ctx.textAlign = 'center'
-  ctx.font = `bold 24px ${FONT_FAMILY}`
-  ctx.fillText(product.fnsku || '', W / 2, 26)
+  ctx.font = `bold ${d(24)}px ${FONT_FAMILY}`
+  ctx.fillText(product.fnsku || '', W / 2, d(26))
 
   // Barcode (centered).
-  const barcodeTop = 34
-  let barcodeBottom = barcodeTop + 84
-  const barcode = renderBarcodeCanvas(product.fnsku)
+  const barcodeTop = d(34)
+  let barcodeBottom = barcodeTop + d(84)
+  const barcode = renderBarcodeCanvas(product.fnsku, W, scale)
   if (barcode) {
     ctx.imageSmoothingEnabled = false
     const bx = Math.round((W - barcode.width) / 2)
@@ -175,8 +216,8 @@ export function renderWarehouseLabelCanvas(product: WarehouseLabelProduct): HTML
   }
 
   // UPC (centered) + condition (right) on a shared baseline.
-  const metaY = barcodeBottom + 36
-  ctx.font = `30px ${FONT_FAMILY}`
+  const metaY = barcodeBottom + d(36)
+  ctx.font = `${d(30)}px ${FONT_FAMILY}`
   const upcLine = formatUpcFnskuLine(product.upc)
   if (upcLine) {
     ctx.textAlign = 'center'
@@ -184,15 +225,15 @@ export function renderWarehouseLabelCanvas(product: WarehouseLabelProduct): HTML
   }
   if (product.condition) {
     ctx.textAlign = 'right'
-    ctx.fillText(product.condition, W - PAD - 2, metaY)
+    ctx.fillText(product.condition, W - d(PAD) - d(2), metaY)
   }
 
   // Title (centered, wrapped, bottom).
   ctx.textAlign = 'center'
-  ctx.font = `26px ${FONT_FAMILY}`
-  const titleLines = wrapLines(ctx, product.style_name || '', W - PAD * 2, MAX_TITLE_LINES)
-  const lineHeight = 30
-  let ty = metaY + 38
+  ctx.font = `${d(26)}px ${FONT_FAMILY}`
+  const titleLines = wrapLines(ctx, product.style_name || '', W - d(PAD) * 2, MAX_TITLE_LINES)
+  const lineHeight = d(30)
+  let ty = metaY + d(38)
   for (const line of titleLines) {
     ctx.fillText(line, W / 2, ty)
     ty += lineHeight
@@ -218,7 +259,8 @@ export function renderWarehouseLabelCanvas(product: WarehouseLabelProduct): HTML
 
 export function buildWarehouseLabelPdfBlob(
   product: WarehouseLabelProduct,
-  copies = 1
+  copies = 1,
+  dpi: number = DEFAULT_LABEL_DPI
 ): Blob {
   const count = Math.max(1, Math.min(copies, 99))
   const doc = new jsPDF({
@@ -228,7 +270,7 @@ export function buildWarehouseLabelPdfBlob(
     compress: true,
   })
 
-  const dataUrl = renderWarehouseLabelCanvas(product).toDataURL('image/png')
+  const dataUrl = renderWarehouseLabelCanvas(product, dpi).toDataURL('image/png')
   for (let i = 0; i < count; i += 1) {
     if (i > 0) {
       doc.addPage([LABEL_WIDTH_PT, LABEL_HEIGHT_PT], 'landscape')
@@ -276,19 +318,24 @@ function canvasToZplGraphic(canvas: HTMLCanvasElement): {
 }
 
 /**
- * ZPL for any Zebra 203 dpi printer. The label is sent as a single raster
- * graphic (^GFA) so it prints exactly like the preview regardless of printer
- * model/firmware. ^PQ asks the printer for `copies` prints of the one graphic.
+ * ZPL for a Zebra printer at the given dpi. The label is rendered at the
+ * printer's native resolution and sent as a single raster graphic (^GFA) so it
+ * prints at the correct physical size and exactly matches the preview,
+ * regardless of printer model/firmware. ^PQ requests `copies` prints.
  */
-export function buildWarehouseLabelZpl(product: WarehouseLabelProduct, copies = 1): string {
+export function buildWarehouseLabelZpl(
+  product: WarehouseLabelProduct,
+  copies = 1,
+  dpi: number = DEFAULT_LABEL_DPI
+): string {
   const count = Math.max(1, Math.min(copies, 99))
-  const canvas = renderWarehouseLabelCanvas(product)
+  const canvas = renderWarehouseLabelCanvas(product, dpi)
   const { hex, totalBytes, bytesPerRow } = canvasToZplGraphic(canvas)
 
   return `^XA
 ^LH0,0
-^PW${LABEL_W_DOTS}
-^LL${LABEL_H_DOTS}
+^PW${canvas.width}
+^LL${canvas.height}
 ^FO0,0^GFA,${totalBytes},${totalBytes},${bytesPerRow},${hex}^FS
 ^PQ${count},0,0,N
 ^XZ`
@@ -300,6 +347,7 @@ export function suggestedWarehouseLabelPdfFilename(product: WarehouseLabelProduc
 }
 
 export const PRINTER_NAME_KEY = 'warehouse_printer_name'
+export const PRINTER_DPI_KEY = 'warehouse_printer_dpi'
 
 /** Name of the OS printer the user last selected for direct ZPL printing. */
 export function getSelectedPrinter(): string {
@@ -313,6 +361,23 @@ export function getSelectedPrinter(): string {
 export function saveSelectedPrinter(name: string): void {
   try {
     localStorage.setItem(PRINTER_NAME_KEY, name.trim())
+  } catch {
+    // ignore
+  }
+}
+
+/** Last dpi the user selected (or auto-detected) for the active printer. */
+export function getSelectedDpi(): LabelDpi {
+  try {
+    return normalizeDpi(Number(localStorage.getItem(PRINTER_DPI_KEY)))
+  } catch {
+    return DEFAULT_LABEL_DPI
+  }
+}
+
+export function saveSelectedDpi(dpi: number): void {
+  try {
+    localStorage.setItem(PRINTER_DPI_KEY, String(normalizeDpi(dpi)))
   } catch {
     // ignore
   }
