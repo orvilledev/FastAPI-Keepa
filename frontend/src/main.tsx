@@ -4,7 +4,18 @@ import App from './App.tsx'
 import { APP_NAME, APP_VERSION_LABEL } from './constants/app'
 import './index.css'
 
-document.title = `${APP_NAME} BETA ${APP_VERSION_LABEL}`
+function setDocumentTitle(versionLabel: string) {
+  document.title = `${APP_NAME} BETA ${versionLabel}`
+}
+
+setDocumentTitle(APP_VERSION_LABEL)
+
+// Electron: title must match package.json (sidebar uses getVersion() too).
+if (window.desktop?.isElectron && window.desktop?.getVersion) {
+  void window.desktop.getVersion().then((version) => {
+    setDocumentTitle(`v${version}`)
+  })
+}
 
 // Ensure installed-app/taskbar icon shows without badge overlays.
 const clearAppBadge = () => {

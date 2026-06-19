@@ -279,7 +279,7 @@ function createWindow() {
     minWidth: 1100,
     minHeight: 700,
     autoHideMenuBar: true,
-    title: 'MSW Overwatch',
+    title: `MSW Overwatch BETA v${app.getVersion()}`,
     icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
