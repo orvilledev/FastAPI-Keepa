@@ -7,13 +7,18 @@ import {
   computeScanStatus,
   detectPrinterDpi,
   getSelectedDpi,
+  getSelectedLabelSize,
   getSelectedPrinter,
+  LABEL_SIZES,
+  renderWarehouseLabelCanvas,
   saveSelectedDpi,
+  saveSelectedLabelSize,
   saveSelectedPrinter,
   scanStatusLabel,
   suggestedWarehouseLabelPdfFilename,
   SUPPORTED_DPIS,
   type LabelDpi,
+  type LabelSize,
   type ScanPrintStatus,
   type WarehouseLabelProduct,
 } from '../../utils/warehouseLabel'
@@ -35,6 +40,47 @@ function downloadBlob(blob: Blob, filename: string) {
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
+}
+
+/** Sample product shown in the size picker before anything is scanned. */
+const SAMPLE_PRODUCT: WarehouseLabelProduct = {
+  upc: '190038644083',
+  fnsku: 'X0054372L9',
+  style_name: "VINTAGE HAVANA Women's Legend Nude-Red Multi 5.5 M",
+  condition: 'New',
+}
+
+/**
+ * Renders the actual label bitmap (the same canvas that is printed) at 203 dpi
+ * and scales it to fit the card, so the preview is a true 2.25" × 1.25" proof.
+ */
+function LabelPreview({
+  product,
+  size,
+}: {
+  product: WarehouseLabelProduct
+  size: LabelSize
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const target = canvasRef.current
+    if (!target) return
+    const rendered = renderWarehouseLabelCanvas(product, 203, size)
+    target.width = rendered.width
+    target.height = rendered.height
+    const ctx = target.getContext('2d')
+    if (ctx) ctx.drawImage(rendered, 0, 0)
+  }, [product, size])
+
+  // 2.25:1.25 aspect ratio keeps the on-screen proof physically proportional.
+  return (
+    <canvas
+      ref={canvasRef}
+      className="w-full bg-white"
+      style={{ aspectRatio: '2.25 / 1.25' }}
+    />
+  )
 }
 
 function statusBadgeClass(status: ScanPrintStatus): string {
@@ -71,6 +117,7 @@ export default function LabelStation() {
   const [printers, setPrinters] = useState<DesktopPrinter[]>([])
   const [selectedPrinter, setSelectedPrinter] = useState('')
   const [selectedDpi, setSelectedDpi] = useState<LabelDpi>(getSelectedDpi())
+  const [selectedSize, setSelectedSize] = useState<LabelSize>(getSelectedLabelSize())
   const [loadingPrinters, setLoadingPrinters] = useState(false)
   const isElectron = Boolean(window.desktop?.isElectron)
 
@@ -140,7 +187,7 @@ export default function LabelStation() {
       setError(null)
       setMessage(null)
 
-      const zpl = buildWarehouseLabelZpl(item, quantity, selectedDpi)
+      const zpl = buildWarehouseLabelZpl(item, quantity, selectedDpi, selectedSize)
       let printerName = selectedPrinter.trim()
 
       try {
@@ -162,7 +209,7 @@ export default function LabelStation() {
             throw new Error('No printer selected. Connect a Zebra printer and pick it below.')
           }
         } else {
-          const blob = buildWarehouseLabelPdfBlob(item, quantity, selectedDpi)
+          const blob = buildWarehouseLabelPdfBlob(item, quantity, selectedDpi, selectedSize)
           downloadBlob(blob, suggestedWarehouseLabelPdfFilename(item))
           setMessage(
             `Downloaded PDF (${quantity} label(s)). Open the desktop app for direct Zebra printing.`
@@ -177,7 +224,7 @@ export default function LabelStation() {
         scanInputRef.current?.focus()
       }
     },
-    [quantity, selectedPrinter, selectedDpi, isElectron, clearScan, refreshPrinters]
+    [quantity, selectedPrinter, selectedDpi, selectedSize, isElectron, clearScan, refreshPrinters]
   )
 
   const lookupUpc = useCallback(
@@ -265,6 +312,11 @@ export default function LabelStation() {
   const handleSelectDpi = (dpi: LabelDpi) => {
     setSelectedDpi(dpi)
     saveSelectedDpi(dpi)
+  }
+
+  const handleSelectSize = (size: LabelSize) => {
+    setSelectedSize(size)
+    saveSelectedLabelSize(size)
   }
 
   const handleImport = async (file: File) => {
@@ -403,7 +455,7 @@ export default function LabelStation() {
               className="text-sm text-gray-600 underline hover:text-gray-900"
               onClick={() => {
                 if (!product) return
-                const blob = buildWarehouseLabelPdfBlob(product, quantity, selectedDpi)
+                const blob = buildWarehouseLabelPdfBlob(product, quantity, selectedDpi, selectedSize)
                 downloadBlob(blob, suggestedWarehouseLabelPdfFilename(product))
               }}
             >
@@ -411,6 +463,48 @@ export default function LabelStation() {
             </button>
           )}
         </div>
+      </section>
+
+      {/* Label size picker — three live proofs at the real 2.25" × 1.25" size */}
+      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold text-gray-800">Label size</h2>
+          <p className="text-xs text-gray-500">
+            All sizes print on the same 2.25&quot; × 1.25&quot; label with a margin — pick how large
+            the content prints.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {LABEL_SIZES.map((size) => {
+            const active = selectedSize === size
+            return (
+              <button
+                key={size}
+                type="button"
+                onClick={() => handleSelectSize(size)}
+                aria-pressed={active}
+                className={`group rounded-lg border-2 p-2 text-left transition ${
+                  active
+                    ? 'border-[#404040] ring-1 ring-[#404040] bg-gray-50'
+                    : 'border-gray-200 hover:border-gray-400'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium capitalize text-gray-800">{size}</span>
+                  {active && (
+                    <span className="text-xs font-semibold text-emerald-700">Selected</span>
+                  )}
+                </div>
+                <div className="rounded border border-gray-300 overflow-hidden">
+                  <LabelPreview product={product || SAMPLE_PRODUCT} size={size} />
+                </div>
+              </button>
+            )
+          })}
+        </div>
+        {!product && (
+          <p className="text-xs text-gray-400">Showing a sample label; scan a UPC to preview the real one.</p>
+        )}
       </section>
 
       {/* Printer selection */}
