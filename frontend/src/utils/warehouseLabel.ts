@@ -1,13 +1,30 @@
 import JsBarcode from 'jsbarcode'
 import { jsPDF } from 'jspdf'
 
-/** Label dimensions — matches FNSKU PDF labels (~3" × 1.5"). */
+/**
+ * Canonical label geometry: 3" × 1.5" at Zebra 203 dpi (the industry-standard
+ * resolution for FNSKU / shipping label printers such as the Zebra GK420d,
+ * GX430, ZD420, etc.). Everything below is drawn ONCE into a monochrome canvas
+ * at this exact pixel grid, then shipped to BOTH outputs:
+ *   - the PDF preview (the canvas is embedded as an image), and
+ *   - the printer (the same canvas is sent as a ZPL ^GFA raster graphic).
+ *
+ * Because both paths consume the identical thresholded bitmap, the preview is a
+ * pixel-for-pixel match of what prints, on every Zebra model — there are no
+ * device fonts to substitute and no ^FB word-wrap that varies by firmware.
+ */
+const LABEL_W_DOTS = 609 // 3.0" × 203 dpi
+const LABEL_H_DOTS = 305 // 1.5" × 203 dpi (rounded)
+
+/** PDF page size in points (72 pt/in): 3" × 1.5". */
 export const LABEL_WIDTH_PT = 216
 export const LABEL_HEIGHT_PT = 108
-const MARGIN_PT = 6
-const BARCODE_WIDTH_PT = 196
-const BARCODE_HEIGHT_PT = 30
-const BARCODE_CANVAS_SCALE = 4
+
+const PAD = 12
+/** Pixels darker than this become solid black; lighter become white. */
+const MONO_THRESHOLD = 150
+const MAX_TITLE_LINES = 3
+const FONT_FAMILY = 'Helvetica, Arial, sans-serif'
 
 export type WarehouseLabelProduct = {
   upc: string
@@ -44,124 +61,159 @@ export function scanStatusLabel(status: ScanPrintStatus): string {
   }
 }
 
-function escapeZplText(value: string): string {
-  return (value || '').replace(/\\/g, '\\\\').replace(/\^/g, '').replace(/~/g, '').slice(0, 200)
-}
-
 /** Human-readable line under the barcode: UPC/SKU exactly as stored (no forced suffix). */
-export function formatUpcFnskuLine(upc: string): string {
+function formatUpcFnskuLine(upc: string): string {
   return (upc || '').trim()
 }
 
-/** 3" × 1.5" warehouse label at Zebra 203 dpi. */
-const ZPL_LABEL_WIDTH = 609
-const ZPL_LABEL_HEIGHT = 305
-const ZPL_MODULE_WIDTH = 2
-
-/** Approximate Code 128 width in dots for ^BY2 barcodes (used to center on label). */
-export function estimateCode128WidthDots(value: string, moduleWidth = ZPL_MODULE_WIDTH): number {
+/** Code 128 module width (dots) chosen so the barcode fits within the label margins. */
+function barcodeModuleWidth(value: string): number {
   const len = Math.max(1, value.trim().length)
-  return (11 * len + 35) * moduleWidth
+  // Code 128 ≈ 11 modules/char + ~35 modules of start/checksum/stop/quiet zones.
+  const estimatedModules = 11 * len + 35
+  const maxWidth = LABEL_W_DOTS - PAD * 2
+  return Math.max(2, Math.min(4, Math.floor(maxWidth / estimatedModules)))
 }
 
-export function centerBarcodeOriginX(
-  value: string,
-  labelWidth = ZPL_LABEL_WIDTH,
-  moduleWidth = ZPL_MODULE_WIDTH
-): number {
-  const width = estimateCode128WidthDots(value, moduleWidth)
-  return Math.max(8, Math.floor((labelWidth - width) / 2))
-}
-
-/** ZPL for Zebra 203 dpi, ~3×1.5 inch label. Repeat ^XA…^XZ per copy. */
-export function buildWarehouseLabelZpl(product: WarehouseLabelProduct, copies = 1): string {
-  const count = Math.max(1, Math.min(copies, 99))
-  const fnsku = escapeZplText(product.fnsku)
-  const upcLine = escapeZplText(formatUpcFnskuLine(product.upc))
-  const style = escapeZplText(product.style_name)
-  const condition = escapeZplText(product.condition || 'New')
-  const bcX = centerBarcodeOriginX(fnsku)
-
-  let metaBlock = ''
-  if (upcLine && condition) {
-    metaBlock = `^FO0,120^A0N,22,22^FB480,1,0,C^FD${upcLine}^FS
-^FO480,120^A0N,18,18^FB129,1,0,R^FD${condition}^FS`
-  } else if (upcLine) {
-    metaBlock = `^FO0,120^A0N,22,22^FB609,1,0,C^FD${upcLine}^FS`
-  } else if (condition) {
-    metaBlock = `^FO0,120^A0N,18,18^FB609,1,0,R^FD${condition}^FS`
-  }
-
-  const single = `^XA
-^PW${ZPL_LABEL_WIDTH}
-^LL${ZPL_LABEL_HEIGHT}
-^LH0,0
-^CI28
-^FO0,12^A0N,26,26^FB609,1,0,C^FD${fnsku}^FS
-^FO${bcX},42^BY2^BCN,65,N,N,N^FD${fnsku}^FS
-${metaBlock}
-^FO0,146^A0N,18,18^FB609,4,0,C^FD${style}^FS
-^XZ`
-
-  return Array.from({ length: count }, () => single).join('\n')
-}
-
-function renderBarcodeDataUrl(value: string): string | null {
+function renderBarcodeCanvas(value: string): HTMLCanvasElement | null {
   if (!value || typeof document === 'undefined') return null
   try {
     const canvas = document.createElement('canvas')
     JsBarcode(canvas, value, {
       format: 'CODE128',
-      width: BARCODE_CANVAS_SCALE,
-      height: BARCODE_HEIGHT_PT * BARCODE_CANVAS_SCALE,
+      width: barcodeModuleWidth(value),
+      height: 84,
       displayValue: false,
       margin: 0,
       background: '#ffffff',
       lineColor: '#000000',
     })
-    return canvas.toDataURL('image/png')
+    return canvas
   } catch {
     return null
   }
 }
 
-function drawLabelPage(doc: jsPDF, product: WarehouseLabelProduct) {
-  const contentWidth = LABEL_WIDTH_PT - MARGIN_PT * 2 - 4
-  const centerX = LABEL_WIDTH_PT / 2
+/** Greedy word-wrap against measured text width, capped at maxLines (last line ellipsized). */
+function wrapLines(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxLines: number
+): string[] {
+  const words = (text || '').trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return []
 
-  doc.setDrawColor(210, 210, 210)
-  doc.setLineWidth(0.5)
-  doc.rect(0.5, 0.5, LABEL_WIDTH_PT - 1, LABEL_HEIGHT_PT - 1)
+  const lines: string[] = []
+  let current = ''
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word
+    if (ctx.measureText(candidate).width <= maxWidth || !current) {
+      current = candidate
+    } else {
+      lines.push(current)
+      current = word
+      if (lines.length === maxLines) break
+    }
+  }
+  if (lines.length < maxLines && current) lines.push(current)
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(7.5)
-  doc.text(product.fnsku, centerX, 9, { align: 'center' })
+  // If text overflowed the allotted lines, ellipsize the final line.
+  if (lines.length === maxLines) {
+    const used = lines.join(' ').split(/\s+/).length
+    if (used < words.length) {
+      let last = lines[maxLines - 1]
+      while (last && ctx.measureText(`${last}…`).width > maxWidth) {
+        last = last.replace(/\s*\S+$|.$/, '').trim()
+      }
+      lines[maxLines - 1] = `${last}…`
+    }
+  }
+  return lines
+}
 
-  const barcodeY = 13
-  const barcode = renderBarcodeDataUrl(product.fnsku)
+/**
+ * Draw the label into a 609×305 monochrome canvas, then threshold to pure
+ * black/white so the preview and the thermal print are identical. This is the
+ * single source of truth for the label layout.
+ */
+export function renderWarehouseLabelCanvas(product: WarehouseLabelProduct): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = LABEL_W_DOTS
+  canvas.height = LABEL_H_DOTS
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return canvas
+
+  const W = LABEL_W_DOTS
+  const H = LABEL_H_DOTS
+
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, W, H)
+
+  // Thin label border (matches the preview's framed look).
+  ctx.strokeStyle = '#000000'
+  ctx.lineWidth = 1
+  ctx.strokeRect(0.5, 0.5, W - 1, H - 1)
+
+  ctx.fillStyle = '#000000'
+  ctx.textBaseline = 'alphabetic'
+
+  // FNSKU (bold, centered, top).
+  ctx.textAlign = 'center'
+  ctx.font = `bold 24px ${FONT_FAMILY}`
+  ctx.fillText(product.fnsku || '', W / 2, 26)
+
+  // Barcode (centered).
+  const barcodeTop = 34
+  let barcodeBottom = barcodeTop + 84
+  const barcode = renderBarcodeCanvas(product.fnsku)
   if (barcode) {
-    const barcodeX = centerX - BARCODE_WIDTH_PT / 2
-    doc.addImage(barcode, 'PNG', barcodeX, barcodeY, BARCODE_WIDTH_PT, BARCODE_HEIGHT_PT)
+    ctx.imageSmoothingEnabled = false
+    const bx = Math.round((W - barcode.width) / 2)
+    ctx.drawImage(barcode, bx, barcodeTop)
+    barcodeBottom = barcodeTop + barcode.height
   }
 
-  const metaY = barcodeY + BARCODE_HEIGHT_PT + 12
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(11.5)
+  // UPC (centered) + condition (right) on a shared baseline.
+  const metaY = barcodeBottom + 36
+  ctx.font = `30px ${FONT_FAMILY}`
   const upcLine = formatUpcFnskuLine(product.upc)
   if (upcLine) {
-    doc.text(upcLine, centerX, metaY, { align: 'center' })
+    ctx.textAlign = 'center'
+    ctx.fillText(upcLine, W / 2, metaY)
   }
   if (product.condition) {
-    doc.text(product.condition, LABEL_WIDTH_PT - MARGIN_PT - 1, metaY, { align: 'right' })
+    ctx.textAlign = 'right'
+    ctx.fillText(product.condition, W - PAD - 2, metaY)
   }
 
-  doc.setFontSize(9)
-  const titleLines = doc.splitTextToSize(product.style_name || '', contentWidth) as string[]
-  let y = metaY + 11
-  for (const line of titleLines.slice(0, 4)) {
-    doc.text(line, centerX, y, { align: 'center' })
-    y += 9.5
+  // Title (centered, wrapped, bottom).
+  ctx.textAlign = 'center'
+  ctx.font = `26px ${FONT_FAMILY}`
+  const titleLines = wrapLines(ctx, product.style_name || '', W - PAD * 2, MAX_TITLE_LINES)
+  const lineHeight = 30
+  let ty = metaY + 38
+  for (const line of titleLines) {
+    ctx.fillText(line, W / 2, ty)
+    ty += lineHeight
   }
+
+  // Threshold to pure black/white so preview === thermal print.
+  const image = ctx.getImageData(0, 0, W, H)
+  const data = image.data
+  for (let i = 0; i < data.length; i += 4) {
+    const opaque = data[i + 3] > 10
+    const luminance = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
+    const black = opaque && luminance < MONO_THRESHOLD
+    const value = black ? 0 : 255
+    data[i] = value
+    data[i + 1] = value
+    data[i + 2] = value
+    data[i + 3] = 255
+  }
+  ctx.putImageData(image, 0, 0)
+
+  return canvas
 }
 
 export function buildWarehouseLabelPdfBlob(
@@ -176,14 +228,70 @@ export function buildWarehouseLabelPdfBlob(
     compress: true,
   })
 
+  const dataUrl = renderWarehouseLabelCanvas(product).toDataURL('image/png')
   for (let i = 0; i < count; i += 1) {
     if (i > 0) {
       doc.addPage([LABEL_WIDTH_PT, LABEL_HEIGHT_PT], 'landscape')
     }
-    drawLabelPage(doc, product)
+    doc.addImage(dataUrl, 'PNG', 0, 0, LABEL_WIDTH_PT, LABEL_HEIGHT_PT)
   }
 
   return doc.output('blob')
+}
+
+/** Convert the thresholded label canvas into a ZPL ^GFA raster payload. */
+function canvasToZplGraphic(canvas: HTMLCanvasElement): {
+  hex: string
+  totalBytes: number
+  bytesPerRow: number
+} {
+  const ctx = canvas.getContext('2d')
+  const { width, height } = canvas
+  const bytesPerRow = Math.ceil(width / 8)
+  const totalBytes = bytesPerRow * height
+  if (!ctx) return { hex: '', totalBytes, bytesPerRow }
+
+  const data = ctx.getImageData(0, 0, width, height).data
+  const rows: string[] = []
+  for (let y = 0; y < height; y += 1) {
+    let rowHex = ''
+    for (let b = 0; b < bytesPerRow; b += 1) {
+      let byte = 0
+      for (let bit = 0; bit < 8; bit += 1) {
+        const x = b * 8 + bit
+        if (x < width) {
+          const idx = (y * width + x) * 4
+          // Canvas is already pure B/W: value 0 = black (print), 255 = white.
+          if (data[idx + 3] > 10 && data[idx] < 128) {
+            byte |= 1 << (7 - bit)
+          }
+        }
+      }
+      rowHex += byte.toString(16).padStart(2, '0')
+    }
+    rows.push(rowHex)
+  }
+
+  return { hex: rows.join('').toUpperCase(), totalBytes, bytesPerRow }
+}
+
+/**
+ * ZPL for any Zebra 203 dpi printer. The label is sent as a single raster
+ * graphic (^GFA) so it prints exactly like the preview regardless of printer
+ * model/firmware. ^PQ asks the printer for `copies` prints of the one graphic.
+ */
+export function buildWarehouseLabelZpl(product: WarehouseLabelProduct, copies = 1): string {
+  const count = Math.max(1, Math.min(copies, 99))
+  const canvas = renderWarehouseLabelCanvas(product)
+  const { hex, totalBytes, bytesPerRow } = canvasToZplGraphic(canvas)
+
+  return `^XA
+^LH0,0
+^PW${LABEL_W_DOTS}
+^LL${LABEL_H_DOTS}
+^FO0,0^GFA,${totalBytes},${totalBytes},${bytesPerRow},${hex}^FS
+^PQ${count},0,0,N
+^XZ`
 }
 
 export function suggestedWarehouseLabelPdfFilename(product: WarehouseLabelProduct): string {
