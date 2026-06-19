@@ -505,7 +505,7 @@ export default function LabelStation() {
               const blob = buildWarehouseProductsTemplateBlob()
               downloadBlob(blob, WAREHOUSE_PRODUCTS_TEMPLATE_FILENAME)
             }}
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100"
           >
             Download template
           </button>
@@ -513,7 +513,7 @@ export default function LabelStation() {
             type="button"
             disabled={importing}
             onClick={() => importInputRef.current?.click()}
-            className="rounded-lg border border-dashed border-gray-400 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
           >
             {importing ? 'Importing…' : 'Upload PRODUCTS file'}
           </button>
