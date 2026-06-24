@@ -111,7 +111,8 @@ class WarehouseProductRepository:
         query = self.db.table("warehouse_products").select("*", count="exact")
         query = apply_warehouse_product_search(query, search)
         response = (
-            query.order("upc")
+            query.order("updated_at", desc=True)
+            .order("upc")
             .range(offset, offset + limit - 1)
             .execute()
         )
@@ -149,8 +150,8 @@ class WarehouseProductRepository:
         now = datetime.utcnow().isoformat()
         for row in rows:
             row["updated_at"] = now
-            if "created_at" not in row:
-                row["created_at"] = now
+            # Let the DB default created_at on insert; do not overwrite on upsert.
+            row.pop("created_at", None)
 
         chunk_size = 500
         upserted = 0

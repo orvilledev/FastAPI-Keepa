@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { warehouseProductsApi } from '../../services/api'
 import type { WarehouseProduct } from '../../types'
 import { getCatalogScanInput } from '../../utils/warehouseLabel'
@@ -26,25 +26,40 @@ export default function WarehouseProductCatalog({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deletingUpc, setDeletingUpc] = useState<string | null>(null)
+  const loadRequestId = useRef(0)
 
   const loadCatalog = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const response = await warehouseProductsApi.list(PAGE_SIZE, page * PAGE_SIZE, search || undefined)
-      setItems(response.items)
-      setTotal(response.total)
-      onCountChange?.(response.total)
-    } catch (err: unknown) {
-      const detail =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      setError(typeof detail === 'string' ? detail : 'Failed to load catalog')
-      setItems([])
-      setTotal(0)
-    } finally {
-      setLoading(false)
-    }
-  }, [page, search, onCountChange])
+      const requestId = ++loadRequestId.current
+
+      setLoading(true)
+      setError(null)
+      try {
+        const response = await warehouseProductsApi.list(
+          PAGE_SIZE,
+          page * PAGE_SIZE,
+          search || undefined
+        )
+        if (requestId !== loadRequestId.current) return
+        setItems(response.items)
+        setTotal(response.total)
+        if (!search) {
+          onCountChange?.(response.total)
+        }
+      } catch (err: unknown) {
+        if (requestId !== loadRequestId.current) return
+        const detail =
+          (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        setError(typeof detail === 'string' ? detail : 'Failed to load catalog')
+        setItems([])
+        setTotal(0)
+      } finally {
+        if (requestId === loadRequestId.current) {
+          setLoading(false)
+        }
+      }
+    },
+    [page, search, onCountChange]
+  )
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -56,6 +71,7 @@ export default function WarehouseProductCatalog({
 
   useEffect(() => {
     if (refreshToken > 0) {
+      loadRequestId.current += 1
       setPage(0)
       setSearch('')
       setSearchInput('')
@@ -64,7 +80,7 @@ export default function WarehouseProductCatalog({
 
   useEffect(() => {
     void loadCatalog()
-  }, [loadCatalog, refreshToken])
+  }, [loadCatalog])
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const showActions = Boolean(onSelectUpc) || canManageCatalog

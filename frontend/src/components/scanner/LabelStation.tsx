@@ -370,12 +370,16 @@ export default function LabelStation() {
       const added =
         countBefore !== null && countRes.count > countBefore
           ? countRes.count - countBefore
-          : result.imported
-      setMessage(
-        `Saved ${result.imported} product(s) to the catalog` +
-          (added !== result.imported ? ` (${added} new)` : '') +
-          `. ${result.invalid} invalid row(s) skipped.`
-      )
+          : 0
+      if (added > 0) {
+        setMessage(
+          `Saved ${result.imported} product(s) to the catalog (${added} new). ${result.invalid} invalid row(s) skipped.`
+        )
+      } else {
+        setMessage(
+          `Updated ${result.imported} product(s) in the catalog. ${result.invalid} invalid row(s) skipped. Search or browse to verify changes.`
+        )
+      }
     } catch (err: unknown) {
       setError(formatImportError(err))
     } finally {
