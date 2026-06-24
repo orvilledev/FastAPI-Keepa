@@ -5,7 +5,7 @@ import { APP_NAME, APP_VERSION_LABEL } from './constants/app'
 import './index.css'
 
 function setDocumentTitle(versionLabel: string) {
-  document.title = `${APP_NAME} BETA ${versionLabel}`
+  document.title = `${APP_NAME} ${versionLabel}`
 }
 
 setDocumentTitle(APP_VERSION_LABEL)
