@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from supabase import Client
 
 from app.database import get_supabase
-from app.dependencies import get_label_station_user
+from app.dependencies import get_catalog_manager_user, get_label_station_user
 from app.middleware.rate_limiter import limiter, RateLimits
 from app.models.warehouse_product import (
     WarehouseProductImportResult,
@@ -98,7 +98,7 @@ def list_warehouse_products(
 async def import_warehouse_products(
     request: Request,
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_label_station_user),
+    current_user: dict = Depends(get_catalog_manager_user),
     db: Client = Depends(get_supabase),
 ):
     """Import or upsert rows from a PRODUCTS sheet (.xlsx / .csv)."""
@@ -119,7 +119,10 @@ async def import_warehouse_products(
         raise HTTPException(status_code=400, detail="No valid product rows found in file.")
 
     repo = WarehouseProductRepository(db)
-    result = repo.upsert_batch(unique)
+    try:
+        result = repo.upsert_batch(unique)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     logger.info(
         "Warehouse products import by %s: %s rows (%s invalid)",
         current_user.get("email"),
@@ -139,7 +142,7 @@ async def import_warehouse_products(
 @handle_api_errors("delete warehouse product")
 def delete_warehouse_product(
     upc: str,
-    current_user: dict = Depends(get_label_station_user),
+    current_user: dict = Depends(get_catalog_manager_user),
     db: Client = Depends(get_supabase),
 ):
     repo = WarehouseProductRepository(db)

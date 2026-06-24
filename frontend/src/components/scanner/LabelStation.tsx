@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { warehouseProductsApi } from '../../services/api'
+import { useUser } from '../../contexts/UserContext'
 import WarehouseProductCatalog from './WarehouseProductCatalog'
 import {
   buildWarehouseLabelPdfBlob,
@@ -86,6 +87,27 @@ function LabelPreview({
   )
 }
 
+function formatImportError(err: unknown): string {
+  const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
+  if (typeof detail === 'string' && detail.trim()) return detail.trim()
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (item && typeof item === 'object' && 'msg' in item) {
+          return String((item as { msg: string }).msg)
+        }
+        return String(item)
+      })
+      .join('; ')
+  }
+  const ax = err as { message?: string; code?: string }
+  if (ax.code === 'ECONNABORTED' || ax.message?.toLowerCase().includes('timeout')) {
+    return 'Import timed out. Try a smaller file or check your network connection.'
+  }
+  if (ax.message?.trim()) return ax.message.trim()
+  return 'Import failed'
+}
+
 function statusBadgeClass(status: ScanPrintStatus): string {
   switch (status) {
     case 'ready':
@@ -100,6 +122,8 @@ function statusBadgeClass(status: ScanPrintStatus): string {
 }
 
 export default function LabelStation() {
+  const { hasKeepaAccess, isSuperadmin, isWarehouseOnly } = useUser()
+  const canManageCatalog = hasKeepaAccess || isSuperadmin
   const scanInputRef = useRef<HTMLInputElement>(null)
   const pendingPrintUpcRef = useRef<string | null>(null)
   const printingRef = useRef(false)
@@ -324,21 +348,36 @@ export default function LabelStation() {
   }
 
   const handleImport = async (file: File) => {
+    if (!canManageCatalog) {
+      setError('MSW Overwatch access is required to import the product catalog.')
+      return
+    }
     setImporting(true)
     setError(null)
     setMessage(null)
+    const countBefore = catalogCount
     try {
       const result = await warehouseProductsApi.importFile(file)
       const countRes = await warehouseProductsApi.getCount()
       setCatalogCount(countRes.count)
       setCatalogRefresh((n) => n + 1)
+      if (countRes.count <= 0 && result.imported > 0) {
+        setError(
+          'Import reported success but the catalog is still empty. Run the warehouse_products migrations in Supabase, then try again.'
+        )
+        return
+      }
+      const added =
+        countBefore !== null && countRes.count > countBefore
+          ? countRes.count - countBefore
+          : result.imported
       setMessage(
-        `Imported ${result.imported} product(s). ${result.invalid} invalid row(s) skipped.`
+        `Saved ${result.imported} product(s) to the catalog` +
+          (added !== result.imported ? ` (${added} new)` : '') +
+          `. ${result.invalid} invalid row(s) skipped.`
       )
     } catch (err: unknown) {
-      const detail =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      setError(typeof detail === 'string' ? detail : 'Import failed')
+      setError(formatImportError(err))
     } finally {
       setImporting(false)
       if (importInputRef.current) importInputRef.current.value = ''
@@ -580,6 +619,7 @@ export default function LabelStation() {
       </section>
 
       {/* Catalog import */}
+      {canManageCatalog ? (
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
         <h2 className="text-sm font-semibold text-gray-800">Import catalog (PRODUCTS sheet)</h2>
         <p className="text-xs text-gray-600">
@@ -617,9 +657,16 @@ export default function LabelStation() {
           </button>
         </div>
       </section>
+      ) : isWarehouseOnly ? (
+        <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+          Product catalog updates are managed by office staff. Scan UPCs below against the current
+          catalog.
+        </section>
+      ) : null}
 
       <WarehouseProductCatalog
         refreshToken={catalogRefresh}
+        canManageCatalog={canManageCatalog}
         onCountChange={setCatalogCount}
         onSelectUpc={(upc) => {
           setScanUpc(upc)

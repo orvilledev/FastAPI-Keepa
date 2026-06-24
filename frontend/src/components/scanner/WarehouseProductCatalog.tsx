@@ -9,12 +9,14 @@ type WarehouseProductCatalogProps = {
   onSelectUpc?: (upc: string) => void
   onCountChange?: (count: number) => void
   refreshToken?: number
+  canManageCatalog?: boolean
 }
 
 export default function WarehouseProductCatalog({
   onSelectUpc,
   onCountChange,
   refreshToken = 0,
+  canManageCatalog = false,
 }: WarehouseProductCatalogProps) {
   const [items, setItems] = useState<WarehouseProduct[]>([])
   const [total, setTotal] = useState(0)
@@ -53,10 +55,19 @@ export default function WarehouseProductCatalog({
   }, [searchInput])
 
   useEffect(() => {
+    if (refreshToken > 0) {
+      setPage(0)
+      setSearch('')
+      setSearchInput('')
+    }
+  }, [refreshToken])
+
+  useEffect(() => {
     void loadCatalog()
   }, [loadCatalog, refreshToken])
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const showActions = Boolean(onSelectUpc) || canManageCatalog
 
   const handleDelete = async (upc: string) => {
     if (!window.confirm(`Remove UPC "${upc}" from the catalog?`)) return
@@ -120,19 +131,21 @@ export default function WarehouseProductCatalog({
               <th className="px-4 py-3 whitespace-nowrap">FNSKU</th>
               <th className="px-4 py-3 min-w-[12rem]">Style name</th>
               <th className="px-4 py-3 whitespace-nowrap">Condition</th>
-              <th className="px-4 py-3 whitespace-nowrap text-right">Actions</th>
+              {showActions && (
+                <th className="px-4 py-3 whitespace-nowrap text-right">Actions</th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={showActions ? 6 : 5} className="px-4 py-8 text-center text-gray-500">
                   Loading catalog…
                 </td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={showActions ? 6 : 5} className="px-4 py-8 text-center text-gray-500">
                   {search
                     ? 'No products match your search.'
                     : 'No products yet. Upload a PRODUCTS file below.'}
@@ -152,6 +165,7 @@ export default function WarehouseProductCatalog({
                   <td className="px-4 py-2.5 text-gray-700 align-top whitespace-nowrap">
                     {row.condition}
                   </td>
+                  {showActions && (
                   <td className="px-4 py-2.5 align-top whitespace-nowrap w-28">
                     <div className="flex items-center justify-between gap-6">
                       {onSelectUpc ? (
@@ -165,6 +179,7 @@ export default function WarehouseProductCatalog({
                       ) : (
                         <span />
                       )}
+                      {canManageCatalog && (
                       <button
                         type="button"
                         disabled={deletingUpc === row.upc}
@@ -173,8 +188,10 @@ export default function WarehouseProductCatalog({
                       >
                         {deletingUpc === row.upc ? '…' : 'Delete'}
                       </button>
+                      )}
                     </div>
                   </td>
+                  )}
                 </tr>
               ))
             )}

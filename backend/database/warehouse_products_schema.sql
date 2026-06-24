@@ -29,7 +29,17 @@ CREATE POLICY "MSW Overwatch users can manage warehouse products" ON warehouse_p
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid()
       AND (
-        profiles.role IN ('admin', 'superadmin')
+        profiles.role IN ('admin', 'superadmin', 'warehouse')
+        OR COALESCE(profiles.has_keepa_access, false) = true
+      )
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+      AND (
+        profiles.role IN ('admin', 'superadmin', 'warehouse')
         OR COALESCE(profiles.has_keepa_access, false) = true
       )
     )

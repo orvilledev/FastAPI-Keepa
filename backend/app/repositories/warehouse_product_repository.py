@@ -1,10 +1,17 @@
 """Data access for warehouse_products (Scan & Print catalog)."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from supabase import Client
+
+logger = logging.getLogger(__name__)
+
+_MIGRATION_HINT = (
+    "Run backend/database/migrations/add_sku_to_warehouse_products.sql in the Supabase SQL Editor."
+)
 
 
 def normalize_upc_key(upc: str) -> str:
@@ -111,6 +118,29 @@ class WarehouseProductRepository:
         total = int(response.count or 0)
         return response.data or [], total
 
+    def _raise_persist_error(self, exc: Exception, chunk_size: int) -> None:
+        message = str(exc).lower()
+        if "warehouse_products" in message and (
+            "does not exist" in message or "relation" in message
+        ):
+            raise ValueError(
+                "The warehouse_products table is missing. "
+                "Run backend/database/warehouse_products_schema.sql in the Supabase SQL Editor."
+            ) from exc
+        if "sku" in message and "does not exist" in message:
+            raise ValueError(
+                f"The warehouse_products table is missing the sku column. {_MIGRATION_HINT}"
+            ) from exc
+        if "row-level security" in message or "permission denied" in message:
+            raise ValueError(
+                "Catalog import was blocked by database permissions. "
+                "Confirm the API uses the Supabase service role key and apply the latest "
+                "warehouse_products RLS policies."
+            ) from exc
+        raise ValueError(
+            f"Failed to save {chunk_size} catalog row(s) to the database: {exc}"
+        ) from exc
+
     def upsert_batch(self, rows: List[Dict[str, Any]]) -> Dict[str, int]:
         """Upsert products on conflict (upc). Returns counts."""
         if not rows:
@@ -126,10 +156,21 @@ class WarehouseProductRepository:
         upserted = 0
         for i in range(0, len(rows), chunk_size):
             chunk = rows[i : i + chunk_size]
-            self.db.table("warehouse_products").upsert(
-                chunk,
-                on_conflict="upc",
-            ).execute()
+            try:
+                response = (
+                    self.db.table("warehouse_products")
+                    .upsert(chunk, on_conflict="upc")
+                    .execute()
+                )
+            except Exception as exc:
+                logger.error("warehouse_products upsert failed: %s", exc, exc_info=True)
+                self._raise_persist_error(exc, len(chunk))
+
+            if response.data == []:
+                raise ValueError(
+                    "Catalog import returned no saved rows. "
+                    f"Check database setup and RLS policies. {_MIGRATION_HINT}"
+                )
             upserted += len(chunk)
 
         return {

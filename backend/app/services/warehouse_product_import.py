@@ -29,15 +29,28 @@ def _normalize_header(cell: Any) -> Optional[str]:
     return _HEADER_ALIASES.get(key)
 
 
+def _spreadsheet_cell_str(raw: Any) -> str:
+    """Normalize Excel/CSV cell values (avoid 190038644083.0 UPC strings)."""
+    if raw is None:
+        return ""
+    if isinstance(raw, bool):
+        return str(raw)
+    if isinstance(raw, int):
+        return str(raw)
+    if isinstance(raw, float):
+        if raw.is_integer():
+            return str(int(raw))
+        text = format(raw, ".15g")
+        return text.strip()
+    return str(raw).strip()
+
+
 def _parse_row(mapping: Dict[str, int], values: Tuple[Any, ...]) -> Optional[Dict[str, str]]:
     def cell(name: str) -> str:
         idx = mapping.get(name)
         if idx is None or idx >= len(values):
             return ""
-        raw = values[idx]
-        if raw is None:
-            return ""
-        return str(raw).strip()
+        return _spreadsheet_cell_str(values[idx])
 
     upc = normalize_upc_key(cell("upc"))
     fnsku = cell("fnsku")

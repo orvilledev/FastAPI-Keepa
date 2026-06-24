@@ -49,3 +49,24 @@ def test_dedupe_by_upc_last_wins():
     out = dedupe_by_upc(rows)
     assert len(out) == 1
     assert out[0]["fnsku"] == "B"
+
+
+def test_parse_products_spreadsheet_normalizes_excel_numeric_upc():
+    from io import BytesIO
+
+    from openpyxl import Workbook
+
+    from app.services.warehouse_product_import import parse_products_spreadsheet
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "PRODUCTS"
+    ws.append(["UPC", "SKU", "fnsku", "STYLE NAME", "Condition"])
+    ws.append([190038644083, "SW001", "X0054372L9", "Sample Shoe", "New"])
+    buf = BytesIO()
+    wb.save(buf)
+
+    rows, invalid = parse_products_spreadsheet("catalog.xlsx", buf.getvalue())
+    assert invalid == 0
+    assert len(rows) == 1
+    assert rows[0]["upc"] == "190038644083"

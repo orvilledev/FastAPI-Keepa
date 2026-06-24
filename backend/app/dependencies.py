@@ -270,6 +270,38 @@ def get_label_station_user(
     return current_user
 
 
+def get_catalog_manager_user(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+) -> dict:
+    """Verify user may import or delete the shared Label Station product catalog."""
+    profile_response = (
+        db.table("profiles")
+        .select("has_keepa_access, role")
+        .eq("id", current_user["id"])
+        .execute()
+    )
+
+    if not profile_response.data:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+
+    profile = profile_response.data[0]
+    has_keepa_access = profile.get("has_keepa_access", False)
+    role = (profile.get("role") or "").lower()
+    is_admin = role in ("admin", "superadmin")
+
+    if not has_keepa_access and not is_admin and not is_superadmin_user(current_user, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="MSW Overwatch access is required to manage the product catalog",
+        )
+
+    return current_user
+
+
 def get_tools_manager_user(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)

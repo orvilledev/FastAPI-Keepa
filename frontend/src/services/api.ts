@@ -1076,7 +1076,8 @@ export const warehouseProductsApi = {
     form.append('file', file)
     const response = await api.post<WarehouseProductImportResult>(
       '/api/v1/warehouse-products/import',
-      form
+      form,
+      { timeout: 120_000 }
     )
     return response.data
   },
