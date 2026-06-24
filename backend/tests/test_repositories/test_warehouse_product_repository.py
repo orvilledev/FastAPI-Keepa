@@ -8,6 +8,7 @@ def test_build_search_filter_quotes_dots_in_upc():
     result = build_warehouse_product_search_filter("amzn.gr.190038644080")
     assert result is not None
     assert 'upc.ilike."%amzn.gr.190038644080%"' in result
+    assert 'sku.ilike."%amzn.gr.190038644080%"' in result
     assert 'fnsku.ilike."%amzn.gr.190038644080%"' in result
     assert 'style_name.ilike."%amzn.gr.190038644080%"' in result
     assert 'condition.ilike."%amzn.gr.190038644080%"' in result

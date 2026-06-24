@@ -98,7 +98,7 @@ export default function WarehouseProductCatalog({
             type="search"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search UPC, FNSKU, style…"
+            placeholder="Search UPC, SKU, FNSKU, style…"
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#404040] focus:ring-1 focus:ring-[#404040]"
           />
         </div>
@@ -115,6 +115,7 @@ export default function WarehouseProductCatalog({
           <thead>
             <tr className="border-b border-gray-200 bg-white text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
               <th className="px-4 py-3 whitespace-nowrap">UPC</th>
+              <th className="px-4 py-3 whitespace-nowrap">SKU</th>
               <th className="px-4 py-3 whitespace-nowrap">FNSKU</th>
               <th className="px-4 py-3 min-w-[12rem]">Style name</th>
               <th className="px-4 py-3 whitespace-nowrap">Condition</th>
@@ -124,13 +125,13 @@ export default function WarehouseProductCatalog({
           <tbody className="divide-y divide-gray-100">
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                   Loading catalog…
                 </td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                   {search
                     ? 'No products match your search.'
                     : 'No products yet. Upload a PRODUCTS file below.'}
@@ -140,6 +141,9 @@ export default function WarehouseProductCatalog({
               items.map((row) => (
                 <tr key={row.id} className="hover:bg-gray-50/80">
                   <td className="px-4 py-2.5 font-mono text-xs text-gray-900 align-top">{row.upc}</td>
+                  <td className="px-4 py-2.5 font-mono text-xs text-gray-800 align-top">
+                    {row.sku || '—'}
+                  </td>
                   <td className="px-4 py-2.5 font-mono text-xs font-medium text-gray-900 align-top">
                     {row.fnsku}
                   </td>

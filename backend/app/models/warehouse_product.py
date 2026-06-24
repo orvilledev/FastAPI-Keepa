@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class WarehouseProductResponse(BaseModel):
     id: UUID
     upc: str
+    sku: str = ""
     fnsku: str
     style_name: str
     condition: str
@@ -42,6 +43,7 @@ class WarehouseProductListResponse(BaseModel):
 
 class WarehouseProductUpsertItem(BaseModel):
     upc: str
+    sku: str = ""
     fnsku: str
     style_name: str = ""
     condition: str = "New"

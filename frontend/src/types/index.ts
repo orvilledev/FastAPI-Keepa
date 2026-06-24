@@ -295,6 +295,7 @@ export interface TrackingHistoryDetail extends TrackingHistorySummary {
 export interface WarehouseProduct {
   id: string
   upc: string
+  sku: string
   fnsku: string
   style_name: string
   condition: string

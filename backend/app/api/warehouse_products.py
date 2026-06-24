@@ -37,7 +37,7 @@ def _validate_import_file(file: UploadFile) -> None:
     if not any(name.endswith(suffix) for suffix in _ACCEPTED_SUFFIXES):
         raise HTTPException(
             status_code=400,
-            detail="Upload a .csv or .xlsx file with UPC, fnsku, STYLE NAME, and Condition columns.",
+            detail="Upload a .csv or .xlsx file with UPC, SKU, fnsku, STYLE NAME, and Condition columns.",
         )
 
 

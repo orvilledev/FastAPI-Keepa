@@ -4,6 +4,7 @@
 CREATE TABLE IF NOT EXISTS warehouse_products (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   upc TEXT NOT NULL,
+  sku TEXT NOT NULL DEFAULT '',
   fnsku TEXT NOT NULL,
   style_name TEXT NOT NULL DEFAULT '',
   condition TEXT NOT NULL DEFAULT 'New',

@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 _HEADER_ALIASES = {
     "upc": "upc",
+    "sku": "sku",
     "fnsku": "fnsku",
     "style name": "style_name",
     "style_name": "style_name",
@@ -44,6 +45,7 @@ def _parse_row(mapping: Dict[str, int], values: Tuple[Any, ...]) -> Optional[Dic
         return None
     return {
         "upc": upc,
+        "sku": cell("sku"),
         "fnsku": fnsku,
         "style_name": cell("style_name"),
         "condition": cell("condition") or "New",
@@ -70,7 +72,7 @@ def parse_products_csv(content: bytes) -> Tuple[List[Dict[str, str]], int]:
     mapping = _header_mapping_from_row(tuple(rows[0]))
     if not mapping:
         raise ValueError(
-            'CSV must include headers "UPC" and "fnsku" (and optionally "STYLE NAME", "Condition").'
+            'CSV must include headers "UPC" and "fnsku" (and optionally "SKU", "STYLE NAME", "Condition").'
         )
     valid: List[Dict[str, str]] = []
     invalid = 0

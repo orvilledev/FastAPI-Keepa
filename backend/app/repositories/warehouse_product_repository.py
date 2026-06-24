@@ -26,7 +26,7 @@ def build_warehouse_product_search_filter(search: Optional[str]) -> Optional[str
     escaped = term.replace("\\", "\\\\").replace('"', '\\"')
     escaped = escaped.replace("%", "\\%").replace("_", "\\_")
     pattern = f'"%{escaped}%"'
-    columns = ("upc", "fnsku", "style_name", "condition")
+    columns = ("upc", "sku", "fnsku", "style_name", "condition")
     return ",".join(f"{col}.ilike.{pattern}" for col in columns)
 
 
