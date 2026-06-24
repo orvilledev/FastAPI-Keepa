@@ -24,7 +24,7 @@ def sku_digit_count(sku: str) -> int:
 
 
 def uses_sku_for_scan(sku: str) -> bool:
-    """Products with a short SKU (≤7 digits) are scanned by SKU; longer SKUs use UPC."""
+    """Products with a short SKU (≤7 digits) print SKU on the label; UPC is still scanned."""
     trimmed = (sku or "").strip()
     if not trimmed:
         return False
@@ -70,6 +70,16 @@ class WarehouseProductRepository:
         if not key:
             return None
 
+        upc_response = (
+            self.db.table("warehouse_products")
+            .select("*")
+            .eq("upc", key)
+            .limit(1)
+            .execute()
+        )
+        if upc_response.data:
+            return upc_response.data[0]
+
         sku_response = (
             self.db.table("warehouse_products")
             .select("*")
@@ -79,18 +89,6 @@ class WarehouseProductRepository:
         )
         for row in sku_response.data or []:
             if uses_sku_for_scan(row.get("sku") or ""):
-                return row
-
-        upc_response = (
-            self.db.table("warehouse_products")
-            .select("*")
-            .eq("upc", key)
-            .limit(1)
-            .execute()
-        )
-        if upc_response.data:
-            row = upc_response.data[0]
-            if not uses_sku_for_scan(row.get("sku") or ""):
                 return row
         return None
 

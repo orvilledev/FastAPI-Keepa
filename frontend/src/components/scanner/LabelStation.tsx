@@ -23,7 +23,6 @@ import {
   type LabelSize,
   type ScanPrintStatus,
   type WarehouseCatalogProduct,
-  type WarehouseLabelProduct,
   getCatalogScanInput,
 } from '../../utils/warehouseLabel'
 import {
@@ -47,10 +46,11 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 /** Sample product shown in the size picker before anything is scanned. */
-const SAMPLE_PRODUCT: WarehouseLabelProduct = {
-  upc: '190038644083',
-  fnsku: 'X0054372L9',
-  style_name: "VINTAGE HAVANA Women's Legend Nude-Red Multi 5.5 M",
+const SAMPLE_PRODUCT: WarehouseCatalogProduct = {
+  upc: '198269695492',
+  sku: '9990357',
+  fnsku: 'X0052JFNEN',
+  style_name: "Smartwool Women's Hike Light Cushion Low Ankle Socks Ash-3pk Small",
   condition: 'New',
 }
 
@@ -62,7 +62,7 @@ function LabelPreview({
   product,
   size,
 }: {
-  product: WarehouseLabelProduct
+  product: WarehouseCatalogProduct
   size: LabelSize
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -207,7 +207,7 @@ export default function LabelStation() {
   }, [])
 
   const printProduct = useCallback(
-    async (item: WarehouseLabelProduct) => {
+    async (item: WarehouseCatalogProduct) => {
       if (printingRef.current) return
       printingRef.current = true
       setPrinting(true)
@@ -543,7 +543,7 @@ export default function LabelStation() {
                   )}
                 </div>
                 <div className="rounded border border-gray-300 overflow-hidden">
-                  <LabelPreview product={product || SAMPLE_PRODUCT} size={size} />
+                  <LabelPreview product={product ?? SAMPLE_PRODUCT} size={size} />
                 </div>
               </button>
             )

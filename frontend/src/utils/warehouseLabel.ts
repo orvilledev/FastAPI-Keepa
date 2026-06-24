@@ -136,16 +136,22 @@ export function skuDigitCount(sku: string): number {
   return (sku.match(/\d/g) || []).length
 }
 
-/** Short SKUs (≤7 digits) are scanned by SKU; longer SKUs use the UPC barcode. */
-export function getCatalogScanInput(product: { upc: string; sku?: string }): string {
-  const sku = (product.sku ?? '').trim()
-  if (!sku || skuDigitCount(sku) > 7) return product.upc
-  return sku
+/** True when catalog SKU has ≤7 numeric digits (label prints SKU instead of UPC). */
+export function isShortCatalogSku(sku: string): boolean {
+  const trimmed = (sku ?? '').trim()
+  return Boolean(trimmed) && skuDigitCount(trimmed) <= 7
 }
 
-/** Text printed under the barcode (same position/style as UPC): SKU for ≤7-digit items, else UPC. */
+/** Value for the scan field — always the product UPC (scanner standard). */
+export function getCatalogScanInput(product: { upc: string; sku?: string }): string {
+  return product.upc
+}
+
+/** Text printed under the barcode: short SKU when applicable, otherwise UPC. */
 export function getLabelScanLine(product: { upc: string; sku?: string }): string {
-  return getCatalogScanInput(product)
+  const sku = (product.sku ?? '').trim()
+  if (isShortCatalogSku(sku)) return sku
+  return product.upc
 }
 
 export function scanMatchesCatalogProduct(
@@ -153,7 +159,11 @@ export function scanMatchesCatalogProduct(
   product: { upc: string; sku?: string }
 ): boolean {
   const trimmed = scanInput.trim()
-  return Boolean(trimmed) && trimmed === getCatalogScanInput(product)
+  if (!trimmed) return false
+  if (trimmed === product.upc) return true
+  const sku = (product.sku ?? '').trim()
+  if (isShortCatalogSku(sku) && trimmed === sku) return true
+  return false
 }
 
 export function computeScanStatus(

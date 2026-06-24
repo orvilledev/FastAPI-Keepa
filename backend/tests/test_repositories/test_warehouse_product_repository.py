@@ -20,6 +20,36 @@ def test_uses_sku_for_scan_short_vs_long():
     assert uses_sku_for_scan("   ") is False
 
 
+def test_lookup_by_upc_returns_short_sku_product():
+    from unittest.mock import MagicMock
+
+    from app.repositories.warehouse_product_repository import WarehouseProductRepository
+
+    short_sku_row = {
+        "upc": "198269695492",
+        "sku": "9990357",
+        "fnsku": "X0052JFNEN",
+        "style_name": "Sample",
+        "condition": "New",
+    }
+
+    db = MagicMock()
+
+    def table_side_effect(name):
+        assert name == "warehouse_products"
+        chain = MagicMock()
+        chain.select.return_value = chain
+        chain.eq.return_value = chain
+        chain.limit.return_value = chain
+        chain.execute.return_value = MagicMock(data=[short_sku_row])
+        return chain
+
+    db.table.side_effect = table_side_effect
+    repo = WarehouseProductRepository(db)
+    row = repo.lookup("198269695492")
+    assert row == short_sku_row
+
+
 def test_build_search_filter_quotes_dots_in_upc():
     result = build_warehouse_product_search_filter("amzn.gr.190038644080")
     assert result is not None
