@@ -125,18 +125,47 @@ export type WarehouseLabelProduct = {
   condition: string
 }
 
+export type WarehouseCatalogProduct = WarehouseLabelProduct & {
+  sku: string
+}
+
 export type ScanPrintStatus = 'awaiting' | 'looking_up' | 'not_found' | 'ready'
 
+/** Count numeric digits in a catalog SKU. */
+export function skuDigitCount(sku: string): number {
+  return (sku.match(/\d/g) || []).length
+}
+
+/** Short SKUs (≤7 digits) are scanned by SKU; longer SKUs use the UPC barcode. */
+export function getCatalogScanInput(product: { upc: string; sku?: string }): string {
+  const sku = (product.sku ?? '').trim()
+  if (!sku || skuDigitCount(sku) > 7) return product.upc
+  return sku
+}
+
+/** Text printed under the barcode (same position/style as UPC): SKU for ≤7-digit items, else UPC. */
+export function getLabelScanLine(product: { upc: string; sku?: string }): string {
+  return getCatalogScanInput(product)
+}
+
+export function scanMatchesCatalogProduct(
+  scanInput: string,
+  product: { upc: string; sku?: string }
+): boolean {
+  const trimmed = scanInput.trim()
+  return Boolean(trimmed) && trimmed === getCatalogScanInput(product)
+}
+
 export function computeScanStatus(
-  upc: string,
-  product: WarehouseLabelProduct | null,
+  scanInput: string,
+  product: WarehouseCatalogProduct | null,
   lookupError: boolean,
   isLookingUp = false
 ): ScanPrintStatus {
-  const trimmed = upc.trim()
+  const trimmed = scanInput.trim()
   if (!trimmed) return 'awaiting'
   if (isLookingUp) return 'looking_up'
-  if (lookupError || !product || product.upc !== trimmed) return 'not_found'
+  if (lookupError || !product || !scanMatchesCatalogProduct(trimmed, product)) return 'not_found'
   return 'ready'
 }
 
@@ -258,7 +287,7 @@ function wrapLines(
  * This is the single source of truth for the label layout.
  */
 export function renderWarehouseLabelCanvas(
-  product: WarehouseLabelProduct,
+  product: WarehouseLabelProduct & { sku?: string },
   dpi: number = DEFAULT_LABEL_DPI,
   size: LabelSize = DEFAULT_LABEL_SIZE
 ): HTMLCanvasElement {
@@ -323,9 +352,9 @@ export function renderWarehouseLabelCanvas(
   }
   y += barcodeHeight + d(layout.gapBarcodeUpc)
 
-  // UPC number (centred) + condition (right) on a shared baseline.
+  // UPC or catalog SKU (centred) + condition (right) on a shared baseline.
   y += upcH
-  const upcLine = formatUpcFnskuLine(product.upc)
+  const upcLine = formatUpcFnskuLine(getLabelScanLine(product))
   if (upcLine) {
     ctx.textAlign = 'center'
     ctx.font = `${upcH}px ${FONT_FAMILY}`
@@ -367,7 +396,7 @@ export function renderWarehouseLabelCanvas(
 }
 
 export function buildWarehouseLabelPdfBlob(
-  product: WarehouseLabelProduct,
+  product: WarehouseLabelProduct & { sku?: string },
   copies = 1,
   dpi: number = DEFAULT_LABEL_DPI,
   size: LabelSize = DEFAULT_LABEL_SIZE
@@ -434,7 +463,7 @@ function canvasToZplGraphic(canvas: HTMLCanvasElement): {
  * regardless of printer model/firmware. ^PQ requests `copies` prints.
  */
 export function buildWarehouseLabelZpl(
-  product: WarehouseLabelProduct,
+  product: WarehouseLabelProduct & { sku?: string },
   copies = 1,
   dpi: number = DEFAULT_LABEL_DPI,
   size: LabelSize = DEFAULT_LABEL_SIZE

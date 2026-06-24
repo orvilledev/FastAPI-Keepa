@@ -21,6 +21,7 @@ class WarehouseProductResponse(BaseModel):
 
 class WarehouseProductLookupResponse(BaseModel):
     upc: str
+    sku: str = ""
     fnsku: str
     style_name: str
     condition: str

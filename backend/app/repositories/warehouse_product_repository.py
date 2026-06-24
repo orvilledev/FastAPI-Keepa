@@ -12,6 +12,18 @@ def normalize_upc_key(upc: str) -> str:
     return (upc or "").strip()
 
 
+def sku_digit_count(sku: str) -> int:
+    return sum(1 for c in (sku or "") if c.isdigit())
+
+
+def uses_sku_for_scan(sku: str) -> bool:
+    """Products with a short SKU (≤7 digits) are scanned by SKU; longer SKUs use UPC."""
+    trimmed = (sku or "").strip()
+    if not trimmed:
+        return False
+    return sku_digit_count(trimmed) <= 7
+
+
 def build_warehouse_product_search_filter(search: Optional[str]) -> Optional[str]:
     """Build a PostgREST OR filter for catalog search.
 
@@ -46,19 +58,33 @@ class WarehouseProductRepository:
     def __init__(self, db: Client):
         self.db = db
 
-    def lookup(self, upc: str) -> Optional[dict]:
-        key = normalize_upc_key(upc)
+    def lookup(self, scan_key: str) -> Optional[dict]:
+        key = normalize_upc_key(scan_key)
         if not key:
             return None
-        response = (
+
+        sku_response = (
+            self.db.table("warehouse_products")
+            .select("*")
+            .eq("sku", key)
+            .limit(5)
+            .execute()
+        )
+        for row in sku_response.data or []:
+            if uses_sku_for_scan(row.get("sku") or ""):
+                return row
+
+        upc_response = (
             self.db.table("warehouse_products")
             .select("*")
             .eq("upc", key)
             .limit(1)
             .execute()
         )
-        if response.data:
-            return response.data[0]
+        if upc_response.data:
+            row = upc_response.data[0]
+            if not uses_sku_for_scan(row.get("sku") or ""):
+                return row
         return None
 
     def count(self, search: Optional[str] = None) -> int:

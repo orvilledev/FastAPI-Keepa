@@ -1,7 +1,23 @@
 from app.repositories.warehouse_product_repository import (
     apply_warehouse_product_search,
     build_warehouse_product_search_filter,
+    sku_digit_count,
+    uses_sku_for_scan,
 )
+
+
+def test_sku_digit_count_counts_only_numbers():
+    assert sku_digit_count("SW001") == 3
+    assert sku_digit_count("1234567") == 7
+    assert sku_digit_count("12345678") == 8
+
+
+def test_uses_sku_for_scan_short_vs_long():
+    assert uses_sku_for_scan("SW001") is True
+    assert uses_sku_for_scan("1234567") is True
+    assert uses_sku_for_scan("12345678") is False
+    assert uses_sku_for_scan("") is False
+    assert uses_sku_for_scan("   ") is False
 
 
 def test_build_search_filter_quotes_dots_in_upc():

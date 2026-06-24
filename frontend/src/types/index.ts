@@ -305,6 +305,7 @@ export interface WarehouseProduct {
 
 export interface WarehouseProductLookup {
   upc: string
+  sku: string
   fnsku: string
   style_name: string
   condition: string

@@ -55,6 +55,7 @@ def lookup_warehouse_product(
         raise HTTPException(status_code=404, detail="UPC not found")
     return WarehouseProductLookupResponse(
         upc=row["upc"],
+        sku=row.get("sku") or "",
         fnsku=row["fnsku"],
         style_name=row.get("style_name") or "",
         condition=row.get("condition") or "New",

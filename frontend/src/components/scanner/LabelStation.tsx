@@ -14,13 +14,16 @@ import {
   saveSelectedDpi,
   saveSelectedLabelSize,
   saveSelectedPrinter,
+  scanMatchesCatalogProduct,
   scanStatusLabel,
   suggestedWarehouseLabelPdfFilename,
   SUPPORTED_DPIS,
   type LabelDpi,
   type LabelSize,
   type ScanPrintStatus,
+  type WarehouseCatalogProduct,
   type WarehouseLabelProduct,
+  getCatalogScanInput,
 } from '../../utils/warehouseLabel'
 import {
   buildWarehouseProductsTemplateBlob,
@@ -101,7 +104,7 @@ export default function LabelStation() {
   const pendingPrintUpcRef = useRef<string | null>(null)
   const printingRef = useRef(false)
   const [scanUpc, setScanUpc] = useState('')
-  const [product, setProduct] = useState<WarehouseLabelProduct | null>(null)
+  const [product, setProduct] = useState<WarehouseCatalogProduct | null>(null)
   const [lookupError, setLookupError] = useState(false)
   const [lookingUp, setLookingUp] = useState(false)
   const [quantity, setQuantity] = useState(1)
@@ -239,8 +242,9 @@ export default function LabelStation() {
       setError(null)
       try {
         const row = await warehouseProductsApi.lookup(upc)
-        const item: WarehouseLabelProduct = {
+        const item: WarehouseCatalogProduct = {
           upc: row.upc,
+          sku: row.sku || '',
           fnsku: row.fnsku,
           style_name: row.style_name,
           condition: row.condition,
@@ -280,7 +284,7 @@ export default function LabelStation() {
 
   const handlePrint = useCallback(async () => {
     const upc = scanUpc.trim()
-    if (!product || !upc || product.upc !== upc || status !== 'ready') return
+    if (!product || !upc || !scanMatchesCatalogProduct(upc, product) || status !== 'ready') return
     await printProduct(product)
   }, [product, scanUpc, status, printProduct])
 
@@ -289,7 +293,7 @@ export default function LabelStation() {
     event.preventDefault()
     const upc = scanUpc.trim()
     if (!upc) return
-    if (status === 'ready' && product?.upc === upc) {
+    if (status === 'ready' && product && scanMatchesCatalogProduct(upc, product)) {
       void handlePrint()
       return
     }

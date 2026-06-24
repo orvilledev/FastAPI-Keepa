@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { warehouseProductsApi } from '../../services/api'
 import type { WarehouseProduct } from '../../types'
+import { getCatalogScanInput } from '../../utils/warehouseLabel'
 
 const PAGE_SIZE = 50
 
@@ -156,7 +157,7 @@ export default function WarehouseProductCatalog({
                       {onSelectUpc ? (
                         <button
                           type="button"
-                          onClick={() => onSelectUpc(row.upc)}
+                          onClick={() => onSelectUpc(getCatalogScanInput(row))}
                           className="text-xs font-medium text-[#404040] hover:underline"
                         >
                           Scan
