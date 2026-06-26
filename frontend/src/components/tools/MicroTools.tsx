@@ -4,11 +4,13 @@ import type { MicroToolRecord } from '../../types'
 import {
   MICRO_TOOLS,
   TESTING_MATERIALS_SECTION_LABEL,
-  isBlueTestingMaterialTool,
+  WORK_SHEET_TEMPLATE_SECTION_LABEL,
   isTestingMaterialTool,
+  isWorkSheetTemplateTool,
 } from '../../constants/microTools'
 import type { MicroTool as StaticMicroTool } from '../../constants/microTools'
 import { useUser } from '../../contexts/UserContext'
+import { downloadLinkedFile } from '../../utils/downloadLinkedFile'
 
 const DEFAULT_ACTION = 'Open tool'
 
@@ -34,6 +36,7 @@ export default function MicroTools() {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(emptyForm)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   const loadTools = useCallback(async () => {
     setLoadError(null)
@@ -166,6 +169,18 @@ export default function MicroTools() {
     }))
   }
 
+  const handleDownloadTemplate = async (tool: MicroToolRecord) => {
+    setDownloadingId(tool.id)
+    try {
+      await downloadLinkedFile(tool.url, tool.name)
+    } catch (err) {
+      console.error(err)
+      window.alert('Could not download this file. Try again or contact an admin.')
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+
   const renderCard = (tool: StaticMicroTool) => (
     <article
       key={`static-${tool.id}`}
@@ -218,19 +233,20 @@ export default function MicroTools() {
 
   const renderApiCard = (
     t: MicroToolRecord,
-    variant: 'default' | 'testingMaterial' | 'testingMaterialBlue' = 'default',
+    variant: 'default' | 'testingMaterial' | 'workSheetTemplate' = 'default',
   ) => {
     const tags = t.tags ?? []
     const links = t.extra_links ?? []
     const isOwner = currentUserId !== null && t.user_id === currentUserId
-    const isTestingMaterial = variant === 'testingMaterial' || variant === 'testingMaterialBlue'
-    const isBlueTestingMaterial = variant === 'testingMaterialBlue'
+    const isTestingMaterial = variant === 'testingMaterial'
+    const isWorkSheetTemplate = variant === 'workSheetTemplate'
+    const isDarkCard = isTestingMaterial || isWorkSheetTemplate
 
     return (
       <article
         key={t.id}
         className={
-          isBlueTestingMaterial
+          isWorkSheetTemplate
             ? 'flex h-full flex-col rounded-xl border border-blue-400/40 bg-blue-600 p-6 text-white shadow-xl'
             : isTestingMaterial
               ? 'flex h-full flex-col rounded-xl border border-white/20 bg-[#404040] p-6 text-white shadow-xl'
@@ -240,11 +256,11 @@ export default function MicroTools() {
         <div className="flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <h2 className={`text-xl font-semibold ${isTestingMaterial ? 'text-white' : 'text-gray-900'}`}>
+              <h2 className={`text-xl font-semibold ${isDarkCard ? 'text-white' : 'text-gray-900'}`}>
                 {t.name}
               </h2>
               {!isOwner && (
-                <p className={`mt-1 text-xs ${isTestingMaterial ? 'text-white/70' : 'text-gray-500'}`}>
+                <p className={`mt-1 text-xs ${isDarkCard ? 'text-white/70' : 'text-gray-500'}`}>
                   Added by a teammate
                 </p>
               )}
@@ -262,7 +278,7 @@ export default function MicroTools() {
                   type="button"
                   onClick={() => void handleDelete(t.id)}
                   className={`text-sm font-medium hover:underline ${
-                    isTestingMaterial ? 'text-red-400' : 'text-red-600'
+                    isDarkCard ? 'text-red-400' : 'text-red-600'
                   }`}
                 >
                   Delete
@@ -273,7 +289,7 @@ export default function MicroTools() {
           {t.description && (
             <p
               className={`mt-2 text-sm leading-relaxed ${
-                isTestingMaterial ? 'text-white/70' : 'text-gray-600'
+                isDarkCard ? 'text-white/70' : 'text-gray-600'
               }`}
             >
               {t.description}
@@ -285,9 +301,11 @@ export default function MicroTools() {
                 <span
                   key={tag}
                   className={
-                    isTestingMaterial
-                      ? 'inline-flex items-center rounded-md bg-[#81B81D]/30 px-2.5 py-0.5 text-xs font-medium text-[#E8F8C8] ring-1 ring-[#81B81D]/85'
-                      : 'inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700'
+                    isWorkSheetTemplate
+                      ? 'inline-flex items-center rounded-md bg-white/20 px-2.5 py-0.5 text-xs font-medium text-white ring-1 ring-white/40'
+                      : isTestingMaterial
+                        ? 'inline-flex items-center rounded-md bg-[#81B81D]/30 px-2.5 py-0.5 text-xs font-medium text-[#E8F8C8] ring-1 ring-[#81B81D]/85'
+                        : 'inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700'
                   }
                 >
                   {tag}
@@ -297,20 +315,29 @@ export default function MicroTools() {
           )}
         </div>
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <a
-            href={t.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={
-              isBlueTestingMaterial
-                ? 'inline-flex items-center justify-center rounded-lg bg-white/20 px-4 py-2.5 text-sm font-semibold text-white shadow-sm ring-2 ring-white/50 transition-colors hover:bg-white/30'
-                : isTestingMaterial
+          {isWorkSheetTemplate ? (
+            <button
+              type="button"
+              onClick={() => void handleDownloadTemplate(t)}
+              disabled={downloadingId === t.id}
+              className="inline-flex items-center justify-center rounded-lg bg-white/20 px-4 py-2.5 text-sm font-semibold text-white shadow-sm ring-2 ring-white/50 transition-colors hover:bg-white/30 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {downloadingId === t.id ? 'Downloading…' : t.action_label ?? 'Download File'}
+            </button>
+          ) : (
+            <a
+              href={t.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={
+                isTestingMaterial
                   ? 'inline-flex items-center justify-center rounded-lg bg-[#81B81D]/30 px-4 py-2.5 text-sm font-semibold text-[#E8F8C8] shadow-sm ring-2 ring-[#81B81D]/85 transition-colors hover:bg-[#81B81D]/40'
                   : 'inline-flex items-center justify-center rounded-lg bg-[#404040] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#2d2d2d]'
-            }
-          >
-            {t.action_label ?? DEFAULT_ACTION}
-          </a>
+              }
+            >
+              {t.action_label ?? DEFAULT_ACTION}
+            </a>
+          )}
           {links.length > 0 && (
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
               {links.map((link) => (
@@ -331,8 +358,9 @@ export default function MicroTools() {
     )
   }
 
-  const mainTools = apiTools.filter((t) => !isTestingMaterialTool(t))
+  const mainTools = apiTools.filter((t) => !isTestingMaterialTool(t) && !isWorkSheetTemplateTool(t))
   const testingMaterialTools = apiTools.filter((t) => isTestingMaterialTool(t))
+  const workSheetTemplateTools = apiTools.filter((t) => isWorkSheetTemplateTool(t))
   const hasStatic = MICRO_TOOLS.length > 0
   const hasApi = apiTools.length > 0
   const showEmpty = !loading && !hasStatic && !hasApi && !loadError
@@ -496,9 +524,16 @@ export default function MicroTools() {
         <div>
           <h2 className="mb-4 mt-8 text-lg font-semibold text-[#404040]">{TESTING_MATERIALS_SECTION_LABEL}</h2>
           <div className="grid gap-6 md:grid-cols-2">
-            {testingMaterialTools.map((t) =>
-              renderApiCard(t, isBlueTestingMaterialTool(t) ? 'testingMaterialBlue' : 'testingMaterial'),
-            )}
+            {testingMaterialTools.map((t) => renderApiCard(t, 'testingMaterial'))}
+          </div>
+        </div>
+      )}
+
+      {!loading && workSheetTemplateTools.length > 0 && (
+        <div>
+          <h2 className="mb-4 mt-8 text-lg font-semibold text-[#404040]">{WORK_SHEET_TEMPLATE_SECTION_LABEL}</h2>
+          <div className="grid gap-6 md:grid-cols-2">
+            {workSheetTemplateTools.map((t) => renderApiCard(t, 'workSheetTemplate'))}
           </div>
         </div>
       )}

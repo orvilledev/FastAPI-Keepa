@@ -46,21 +46,32 @@ export const TESTING_MATERIALS_SECTION_LABEL = 'Testing Materials'
 export const TESTING_MATERIALS_TOOL_NAMES: readonly string[] = [
   'Testing Kit',
   'MSW Overwatch Testing Logbook',
+]
+
+/** Shown below Testing Materials; primary action downloads the linked file. */
+export const WORK_SHEET_TEMPLATE_SECTION_LABEL = 'Work Sheet Template'
+
+export const WORK_SHEET_TEMPLATE_TOOL_NAMES: readonly string[] = [
   'NFA Shipment Work Sheet',
 ]
 
-/** Testing Materials cards that use a blue background instead of charcoal. */
-export const TESTING_MATERIALS_BLUE_TOOL_NAMES: readonly string[] = [
-  'NFA Shipment Work Sheet',
-]
+function normalizeTag(tag: string): string {
+  return tag.toLowerCase().replace(/\s+/g, '-')
+}
 
 export function isTestingMaterialTool(tool: { name: string; tags?: string[] | null }): boolean {
+  if (isWorkSheetTemplateTool(tool)) {
+    return false
+  }
   if (TESTING_MATERIALS_TOOL_NAMES.includes(tool.name)) {
     return true
   }
-  return (tool.tags ?? []).some((tag) => tag.toLowerCase().replace(/\s+/g, '-') === 'testing-materials')
+  return (tool.tags ?? []).some((tag) => normalizeTag(tag) === 'testing-materials')
 }
 
-export function isBlueTestingMaterialTool(tool: { name: string }): boolean {
-  return TESTING_MATERIALS_BLUE_TOOL_NAMES.includes(tool.name)
+export function isWorkSheetTemplateTool(tool: { name: string; tags?: string[] | null }): boolean {
+  if (WORK_SHEET_TEMPLATE_TOOL_NAMES.includes(tool.name)) {
+    return true
+  }
+  return (tool.tags ?? []).some((tag) => normalizeTag(tag) === 'work-sheet-template')
 }
