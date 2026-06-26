@@ -46,6 +46,12 @@ export const TESTING_MATERIALS_SECTION_LABEL = 'Testing Materials'
 export const TESTING_MATERIALS_TOOL_NAMES: readonly string[] = [
   'Testing Kit',
   'MSW Overwatch Testing Logbook',
+  'NFA Shipment Work Sheet',
+]
+
+/** Testing Materials cards that use a blue background instead of charcoal. */
+export const TESTING_MATERIALS_BLUE_TOOL_NAMES: readonly string[] = [
+  'NFA Shipment Work Sheet',
 ]
 
 export function isTestingMaterialTool(tool: { name: string; tags?: string[] | null }): boolean {
@@ -53,4 +59,8 @@ export function isTestingMaterialTool(tool: { name: string; tags?: string[] | nu
     return true
   }
   return (tool.tags ?? []).some((tag) => tag.toLowerCase().replace(/\s+/g, '-') === 'testing-materials')
+}
+
+export function isBlueTestingMaterialTool(tool: { name: string }): boolean {
+  return TESTING_MATERIALS_BLUE_TOOL_NAMES.includes(tool.name)
 }

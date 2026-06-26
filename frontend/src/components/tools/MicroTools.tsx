@@ -4,6 +4,7 @@ import type { MicroToolRecord } from '../../types'
 import {
   MICRO_TOOLS,
   TESTING_MATERIALS_SECTION_LABEL,
+  isBlueTestingMaterialTool,
   isTestingMaterialTool,
 } from '../../constants/microTools'
 import type { MicroTool as StaticMicroTool } from '../../constants/microTools'
@@ -215,19 +216,25 @@ export default function MicroTools() {
     </article>
   )
 
-  const renderApiCard = (t: MicroToolRecord, variant: 'default' | 'testingMaterial' = 'default') => {
+  const renderApiCard = (
+    t: MicroToolRecord,
+    variant: 'default' | 'testingMaterial' | 'testingMaterialBlue' = 'default',
+  ) => {
     const tags = t.tags ?? []
     const links = t.extra_links ?? []
     const isOwner = currentUserId !== null && t.user_id === currentUserId
-    const isTestingMaterial = variant === 'testingMaterial'
+    const isTestingMaterial = variant === 'testingMaterial' || variant === 'testingMaterialBlue'
+    const isBlueTestingMaterial = variant === 'testingMaterialBlue'
 
     return (
       <article
         key={t.id}
         className={
-          isTestingMaterial
-            ? 'flex h-full flex-col rounded-xl border border-white/20 bg-[#404040] p-6 text-white shadow-xl'
-            : 'card flex h-full flex-col border border-gray-200/80 p-6 shadow-sm'
+          isBlueTestingMaterial
+            ? 'flex h-full flex-col rounded-xl border border-blue-400/40 bg-blue-600 p-6 text-white shadow-xl'
+            : isTestingMaterial
+              ? 'flex h-full flex-col rounded-xl border border-white/20 bg-[#404040] p-6 text-white shadow-xl'
+              : 'card flex h-full flex-col border border-gray-200/80 p-6 shadow-sm'
         }
       >
         <div className="flex-1">
@@ -295,9 +302,11 @@ export default function MicroTools() {
             target="_blank"
             rel="noopener noreferrer"
             className={
-              isTestingMaterial
-                ? 'inline-flex items-center justify-center rounded-lg bg-[#81B81D]/30 px-4 py-2.5 text-sm font-semibold text-[#E8F8C8] shadow-sm ring-2 ring-[#81B81D]/85 transition-colors hover:bg-[#81B81D]/40'
-                : 'inline-flex items-center justify-center rounded-lg bg-[#404040] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#2d2d2d]'
+              isBlueTestingMaterial
+                ? 'inline-flex items-center justify-center rounded-lg bg-white/20 px-4 py-2.5 text-sm font-semibold text-white shadow-sm ring-2 ring-white/50 transition-colors hover:bg-white/30'
+                : isTestingMaterial
+                  ? 'inline-flex items-center justify-center rounded-lg bg-[#81B81D]/30 px-4 py-2.5 text-sm font-semibold text-[#E8F8C8] shadow-sm ring-2 ring-[#81B81D]/85 transition-colors hover:bg-[#81B81D]/40'
+                  : 'inline-flex items-center justify-center rounded-lg bg-[#404040] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#2d2d2d]'
             }
           >
             {t.action_label ?? DEFAULT_ACTION}
@@ -487,7 +496,9 @@ export default function MicroTools() {
         <div>
           <h2 className="mb-4 mt-8 text-lg font-semibold text-[#404040]">{TESTING_MATERIALS_SECTION_LABEL}</h2>
           <div className="grid gap-6 md:grid-cols-2">
-            {testingMaterialTools.map((t) => renderApiCard(t, 'testingMaterial'))}
+            {testingMaterialTools.map((t) =>
+              renderApiCard(t, isBlueTestingMaterialTool(t) ? 'testingMaterialBlue' : 'testingMaterial'),
+            )}
           </div>
         </div>
       )}
