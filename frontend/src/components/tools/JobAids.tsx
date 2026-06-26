@@ -8,8 +8,9 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         {APP_NAME} is MetroShoe Warehouse&apos;s workspace for Keepa-based pricing compliance and day-to-day
-        operational tools. The sidebar is organized into <strong>Menu</strong> (monitoring and shared data) and{' '}
-        <strong>Tools</strong> (document and label utilities). See the{' '}
+        operational tools. The sidebar is organized into <strong>Menu</strong> (monitoring and shared data),{' '}
+        <strong>Tools</strong> (document and label utilities), and <strong>General</strong> (about, FAQ, and
+        feedback). Warehouse station accounts open <strong>Label Station</strong> only, plus General pages. See the{' '}
         <Link to="/about" className="text-[#404040] font-medium underline">
           About
         </Link>{' '}
@@ -164,8 +165,9 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     q: 'What is in the Tools section?',
     a: (
       <>
-        Tools includes <strong>Micro Tools</strong>, <strong>Tracking Extractor</strong>, and{' '}
-        <strong>FNSKU Labels</strong>. These are standalone utilities and do not require Keepa access.
+        Tools includes <strong>Micro Tools</strong>, <strong>Tracking Extractor</strong>, <strong>FNSKU Labels</strong>,
+        and <strong>Label Station</strong>. Micro Tools, Tracking Extractor, and FNSKU Labels are available to all
+        signed-in users. <strong>Label Station</strong> requires Keepa access or a warehouse-only account.
       </>
     ),
   },
@@ -197,11 +199,66 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     ),
   },
   {
+    q: 'What is Label Station?',
+    a: (
+      <>
+        Label Station is a scan-and-print tool for warehouse labeling. Staff scan a product <strong>UPC</strong>; the app
+        looks up the product in the warehouse catalog and prints a formatted label to a Zebra printer (desktop app) or
+        downloads a PDF (web browser). Each label shows FNSKU, a scannable barcode, UPC or SKU, condition, and product
+        name. Choose label size (small, medium, or large) and printer resolution (203 or 300 dpi). The on-screen preview
+        matches the physical label. Catalog managers with Keepa access can import or update products from Excel in the
+        Product Catalog tab.
+      </>
+    ),
+  },
+  {
+    q: 'What is the short-SKU rule on Label Station labels?',
+    a: (
+      <>
+        Staff always scan the <strong>UPC</strong> barcode. If the catalog SKU has <strong>7 numeric digits or fewer</strong>{' '}
+        (for example <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs">9990357</code>), the label prints that{' '}
+        <strong>SKU</strong> under the barcode instead of the UPC. Longer SKUs print the UPC as before.
+      </>
+    ),
+  },
+  {
+    q: 'What is in the General section?',
+    a: (
+      <>
+        General includes <strong>About</strong> (version and feature overview), <strong>FAQ</strong> (this page),{' '}
+        <strong>Feedback From Users</strong> (submit and review suggestions), and{' '}
+        <strong>User Management</strong> (superadmin only — accounts, permissions, and maintenance mode).
+      </>
+    ),
+  },
+  {
+    q: 'What is a warehouse-only account?',
+    a: (
+      <>
+        Warehouse-only accounts are restricted logins for shared station PCs. The sidebar shows{' '}
+        <strong>Label Station</strong> plus General pages (About, FAQ, Feedback) — not the full Menu or other Tools.
+        This keeps packing stations focused on scan-and-print without access to unrelated compliance tools.
+      </>
+    ),
+  },
+  {
     q: 'Why don’t I see Express Jobs, Daily Runs, or other Keepa pages?',
     a: (
       <>
-        Those Menu items require Keepa access on your account. If they are missing from the sidebar, ask an administrator
-        to enable the right permissions for your role.
+        Those Menu items require Keepa access on your account. If you have a warehouse-only login, you will only see
+        Label Station and General. If Keepa pages are missing from a normal account, ask an administrator to enable the
+        right permissions for your role.
+      </>
+    ),
+  },
+  {
+    q: 'What happens when maintenance mode is on?',
+    a: (
+      <>
+        When a superadmin enables maintenance mode, most users see a maintenance page and cannot use the app.{' '}
+        <strong>Superadmins</strong> and emails on the server allowlist can still use the API; the web UI currently
+        lets superadmins through the maintenance screen. Maintenance can be toggled from{' '}
+        <strong>User Management</strong>.
       </>
     ),
   },
@@ -213,7 +270,7 @@ export default function JobAids() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">FAQ</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Common questions about {APP_NAME} Menu and Tools features, aligned with the{' '}
+          Common questions about {APP_NAME} Menu, Tools, and General features, aligned with the{' '}
           <Link to="/about" className="text-[#404040] font-medium underline">
             About
           </Link>{' '}
@@ -241,7 +298,8 @@ export default function JobAids() {
       </div>
 
       <p className="text-xs text-gray-400">
-        Keepa-related Menu items require account access; Tools are available to all signed-in users.
+        Keepa-related Menu items and Label Station require the right account access; other Tools are available to all
+        signed-in users. Warehouse-only accounts see Label Station and General only.
       </p>
     </div>
   )
