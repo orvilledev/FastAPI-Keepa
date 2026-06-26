@@ -10,7 +10,7 @@ import {
 } from '../../constants/microTools'
 import type { MicroTool as StaticMicroTool } from '../../constants/microTools'
 import { useUser } from '../../contexts/UserContext'
-import { downloadLinkedFile } from '../../utils/downloadLinkedFile'
+import { downloadBlob, parseMicroToolDownloadResponse } from '../../utils/downloadLinkedFile'
 
 const DEFAULT_ACTION = 'Open tool'
 
@@ -172,7 +172,13 @@ export default function MicroTools() {
   const handleDownloadTemplate = async (tool: MicroToolRecord) => {
     setDownloadingId(tool.id)
     try {
-      await downloadLinkedFile(tool.url, tool.name)
+      const response = await toolsApi.downloadMicroToolFile(tool.id)
+      const { blob, filename } = parseMicroToolDownloadResponse(
+        response.data as Blob,
+        response.headers as Record<string, string | undefined>,
+        tool.name,
+      )
+      downloadBlob(blob, filename)
     } catch (err) {
       console.error(err)
       window.alert('Could not download this file. Try again or contact an admin.')

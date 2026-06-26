@@ -811,6 +811,12 @@ export const toolsApi = {
     const response = await api.delete(`/api/v1/tools/micro-tools/${toolId}`)
     return response.data
   },
+  downloadMicroToolFile: async (toolId: string) => {
+    const response = await api.get(`/api/v1/tools/micro-tools/${toolId}/download`, {
+      responseType: 'blob',
+    })
+    return response
+  },
   // Job Aids
   getJobAids: async () => {
     const response = await api.get<JobAid[]>('/api/v1/tools/job-aids')

@@ -1,7 +1,10 @@
 """Public Tools API endpoints."""
+import io
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from typing import List
 from uuid import UUID
+import httpx
 from app.dependencies import get_current_user, get_admin_user, get_keepa_access_user, get_tools_manager_user
 from app.models.public_tool import PublicToolCreate, PublicToolUpdate, PublicToolResponse
 from app.models.user_tool import UserToolCreate, UserToolUpdate, UserToolResponse
@@ -9,6 +12,7 @@ from app.models.micro_tool import MicroToolCreate, MicroToolUpdate, MicroToolRes
 from app.models.job_aid import JobAidCreate, JobAidUpdate, JobAidResponse
 from app.database import get_supabase
 from app.utils.error_handler import handle_api_errors
+from app.utils.micro_tool_download import fetch_work_sheet_file, is_work_sheet_template_tool
 from supabase import Client
 
 router = APIRouter()
@@ -512,4 +516,46 @@ def delete_micro_tool(
     if not response.data:
         raise HTTPException(status_code=404, detail="Micro tool not found")
     return {"message": "Micro tool deleted successfully", "tool_id": str(tool_id)}
+
+
+@router.get("/tools/micro-tools/{tool_id}/download")
+@handle_api_errors("download micro tool file")
+def download_micro_tool_file(
+    tool_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Proxy-download a Work Sheet Template file with Content-Disposition: attachment."""
+    response = db.table("micro_tools").select("*").eq("id", str(tool_id)).execute()
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Micro tool not found")
+
+    tool = response.data[0]
+    if not is_work_sheet_template_tool(tool):
+        raise HTTPException(
+            status_code=403,
+            detail="Download is only available for Work Sheet Template tools",
+        )
+
+    source_url = (tool.get("url") or "").strip()
+    if not source_url:
+        raise HTTPException(status_code=400, detail="This tool has no file URL configured")
+
+    try:
+        file_bytes, filename, media_type = fetch_work_sheet_file(
+            source_url, tool.get("name") or "download"
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not fetch the linked file. Check that the URL is public and reachable.",
+        ) from exc
+
+    return StreamingResponse(
+        io.BytesIO(file_bytes),
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
