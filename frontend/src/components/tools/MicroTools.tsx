@@ -5,6 +5,7 @@ import {
   MICRO_TOOLS,
   TESTING_MATERIALS_SECTION_LABEL,
   WORK_SHEET_TEMPLATE_SECTION_LABEL,
+  hasBundledWorkSheetFile,
   isTestingMaterialTool,
   isWorkSheetTemplateTool,
 } from '../../constants/microTools'
@@ -72,10 +73,11 @@ export default function MicroTools() {
 
   const openEdit = (t: MicroToolRecord) => {
     setEditingId(t.id)
+    const bundled = hasBundledWorkSheetFile(t)
     setForm({
       name: t.name,
       description: t.description ?? '',
-      url: t.url,
+      url: bundled || t.url === 'bundled' ? '' : t.url,
       actionLabel: t.action_label ?? '',
       tagsStr: (t.tags ?? []).join(', '),
       extraLinks:
@@ -101,7 +103,9 @@ export default function MicroTools() {
     return {
       name: form.name.trim(),
       description: form.description.trim() || undefined,
-      url: form.url.trim(),
+      url:
+        form.url.trim() ||
+        (hasBundledWorkSheetFile({ name: form.name.trim() }) ? 'bundled' : ''),
       action_label: form.actionLabel.trim() || undefined,
       tags,
       extra_links,
@@ -112,11 +116,12 @@ export default function MicroTools() {
     e.preventDefault()
     setFormError(null)
     const payload = parsePayload()
+    const bundled = hasBundledWorkSheetFile({ name: payload.name })
     if (!payload.name) {
       setFormError('Name is required.')
       return
     }
-    if (!payload.url) {
+    if (!bundled && !payload.url) {
       setFormError('Link URL is required.')
       return
     }
@@ -417,17 +422,23 @@ export default function MicroTools() {
                 placeholder="Short summary shown on the card"
               />
             </label>
-            <label className="block sm:col-span-2">
-              <span className="text-sm font-medium text-gray-700">Tool URL *</span>
-              <input
-                type="text"
-                value={form.url}
-                onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-[#81B81D] focus:outline-none focus:ring-1 focus:ring-[#81B81D]"
-                placeholder="https://..."
-                required
-              />
-            </label>
+            {hasBundledWorkSheetFile({ name: form.name.trim() }) ? (
+              <div className="block sm:col-span-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                This work sheet downloads a file bundled with MSW Overwatch. No external link is needed.
+              </div>
+            ) : (
+              <label className="block sm:col-span-2">
+                <span className="text-sm font-medium text-gray-700">Tool URL *</span>
+                <input
+                  type="text"
+                  value={form.url}
+                  onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-[#81B81D] focus:outline-none focus:ring-1 focus:ring-[#81B81D]"
+                  placeholder="https://..."
+                  required
+                />
+              </label>
+            )}
             <label className="block">
               <span className="text-sm font-medium text-gray-700">Button label</span>
               <input

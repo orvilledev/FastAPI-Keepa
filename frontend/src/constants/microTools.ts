@@ -55,6 +55,11 @@ export const WORK_SHEET_TEMPLATE_TOOL_NAMES: readonly string[] = [
   'NFA Shipment Work Sheet',
 ]
 
+/** Work sheet templates served from bundled files in the backend (no external link). */
+export const BUNDLED_WORK_SHEET_TOOL_NAMES: readonly string[] = [
+  'NFA Shipment Work Sheet',
+]
+
 function normalizeTag(tag: string): string {
   return tag.toLowerCase().replace(/\s+/g, '-')
 }
@@ -74,4 +79,8 @@ export function isWorkSheetTemplateTool(tool: { name: string; tags?: string[] | 
     return true
   }
   return (tool.tags ?? []).some((tag) => normalizeTag(tag) === 'work-sheet-template')
+}
+
+export function hasBundledWorkSheetFile(tool: { name: string }): boolean {
+  return BUNDLED_WORK_SHEET_TOOL_NAMES.includes(tool.name)
 }

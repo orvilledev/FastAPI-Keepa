@@ -12,7 +12,11 @@ from app.models.micro_tool import MicroToolCreate, MicroToolUpdate, MicroToolRes
 from app.models.job_aid import JobAidCreate, JobAidUpdate, JobAidResponse
 from app.database import get_supabase
 from app.utils.error_handler import handle_api_errors
-from app.utils.micro_tool_download import fetch_work_sheet_file, is_work_sheet_template_tool
+from app.utils.micro_tool_download import (
+    fetch_work_sheet_file,
+    has_bundled_work_sheet_file,
+    is_work_sheet_template_tool,
+)
 from supabase import Client
 
 router = APIRouter()
@@ -29,6 +33,16 @@ def _normalize_micro_tool_row(raw: dict) -> dict:
     if row.get("extra_links") is None:
         row["extra_links"] = []
     return row
+
+
+def _resolve_micro_tool_url(name: str, url: str | None) -> str:
+    """Bundled work sheet templates do not need an external link."""
+    cleaned = (url or "").strip()
+    if has_bundled_work_sheet_file(name):
+        return cleaned or "bundled"
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="Link URL is required.")
+    return cleaned
 
 
 @router.get("/tools/public", response_model=List[PublicToolResponse])
@@ -452,11 +466,12 @@ def create_micro_tool(
     db: Client = Depends(get_supabase),
 ):
     """Create a Micro Tool for the current user."""
+    tool_name = tool_data.name.strip()
     insert_payload = {
         "user_id": current_user["id"],
-        "name": tool_data.name.strip(),
+        "name": tool_name,
         "description": (tool_data.description or "").strip() or None,
-        "url": tool_data.url.strip(),
+        "url": _resolve_micro_tool_url(tool_name, tool_data.url),
         "action_label": (tool_data.action_label or "").strip() or None,
         "tags": tool_data.tags or [],
         "extra_links": [l.model_dump() for l in (tool_data.extra_links or [])],
@@ -485,8 +500,12 @@ def update_micro_tool(
         update_data["name"] = tool_data.name.strip()
     if tool_data.description is not None:
         update_data["description"] = (tool_data.description or "").strip() or None
+    existing = check.data[0]
+    resolved_name = (
+        update_data["name"] if "name" in update_data else (existing.get("name") or "")
+    ).strip()
     if tool_data.url is not None:
-        update_data["url"] = tool_data.url.strip()
+        update_data["url"] = _resolve_micro_tool_url(resolved_name, tool_data.url)
     if tool_data.action_label is not None:
         update_data["action_label"] = (tool_data.action_label or "").strip() or None
     if tool_data.tags is not None:
@@ -537,13 +556,12 @@ def download_micro_tool_file(
             detail="Download is only available for Work Sheet Template tools",
         )
 
+    tool_name = (tool.get("name") or "download").strip()
     source_url = (tool.get("url") or "").strip()
-    if not source_url:
-        raise HTTPException(status_code=400, detail="This tool has no file URL configured")
 
     try:
         file_bytes, filename, media_type = fetch_work_sheet_file(
-            source_url, tool.get("name") or "download"
+            tool_name, source_url, tool_name
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

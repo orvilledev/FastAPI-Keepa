@@ -1,4 +1,9 @@
-from app.utils.micro_tool_download import is_work_sheet_template_tool, resolve_download_url
+from app.utils.micro_tool_download import (
+    has_bundled_work_sheet_file,
+    is_work_sheet_template_tool,
+    load_bundled_work_sheet_file,
+    resolve_download_url,
+)
 
 
 def test_resolve_google_sheet_export_url():
@@ -21,3 +26,16 @@ def test_is_work_sheet_template_tool_by_name():
 
 def test_is_work_sheet_template_tool_by_tag():
     assert is_work_sheet_template_tool({"name": "Custom Sheet", "tags": ["work-sheet-template"]})
+
+
+def test_has_bundled_work_sheet_file():
+    assert has_bundled_work_sheet_file("NFA Shipment Work Sheet")
+    assert not has_bundled_work_sheet_file("Other Sheet")
+
+
+def test_load_bundled_nfa_work_sheet_file():
+    file_bytes, filename, media_type = load_bundled_work_sheet_file("NFA Shipment Work Sheet")
+    assert len(file_bytes) > 0
+    assert filename == "NFA Shipments 6.26.26.xlsx"
+    assert "spreadsheetml" in media_type
+    assert file_bytes[:2] == b"PK"

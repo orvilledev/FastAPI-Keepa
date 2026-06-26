@@ -1,14 +1,26 @@
-"""Fetch remote files for Work Sheet Template Micro Tools."""
+"""Serve Work Sheet Template files (bundled assets or remote fallback)."""
 from __future__ import annotations
 
 import ipaddress
 import re
-from typing import Tuple
+from pathlib import Path
+from typing import Optional, Tuple
 from urllib.parse import urlparse
 
 import httpx
 
 WORK_SHEET_TEMPLATE_TOOL_NAMES = frozenset({"NFA Shipment Work Sheet"})
+
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+BUNDLED_WORK_SHEET_FILES: dict[str, dict[str, object]] = {
+    "NFA Shipment Work Sheet": {
+        "path": BACKEND_ROOT / "assets" / "work-sheet-templates" / "nfa-shipment-work-sheet.xlsx",
+        "download_name": "NFA Shipments 6.26.26.xlsx",
+        "media_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    },
+}
+
+XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 def is_work_sheet_template_tool(tool: dict) -> bool:
@@ -17,6 +29,28 @@ def is_work_sheet_template_tool(tool: dict) -> bool:
         return True
     tags = tool.get("tags") or []
     return any(str(tag).lower().replace(" ", "-") == "work-sheet-template" for tag in tags)
+
+
+def has_bundled_work_sheet_file(tool_name: str) -> bool:
+    return (tool_name or "").strip() in BUNDLED_WORK_SHEET_FILES
+
+
+def load_bundled_work_sheet_file(tool_name: str) -> Tuple[bytes, str, str]:
+    """Return bundled file bytes, download filename, and media type."""
+    key = (tool_name or "").strip()
+    entry = BUNDLED_WORK_SHEET_FILES.get(key)
+    if not entry:
+        raise ValueError("No bundled work sheet file is configured for this tool.")
+
+    path = Path(entry["path"])
+    if not path.is_file():
+        raise ValueError("The work sheet file is not available on the server.")
+
+    return (
+        path.read_bytes(),
+        str(entry["download_name"]),
+        str(entry["media_type"]),
+    )
 
 
 def resolve_download_url(url: str) -> str:
@@ -73,7 +107,7 @@ def _filename_from_url(url: str, fallback_name: str) -> str:
     return safe
 
 
-def _filename_from_content_disposition(header: str | None) -> str | None:
+def _filename_from_content_disposition(header: Optional[str]) -> Optional[str]:
     if not header:
         return None
     match = re.search(r'filename\*?=(?:UTF-8\'\')?"?([^";]+)"?', header, re.IGNORECASE)
@@ -82,7 +116,7 @@ def _filename_from_content_disposition(header: str | None) -> str | None:
     return match.group(1).strip()
 
 
-def _guess_extension(content_type: str | None, url: str) -> str:
+def _guess_extension(content_type: Optional[str], url: str) -> str:
     if content_type:
         lowered = content_type.lower()
         if "spreadsheetml" in lowered or "excel" in lowered:
@@ -124,8 +158,14 @@ def _fetch_google_drive_with_confirm(client: httpx.Client, url: str) -> httpx.Re
     return response
 
 
-def fetch_work_sheet_file(source_url: str, fallback_name: str) -> Tuple[bytes, str, str]:
-    """Download a remote file and return bytes, filename, and media type."""
+def fetch_work_sheet_file(tool_name: str, source_url: str, fallback_name: str) -> Tuple[bytes, str, str]:
+    """Load a work sheet file from bundled assets or a remote URL."""
+    if has_bundled_work_sheet_file(tool_name):
+        return load_bundled_work_sheet_file(tool_name)
+
+    if not (source_url or "").strip():
+        raise ValueError("This tool has no file configured.")
+
     validated = _validate_remote_url(source_url)
     download_url = resolve_download_url(validated)
 
