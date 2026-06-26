@@ -52,8 +52,17 @@ export default function About() {
         </p>
         <p className="mt-3 text-gray-600 max-w-4xl">
           {APP_NAME} is MetroShoe Warehouse&apos;s workspace for Keepa-based pricing compliance and
-          day-to-day operational tools. The sidebar is organized into <span className="font-semibold">Menu</span>{' '}
-          (monitoring and shared data) and <span className="font-semibold">Tools</span> (document and label utilities).
+          day-to-day operational tools. The sidebar is organized into{' '}
+          <span className="font-semibold">Menu</span> (monitoring and shared data),{' '}
+          <span className="font-semibold">Tools</span> (document and label utilities), and{' '}
+          <span className="font-semibold">General</span> (about, FAQ, and feedback). Warehouse station
+          accounts open <span className="font-semibold">Label Station</span> only, plus General pages.
+        </p>
+        <p className="mt-2 text-sm text-gray-600 max-w-4xl">
+          <span className="font-semibold">Keepa access</span> unlocks the full Menu and Label Station in
+          Tools. <span className="font-semibold">Warehouse-only</span> accounts see Label Station and
+          General. <span className="font-semibold">Superadmins</span> also get User Management and
+          maintenance controls.
         </p>
 
         {isElectron && (
@@ -137,6 +146,41 @@ export default function About() {
           <li>
             <span className="font-semibold">FNSKU Labels:</span> Parse FBA shipment spreadsheets and generate FNSKU label
             PDFs or workbooks for warehouse labeling.
+          </li>
+          <li>
+            <span className="font-semibold">Label Station:</span> Scan a product UPC, look up the warehouse catalog, and
+            print a Zebra label (desktop app) or download a PDF (web). Catalog managers can import products from Excel.
+            Staff always scan the UPC barcode. Products with a short catalog SKU (7 numeric digits or fewer) print that
+            SKU under the barcode; longer SKUs print the UPC. Choose label size (small, medium, or large) and printer
+            resolution (203 or 300 dpi). On-screen preview matches the physical label.
+          </li>
+        </ul>
+        <p className="mt-4 text-sm text-gray-600">
+          Label Station in Tools requires Keepa access or a warehouse-only account.
+        </p>
+      </div>
+
+      <div className="card p-8">
+        <h2 className="text-2xl font-semibold text-gray-900">General</h2>
+        <p className="mt-3 text-gray-700">
+          Shared pages available from the bottom of the sidebar.
+        </p>
+        <ul className="mt-4 list-disc space-y-2 pl-6 text-gray-700">
+          <li>
+            <span className="font-semibold">About:</span> This page — app version, feature overview, and desktop update
+            controls.
+          </li>
+          <li>
+            <span className="font-semibold">FAQ:</span> Job aids, how-to guides, and quick reference links for common
+            tasks.
+          </li>
+          <li>
+            <span className="font-semibold">Feedback From Users:</span> Submit suggestions or issues. Admins can review
+            all feedback; everyone else sees their own submissions.
+          </li>
+          <li>
+            <span className="font-semibold">User Management:</span> Superadmin only — manage accounts, permissions, and
+            maintenance mode (when enabled, only superadmins and allowlisted emails can use the API).
           </li>
         </ul>
       </div>
