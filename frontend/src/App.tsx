@@ -12,6 +12,7 @@ import {
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { UserProvider, useUser } from './contexts/UserContext'
 import { TrackingScanProvider } from './contexts/TrackingScanContext'
+import { KeepaImportBuildProvider } from './contexts/KeepaImportBuildContext'
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/common/ProtectedRoute'
 import WarehouseRouteGuard from './components/common/WarehouseRouteGuard'
@@ -240,11 +241,13 @@ function PrivateLayout() {
     <MfaGate>
       <IdleMfaGuard />
       <TrackingScanProvider>
-        <WarehouseRouteGuard>
-          <Layout>
-            <Outlet />
-          </Layout>
-        </WarehouseRouteGuard>
+        <KeepaImportBuildProvider>
+          <WarehouseRouteGuard>
+            <Layout>
+              <Outlet />
+            </Layout>
+          </WarehouseRouteGuard>
+        </KeepaImportBuildProvider>
       </TrackingScanProvider>
     </MfaGate>
   )

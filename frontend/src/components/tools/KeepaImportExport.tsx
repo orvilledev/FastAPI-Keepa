@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { keepaImportExportApi } from '../../services/api'
-import { downloadBlob, parseMicroToolDownloadResponse } from '../../utils/downloadLinkedFile'
+import { useKeepaImportBuild } from '../../contexts/KeepaImportBuildContext'
 import { useUser } from '../../contexts/UserContext'
 
 const VENDORS = [
@@ -23,7 +23,14 @@ export default function KeepaImportExport() {
   const [category, setCategory] = useState<string>('dnk')
   const [upcCount, setUpcCount] = useState<number | null>(null)
   const [countLoading, setCountLoading] = useState(false)
-  const [downloading, setDownloading] = useState(false)
+  const {
+    building: downloading,
+    buildingCategory,
+    error: buildError,
+    info: buildInfo,
+    startDownload,
+    clearMessages: clearBuildMessages,
+  } = useKeepaImportBuild()
   const [runningJob, setRunningJob] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
@@ -87,38 +94,10 @@ export default function KeepaImportExport() {
   }
 
   const handleDownload = async () => {
-    setDownloading(true)
     setError(null)
-    const countLabel = upcCount ? `${upcCount.toLocaleString()} UPCs` : 'this vendor'
-    setInfo(
-      `Building the Keepa file for ${countLabel}. This can take several minutes for large lists — please keep this tab open.`,
-    )
-    try {
-      const response = await keepaImportExportApi.download(category)
-      const { blob, filename } = parseMicroToolDownloadResponse(
-        response.data as Blob,
-        response.headers as Record<string, string | undefined>,
-        `${category.toUpperCase()}_Keepa_Import`,
-      )
-      downloadBlob(blob, filename)
-      setInfo(`Downloaded ${filename}.`)
-    } catch (e: unknown) {
-      console.error(e)
-      setInfo(null)
-      const err = e as { code?: string; message?: string }
-      const timedOut =
-        err?.code === 'ECONNABORTED' ||
-        (err?.message ?? '').toLowerCase().includes('timeout')
-      if (timedOut) {
-        setError(
-          'The file took too long to build and the request timed out. Try again, or use a vendor with fewer UPCs.',
-        )
-      } else {
-        setError(extractDetail(e, 'Could not build the Keepa file. Please try again.'))
-      }
-    } finally {
-      setDownloading(false)
-    }
+    setInfo(null)
+    clearBuildMessages()
+    await startDownload(category, upcCount)
   }
 
   const handleRunExpressJob = async () => {
@@ -138,6 +117,12 @@ export default function KeepaImportExport() {
   const noUpcs = upcCount !== null && upcCount === 0
   const busy = downloading || runningJob || togglingFlag
   const actionsDisabled = busy || countLoading || noUpcs || !enabled
+  const displayError = error ?? buildError
+  const displayInfo = info ?? buildInfo
+  const buildingLabel =
+    downloading && buildingCategory
+      ? VENDORS.find((v) => v.code === buildingCategory)?.label ?? buildingCategory.toUpperCase()
+      : null
 
   return (
     <div className="space-y-6">
@@ -222,15 +207,21 @@ export default function KeepaImportExport() {
             may take a few minutes.
           </p>
 
-          {error && (
+          {displayError && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
+              {displayError}
             </div>
           )}
-          {info && (
+          {displayInfo && (
             <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-              {info}
+              {displayInfo}
             </div>
+          )}
+          {downloading && buildingLabel && buildingCategory !== category && (
+            <p className="text-xs text-gray-500">
+              A Keepa file is still building for {buildingLabel}. Switch back to that vendor to
+              follow progress.
+            </p>
           )}
 
           <div className="flex flex-wrap gap-3">
@@ -240,7 +231,11 @@ export default function KeepaImportExport() {
               disabled={actionsDisabled}
               className="inline-flex items-center justify-center rounded-lg bg-[#404040] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#2b2b2b] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {downloading ? 'Building file…' : 'Download Keepa file'}
+              {downloading
+                ? buildingCategory === category
+                  ? 'Building file…'
+                  : 'Build in progress…'
+                : 'Download Keepa file'}
             </button>
 
             <button
