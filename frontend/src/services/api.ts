@@ -456,11 +456,15 @@ export const keepaImportExportApi = {
   },
 
   download: async (category: string, includeHeader: boolean = true) => {
+    // Building the file calls Keepa once per UPC, so large vendor lists can take
+    // several minutes. Override the 25s default with a generous 15-minute timeout
+    // so the browser does not cancel a still-running build.
     const response = await api.get(
       `/api/v1/keepa-import-export/${category}/download`,
       {
         params: { include_header: includeHeader },
         responseType: 'blob',
+        timeout: 15 * 60 * 1000,
       }
     )
     return response

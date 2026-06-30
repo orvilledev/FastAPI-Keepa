@@ -89,7 +89,10 @@ export default function KeepaImportExport() {
   const handleDownload = async () => {
     setDownloading(true)
     setError(null)
-    setInfo(null)
+    const countLabel = upcCount ? `${upcCount.toLocaleString()} UPCs` : 'this vendor'
+    setInfo(
+      `Building the Keepa file for ${countLabel}. This can take several minutes for large lists — please keep this tab open.`,
+    )
     try {
       const response = await keepaImportExportApi.download(category)
       const { blob, filename } = parseMicroToolDownloadResponse(
@@ -101,7 +104,18 @@ export default function KeepaImportExport() {
       setInfo(`Downloaded ${filename}.`)
     } catch (e: unknown) {
       console.error(e)
-      setError(extractDetail(e, 'Could not build the Keepa file. Please try again.'))
+      setInfo(null)
+      const err = e as { code?: string; message?: string }
+      const timedOut =
+        err?.code === 'ECONNABORTED' ||
+        (err?.message ?? '').toLowerCase().includes('timeout')
+      if (timedOut) {
+        setError(
+          'The file took too long to build and the request timed out. Try again, or use a vendor with fewer UPCs.',
+        )
+      } else {
+        setError(extractDetail(e, 'Could not build the Keepa file. Please try again.'))
+      }
     } finally {
       setDownloading(false)
     }
