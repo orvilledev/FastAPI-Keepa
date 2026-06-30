@@ -233,11 +233,13 @@ export default function KeepaImportExport() {
           {showProgress && (
             <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
               <BatteryProgress percent={progress.percent} />
-              <p className="text-xs text-gray-600">
-                {progress.percent}% ({progress.completed.toLocaleString()}/
-                {progress.total.toLocaleString()})
-              </p>
-              <p className="text-[11px] text-gray-500">{progress.message}</p>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <p className="text-xs font-medium text-gray-700">
+                  {progress.percent}% ({progress.completed.toLocaleString()}/
+                  {progress.total.toLocaleString()} UPCs with data)
+                </p>
+                <p className="text-[11px] text-gray-500">{progress.message}</p>
+              </div>
             </div>
           )}
 
