@@ -57,10 +57,10 @@ from app.services.keepa_client import MultiKeyKeepaClient
 logger = logging.getLogger(__name__)
 
 ProgressCallback = Callable[
-    [int, int, str, str, int],
+    [int, int, str, str, int, int],
     Union[None, Awaitable[None]],
 ]
-# Args: completed, total, phase, message, enrich_total
+# Args: fetched_count, total, phase, message, enrich_total, phase_completed
 
 # Transient Keepa failures (timeouts, or a worker key momentarily out of tokens)
 # return no product at all. We re-fetch those UPCs in additional rounds, pausing
@@ -172,15 +172,18 @@ def _build_row_values(upc: str, fields: Dict[str, Any]) -> Dict[int, str]:
 
 async def _emit_progress(
     callback: Optional[ProgressCallback],
-    completed: int,
+    fetched_count: int,
     total: int,
     phase: str,
     message: str,
     enrich_total: int,
+    phase_completed: int,
 ) -> None:
     if not callback:
         return
-    result = callback(completed, total, phase, message, enrich_total)
+    result = callback(
+        fetched_count, total, phase, message, enrich_total, phase_completed
+    )
     if asyncio.iscoroutine(result):
         await result
 
@@ -194,6 +197,14 @@ def _has_product(fields: Optional[Dict[str, Any]]) -> bool:
     if not fields:
         return False
     return bool(fields.get("title") or fields.get("asin"))
+
+
+def _count_fetched_products(
+    results: Dict[str, Dict[str, Any]],
+    all_upcs: List[str],
+) -> int:
+    """Count UPCs that already have title or ASIN from Keepa."""
+    return sum(1 for upc in all_upcs if _has_product(results.get(upc)))
 
 
 def _build_multi_client() -> MultiKeyKeepaClient:
@@ -214,6 +225,7 @@ async def _run_buybox_pass(
     name_map: Dict[str, str],
     results: Dict[str, Dict[str, Any]],
     *,
+    all_upcs: List[str],
     total_upcs: int,
     phase: str,
     label: str,
@@ -253,13 +265,15 @@ async def _run_buybox_pass(
         async with progress_lock:
             completed += 1
             current = completed
+        fetched_count = _count_fetched_products(results, all_upcs)
         await _emit_progress(
             on_progress,
-            current,
+            fetched_count,
             total_upcs,
             phase,
             f"{label} {current}/{pass_total}",
             enrich_total=pass_total,
+            phase_completed=current,
         )
         return True
 
@@ -291,6 +305,7 @@ async def _fetch_fields_for_upcs(
         upcs,
         name_map,
         results,
+        all_upcs=upcs,
         total_upcs=total_upcs,
         phase="pass1",
         label="Fetching",
@@ -308,11 +323,12 @@ async def _fetch_fields_for_upcs(
         )
         await _emit_progress(
             on_progress,
-            0,
+            _count_fetched_products(results, upcs),
             total_upcs,
             "pass2",
             f"Retrying {len(missing)} UPC(s) (round {round_num})…",
             enrich_total=len(missing),
+            phase_completed=0,
         )
         # Let per-key token buckets refill before hammering the same keys again.
         await asyncio.sleep(_REFETCH_ROUND_DELAY_SECONDS)
@@ -320,6 +336,7 @@ async def _fetch_fields_for_upcs(
             missing,
             name_map,
             results,
+            all_upcs=upcs,
             total_upcs=total_upcs,
             phase="pass2",
             label=f"Retry round {round_num}:",
@@ -374,12 +391,14 @@ async def generate_keepa_import_file(
         seller_name_map,
         on_progress=on_progress,
     )
+    fetched = _count_fetched_products(fields_by_upc, upcs)
     await _emit_progress(
         on_progress,
-        1,
+        fetched,
         len(upcs),
         "excel",
         "Building Excel file…",
         enrich_total=0,
+        phase_completed=1,
     )
     return build_workbook_bytes(upcs, fields_by_upc, include_header=include_header)

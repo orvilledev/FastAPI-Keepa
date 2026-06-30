@@ -49,17 +49,22 @@ class KeepaImportBuild:
 
 def _calc_progress_percent(
     phase: str,
-    completed: int,
+    phase_completed: int,
     total_upcs: int,
     enrich_total: int,
 ) -> int:
-    """Map pass-specific counts to a single 0–100 bar."""
+    """Map pass-specific counts to a single 0–100 bar.
+
+    ``phase_completed`` is progress within the current pass (main sweep or retry
+    round). ``completed`` on the build record is a separate cumulative count of
+    UPCs that already have product data, used only for the ``X/Y`` display.
+    """
     total_upcs = max(total_upcs, 1)
     if phase == "pass1":
-        return int(min(70, (completed / total_upcs) * 70))
+        return int(min(70, (phase_completed / total_upcs) * 70))
     if phase == "pass2":
         denom = max(enrich_total, 1)
-        return int(70 + min(25, (completed / denom) * 25))
+        return int(70 + min(25, (phase_completed / denom) * 25))
     if phase == "excel":
         return 100
     return 0
@@ -100,6 +105,7 @@ class KeepaImportBuildStore:
         *,
         phase: Optional[str] = None,
         completed: Optional[int] = None,
+        phase_completed: Optional[int] = None,
         total: Optional[int] = None,
         message: Optional[str] = None,
         enrich_total: Optional[int] = None,
@@ -111,15 +117,24 @@ class KeepaImportBuildStore:
             if phase is not None:
                 build.phase = phase
             if completed is not None:
-                build.completed = completed
+                # Never let the displayed fetched count move backwards between
+                # retry rounds (each round used to reset this to 0..N).
+                build.completed = max(build.completed, completed)
             if total is not None:
                 build.total = total
             if message is not None:
                 build.message = message
             enrich = enrich_total if enrich_total is not None else build.total
-            build.progress_percent = _calc_progress_percent(
-                build.phase, build.completed, build.total, enrich
+            pct_completed = (
+                phase_completed if phase_completed is not None else build.completed
             )
+            new_percent = _calc_progress_percent(
+                build.phase, pct_completed, build.total, enrich
+            )
+            if build.phase == "excel":
+                build.progress_percent = new_percent
+            else:
+                build.progress_percent = max(build.progress_percent, new_percent)
 
     async def complete(self, build_id: str, file_bytes: bytes, filename: str) -> None:
         async with self._lock:

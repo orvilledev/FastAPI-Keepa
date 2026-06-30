@@ -120,6 +120,7 @@ async def _run_keepa_import_build(
         phase: str,
         message: str,
         enrich_total_arg: int,
+        phase_completed: int,
     ) -> None:
         nonlocal enrich_total
         if enrich_total_arg:
@@ -128,6 +129,7 @@ async def _run_keepa_import_build(
             build_id,
             phase=phase,
             completed=completed,
+            phase_completed=phase_completed,
             total=total,
             message=message,
             enrich_total=enrich_total or None,
