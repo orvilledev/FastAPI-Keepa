@@ -1,34 +1,34 @@
 """Keepa Import Export tool API (standalone).
 
 Builds a Keepa-format Excel file (Import Mode schema) for the UPCs that exist in
-Manage UPCs for a given vendor, and can kick off a standard Express Job for the
-same vendor scope. UPCs are read only from the database; the client cannot
-supply an arbitrary UPC list, so this tool can never pull Keepa data for UPCs
-outside Manage UPCs.
+Manage UPCs for a given vendor. UPCs are read only from the database; the client
+cannot supply an arbitrary UPC list, so this tool can never pull Keepa data for
+UPCs outside Manage UPCs.
 
-A global on/off flag (admin-controlled, stored in keepa_import_export_settings)
-gates the download and express-job actions for all users. The flag does not
-affect any other tool.
+Builds run asynchronously: ``/build`` starts one and returns a build id, the
+client polls ``/builds/{id}/status``, can ``/builds/{id}/cancel`` it, and finally
+``/builds/{id}/download`` the workbook. A global on/off flag (admin-controlled,
+stored in keepa_import_export_settings) gates the tool for all users.
 """
 import asyncio
 import logging
 from datetime import datetime
 from io import BytesIO
-from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from supabase import Client
 
-from app.config import settings
 from app.database import get_supabase
-from app.dependencies import get_admin_user, get_job_runner_user, get_keepa_access_user
+from app.dependencies import get_admin_user, get_keepa_access_user
 from app.repositories.seller_name_repository import SellerNameRepository
 from app.repositories.upc_repository import UPCRepository
-from app.services.batch_processor import BatchProcessor
 from app.services.keepa_import_build_store import keepa_import_build_store
-from app.services.keepa_import_export import generate_keepa_import_file
+from app.services.keepa_import_export import (
+    KeepaBuildCancelled,
+    generate_keepa_import_file,
+)
 from app.utils.error_handler import handle_api_errors
 
 logger = logging.getLogger(__name__)
@@ -41,8 +41,6 @@ _EXCEL_MEDIA_TYPE = (
 )
 _SETTINGS_TABLE = "keepa_import_export_settings"
 _SETTINGS_ROW_ID = "00000000-0000-0000-0000-000000000000"
-# Express runs flag both buy-box and non-buy-box sellers below MAP, matching daily runs.
-_EXPRESS_OFF_PRICE_SCOPE = "buybox_and_non_buybox_below_map"
 
 
 class FeatureToggle(BaseModel):
@@ -135,15 +133,22 @@ async def _run_keepa_import_build(
             enrich_total=enrich_total or None,
         )
 
+    def should_cancel() -> bool:
+        return keepa_import_build_store.is_cancelled(build_id)
+
     try:
         file_bytes = await generate_keepa_import_file(
             upcs,
             seller_name_map=seller_name_map,
             include_header=include_header,
             on_progress=on_progress,
+            should_cancel=should_cancel,
         )
         filename = f"{cat.upper()}_Keepa_{datetime.now().strftime('%m.%d.%y')}.xlsx"
         await keepa_import_build_store.complete(build_id, file_bytes, filename)
+    except KeepaBuildCancelled:
+        # Status was already set to "cancelled" by the cancel endpoint.
+        logger.info("Keepa Import File build %s cancelled by user", build_id)
     except Exception as exc:
         logger.exception("Keepa Import File build %s failed", build_id)
         await keepa_import_build_store.fail(build_id, str(exc))
@@ -190,6 +195,19 @@ def get_keepa_import_export_count(
     return {"category": cat, "upc_count": len(upcs)}
 
 
+@router.get("/keepa-import-export/builds/active")
+@handle_api_errors("get active keepa import build")
+async def get_active_keepa_import_build(
+    current_user: dict = Depends(get_keepa_access_user),
+):
+    """Return the caller's most recent in-memory build so a reopened client can
+    resume progress (or download a finished file) without its saved build id."""
+    build = await keepa_import_build_store.get_active_for_user(current_user["id"])
+    if not build:
+        return {"build": None}
+    return {"build": build.to_status_dict()}
+
+
 @router.get("/keepa-import-export/builds/{build_id}/status")
 @handle_api_errors("get keepa import build status")
 async def get_keepa_import_build_status(
@@ -201,6 +219,23 @@ async def get_keepa_import_build_status(
     if not build:
         raise HTTPException(status_code=404, detail="Build not found.")
     return build.to_status_dict()
+
+
+@router.post("/keepa-import-export/builds/{build_id}/cancel")
+@handle_api_errors("cancel keepa import build")
+async def cancel_keepa_import_build(
+    build_id: str,
+    current_user: dict = Depends(get_keepa_access_user),
+):
+    """Stop a still-running Keepa Import File build."""
+    build = await keepa_import_build_store.get_for_user(build_id, current_user["id"])
+    if not build:
+        raise HTTPException(status_code=404, detail="Build not found.")
+    cancelled = await keepa_import_build_store.cancel(build_id, current_user["id"])
+    if not cancelled:
+        # Already finished/failed/cancelled — surface current state, not an error.
+        return {"build_id": build_id, "status": build.status, "cancelled": False}
+    return {"build_id": build_id, "status": "cancelled", "cancelled": True}
 
 
 @router.get("/keepa-import-export/builds/{build_id}/download")
@@ -293,40 +328,3 @@ async def download_keepa_import_export(
         media_type=_EXCEL_MEDIA_TYPE,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
-
-
-@router.post("/keepa-import-export/{category}/run-express-job")
-@handle_api_errors("run keepa import export express job")
-async def run_keepa_import_export_express_job(
-    category: str,
-    background_tasks: BackgroundTasks,
-    current_user: dict = Depends(get_job_runner_user),
-    db: Client = Depends(get_supabase),
-):
-    """Create + start a standard Express Job for the vendor's Manage UPCs (API mode)."""
-    cat = _normalize_category(category)
-    _require_enabled(db)
-
-    upcs = await asyncio.to_thread(_scoped_upcs, db, cat)
-    if not upcs:
-        raise HTTPException(
-            status_code=400,
-            detail="No UPCs found in Manage UPCs for this vendor.",
-        )
-
-    processor = BatchProcessor()
-    job_name = (
-        f"Express {cat.upper()} Off Price Report - "
-        f"{datetime.now().strftime('%Y-%m-%d %H:%M')}"
-    )
-    job_id = await processor.create_batch_job(
-        job_name=job_name,
-        upcs=upcs,
-        created_by=UUID(current_user["id"]),
-        keepa_offers_limit=settings.keepa_offers_limit,
-        map_vendor_type=cat,
-        off_price_scope=_EXPRESS_OFF_PRICE_SCOPE,
-    )
-    background_tasks.add_task(processor.process_job, job_id)
-
-    return {"job_id": str(job_id), "upc_count": len(upcs)}

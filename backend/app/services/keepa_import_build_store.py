@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Dict, Literal, Optional
 from uuid import uuid4
 
-BuildStatus = Literal["building", "complete", "failed"]
+BuildStatus = Literal["building", "complete", "failed", "cancelled"]
 
 _TTL_SECONDS = 3600
 
@@ -158,6 +158,24 @@ class KeepaImportBuildStore:
             build.error = error
             build.message = "Build failed"
 
+    async def cancel(self, build_id: str, user_id: str) -> bool:
+        """Mark a still-running build cancelled. Returns True if it was running."""
+        async with self._lock:
+            build = self._builds.get(build_id)
+            if not build or build.user_id != user_id:
+                return False
+            if build.status != "building":
+                return False
+            build.status = "cancelled"
+            build.phase = "cancelled"
+            build.message = "Build cancelled"
+            return True
+
+    def is_cancelled(self, build_id: str) -> bool:
+        """Non-locking quick check used by the worker between fetches."""
+        build = self._builds.get(build_id)
+        return bool(build and build.status == "cancelled")
+
     async def get_for_user(self, build_id: str, user_id: str) -> Optional[KeepaImportBuild]:
         async with self._lock:
             self._purge_expired()
@@ -165,6 +183,22 @@ class KeepaImportBuildStore:
             if not build or build.user_id != user_id:
                 return None
             return build
+
+    async def get_active_for_user(self, user_id: str) -> Optional[KeepaImportBuild]:
+        """Return the user's most recent non-expired build, if any.
+
+        Lets a reopened client resume progress (or download a finished file)
+        even when the saved build id was lost, as long as the same server
+        process is still running.
+        """
+        async with self._lock:
+            self._purge_expired()
+            candidates = [
+                b for b in self._builds.values() if b.user_id == user_id
+            ]
+            if not candidates:
+                return None
+            return max(candidates, key=lambda b: b.created_at)
 
 
 keepa_import_build_store = KeepaImportBuildStore()

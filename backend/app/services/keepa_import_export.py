@@ -62,6 +62,14 @@ ProgressCallback = Callable[
 ]
 # Args: fetched_count, total, phase, message, enrich_total, phase_completed
 
+# Optional predicate the caller supplies so a build can be stopped mid-flight
+# (e.g. the user clicked "Stop build"). Returns True when work should halt.
+CancelCallback = Callable[[], bool]
+
+
+class KeepaBuildCancelled(Exception):
+    """Raised internally to unwind a build once cancellation is requested."""
+
 # Transient Keepa failures (timeouts, or a worker key momentarily out of tokens)
 # return no product at all. We re-fetch those UPCs in additional rounds, pausing
 # between rounds so per-key token buckets refill, instead of silently writing a
@@ -230,6 +238,7 @@ async def _run_buybox_pass(
     phase: str,
     label: str,
     on_progress: Optional[ProgressCallback] = None,
+    should_cancel: Optional[CancelCallback] = None,
 ) -> None:
     """Fetch each UPC with the cheap buy-box-only request and merge the result.
 
@@ -248,6 +257,10 @@ async def _run_buybox_pass(
 
     async def process_fn(keepa_client, item) -> bool:
         nonlocal completed
+        # Stop touching Keepa as soon as cancellation is requested; remaining
+        # queued UPCs drain instantly without spending tokens.
+        if should_cancel is not None and should_cancel():
+            return False
         upc = str(item.get("upc") or "").strip()
         if not upc:
             return False
@@ -288,6 +301,7 @@ async def _fetch_fields_for_upcs(
     upcs: List[str],
     seller_name_map: Optional[Dict[str, str]] = None,
     on_progress: Optional[ProgressCallback] = None,
+    should_cancel: Optional[CancelCallback] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Fetch buy-box data for every UPC, retrying transient failures.
 
@@ -301,6 +315,9 @@ async def _fetch_fields_for_upcs(
     name_map = seller_name_map or {}
     total_upcs = len(upcs)
 
+    def _cancelled() -> bool:
+        return should_cancel is not None and should_cancel()
+
     await _run_buybox_pass(
         upcs,
         name_map,
@@ -310,7 +327,11 @@ async def _fetch_fields_for_upcs(
         phase="pass1",
         label="Fetching",
         on_progress=on_progress,
+        should_cancel=should_cancel,
     )
+
+    if _cancelled():
+        raise KeepaBuildCancelled()
 
     for round_num in range(1, _MAX_REFETCH_ROUNDS + 1):
         missing = [u for u in upcs if not _has_product(results.get(u))]
@@ -330,8 +351,12 @@ async def _fetch_fields_for_upcs(
             enrich_total=len(missing),
             phase_completed=0,
         )
-        # Let per-key token buckets refill before hammering the same keys again.
-        await asyncio.sleep(_REFETCH_ROUND_DELAY_SECONDS)
+        # Let per-key token buckets refill before hammering the same keys again,
+        # but wake early in short slices so a cancel is honored quickly.
+        for _ in range(_REFETCH_ROUND_DELAY_SECONDS):
+            if _cancelled():
+                raise KeepaBuildCancelled()
+            await asyncio.sleep(1)
         await _run_buybox_pass(
             missing,
             name_map,
@@ -341,7 +366,10 @@ async def _fetch_fields_for_upcs(
             phase="pass2",
             label=f"Retry round {round_num}:",
             on_progress=on_progress,
+            should_cancel=should_cancel,
         )
+        if _cancelled():
+            raise KeepaBuildCancelled()
 
     return results
 
@@ -378,6 +406,7 @@ async def generate_keepa_import_file(
     seller_name_map: Optional[Dict[str, str]] = None,
     include_header: bool = True,
     on_progress: Optional[ProgressCallback] = None,
+    should_cancel: Optional[CancelCallback] = None,
 ) -> bytes:
     """Fetch buy-box data for ``upcs`` and return an Import Mode-ready .xlsx file.
 
@@ -390,6 +419,7 @@ async def generate_keepa_import_file(
         upcs,
         seller_name_map,
         on_progress=on_progress,
+        should_cancel=should_cancel,
     )
     fetched = _count_fetched_products(fields_by_upc, upcs)
     await _emit_progress(

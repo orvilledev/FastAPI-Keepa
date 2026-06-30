@@ -450,7 +450,7 @@ export const upcsApi = {
 export type KeepaImportBuildStatus = {
   build_id: string
   category: string
-  status: 'building' | 'complete' | 'failed'
+  status: 'building' | 'complete' | 'failed' | 'cancelled'
   phase: string
   completed: number
   total: number
@@ -483,6 +483,22 @@ export const keepaImportExportApi = {
     const response = await api.get<KeepaImportBuildStatus>(
       `/api/v1/keepa-import-export/builds/${buildId}/status`
     )
+    return response.data
+  },
+
+  getActiveBuild: async () => {
+    const response = await api.get<{ build: KeepaImportBuildStatus | null }>(
+      '/api/v1/keepa-import-export/builds/active'
+    )
+    return response.data.build
+  },
+
+  cancelBuild: async (buildId: string) => {
+    const response = await api.post<{
+      build_id: string
+      status: string
+      cancelled: boolean
+    }>(`/api/v1/keepa-import-export/builds/${buildId}/cancel`)
     return response.data
   },
 
@@ -523,13 +539,6 @@ export const keepaImportExportApi = {
     const response = await api.put<{ enabled: boolean }>(
       '/api/v1/keepa-import-export/settings',
       { enabled }
-    )
-    return response.data
-  },
-
-  runExpressJob: async (category: string) => {
-    const response = await api.post<{ job_id: string; upc_count: number }>(
-      `/api/v1/keepa-import-export/${category}/run-express-job`
     )
     return response.data
   },

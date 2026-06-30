@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { keepaImportExportApi } from '../../services/api'
 import { useKeepaImportBuild } from '../../contexts/KeepaImportBuildContext'
 import { BatteryProgress } from '../common/BatteryProgress'
@@ -17,7 +16,6 @@ const VENDORS = [
 ] as const
 
 export default function KeepaImportExport() {
-  const navigate = useNavigate()
   const { userInfo, isSuperadmin } = useUser()
   const isAdmin = userInfo?.role === 'admin' || isSuperadmin
 
@@ -31,9 +29,10 @@ export default function KeepaImportExport() {
     error: buildError,
     info: buildInfo,
     startDownload,
+    cancelBuild,
     clearMessages: clearBuildMessages,
   } = useKeepaImportBuild()
-  const [runningJob, setRunningJob] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
 
@@ -102,22 +101,17 @@ export default function KeepaImportExport() {
     await startDownload(category, upcCount)
   }
 
-  const handleRunExpressJob = async () => {
-    setRunningJob(true)
-    setError(null)
-    setInfo(null)
+  const handleStopBuild = async () => {
+    setCancelling(true)
     try {
-      const data = await keepaImportExportApi.runExpressJob(category)
-      navigate(`/jobs/${data.job_id}`)
-    } catch (e: unknown) {
-      console.error(e)
-      setError(extractDetail(e, 'Could not start the Express Job. Please try again.'))
-      setRunningJob(false)
+      await cancelBuild()
+    } finally {
+      setCancelling(false)
     }
   }
 
   const noUpcs = upcCount !== null && upcCount === 0
-  const busy = downloading || runningJob || togglingFlag
+  const busy = downloading || togglingFlag
   const actionsDisabled = busy || countLoading || noUpcs || !enabled
   const displayError = error ?? buildError
   const displayInfo = info ?? buildInfo
@@ -135,7 +129,7 @@ export default function KeepaImportExport() {
         <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Keepa Import File</h1>
         <p className="mt-1 text-sm text-gray-500">
           Pull live Keepa data for a vendor&apos;s Manage UPCs. Download a Keepa-format Excel file
-          for Daily Runs &rarr; Import Mode, or run an Express off-price report directly.
+          for Daily Runs &rarr; Import Mode.
         </p>
       </div>
 
@@ -257,14 +251,16 @@ export default function KeepaImportExport() {
                 : 'Download Keepa file'}
             </button>
 
-            <button
-              type="button"
-              onClick={handleRunExpressJob}
-              disabled={actionsDisabled}
-              className="inline-flex items-center justify-center rounded-lg border border-[#404040] px-4 py-2 text-sm font-semibold text-[#404040] transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {runningJob ? 'Starting job…' : 'Run Express Job'}
-            </button>
+            {downloading && (
+              <button
+                type="button"
+                onClick={handleStopBuild}
+                disabled={cancelling}
+                className="inline-flex items-center justify-center rounded-lg border border-red-500 px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {cancelling ? 'Stopping…' : 'Stop build'}
+              </button>
+            )}
           </div>
 
           {noUpcs && (
