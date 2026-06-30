@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     # Keepa API Configuration
     keepa_api_key: str
     keepa_api_keys: str = ""
+    # Optional dedicated key pool for the Keepa Import File tool only. When set
+    # (comma-separated), that tool uses ONLY these keys instead of the full
+    # keepa_api_keys pool; Express Jobs and daily runs are unaffected. Use this
+    # to point Import File at the few high-refill keys so large vendor builds
+    # finish in one pass. Leave empty to fall back to the full key pool.
+    keepa_import_api_keys: str = ""
     keepa_api_url: str = "https://api.keepa.com/"
     # Keepa request-shape tuning for performance
     keepa_domain: str = "1"
@@ -73,7 +79,23 @@ class Settings(BaseSettings):
 
         # Keep at least one value for downstream client construction.
         return keys if keys else [self.keepa_api_key]
-    
+
+    @property
+    def keepa_import_api_keys_list(self) -> List[str]:
+        """Dedicated Keepa Import File keys, or [] when not configured.
+
+        Returns an empty list (not the full pool) when ``keepa_import_api_keys``
+        is unset, so callers can explicitly fall back to the full key pool.
+        """
+        keys: List[str] = []
+        seen = set()
+        for raw in (self.keepa_import_api_keys or "").split(","):
+            key = raw.strip()
+            if key and key not in seen:
+                seen.add(key)
+                keys.append(key)
+        return keys
+
     # Supabase Configuration
     supabase_url: str
     supabase_key: str

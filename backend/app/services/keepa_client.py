@@ -257,8 +257,19 @@ class MultiKeyKeepaClient:
     _rotation_state_path = Path(__file__).resolve().parents[2] / ".keepa_rotation_state.json"
     _backend_env_path = Path(__file__).resolve().parents[2] / ".env"
     
-    def __init__(self):
-        self.api_keys = self._load_runtime_api_keys()
+    def __init__(self, api_keys: Optional[List[str]] = None):
+        """Build a multi-key client.
+
+        ``api_keys`` lets a caller pin an explicit key pool (e.g. the Keepa
+        Import File tool's dedicated high-refill keys). When omitted, all keys
+        are loaded from the merged runtime sources as before.
+        """
+        if api_keys:
+            self.api_keys = self._dedupe_keys(api_keys)
+        else:
+            self.api_keys = self._load_runtime_api_keys()
+        if not self.api_keys:
+            self.api_keys = [settings.keepa_api_key]
         self.num_keys = len(self.api_keys)
         logger.info(f"MultiKeyKeepaClient initialized with {self.num_keys} API key(s)")
         logger.info("Active Keepa key fingerprints: %s", ", ".join(self._key_fingerprints(self.api_keys)))
@@ -287,11 +298,10 @@ class MultiKeyKeepaClient:
         return fingerprints
 
     @classmethod
-    def _parse_keepa_keys_from_env_file(cls) -> List[str]:
-        """Best-effort parse of KEEPA_API_KEYS/KEEPA_API_KEY from backend/.env."""
+    def _read_env_file_values(cls) -> Dict[str, str]:
+        """Best-effort parse of backend/.env into a key->value dict."""
         if not cls._backend_env_path.exists():
-            return []
-
+            return {}
         values: Dict[str, str] = {}
         try:
             for line in cls._backend_env_path.read_text(encoding="utf-8").splitlines():
@@ -302,13 +312,50 @@ class MultiKeyKeepaClient:
                 values[key.strip()] = value.strip()
         except Exception as e:
             logger.debug(f"Could not parse backend/.env for Keepa keys: {e}")
-            return []
+            return {}
+        return values
 
+    @classmethod
+    def _parse_keepa_keys_from_env_file(cls) -> List[str]:
+        """Best-effort parse of KEEPA_API_KEYS/KEEPA_API_KEY from backend/.env."""
+        values = cls._read_env_file_values()
+        if not values:
+            return []
         csv_keys = [k.strip() for k in values.get("KEEPA_API_KEYS", "").split(",") if k.strip()]
         primary = values.get("KEEPA_API_KEY", "").strip()
         if primary:
             csv_keys.append(primary)
         return cls._dedupe_keys(csv_keys)
+
+    @classmethod
+    def load_import_api_keys(cls) -> List[str]:
+        """Load the Keepa Import File dedicated key pool, or [] when unset.
+
+        Merges the same sources as the full pool (backend/.env, process env,
+        pydantic settings) but only for ``KEEPA_IMPORT_API_KEYS``. Returns an
+        empty list when the variable is not configured anywhere, so the caller
+        can fall back to the full key pool.
+        """
+        file_values = cls._read_env_file_values()
+        file_keys = [
+            k.strip()
+            for k in file_values.get("KEEPA_IMPORT_API_KEYS", "").split(",")
+            if k.strip()
+        ]
+        env_keys = [
+            k.strip()
+            for k in os.getenv("KEEPA_IMPORT_API_KEYS", "").split(",")
+            if k.strip()
+        ]
+        settings_keys = list(settings.keepa_import_api_keys_list)
+        merged = cls._dedupe_keys(file_keys + env_keys + settings_keys)
+        if merged:
+            logger.info(
+                "Keepa Import File using dedicated key pool: %s key(s) [%s]",
+                len(merged),
+                ", ".join(cls._key_fingerprints(merged)),
+            )
+        return merged
 
     @classmethod
     def _load_runtime_api_keys(cls) -> List[str]:

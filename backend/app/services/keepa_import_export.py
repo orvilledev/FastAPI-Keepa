@@ -196,6 +196,19 @@ def _has_product(fields: Optional[Dict[str, Any]]) -> bool:
     return bool(fields.get("title") or fields.get("asin"))
 
 
+def _build_multi_client() -> MultiKeyKeepaClient:
+    """Create the multi-key client for Import File fetches.
+
+    Uses the dedicated ``KEEPA_IMPORT_API_KEYS`` pool when configured (e.g. the
+    few high-refill keys) so large vendor builds finish in one pass, and falls
+    back to the full Keepa key pool otherwise.
+    """
+    import_keys = MultiKeyKeepaClient.load_import_api_keys()
+    if import_keys:
+        return MultiKeyKeepaClient(api_keys=import_keys)
+    return MultiKeyKeepaClient()
+
+
 async def _run_buybox_pass(
     upcs: List[str],
     name_map: Dict[str, str],
@@ -218,7 +231,7 @@ async def _run_buybox_pass(
     progress_lock = asyncio.Lock()
     completed = 0
 
-    multi_client = MultiKeyKeepaClient()
+    multi_client = _build_multi_client()
     items = [{"upc": u} for u in upcs]
 
     async def process_fn(keepa_client, item) -> bool:
