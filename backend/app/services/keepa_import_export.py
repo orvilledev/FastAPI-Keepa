@@ -12,20 +12,33 @@ positions:
     L (12) = ASIN                        -> product ASIN
     U (21) = URL: Amazon                 -> Amazon product link
 
-Only the buy-box winner is fetched. We call Keepa with ``stats`` + ``buybox``
-and ``offers=0`` (see ``KeepaClient.fetch_buybox_only``), so Keepa returns the
-buy-box seller id and price directly in the product ``stats`` object without the
-per-offer list. This is far cheaper than the offers-based fetch the daily/express
-jobs use (no "6 tokens per 10 offers" surcharge) and does not scan competing
-sellers. There is no MAP comparison here — this is a pure Keepa report export.
+Goal: produce a row for every UPC like the Keepa desktop export does — as few
+blank cells as possible — while keeping token use far below the daily/express
+runs. To do that we fetch in two tiers:
 
-The buy-box seller *name* is resolved from the cached ``seller_names`` table
-(seller id -> name) with zero extra Keepa tokens. When a name is not cached, the
-seller id alone is written.
+    Pass 1 (cheap, all UPCs): ``stats`` + ``buybox`` with ``offers=0`` (see
+        ``KeepaClient.fetch_buybox_only``). Keepa returns the buy-box seller id
+        and price directly in the product ``stats`` object, plus title/ASIN.
+        Costs only a few tokens per UPC (no "6 tokens per 10 offers" surcharge).
 
-This module is deliberately isolated: it does not touch the scheduler, batch
-jobs, the import-upload pipeline, or any shared run state. It only reads the
-UPC list provided by the caller and calls Keepa.
+    Pass 2 (enrich, only the UPCs still incomplete after pass 1): a moderate
+        ``offers`` fetch (default 20) so Keepa returns live seller rows. This
+        recovers buy-box seller name/price via the same fallbacks the daily runs
+        use (``CSVGenerator.extract_keepa_product_data``): match the buy-box
+        seller id against live sellers, else the Amazon/FBA seller, else the
+        first seller; price falls back to the lowest live seller price. Pass 2
+        runs only for the minority of UPCs a clean buy-box snapshot missed, so
+        the extra offer tokens are paid for a small fraction of the list.
+
+The buy-box seller *name* is resolved in this order with zero extra tokens where
+possible: Keepa seller name from the response, else the cached ``seller_names``
+table (seller id -> name), else the seller id alone.
+
+There is no MAP comparison here — this is a pure Keepa report export. This module
+does not touch the scheduler, batch jobs, the import-upload pipeline, or any
+shared run state; it only reads the UPC list provided by the caller and calls
+Keepa. ``CSVGenerator.extract_keepa_product_data`` is used purely as a read-only
+extraction helper.
 """
 from __future__ import annotations
 
@@ -35,9 +48,15 @@ from typing import Any, Dict, List, Optional
 
 from openpyxl import Workbook
 
+from app.services.csv_generator import CSVGenerator
 from app.services.keepa_client import MultiKeyKeepaClient
 
 logger = logging.getLogger(__name__)
+
+# Offer count used by the pass-2 enrichment fetch for UPCs a clean buy-box
+# snapshot did not fully resolve. 20 is Keepa's minimum when requesting offers
+# and is enough to recover the buy-box seller/price via the daily-run fallbacks.
+_ENRICH_OFFERS_LIMIT = 20
 
 # Fixed Keepa export schema expected by Import Mode (1-based Excel columns).
 _COLUMN_HEADERS: Dict[int, str] = {
@@ -66,52 +85,85 @@ def _normalize_seller_id(sid: Any) -> str:
     return str(sid).strip()
 
 
-def _buybox_price_dollars(stats: Dict[str, Any]) -> Optional[float]:
-    """Buy-box price (dollars) from the Keepa stats object. Keepa stores cents."""
-    raw = stats.get("buyBoxPrice")
-    if raw is None:
-        raw = stats.get("buyBoxPriceNew")
-    if raw is None:
-        return None
-    try:
-        cents = float(raw)
-    except (TypeError, ValueError):
-        return None
-    if cents <= 0:
-        return None
-    return cents / 100.0
-
-
 def _extract_buybox_fields(
     keepa_data: Optional[Dict[str, Any]],
     seller_name_map: Dict[str, str],
 ) -> Dict[str, Any]:
-    """Pull only the buy-box winner from a Keepa buy-box-only response.
+    """Extract the buy-box winner from a Keepa response.
 
-    Reads the buy-box seller id and price from ``product.stats`` (populated by
-    the ``buybox`` request flag) and resolves the seller display name from the
-    cached ``seller_names`` map. No marketplace offers are inspected.
+    Reuses ``CSVGenerator.extract_keepa_product_data`` so we get the same
+    buy-box resolution the daily runs use: buy-box price/seller from ``stats``,
+    then live-seller fallbacks when offers are present (pass 2). The seller
+    display name is then resolved Keepa-name -> cached ``seller_names`` map ->
+    seller id, so a cached name fills in even when Keepa omits it.
     """
     if not keepa_data or not isinstance(keepa_data, dict):
         return {}
 
-    products = keepa_data.get("products") or []
-    if not products:
+    fields = CSVGenerator.extract_keepa_product_data(keepa_data) or {}
+    if not fields:
         return {}
 
-    product = products[0]
-    stats = product.get("stats") or {}
+    asin = str(fields.get("asin") or "").strip()
+    title = str(fields.get("title") or "").strip()
+    seller_id = _normalize_seller_id(fields.get("buy_box_seller_id"))
 
-    seller_id = _normalize_seller_id(stats.get("buyBoxSellerId"))
-    seller_name = seller_name_map.get(seller_id, "") if seller_id else ""
+    seller_name = (fields.get("buy_box_seller_name") or "").strip()
+    if seller_name.lower() == "unknown":
+        seller_name = ""
+    if not seller_name and seller_id:
+        seller_name = seller_name_map.get(seller_id, "")
+
+    price = fields.get("buy_box_price")
+    try:
+        price = float(price) if price is not None else None
+        if price is not None and price <= 0:
+            price = None
+    except (TypeError, ValueError):
+        price = None
 
     return {
-        "asin": str(product.get("asin") or "").strip(),
-        "title": str(product.get("title") or "").strip(),
+        "asin": asin,
+        "title": title,
         "buy_box_seller_id": seller_id,
         "buy_box_seller_name": seller_name,
-        "buy_box_price": _buybox_price_dollars(stats),
+        "buy_box_price": price,
     }
+
+
+def _completeness_score(fields: Optional[Dict[str, Any]]) -> int:
+    """Count how many desktop-export fields are present (higher == more filled)."""
+    if not fields:
+        return 0
+    score = 0
+    if fields.get("title"):
+        score += 1
+    if fields.get("asin"):
+        score += 1
+    if fields.get("buy_box_price") is not None:
+        score += 1
+    if fields.get("buy_box_seller_id"):
+        score += 1
+    if fields.get("buy_box_seller_name"):
+        score += 1
+    return score
+
+
+def _is_complete(fields: Optional[Dict[str, Any]]) -> bool:
+    """A row is "complete" when it has the core desktop-export buy-box fields.
+
+    We require title, ASIN, a buy-box price, and a buy-box seller id. The seller
+    *name* is not required for completeness because it can be filled from the
+    cached map and should not, on its own, force a costly pass-2 offers fetch.
+    """
+    if not fields:
+        return False
+    return bool(
+        fields.get("title")
+        and fields.get("asin")
+        and fields.get("buy_box_price") is not None
+        and fields.get("buy_box_seller_id")
+    )
 
 
 def _build_row_values(upc: str, fields: Dict[str, Any]) -> Dict[int, str]:
@@ -141,22 +193,17 @@ def _build_row_values(upc: str, fields: Dict[str, Any]) -> Dict[int, str]:
     }
 
 
-async def _fetch_fields_for_upcs(
+async def _run_buybox_pass(
     upcs: List[str],
-    seller_name_map: Optional[Dict[str, str]] = None,
-) -> Dict[str, Dict[str, Any]]:
-    """Fetch the buy-box winner per UPC using rotating Keepa keys.
-
-    Creates its own multi-key client per call so it never alters shared run
-    state, and uses ``fetch_buybox_only`` (offers=0) so each UPC costs only a
-    few tokens. Results are collected into a dict keyed by UPC (workers are
-    asyncio tasks on a single thread, so dict writes are safe).
-    """
-    results: Dict[str, Dict[str, Any]] = {}
-    name_map = seller_name_map or {}
-    items = [{"upc": u} for u in upcs]
+    name_map: Dict[str, str],
+    results: Dict[str, Dict[str, Any]],
+) -> None:
+    """Pass 1: cheap buy-box-only fetch (offers=0) for every UPC."""
+    if not upcs:
+        return
 
     multi_client = MultiKeyKeepaClient()
+    items = [{"upc": u} for u in upcs]
 
     async def process_fn(keepa_client, item) -> bool:
         upc = str(item.get("upc") or "").strip()
@@ -171,11 +218,76 @@ async def _fetch_fields_for_upcs(
         results[upc] = _extract_buybox_fields(keepa_data, name_map)
         return True
 
-    # offers_limit=0 keeps the request lean (no offer surcharge) and lets the
-    # client pace requests at its minimum delay.
     await multi_client.process_items_parallel(
         items=items, process_fn=process_fn, offers_limit=0
     )
+
+
+async def _run_enrich_pass(
+    upcs: List[str],
+    name_map: Dict[str, str],
+    results: Dict[str, Dict[str, Any]],
+    offers_limit: int,
+) -> None:
+    """Pass 2: enrich still-incomplete UPCs with a moderate ``offers`` fetch.
+
+    Only keeps the enriched result when it is at least as filled as the pass-1
+    result, so a transient pass-2 failure never overwrites good pass-1 data.
+    """
+    if not upcs or offers_limit <= 0:
+        return
+
+    logger.info(
+        "Keepa Import File: enriching %d incomplete UPC(s) with offers=%d",
+        len(upcs),
+        offers_limit,
+    )
+
+    multi_client = MultiKeyKeepaClient()
+    items = [{"upc": u} for u in upcs]
+
+    async def process_fn(keepa_client, item) -> bool:
+        upc = str(item.get("upc") or "").strip()
+        if not upc:
+            return False
+        try:
+            keepa_data = await keepa_client.fetch_product_data(upc)
+        except Exception as exc:  # defensive: keep the pass-1 row on failure
+            logger.warning("Keepa enrich fetch failed for UPC %s: %s", upc, exc)
+            return True
+
+        enriched = _extract_buybox_fields(keepa_data, name_map)
+        if _completeness_score(enriched) >= _completeness_score(results.get(upc)):
+            results[upc] = enriched
+        return True
+
+    await multi_client.process_items_parallel(
+        items=items, process_fn=process_fn, offers_limit=offers_limit
+    )
+
+
+async def _fetch_fields_for_upcs(
+    upcs: List[str],
+    seller_name_map: Optional[Dict[str, str]] = None,
+    enrich_offers_limit: int = _ENRICH_OFFERS_LIMIT,
+) -> Dict[str, Dict[str, Any]]:
+    """Fetch buy-box data per UPC using a cheap pass then an enrich pass.
+
+    Pass 1 hits every UPC with the lean buy-box-only request. Pass 2 re-fetches
+    only the UPCs still missing core fields, using a moderate ``offers`` count so
+    Keepa's live-seller fallbacks can fill the gaps (closer to the desktop
+    export) without paying offer tokens for the whole list. Creates its own
+    multi-key client per pass so it never alters shared run state; workers are
+    asyncio tasks on a single thread, so dict writes are safe.
+    """
+    results: Dict[str, Dict[str, Any]] = {}
+    name_map = seller_name_map or {}
+
+    await _run_buybox_pass(upcs, name_map, results)
+
+    incomplete = [u for u in upcs if not _is_complete(results.get(u))]
+    await _run_enrich_pass(incomplete, name_map, results, enrich_offers_limit)
+
     return results
 
 
@@ -210,12 +322,16 @@ async def generate_keepa_import_file(
     upcs: List[str],
     seller_name_map: Optional[Dict[str, str]] = None,
     include_header: bool = True,
+    enrich_offers_limit: int = _ENRICH_OFFERS_LIMIT,
 ) -> bytes:
     """Fetch buy-box data for ``upcs`` and return an Import Mode-ready .xlsx file.
 
-    ``seller_name_map`` (seller id -> name) is used to fill in the buy-box seller
-    display name without spending Keepa tokens. Pass an empty/None map to write
-    seller ids only.
+    ``seller_name_map`` (seller id -> name) fills in the buy-box seller display
+    name without spending Keepa tokens. ``enrich_offers_limit`` controls the
+    pass-2 offers fetch for UPCs a clean buy-box snapshot missed; set 0 to skip
+    enrichment entirely (cheapest, but more blanks).
     """
-    fields_by_upc = await _fetch_fields_for_upcs(upcs, seller_name_map)
+    fields_by_upc = await _fetch_fields_for_upcs(
+        upcs, seller_name_map, enrich_offers_limit=enrich_offers_limit
+    )
     return build_workbook_bytes(upcs, fields_by_upc, include_header=include_header)
