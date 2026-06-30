@@ -202,8 +202,9 @@ export default function KeepaImportExport() {
           </div>
 
           <p className="text-xs text-gray-500">
-            Only UPCs on the Manage UPCs list are fetched from Keepa (about one token per UPC).
-            Large lists may take a few minutes.
+            Only UPCs on the Manage UPCs list are fetched from Keepa, and only the buy-box winner
+            is pulled per UPC (no full seller scan) to keep token use low. Large lists may take a
+            few minutes.
           </p>
 
           {error && (

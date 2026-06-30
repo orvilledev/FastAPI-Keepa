@@ -197,7 +197,37 @@ class KeepaClient:
         except Exception as e:
             logger.error(f"[Key {self.key_index}] Failed to fetch product data for UPC {upc}: {e}")
             return None
-    
+
+    async def fetch_buybox_only(self, upc: str) -> Optional[Dict[str, Any]]:
+        """Fetch only the buy-box winner for a UPC (no marketplace offer list).
+
+        Requests ``stats`` + ``buybox`` with ``offers=0`` so Keepa returns the
+        current buy-box seller id and price inside the product ``stats`` object
+        without the per-offer list. This avoids the ``offers`` token surcharge
+        (6 tokens per 10 offers), so it costs only a few tokens per UPC instead
+        of dozens. Intended for the Keepa Import File tool, which only needs the
+        buy-box winner and does not scan competing sellers.
+        """
+        try:
+            params = {
+                "code": upc,
+                "domain": str(settings.keepa_domain),
+                "stats": str(settings.keepa_stats_window_days),
+                "offers": "0",
+                "buybox": "1",
+            }
+
+            await asyncio.sleep(self.rate_limit_delay + self.dynamic_delay_penalty)
+
+            logger.info(f"[Key {self.key_index}] Fetching Keepa buy-box-only data for UPC: {upc}")
+            data = await self._make_request("product", params)
+            logger.info(f"[Key {self.key_index}] Successfully fetched buy-box-only data for UPC: {upc}")
+            return data
+
+        except Exception as e:
+            logger.error(f"[Key {self.key_index}] Failed to fetch buy-box-only data for UPC {upc}: {e}")
+            return None
+
     async def batch_fetch(self, upcs: List[str]) -> Dict[str, Optional[Dict[str, Any]]]:
         """Fetch product data for multiple UPCs with rate limiting."""
         results = {}

@@ -24,6 +24,7 @@ from supabase import Client
 from app.config import settings
 from app.database import get_supabase
 from app.dependencies import get_admin_user, get_job_runner_user, get_keepa_access_user
+from app.repositories.seller_name_repository import SellerNameRepository
 from app.repositories.upc_repository import UPCRepository
 from app.services.batch_processor import BatchProcessor
 from app.services.keepa_import_export import generate_keepa_import_file
@@ -60,6 +61,15 @@ def _scoped_upcs(db: Client, category: str) -> list[str]:
     """Return deduped UPCs from Manage UPCs for the vendor (order preserved)."""
     raw_upcs = UPCRepository(db).get_all_upc_codes(category)
     return list(dict.fromkeys(u.strip() for u in raw_upcs if u and u.strip()))
+
+
+def _seller_name_map(db: Client) -> dict[str, str]:
+    """Cached seller id -> name map for buy-box seller display (no Keepa tokens)."""
+    try:
+        return SellerNameRepository(db).get_seller_name_map()
+    except Exception as exc:  # never fail the export over a name lookup
+        logger.warning("Could not load seller name map: %s", exc)
+        return {}
 
 
 def _read_enabled(db: Client) -> bool:
@@ -148,7 +158,11 @@ async def download_keepa_import_export(
             detail="No UPCs found in Manage UPCs for this vendor.",
         )
 
-    file_bytes = await generate_keepa_import_file(upcs, include_header=include_header)
+    seller_name_map = await asyncio.to_thread(_seller_name_map, db)
+
+    file_bytes = await generate_keepa_import_file(
+        upcs, seller_name_map=seller_name_map, include_header=include_header
+    )
 
     filename = f"{cat.upper()}_Keepa_{datetime.now().strftime('%m.%d.%y')}.xlsx"
     return StreamingResponse(
