@@ -53,6 +53,7 @@ const EmailList = lazy(() => import('./components/email/EmailList'))
 const HowToGuide = lazy(() => import('./components/tools/PublicTools'))
 const JobAids = lazy(() => import('./components/tools/JobAids'))
 const MicroTools = lazy(() => import('./components/tools/MicroTools'))
+const KeepaImportExport = lazy(() => import('./components/tools/KeepaImportExport'))
 const TrackingScanner = lazy(() => import('./components/scanner/TrackingScanner'))
 const FNSKULabelGenerator = lazy(() => import('./components/scanner/FNSKULabelGenerator'))
 const LabelStation = lazy(() => import('./components/scanner/LabelStation'))
@@ -422,6 +423,7 @@ function AppRoutes() {
           <Route path="trainings" element={<Navigate to="/howtoguide" replace />} />
           <Route path="faq" element={<JobAids />} />
           <Route path="micro-tools" element={<MicroTools />} />
+          <Route path="keepa-import-export" element={<ProtectedRoute requireKeepaAccess={true}><KeepaImportExport /></ProtectedRoute>} />
           <Route path="tracking-scanner" element={<TrackingScanner />} />
           <Route path="fnsku-labels" element={<FNSKULabelGenerator />} />
           <Route

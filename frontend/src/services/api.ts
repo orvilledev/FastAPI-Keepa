@@ -446,6 +446,49 @@ export const upcsApi = {
   },
 }
 
+// Keepa Import Export tool API (standalone)
+export const keepaImportExportApi = {
+  getCount: async (category: string) => {
+    const response = await api.get<{ category: string; upc_count: number }>(
+      `/api/v1/keepa-import-export/${category}/count`
+    )
+    return response.data
+  },
+
+  download: async (category: string, includeHeader: boolean = true) => {
+    const response = await api.get(
+      `/api/v1/keepa-import-export/${category}/download`,
+      {
+        params: { include_header: includeHeader },
+        responseType: 'blob',
+      }
+    )
+    return response
+  },
+
+  getSettings: async () => {
+    const response = await api.get<{ enabled: boolean }>(
+      '/api/v1/keepa-import-export/settings'
+    )
+    return response.data
+  },
+
+  updateSettings: async (enabled: boolean) => {
+    const response = await api.put<{ enabled: boolean }>(
+      '/api/v1/keepa-import-export/settings',
+      { enabled }
+    )
+    return response.data
+  },
+
+  runExpressJob: async (category: string) => {
+    const response = await api.post<{ job_id: string; upc_count: number }>(
+      `/api/v1/keepa-import-export/${category}/run-express-job`
+    )
+    return response.data
+  },
+}
+
 // MAP API
 export const mapApi = {
   listVendors: async () => {

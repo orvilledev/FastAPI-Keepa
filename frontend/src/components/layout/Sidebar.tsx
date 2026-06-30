@@ -83,6 +83,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
     </svg>
   ),
+  download: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+    </svg>
+  ),
 }
 
 export default function Sidebar() {
@@ -343,6 +348,21 @@ export default function Sidebar() {
               <span className="shrink-0">{Icons.fnskuLabels}</span>
               <span className="sidebar-link-label">FNSKU Labels</span>
             </Link>
+
+            {hasKeepaAccess && (
+              <Link
+                to="/keepa-import-export"
+                onMouseEnter={() => setHoveredNav('keepa-import-export')}
+                className={`sidebar-link ${
+                  navHighlighted('keepa-import-export', isActive('/keepa-import-export'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.download}</span>
+                <span className="sidebar-link-label">Keepa Import File</span>
+              </Link>
+            )}
 
             {hasKeepaAccess && (
               <Link

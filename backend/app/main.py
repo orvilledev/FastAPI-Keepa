@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.database import init_db
-from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products
+from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, keepa_import_export
 from app.scheduler import setup_scheduler, start_scheduler, shutdown_scheduler
 from app.dependencies import require_app_access
 from app.maintenance import get_maintenance_state
@@ -244,4 +244,5 @@ app.include_router(cli_chat.router, prefix=settings.api_v1_str, tags=["cli-chat"
 app.include_router(feedback.router, prefix=settings.api_v1_str, tags=["feedback"], dependencies=[Depends(require_app_access)])
 app.include_router(tracking_scanner.router, prefix=settings.api_v1_str, tags=["tracking-scanner"], dependencies=[Depends(require_app_access)])
 app.include_router(warehouse_products.router, prefix=settings.api_v1_str, tags=["warehouse-products"], dependencies=[Depends(require_app_access)])
+app.include_router(keepa_import_export.router, prefix=settings.api_v1_str, tags=["keepa-import-export"], dependencies=[Depends(require_app_access)])
 
