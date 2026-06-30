@@ -447,12 +447,54 @@ export const upcsApi = {
 }
 
 // Keepa Import Export tool API (standalone)
+export type KeepaImportBuildStatus = {
+  build_id: string
+  category: string
+  status: 'building' | 'complete' | 'failed'
+  phase: string
+  completed: number
+  total: number
+  progress_percent: number
+  message: string
+  error?: string | null
+  filename?: string | null
+}
+
 export const keepaImportExportApi = {
   getCount: async (category: string) => {
     const response = await api.get<{ category: string; upc_count: number }>(
       `/api/v1/keepa-import-export/${category}/count`
     )
     return response.data
+  },
+
+  startBuild: async (category: string, includeHeader: boolean = true) => {
+    const response = await api.post<{
+      build_id: string
+      upc_count: number
+      category: string
+    }>(`/api/v1/keepa-import-export/${category}/build`, null, {
+      params: { include_header: includeHeader },
+    })
+    return response.data
+  },
+
+  getBuildStatus: async (buildId: string) => {
+    const response = await api.get<KeepaImportBuildStatus>(
+      `/api/v1/keepa-import-export/builds/${buildId}/status`
+    )
+    return response.data
+  },
+
+  downloadBuild: async (buildId: string) => {
+    const response = await api.get(
+      `/api/v1/keepa-import-export/builds/${buildId}/download`,
+      {
+        responseType: 'blob',
+        timeout: 60_000,
+      }
+    )
+    return response
   },
 
   download: async (category: string, includeHeader: boolean = true) => {

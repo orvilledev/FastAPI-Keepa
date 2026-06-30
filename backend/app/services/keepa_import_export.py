@@ -42,9 +42,10 @@ extraction helper.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from io import BytesIO
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
 
 from openpyxl import Workbook
 
@@ -52,6 +53,12 @@ from app.services.csv_generator import CSVGenerator
 from app.services.keepa_client import MultiKeyKeepaClient
 
 logger = logging.getLogger(__name__)
+
+ProgressCallback = Callable[
+    [int, int, str, str, int],
+    Union[None, Awaitable[None]],
+]
+# Args: completed, total, phase, message, enrich_total
 
 # Offer count used by the pass-2 enrichment fetch for UPCs a clean buy-box
 # snapshot did not fully resolve. 20 is Keepa's minimum when requesting offers
@@ -193,19 +200,40 @@ def _build_row_values(upc: str, fields: Dict[str, Any]) -> Dict[int, str]:
     }
 
 
+async def _emit_progress(
+    callback: Optional[ProgressCallback],
+    completed: int,
+    total: int,
+    phase: str,
+    message: str,
+    enrich_total: int,
+) -> None:
+    if not callback:
+        return
+    result = callback(completed, total, phase, message, enrich_total)
+    if asyncio.iscoroutine(result):
+        await result
+
+
 async def _run_buybox_pass(
     upcs: List[str],
     name_map: Dict[str, str],
     results: Dict[str, Dict[str, Any]],
+    on_progress: Optional[ProgressCallback] = None,
 ) -> None:
     """Pass 1: cheap buy-box-only fetch (offers=0) for every UPC."""
     if not upcs:
         return
 
+    total = len(upcs)
+    progress_lock = asyncio.Lock()
+    completed = 0
+
     multi_client = MultiKeyKeepaClient()
     items = [{"upc": u} for u in upcs]
 
     async def process_fn(keepa_client, item) -> bool:
+        nonlocal completed
         upc = str(item.get("upc") or "").strip()
         if not upc:
             return False
@@ -216,6 +244,17 @@ async def _run_buybox_pass(
             keepa_data = None
 
         results[upc] = _extract_buybox_fields(keepa_data, name_map)
+        async with progress_lock:
+            completed += 1
+            current = completed
+        await _emit_progress(
+            on_progress,
+            current,
+            total,
+            "pass1",
+            f"Buy-box fetch {current}/{total}",
+            enrich_total=0,
+        )
         return True
 
     await multi_client.process_items_parallel(
@@ -228,6 +267,8 @@ async def _run_enrich_pass(
     name_map: Dict[str, str],
     results: Dict[str, Dict[str, Any]],
     offers_limit: int,
+    total_upcs: int,
+    on_progress: Optional[ProgressCallback] = None,
 ) -> None:
     """Pass 2: enrich still-incomplete UPCs with a moderate ``offers`` fetch.
 
@@ -245,8 +286,12 @@ async def _run_enrich_pass(
 
     multi_client = MultiKeyKeepaClient()
     items = [{"upc": u} for u in upcs]
+    enrich_total = len(upcs)
+    progress_lock = asyncio.Lock()
+    completed = 0
 
     async def process_fn(keepa_client, item) -> bool:
+        nonlocal completed
         upc = str(item.get("upc") or "").strip()
         if not upc:
             return False
@@ -254,11 +299,33 @@ async def _run_enrich_pass(
             keepa_data = await keepa_client.fetch_product_data(upc)
         except Exception as exc:  # defensive: keep the pass-1 row on failure
             logger.warning("Keepa enrich fetch failed for UPC %s: %s", upc, exc)
+            async with progress_lock:
+                completed += 1
+                current = completed
+            await _emit_progress(
+                on_progress,
+                current,
+                total_upcs,
+                "pass2",
+                f"Enriching {current}/{enrich_total}",
+                enrich_total=enrich_total,
+            )
             return True
 
         enriched = _extract_buybox_fields(keepa_data, name_map)
         if _completeness_score(enriched) >= _completeness_score(results.get(upc)):
             results[upc] = enriched
+        async with progress_lock:
+            completed += 1
+            current = completed
+        await _emit_progress(
+            on_progress,
+            current,
+            total_upcs,
+            "pass2",
+            f"Enriching {current}/{enrich_total}",
+            enrich_total=enrich_total,
+        )
         return True
 
     await multi_client.process_items_parallel(
@@ -270,6 +337,7 @@ async def _fetch_fields_for_upcs(
     upcs: List[str],
     seller_name_map: Optional[Dict[str, str]] = None,
     enrich_offers_limit: int = _ENRICH_OFFERS_LIMIT,
+    on_progress: Optional[ProgressCallback] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Fetch buy-box data per UPC using a cheap pass then an enrich pass.
 
@@ -282,11 +350,28 @@ async def _fetch_fields_for_upcs(
     """
     results: Dict[str, Dict[str, Any]] = {}
     name_map = seller_name_map or {}
+    total_upcs = len(upcs)
 
-    await _run_buybox_pass(upcs, name_map, results)
+    await _run_buybox_pass(upcs, name_map, results, on_progress=on_progress)
 
     incomplete = [u for u in upcs if not _is_complete(results.get(u))]
-    await _run_enrich_pass(incomplete, name_map, results, enrich_offers_limit)
+    if incomplete and enrich_offers_limit > 0:
+        await _emit_progress(
+            on_progress,
+            0,
+            total_upcs,
+            "pass2",
+            f"Enriching 0/{len(incomplete)} incomplete UPC(s)",
+            enrich_total=len(incomplete),
+        )
+        await _run_enrich_pass(
+            incomplete,
+            name_map,
+            results,
+            enrich_offers_limit,
+            total_upcs,
+            on_progress=on_progress,
+        )
 
     return results
 
@@ -323,6 +408,7 @@ async def generate_keepa_import_file(
     seller_name_map: Optional[Dict[str, str]] = None,
     include_header: bool = True,
     enrich_offers_limit: int = _ENRICH_OFFERS_LIMIT,
+    on_progress: Optional[ProgressCallback] = None,
 ) -> bytes:
     """Fetch buy-box data for ``upcs`` and return an Import Mode-ready .xlsx file.
 
@@ -332,6 +418,17 @@ async def generate_keepa_import_file(
     enrichment entirely (cheapest, but more blanks).
     """
     fields_by_upc = await _fetch_fields_for_upcs(
-        upcs, seller_name_map, enrich_offers_limit=enrich_offers_limit
+        upcs,
+        seller_name_map,
+        enrich_offers_limit=enrich_offers_limit,
+        on_progress=on_progress,
+    )
+    await _emit_progress(
+        on_progress,
+        1,
+        len(upcs),
+        "excel",
+        "Building Excel file…",
+        enrich_total=0,
     )
     return build_workbook_bytes(upcs, fields_by_upc, include_header=include_header)

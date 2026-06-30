@@ -27,6 +27,7 @@ from app.dependencies import get_admin_user, get_job_runner_user, get_keepa_acce
 from app.repositories.seller_name_repository import SellerNameRepository
 from app.repositories.upc_repository import UPCRepository
 from app.services.batch_processor import BatchProcessor
+from app.services.keepa_import_build_store import keepa_import_build_store
 from app.services.keepa_import_export import generate_keepa_import_file
 from app.utils.error_handler import handle_api_errors
 
@@ -46,6 +47,12 @@ _EXPRESS_OFF_PRICE_SCOPE = "buybox_and_non_buybox_below_map"
 
 class FeatureToggle(BaseModel):
     enabled: bool
+
+
+class BuildStartResponse(BaseModel):
+    build_id: str
+    upc_count: int
+    category: str
 
 
 def _normalize_category(category: str) -> str:
@@ -97,6 +104,49 @@ def _require_enabled(db: Client) -> None:
         )
 
 
+async def _run_keepa_import_build(
+    build_id: str,
+    cat: str,
+    upcs: list[str],
+    seller_name_map: dict[str, str],
+    include_header: bool,
+) -> None:
+    """Background task: fetch Keepa data and store the finished workbook."""
+    enrich_total = 0
+
+    async def on_progress(
+        completed: int,
+        total: int,
+        phase: str,
+        message: str,
+        enrich_total_arg: int,
+    ) -> None:
+        nonlocal enrich_total
+        if enrich_total_arg:
+            enrich_total = enrich_total_arg
+        await keepa_import_build_store.update_progress(
+            build_id,
+            phase=phase,
+            completed=completed,
+            total=total,
+            message=message,
+            enrich_total=enrich_total or None,
+        )
+
+    try:
+        file_bytes = await generate_keepa_import_file(
+            upcs,
+            seller_name_map=seller_name_map,
+            include_header=include_header,
+            on_progress=on_progress,
+        )
+        filename = f"{cat.upper()}_Keepa_{datetime.now().strftime('%m.%d.%y')}.xlsx"
+        await keepa_import_build_store.complete(build_id, file_bytes, filename)
+    except Exception as exc:
+        logger.exception("Keepa Import File build %s failed", build_id)
+        await keepa_import_build_store.fail(build_id, str(exc))
+
+
 @router.get("/keepa-import-export/settings")
 @handle_api_errors("get keepa import export settings")
 def get_keepa_import_export_settings(
@@ -136,6 +186,77 @@ def get_keepa_import_export_count(
     cat = _normalize_category(category)
     upcs = _scoped_upcs(db, cat)
     return {"category": cat, "upc_count": len(upcs)}
+
+
+@router.get("/keepa-import-export/builds/{build_id}/status")
+@handle_api_errors("get keepa import build status")
+async def get_keepa_import_build_status(
+    build_id: str,
+    current_user: dict = Depends(get_keepa_access_user),
+):
+    """Poll progress for an async Keepa Import File build."""
+    build = await keepa_import_build_store.get_for_user(build_id, current_user["id"])
+    if not build:
+        raise HTTPException(status_code=404, detail="Build not found.")
+    return build.to_status_dict()
+
+
+@router.get("/keepa-import-export/builds/{build_id}/download")
+@handle_api_errors("download keepa import build file")
+async def download_keepa_import_build(
+    build_id: str,
+    current_user: dict = Depends(get_keepa_access_user),
+):
+    """Download a completed async Keepa Import File build."""
+    build = await keepa_import_build_store.get_for_user(build_id, current_user["id"])
+    if not build:
+        raise HTTPException(status_code=404, detail="Build not found.")
+    if build.status == "building":
+        raise HTTPException(status_code=409, detail="Build is still in progress.")
+    if build.status == "failed":
+        raise HTTPException(
+            status_code=500,
+            detail=build.error or "Build failed.",
+        )
+    if not build.file_bytes or not build.filename:
+        raise HTTPException(status_code=500, detail="Build file is missing.")
+
+    return StreamingResponse(
+        BytesIO(build.file_bytes),
+        media_type=_EXCEL_MEDIA_TYPE,
+        headers={"Content-Disposition": f'attachment; filename="{build.filename}"'},
+    )
+
+
+@router.post("/keepa-import-export/{category}/build", response_model=BuildStartResponse)
+@handle_api_errors("start keepa import export build")
+async def start_keepa_import_export_build(
+    category: str,
+    include_header: bool = True,
+    current_user: dict = Depends(get_keepa_access_user),
+    db: Client = Depends(get_supabase),
+):
+    """Start an async Keepa Import File build and return a build id for polling."""
+    cat = _normalize_category(category)
+    _require_enabled(db)
+
+    upcs = await asyncio.to_thread(_scoped_upcs, db, cat)
+    if not upcs:
+        raise HTTPException(
+            status_code=400,
+            detail="No UPCs found in Manage UPCs for this vendor.",
+        )
+
+    seller_name_map = await asyncio.to_thread(_seller_name_map, db)
+    build_id = await keepa_import_build_store.create(
+        current_user["id"], cat, len(upcs)
+    )
+    asyncio.create_task(
+        _run_keepa_import_build(
+            build_id, cat, upcs, seller_name_map, include_header
+        )
+    )
+    return BuildStartResponse(build_id=build_id, upc_count=len(upcs), category=cat)
 
 
 @router.get("/keepa-import-export/{category}/download")

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { keepaImportExportApi } from '../../services/api'
 import { useKeepaImportBuild } from '../../contexts/KeepaImportBuildContext'
+import { BatteryProgress } from '../common/BatteryProgress'
 import { useUser } from '../../contexts/UserContext'
 
 const VENDORS = [
@@ -26,6 +27,7 @@ export default function KeepaImportExport() {
   const {
     building: downloading,
     buildingCategory,
+    progress,
     error: buildError,
     info: buildInfo,
     startDownload,
@@ -124,6 +126,9 @@ export default function KeepaImportExport() {
       ? VENDORS.find((v) => v.code === buildingCategory)?.label ?? buildingCategory.toUpperCase()
       : null
 
+  const showProgress =
+    downloading && progress && (!buildingCategory || buildingCategory === category)
+
   return (
     <div className="space-y-6">
       <div>
@@ -219,9 +224,21 @@ export default function KeepaImportExport() {
           )}
           {downloading && buildingLabel && buildingCategory !== category && (
             <p className="text-xs text-gray-500">
-              A Keepa file is still building for {buildingLabel}. Switch back to that vendor to
-              follow progress.
+              A Keepa file is still building for {buildingLabel}
+              {progress ? ` (${progress.percent}%)` : ''}. Switch back to that vendor to follow
+              progress.
             </p>
+          )}
+
+          {showProgress && (
+            <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+              <BatteryProgress percent={progress.percent} />
+              <p className="text-xs text-gray-600">
+                {progress.percent}% ({progress.completed.toLocaleString()}/
+                {progress.total.toLocaleString()})
+              </p>
+              <p className="text-[11px] text-gray-500">{progress.message}</p>
+            </div>
           )}
 
           <div className="flex flex-wrap gap-3">
