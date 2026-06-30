@@ -201,19 +201,22 @@ class KeepaClient:
     async def fetch_buybox_only(self, upc: str) -> Optional[Dict[str, Any]]:
         """Fetch only the buy-box winner for a UPC (no marketplace offer list).
 
-        Requests ``stats`` + ``buybox`` with ``offers=0`` so Keepa returns the
-        current buy-box seller id and price inside the product ``stats`` object
-        without the per-offer list. This avoids the ``offers`` token surcharge
-        (6 tokens per 10 offers), so it costs only a few tokens per UPC instead
-        of dozens. Intended for the Keepa Import File tool, which only needs the
-        buy-box winner and does not scan competing sellers.
+        Requests ``stats`` + ``buybox`` and **omits** the ``offers`` parameter so
+        Keepa returns the current buy-box seller id and price from the product
+        ``stats`` object without the per-offer list. This is the cheapest valid
+        request for a ``code`` (UPC/EAN) lookup — roughly one token per product.
+
+        Note: ``offers=0`` is NOT valid for a code lookup (Keepa returns HTTP 400),
+        and ``offers`` between 1 and 19 is rejected ("Either no or a minimum of 20
+        offers must be requested"). Omitting ``offers`` entirely is the supported
+        way to get the buy-box snapshot cheaply, which is all the Keepa Import
+        File tool needs (it does not scan competing sellers).
         """
         try:
             params = {
                 "code": upc,
                 "domain": str(settings.keepa_domain),
                 "stats": str(settings.keepa_stats_window_days),
-                "offers": "0",
                 "buybox": "1",
             }
 
