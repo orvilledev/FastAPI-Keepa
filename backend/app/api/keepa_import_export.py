@@ -110,6 +110,46 @@ def _history_summary_from_row(row: dict) -> KeepaImportBuildHistorySummary:
     return KeepaImportBuildHistorySummary(**row)
 
 
+def _keepa_build_creator_name(current_user: dict, db: Client) -> str | None:
+    """Return a stable display name snapshot for the user starting a build."""
+    profile = {}
+    try:
+        response = (
+            db.table("profiles")
+            .select("*")
+            .eq("id", current_user["id"])
+            .limit(1)
+            .execute()
+        )
+        if response.data:
+            profile = response.data[0]
+    except Exception as exc:
+        logger.warning("Could not load keepa build creator profile: %s", exc)
+
+    metadata = current_user.get("user_metadata") or {}
+    candidates = [
+        profile.get("display_name"),
+        profile.get("full_name"),
+        metadata.get("display_name"),
+        metadata.get("full_name"),
+        metadata.get("name"),
+        profile.get("email"),
+        current_user.get("email"),
+    ]
+    for value in candidates:
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _streaming_excel_response(file_bytes: bytes, filename: str) -> StreamingResponse:
+    return StreamingResponse(
+        BytesIO(file_bytes),
+        media_type=_EXCEL_MEDIA_TYPE,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 def _status_from_history(row: dict) -> dict:
     """Map a persisted history row to the same shape as in-memory status polling."""
     return {
@@ -241,8 +281,8 @@ def list_keepa_import_build_history(
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase),
 ):
-    """Return the caller's archived Keepa Import File builds (newest first)."""
-    rows = KeepaImportBuildHistoryRepository(db).list_for_user(current_user["id"])
+    """Return all Keepa Import File builds (newest first), visible to every user."""
+    rows = KeepaImportBuildHistoryRepository(db).list_all()
     return [_history_summary_from_row(row) for row in rows]
 
 
@@ -255,7 +295,7 @@ def download_keepa_import_build_history(
 ):
     """Download a completed build from the persistent history archive."""
     repo = KeepaImportBuildHistoryRepository(db)
-    row = repo.get_for_user(build_id, current_user["id"])
+    row = repo.get_by_id(build_id)
     if not row:
         raise HTTPException(status_code=404, detail="Build not found.")
     if row.get("status") == "building":
@@ -265,15 +305,11 @@ def download_keepa_import_build_history(
             status_code=500,
             detail=row.get("error") or "Build failed.",
         )
-    file_bytes, filename = repo.get_file_bytes(build_id, current_user["id"])
+    file_bytes, filename = repo.get_file_bytes(build_id)
     if not file_bytes or not filename:
         raise HTTPException(status_code=500, detail="Build file is missing.")
 
-    return StreamingResponse(
-        BytesIO(file_bytes),
-        media_type=_EXCEL_MEDIA_TYPE,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+    return _streaming_excel_response(file_bytes, filename)
 
 
 @router.get("/keepa-import-export/builds/active")
@@ -357,7 +393,7 @@ async def download_keepa_import_build(
     db: Client = Depends(get_supabase),
 ):
     """Download a completed async Keepa Import File build."""
-    build = await keepa_import_build_store.get_for_user(build_id, current_user["id"])
+    build = await keepa_import_build_store.get_by_id(build_id)
     if build:
         if build.status == "building":
             raise HTTPException(status_code=409, detail="Build is still in progress.")
@@ -367,16 +403,10 @@ async def download_keepa_import_build(
                 detail=build.error or "Build failed.",
             )
         if build.file_bytes and build.filename:
-            return StreamingResponse(
-                BytesIO(build.file_bytes),
-                media_type=_EXCEL_MEDIA_TYPE,
-                headers={
-                    "Content-Disposition": f'attachment; filename="{build.filename}"'
-                },
-            )
+            return _streaming_excel_response(build.file_bytes, build.filename)
 
     repo = KeepaImportBuildHistoryRepository(db)
-    row = await asyncio.to_thread(repo.get_for_user, build_id, current_user["id"])
+    row = await asyncio.to_thread(repo.get_by_id, build_id)
     if not row:
         raise HTTPException(status_code=404, detail="Build not found.")
     if row.get("status") == "building":
@@ -386,15 +416,11 @@ async def download_keepa_import_build(
             status_code=500,
             detail=row.get("error") or "Build failed.",
         )
-    file_bytes, filename = repo.get_file_bytes(build_id, current_user["id"])
+    file_bytes, filename = repo.get_file_bytes(build_id)
     if not file_bytes or not filename:
         raise HTTPException(status_code=500, detail="Build file is missing.")
 
-    return StreamingResponse(
-        BytesIO(file_bytes),
-        media_type=_EXCEL_MEDIA_TYPE,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+    return _streaming_excel_response(file_bytes, filename)
 
 
 @router.post("/keepa-import-export/{category}/build", response_model=BuildStartResponse)
@@ -417,6 +443,7 @@ async def start_keepa_import_export_build(
         )
 
     seller_name_map = await asyncio.to_thread(_seller_name_map, db)
+    creator_name = await asyncio.to_thread(_keepa_build_creator_name, current_user, db)
     build_id = await keepa_import_build_store.create(
         current_user["id"], cat, len(upcs)
     )
@@ -426,6 +453,7 @@ async def start_keepa_import_export_build(
         current_user["id"],
         cat,
         len(upcs),
+        creator_name,
     )
     asyncio.create_task(
         _run_keepa_import_build(

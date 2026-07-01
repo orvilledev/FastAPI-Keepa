@@ -333,8 +333,8 @@ export default function KeepaImportExport() {
                 <div>
                   <h2 className="text-sm font-semibold text-gray-700">Build history</h2>
                   <p className="text-xs text-gray-500">
-                    Server-side builds continue if you close the app. Finished files stay here for
-                    re-download.
+                    Shared with everyone who has Keepa access. Each build logs who started it.
+                    Finished files stay here for re-download.
                   </p>
                 </div>
                 <button
@@ -360,6 +360,9 @@ export default function KeepaImportExport() {
                           Vendor
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
+                          Built by
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
                           Status
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
@@ -381,6 +384,9 @@ export default function KeepaImportExport() {
                         <tr key={item.id} className="transition-colors hover:bg-gray-50/50">
                           <td className="px-4 py-3 text-sm font-medium text-gray-900">
                             {vendorLabel(item.category)}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {item.created_by_name?.trim() || 'Unknown user'}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <span

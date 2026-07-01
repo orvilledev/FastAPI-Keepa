@@ -4,6 +4,7 @@
 CREATE TABLE IF NOT EXISTS keepa_import_build_history (
   id UUID PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  created_by_name TEXT,
   category TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'building'
     CHECK (status IN ('building', 'complete', 'failed', 'cancelled')),
@@ -31,13 +32,21 @@ ALTER TABLE keepa_import_build_history ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can view own keepa import build history"
   ON keepa_import_build_history;
-CREATE POLICY "Users can view own keepa import build history"
+DROP POLICY IF EXISTS "Keepa users can view all keepa import build history"
+  ON keepa_import_build_history;
+CREATE POLICY "Keepa users can view all keepa import build history"
   ON keepa_import_build_history FOR SELECT
-  USING (auth.uid() = user_id);
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.has_keepa_access = true
+    )
+  );
 
 DROP POLICY IF EXISTS "Service role manages keepa import build history"
   ON keepa_import_build_history;
 -- Backend uses the service role key; no direct client INSERT/UPDATE needed.
 
 COMMENT ON TABLE keepa_import_build_history IS
-  'Archive of Keepa Import File builds. Completed Excel files are stored for re-download.';
+  'Shared archive of Keepa Import File builds visible to all Keepa-access users.';

@@ -13,6 +13,12 @@ logger = logging.getLogger(__name__)
 _TABLE = "keepa_import_build_history"
 BuildStatus = Literal["building", "complete", "failed", "cancelled"]
 
+_SUMMARY_COLUMNS = (
+    "id,user_id,created_by_name,category,status,upc_count,completed_upcs,"
+    "progress_percent,phase,message,error,filename,created_at,"
+    "updated_at,completed_at"
+)
+
 # Throttle progress writes so we don't hammer PostgREST on every UPC.
 _PROGRESS_MIN_INTERVAL_SECONDS = 3.0
 _last_progress_write: dict[str, float] = {}
@@ -58,10 +64,12 @@ class KeepaImportBuildHistoryRepository:
         user_id: str,
         category: str,
         upc_count: int,
+        created_by_name: Optional[str] = None,
     ) -> None:
         row = {
             "id": build_id,
             "user_id": user_id,
+            "created_by_name": created_by_name,
             "category": category,
             "status": "building",
             "upc_count": upc_count,
@@ -151,15 +159,26 @@ class KeepaImportBuildHistoryRepository:
         except Exception as exc:
             logger.warning("Could not mark keepa import build cancelled: %s", exc)
 
+    def list_all(self, *, limit: int = 100) -> list[dict]:
+        """All builds, newest first — visible to every Keepa-access user."""
+        try:
+            resp = (
+                self._db.table(_TABLE)
+                .select(_SUMMARY_COLUMNS)
+                .order("created_at", desc=True)
+                .limit(limit)
+                .execute()
+            )
+            return list(resp.data or [])
+        except Exception as exc:
+            logger.warning("Could not list keepa import build history: %s", exc)
+            return []
+
     def list_for_user(self, user_id: str, *, limit: int = 50) -> list[dict]:
         try:
             resp = (
                 self._db.table(_TABLE)
-                .select(
-                    "id,user_id,category,status,upc_count,completed_upcs,"
-                    "progress_percent,phase,message,error,filename,created_at,"
-                    "updated_at,completed_at"
-                )
+                .select(_SUMMARY_COLUMNS)
                 .eq("user_id", user_id)
                 .order("created_at", desc=True)
                 .limit(limit)
@@ -170,13 +189,12 @@ class KeepaImportBuildHistoryRepository:
             logger.warning("Could not list keepa import build history: %s", exc)
             return []
 
-    def get_for_user(self, build_id: str, user_id: str) -> Optional[dict]:
+    def get_by_id(self, build_id: str) -> Optional[dict]:
         try:
             resp = (
                 self._db.table(_TABLE)
                 .select("*")
                 .eq("id", build_id)
-                .eq("user_id", user_id)
                 .limit(1)
                 .execute()
             )
@@ -187,16 +205,18 @@ class KeepaImportBuildHistoryRepository:
             logger.warning("Could not load keepa import build history row: %s", exc)
             return None
 
+    def get_for_user(self, build_id: str, user_id: str) -> Optional[dict]:
+        row = self.get_by_id(build_id)
+        if not row or row.get("user_id") != user_id:
+            return None
+        return row
+
     def get_active_for_user(self, user_id: str) -> Optional[dict]:
         """Most recent building or just-completed row for resume/download."""
         try:
             resp = (
                 self._db.table(_TABLE)
-                .select(
-                    "id,user_id,category,status,upc_count,completed_upcs,"
-                    "progress_percent,phase,message,error,filename,created_at,"
-                    "updated_at,completed_at"
-                )
+                .select(_SUMMARY_COLUMNS)
                 .eq("user_id", user_id)
                 .in_("status", ["building", "complete"])
                 .order("created_at", desc=True)
@@ -210,8 +230,8 @@ class KeepaImportBuildHistoryRepository:
             logger.warning("Could not load active keepa import build: %s", exc)
             return None
 
-    def get_file_bytes(self, build_id: str, user_id: str) -> tuple[Optional[bytes], Optional[str]]:
-        row = self.get_for_user(build_id, user_id)
+    def get_file_bytes(self, build_id: str) -> tuple[Optional[bytes], Optional[str]]:
+        row = self.get_by_id(build_id)
         if not row or row.get("status") != "complete":
             return None, None
         return _decode_bytea(row.get("file_data")), row.get("filename")

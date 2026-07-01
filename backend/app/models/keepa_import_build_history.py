@@ -11,6 +11,7 @@ BuildStatus = Literal["building", "complete", "failed", "cancelled"]
 class KeepaImportBuildHistorySummary(BaseModel):
     id: UUID
     user_id: UUID
+    created_by_name: Optional[str] = None
     category: str
     status: BuildStatus
     upc_count: int

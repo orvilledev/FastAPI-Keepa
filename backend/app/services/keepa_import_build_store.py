@@ -184,6 +184,12 @@ class KeepaImportBuildStore:
                 return None
             return build
 
+    async def get_by_id(self, build_id: str) -> Optional[KeepaImportBuild]:
+        """Return any non-expired build (shared read for history/download)."""
+        async with self._lock:
+            self._purge_expired()
+            return self._builds.get(build_id)
+
     async def get_active_for_user(self, user_id: str) -> Optional[KeepaImportBuild]:
         """Return the user's most recent non-expired build, if any.
 

@@ -463,6 +463,7 @@ export type KeepaImportBuildStatus = {
 export type KeepaImportBuildHistoryItem = {
   id: string
   user_id: string
+  created_by_name?: string | null
   category: string
   status: 'building' | 'complete' | 'failed' | 'cancelled'
   upc_count: number
