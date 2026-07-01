@@ -169,7 +169,7 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
     void loadHistory()
   }, [loadHistory])
 
-  const finishBuild = useCallback(() => {
+  const finishBuild = useCallback(async () => {
     stopPolling()
     buildIdRef.current = null
     clearPersisted()
@@ -177,7 +177,7 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
     setBuildingCategory(null)
     setBuildingUpcCount(null)
     setProgress(null)
-    void loadHistory({ silent: true })
+    await loadHistory({ silent: true })
   }, [loadHistory, stopPolling])
 
   const downloadFromHistory = useCallback(
@@ -240,21 +240,21 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
               )
             }
           }
-          finishBuild()
+          await finishBuild()
           return
         }
 
         if (status.status === 'failed') {
           setInfo(null)
           setError(status.error || 'Could not build the Keepa file. Please try again.')
-          finishBuild()
+          await finishBuild()
           return
         }
 
         if (status.status === 'cancelled') {
           setError(null)
           setInfo('Build cancelled.')
-          finishBuild()
+          await finishBuild()
         }
       } catch (e: unknown) {
         console.error(e)
@@ -263,7 +263,7 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
           setError(
             'That build is no longer available on the server. Check Build history below for completed files.',
           )
-          finishBuild()
+          await finishBuild()
         }
       }
     },
@@ -309,7 +309,7 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
         console.error(e)
         setInfo(null)
         setError(extractDetail(e, 'Could not start the Keepa file build. Please try again.'))
-        finishBuild()
+        await finishBuild()
       }
     },
     [building, finishBuild, beginPolling, stopPolling, loadHistory],
@@ -324,9 +324,22 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
     } catch (e: unknown) {
       console.error(e)
     }
+    setHistory((prev) =>
+      prev.map((row) =>
+        row.id === buildId
+          ? {
+              ...row,
+              status: 'cancelled',
+              phase: 'cancelled',
+              message: 'Build cancelled',
+              completed_at: row.completed_at ?? new Date().toISOString(),
+            }
+          : row,
+      ),
+    )
     setError(null)
     setInfo('Build cancelled.')
-    finishBuild()
+    await finishBuild()
   }, [finishBuild, stopPolling])
 
   // On mount, resume any build that is still running (or just finished) on the server.

@@ -140,8 +140,10 @@ async def run_keepa_import_build(
             message=message,
             enrich_total=enrich_total or None,
         )
+        if keepa_import_build_store.is_cancelled(build_id):
+            return
         build = await keepa_import_build_store.get_by_id(build_id)
-        if build:
+        if build and build.status == "building":
             await asyncio.to_thread(
                 history.update_progress,
                 build_id,

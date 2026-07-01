@@ -532,26 +532,32 @@ async def cancel_keepa_import_build(
     db: Client = Depends(get_supabase),
 ):
     """Stop a still-running Keepa Import File build."""
-    build = await keepa_import_build_store.get_for_user(build_id, current_user["id"])
-    if not build:
-        history_row = await asyncio.to_thread(
-            KeepaImportBuildHistoryRepository(db).get_for_user,
-            build_id,
-            current_user["id"],
-        )
-        if not history_row:
+    user_id = current_user["id"]
+    repo = KeepaImportBuildHistoryRepository(db)
+
+    build = await keepa_import_build_store.get_for_user(build_id, user_id)
+    if build and build.status == "building":
+        await keepa_import_build_store.cancel(build_id, user_id)
+
+    history_row = await asyncio.to_thread(repo.get_for_user, build_id, user_id)
+    if not history_row:
+        if not build:
             raise HTTPException(status_code=404, detail="Build not found.")
         return {
             "build_id": build_id,
-            "status": history_row.get("status", "unknown"),
-            "cancelled": False,
+            "status": build.status,
+            "cancelled": build.status == "cancelled",
         }
-    cancelled = await keepa_import_build_store.cancel(build_id, current_user["id"])
-    if not cancelled:
-        # Already finished/failed/cancelled — surface current state, not an error.
-        return {"build_id": build_id, "status": build.status, "cancelled": False}
-    await asyncio.to_thread(KeepaImportBuildHistoryRepository(db).cancel, build_id)
-    return {"build_id": build_id, "status": "cancelled", "cancelled": True}
+
+    if history_row.get("status") == "building":
+        await asyncio.to_thread(repo.cancel, build_id)
+        return {"build_id": build_id, "status": "cancelled", "cancelled": True}
+
+    return {
+        "build_id": build_id,
+        "status": history_row.get("status", "unknown"),
+        "cancelled": False,
+    }
 
 
 @router.get("/keepa-import-export/builds/{build_id}/download")

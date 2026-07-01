@@ -139,7 +139,7 @@ class KeepaImportBuildStore:
     async def complete(self, build_id: str, file_bytes: bytes, filename: str) -> None:
         async with self._lock:
             build = self._builds.get(build_id)
-            if not build:
+            if not build or build.status != "building":
                 return
             build.status = "complete"
             build.phase = "done"
@@ -152,7 +152,7 @@ class KeepaImportBuildStore:
     async def fail(self, build_id: str, error: str) -> None:
         async with self._lock:
             build = self._builds.get(build_id)
-            if not build:
+            if not build or build.status != "building":
                 return
             build.status = "failed"
             build.error = error

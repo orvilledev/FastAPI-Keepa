@@ -110,7 +110,7 @@ class KeepaImportBuildHistoryRepository:
         if message is not None:
             patch["message"] = message
         try:
-            self._db.table(_TABLE).update(patch).eq("id", build_id).execute()
+            self._db.table(_TABLE).update(patch).eq("id", build_id).eq("status", "building").execute()
         except Exception as exc:
             logger.warning("Could not update keepa import build progress: %s", exc)
 
@@ -127,7 +127,7 @@ class KeepaImportBuildHistoryRepository:
             "updated_at": _utc_now_iso(),
         }
         try:
-            self._db.table(_TABLE).update(patch).eq("id", build_id).execute()
+            self._db.table(_TABLE).update(patch).eq("id", build_id).eq("status", "building").execute()
         except Exception as exc:
             logger.exception("Could not persist completed keepa import build: %s", exc)
 
@@ -141,7 +141,7 @@ class KeepaImportBuildHistoryRepository:
             "updated_at": _utc_now_iso(),
         }
         try:
-            self._db.table(_TABLE).update(patch).eq("id", build_id).execute()
+            self._db.table(_TABLE).update(patch).eq("id", build_id).eq("status", "building").execute()
         except Exception as exc:
             logger.warning("Could not mark keepa import build failed: %s", exc)
 

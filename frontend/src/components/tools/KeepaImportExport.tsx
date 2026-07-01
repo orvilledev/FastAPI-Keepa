@@ -591,6 +591,8 @@ export default function KeepaImportExport() {
                               </button>
                             ) : item.status === 'building' ? (
                               <span className="text-xs text-gray-500">In progress</span>
+                            ) : item.status === 'cancelled' ? (
+                              <span className="text-xs text-gray-500">Cancelled</span>
                             ) : item.status === 'failed' ? (
                               <span
                                 className="text-xs font-medium text-red-600"
