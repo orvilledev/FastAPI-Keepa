@@ -432,3 +432,70 @@ async def generate_keepa_import_file(
         phase_completed=1,
     )
     return build_workbook_bytes(upcs, fields_by_upc, include_header=include_header)
+
+
+# 1-based Excel columns written by ``build_workbook_bytes``.
+_CONTENT_COLUMN_INDICES = {
+    "upc": 1,
+    "title": 3,
+    "buy_box_seller": 6,
+    "buy_box_price": 8,
+    "asin": 12,
+    "amazon_url": 21,
+}
+
+
+def _row_cell(row: tuple, col_1based: int) -> str:
+    idx = col_1based - 1
+    if idx < 0 or idx >= len(row):
+        return ""
+    val = row[idx]
+    if val is None:
+        return ""
+    return str(val).strip()
+
+
+def _is_header_row(row: tuple) -> bool:
+    first = _row_cell(row, 1).lower()
+    return first in ("imported by code", "upc")
+
+
+def parse_keepa_import_workbook(
+    file_bytes: bytes,
+    *,
+    offset: int = 0,
+    limit: int = 500,
+) -> tuple[list[dict[str, str]], int]:
+    """Parse a Keepa Import File workbook into row dicts for preview/download UI."""
+    from openpyxl import load_workbook
+
+    offset = max(offset, 0)
+    limit = max(1, min(limit, 1000))
+
+    wb = load_workbook(BytesIO(file_bytes), read_only=True, data_only=True)
+    try:
+        ws = wb.active
+        data_rows: list[tuple] = []
+        for row_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
+            if row is None:
+                continue
+            row_tuple = tuple(row)
+            if row_idx == 1 and _is_header_row(row_tuple):
+                continue
+            if not any(cell is not None and str(cell).strip() for cell in row_tuple):
+                continue
+            data_rows.append(row_tuple)
+    finally:
+        wb.close()
+
+    total = len(data_rows)
+    page = data_rows[offset : offset + limit]
+    rows: list[dict[str, str]] = []
+    for row_tuple in page:
+        rows.append(
+            {
+                key: _row_cell(row_tuple, col)
+                for key, col in _CONTENT_COLUMN_INDICES.items()
+            }
+        )
+    return rows, total

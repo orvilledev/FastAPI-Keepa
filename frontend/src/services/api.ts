@@ -478,6 +478,25 @@ export type KeepaImportBuildHistoryItem = {
   completed_at?: string | null
 }
 
+export type KeepaImportBuildContentRow = {
+  upc: string
+  title?: string | null
+  buy_box_seller?: string | null
+  buy_box_price?: string | null
+  asin?: string | null
+  amazon_url?: string | null
+}
+
+export type KeepaImportBuildContentsResponse = {
+  build_id: string
+  filename?: string | null
+  category: string
+  total: number
+  offset: number
+  limit: number
+  rows: KeepaImportBuildContentRow[]
+}
+
 export type KeepaImportSchedulerSettings = {
   timezone: string
   hour: number
@@ -573,6 +592,20 @@ export const keepaImportExportApi = {
       }
     )
     return response
+  },
+
+  getBuildHistoryContents: async (
+    buildId: string,
+    params?: { offset?: number; limit?: number }
+  ) => {
+    const search = new URLSearchParams()
+    if (params?.offset != null) search.set('offset', String(params.offset))
+    if (params?.limit != null) search.set('limit', String(params.limit))
+    const qs = search.toString()
+    const response = await api.get<KeepaImportBuildContentsResponse>(
+      `/api/v1/keepa-import-export/builds/history/${buildId}/contents${qs ? `?${qs}` : ''}`
+    )
+    return response.data
   },
 
   download: async (category: string, includeHeader: boolean = true) => {

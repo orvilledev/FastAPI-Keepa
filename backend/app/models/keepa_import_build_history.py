@@ -24,3 +24,22 @@ class KeepaImportBuildHistorySummary(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+
+
+class KeepaImportBuildContentRow(BaseModel):
+    upc: str
+    title: Optional[str] = None
+    buy_box_seller: Optional[str] = None
+    buy_box_price: Optional[str] = None
+    asin: Optional[str] = None
+    amazon_url: Optional[str] = None
+
+
+class KeepaImportBuildContentsResponse(BaseModel):
+    build_id: UUID
+    filename: Optional[str] = None
+    category: str
+    total: int
+    offset: int
+    limit: int
+    rows: list[KeepaImportBuildContentRow]

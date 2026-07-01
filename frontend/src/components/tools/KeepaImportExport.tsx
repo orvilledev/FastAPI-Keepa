@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   keepaImportExportApi,
+  type KeepaImportBuildHistoryItem,
   type KeepaImportSchedulerSettings,
   type KeepaImportSchedulerStatus,
 } from '../../services/api'
 import { useKeepaImportBuild } from '../../contexts/KeepaImportBuildContext'
 import { BatteryProgress } from '../common/BatteryProgress'
+import KeepaImportBuildContentsModal from './KeepaImportBuildContentsModal'
 import SchedulerSettingsModal, {
   type SchedulerSettingsFormState,
 } from '../common/SchedulerSettingsModal'
@@ -111,6 +113,7 @@ export default function KeepaImportExport() {
     email_bcc_recipients: '',
   })
   const [savingSettings, setSavingSettings] = useState(false)
+  const [contentsItem, setContentsItem] = useState<KeepaImportBuildHistoryItem | null>(null)
   const [togglingSchedule, setTogglingSchedule] = useState(false)
 
   const vendorUpper = category.toUpperCase()
@@ -546,7 +549,7 @@ export default function KeepaImportExport() {
                           Finished
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
-                          File
+                          Actions
                         </th>
                       </tr>
                     </thead>
@@ -581,14 +584,23 @@ export default function KeepaImportExport() {
                           </td>
                           <td className="px-4 py-3 text-sm">
                             {item.status === 'complete' ? (
-                              <button
-                                type="button"
-                                onClick={() => void downloadFromHistory(item)}
-                                disabled={historyBusyId === item.id}
-                                className="font-semibold text-[#404040] hover:text-[#3B3B3B] hover:underline disabled:opacity-50"
-                              >
-                                {historyBusyId === item.id ? 'Downloading…' : 'Download →'}
-                              </button>
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setContentsItem(item)}
+                                  className="font-semibold text-[#404040] hover:text-[#3B3B3B] hover:underline"
+                                >
+                                  View contents
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void downloadFromHistory(item)}
+                                  disabled={historyBusyId === item.id}
+                                  className="font-semibold text-[#404040] hover:text-[#3B3B3B] hover:underline disabled:opacity-50"
+                                >
+                                  {historyBusyId === item.id ? 'Downloading…' : 'Download report'}
+                                </button>
+                              </div>
                             ) : item.status === 'building' ? (
                               <span className="text-xs text-gray-500">In progress</span>
                             ) : item.status === 'cancelled' ? (
@@ -614,6 +626,15 @@ export default function KeepaImportExport() {
           </>
         )
       )}
+
+      <KeepaImportBuildContentsModal
+        open={contentsItem !== null}
+        item={contentsItem}
+        vendorLabel={contentsItem ? vendorLabel(contentsItem.category) : ''}
+        onClose={() => setContentsItem(null)}
+        onDownloadReport={(item) => void downloadFromHistory(item)}
+        downloading={contentsItem !== null && historyBusyId === contentsItem.id}
+      />
 
       <SchedulerSettingsModal
         open={showSettingsModal}

@@ -34,7 +34,10 @@ from app.keepa_import_scheduler import (
     _job_id as keepa_import_job_id,
     update_keepa_import_scheduler,
 )
-from app.models.keepa_import_build_history import KeepaImportBuildHistorySummary
+from app.models.keepa_import_build_history import (
+    KeepaImportBuildContentsResponse,
+    KeepaImportBuildHistorySummary,
+)
 from app.repositories.keepa_import_build_history_repository import (
     KeepaImportBuildHistoryRepository,
 )
@@ -46,7 +49,7 @@ from app.services.keepa_import_build_runner import (
     launch_keepa_import_build,
 )
 from app.services.keepa_import_build_store import keepa_import_build_store
-from app.services.keepa_import_export import generate_keepa_import_file
+from app.services.keepa_import_export import generate_keepa_import_file, parse_keepa_import_workbook
 from app.utils.error_handler import handle_api_errors
 
 logger = logging.getLogger(__name__)
@@ -479,6 +482,48 @@ def download_keepa_import_build_history(
         raise HTTPException(status_code=500, detail="Build file is missing.")
 
     return _streaming_excel_response(file_bytes, filename)
+
+
+@router.get(
+    "/keepa-import-export/builds/history/{build_id}/contents",
+    response_model=KeepaImportBuildContentsResponse,
+)
+@handle_api_errors("get keepa import build history contents")
+def get_keepa_import_build_history_contents(
+    build_id: str,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=500, ge=1, le=1000),
+    current_user: dict = Depends(get_keepa_access_user),
+    db: Client = Depends(get_supabase),
+):
+    """Return parsed rows from a completed Keepa Import File build for preview."""
+    repo = KeepaImportBuildHistoryRepository(db)
+    row = repo.get_by_id(build_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Build not found.")
+    if row.get("status") == "building":
+        raise HTTPException(status_code=409, detail="Build is still in progress.")
+    if row.get("status") != "complete":
+        raise HTTPException(
+            status_code=409,
+            detail="Report contents are only available for completed builds.",
+        )
+    file_bytes, filename = repo.get_file_bytes(build_id)
+    if not file_bytes:
+        raise HTTPException(status_code=500, detail="Build file is missing.")
+
+    parsed_rows, total = parse_keepa_import_workbook(
+        file_bytes, offset=offset, limit=limit
+    )
+    return KeepaImportBuildContentsResponse(
+        build_id=build_id,
+        filename=filename or row.get("filename"),
+        category=row.get("category", ""),
+        total=total,
+        offset=offset,
+        limit=limit,
+        rows=parsed_rows,
+    )
 
 
 @router.get("/keepa-import-export/builds/active")
