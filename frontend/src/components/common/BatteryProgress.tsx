@@ -5,12 +5,6 @@ type BatteryProgressProps = {
 /** Full-width horizontal progress bar (Keepa Import File and similar tools). */
 export function BatteryProgress({ percent }: BatteryProgressProps) {
   const safePercent = Math.max(0, Math.min(100, percent))
-  const tone =
-    safePercent < 35
-      ? 'bg-red-500'
-      : safePercent < 75
-        ? 'bg-amber-500'
-        : 'bg-emerald-500'
 
   return (
     <div
@@ -22,7 +16,7 @@ export function BatteryProgress({ percent }: BatteryProgressProps) {
       aria-label={`${safePercent}% complete`}
     >
       <div
-        className={`h-full rounded-full transition-all duration-300 ${tone}`}
+        className="h-full rounded-full bg-[#81B81D] transition-all duration-300"
         style={{ width: `${safePercent}%` }}
       />
     </div>
