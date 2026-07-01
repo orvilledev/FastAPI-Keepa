@@ -12,27 +12,41 @@ stored in keepa_import_export_settings) gates the tool for all users.
 """
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from pytz import timezone as pytz_timezone
 from supabase import Client
 
+from app.api.scheduler import (
+    VALID_RUN_MODES,
+    VALID_WEEKDAYS,
+    _load_allowed_pool_emails,
+    _parse_recipients_csv,
+)
 from app.database import get_supabase
 from app.dependencies import get_admin_user, get_keepa_access_user
+from app.keepa_import_scheduler import (
+    _job_id as keepa_import_job_id,
+    update_keepa_import_scheduler,
+)
 from app.models.keepa_import_build_history import KeepaImportBuildHistorySummary
 from app.repositories.keepa_import_build_history_repository import (
     KeepaImportBuildHistoryRepository,
 )
 from app.repositories.seller_name_repository import SellerNameRepository
 from app.repositories.upc_repository import UPCRepository
-from app.services.keepa_import_build_store import keepa_import_build_store
-from app.services.keepa_import_export import (
-    KeepaBuildCancelled,
-    generate_keepa_import_file,
+from app.scheduler import scheduler
+from app.services.keepa_import_build_runner import (
+    is_category_build_active,
+    launch_keepa_import_build,
 )
+from app.services.keepa_import_build_store import keepa_import_build_store
+from app.services.keepa_import_export import generate_keepa_import_file
 from app.utils.error_handler import handle_api_errors
 
 logger = logging.getLogger(__name__)
@@ -45,6 +59,7 @@ _EXCEL_MEDIA_TYPE = (
 )
 _SETTINGS_TABLE = "keepa_import_export_settings"
 _SETTINGS_ROW_ID = "00000000-0000-0000-0000-000000000000"
+_KEEPA_IMPORT_SCHEDULER_TABLE = "keepa_import_scheduler_settings"
 
 
 class FeatureToggle(BaseModel):
@@ -55,6 +70,18 @@ class BuildStartResponse(BaseModel):
     build_id: str
     upc_count: int
     category: str
+
+
+class KeepaImportSchedulerSettingsUpdate(BaseModel):
+    timezone: Optional[str] = None
+    hour: Optional[int] = None
+    minute: Optional[int] = None
+    enabled: Optional[bool] = None
+    run_mode: Optional[str] = None
+    custom_days: Optional[List[str]] = None
+    anchor_date: Optional[str] = None
+    email_recipients: Optional[str] = None
+    email_bcc_recipients: Optional[str] = None
 
 
 def _normalize_category(category: str) -> str:
@@ -150,6 +177,50 @@ def _streaming_excel_response(file_bytes: bytes, filename: str) -> StreamingResp
     )
 
 
+def _default_keepa_import_scheduler_settings(category: str) -> dict:
+    return {
+        "timezone": "America/Chicago",
+        "hour": 6,
+        "minute": 0,
+        "enabled": False,
+        "run_mode": "daily",
+        "custom_days": [],
+        "anchor_date": None,
+        "email_recipients": None,
+        "email_bcc_recipients": None,
+        "category": category,
+    }
+
+
+def _read_keepa_import_scheduler_settings(db: Client, category: str) -> dict:
+    try:
+        resp = (
+            db.table(_KEEPA_IMPORT_SCHEDULER_TABLE)
+            .select("*")
+            .eq("category", category)
+            .limit(1)
+            .execute()
+        )
+        if not resp.data:
+            return _default_keepa_import_scheduler_settings(category)
+        row = resp.data[0]
+        return {
+            "timezone": row.get("timezone", "America/Chicago"),
+            "hour": row.get("hour", 6),
+            "minute": row.get("minute", 0),
+            "enabled": bool(row.get("enabled", False)),
+            "run_mode": row.get("run_mode", "daily"),
+            "custom_days": row.get("custom_days") or [],
+            "anchor_date": row.get("anchor_date"),
+            "email_recipients": row.get("email_recipients"),
+            "email_bcc_recipients": row.get("email_bcc_recipients"),
+            "category": category,
+        }
+    except Exception as exc:
+        logger.warning("Could not read keepa import scheduler settings: %s", exc)
+        return _default_keepa_import_scheduler_settings(category)
+
+
 def _status_from_history(row: dict) -> dict:
     """Map a persisted history row to the same shape as in-memory status polling."""
     return {
@@ -166,72 +237,170 @@ def _status_from_history(row: dict) -> dict:
     }
 
 
-async def _run_keepa_import_build(
-    build_id: str,
-    user_id: str,
-    cat: str,
-    upcs: list[str],
-    seller_name_map: dict[str, str],
-    include_header: bool,
-    db: Client,
-) -> None:
-    """Background task: fetch Keepa data and store the finished workbook."""
-    enrich_total = 0
-    history = KeepaImportBuildHistoryRepository(db)
+@router.get("/keepa-import-export/scheduler/settings")
+@handle_api_errors("get keepa import scheduler settings")
+def get_keepa_import_scheduler_settings(
+    category: str = Query(default="dnk", pattern="^(dnk|clk|obz|ref|bor|sff|tev|cha)$"),
+    current_user: dict = Depends(get_keepa_access_user),
+    db: Client = Depends(get_supabase),
+):
+    """Per-vendor schedule for automated Keepa Import File builds."""
+    cat = _normalize_category(category)
+    return _read_keepa_import_scheduler_settings(db, cat)
 
-    async def on_progress(
-        completed: int,
-        total: int,
-        phase: str,
-        message: str,
-        enrich_total_arg: int,
-        phase_completed: int,
-    ) -> None:
-        nonlocal enrich_total
-        if enrich_total_arg:
-            enrich_total = enrich_total_arg
-        await keepa_import_build_store.update_progress(
-            build_id,
-            phase=phase,
-            completed=completed,
-            phase_completed=phase_completed,
-            total=total,
-            message=message,
-            enrich_total=enrich_total or None,
-        )
-        build = await keepa_import_build_store.get_for_user(build_id, user_id)
-        if build:
-            await asyncio.to_thread(
-                history.update_progress,
-                build_id,
-                phase=build.phase,
-                completed_upcs=build.completed,
-                progress_percent=build.progress_percent,
-                message=build.message,
-            )
 
-    def should_cancel() -> bool:
-        return keepa_import_build_store.is_cancelled(build_id)
+@router.get("/keepa-import-export/scheduler/next-run")
+@handle_api_errors("get keepa import scheduler next run")
+def get_keepa_import_scheduler_next_run(
+    category: str = Query(default="dnk", pattern="^(dnk|clk|obz|ref|bor|sff|tev|cha)$"),
+    current_user: dict = Depends(get_keepa_access_user),
+    db: Client = Depends(get_supabase),
+):
+    """Next scheduled Keepa Import File run for a vendor."""
+    cat = _normalize_category(category)
+    settings = _read_keepa_import_scheduler_settings(db, cat)
+    tz_str = settings["timezone"]
+    hour = settings["hour"]
+    minute = settings["minute"]
+    run_mode = settings["run_mode"]
+    custom_days = settings["custom_days"]
 
     try:
-        file_bytes = await generate_keepa_import_file(
-            upcs,
-            seller_name_map=seller_name_map,
-            include_header=include_header,
-            on_progress=on_progress,
-            should_cancel=should_cancel,
-        )
-        filename = f"{cat.upper()}_Keepa_{datetime.now().strftime('%m.%d.%y')}.xlsx"
-        await keepa_import_build_store.complete(build_id, file_bytes, filename)
-        await asyncio.to_thread(history.complete, build_id, filename, file_bytes)
-    except KeepaBuildCancelled:
-        # Status was already set to "cancelled" by the cancel endpoint.
-        logger.info("Keepa Import File build %s cancelled by user", build_id)
-        await asyncio.to_thread(history.cancel, build_id)
-    except Exception as exc:
-        logger.exception("Keepa Import File build %s failed", build_id)
-        await keepa_import_build_store.fail(build_id, str(exc))
-        await asyncio.to_thread(history.fail, build_id, str(exc))
+        current_tz = pytz_timezone(tz_str)
+    except Exception:
+        current_tz = pytz_timezone("America/Chicago")
+        tz_str = "America/Chicago"
+
+    try:
+        is_running = scheduler.running
+    except (AttributeError, RuntimeError):
+        is_running = False
+
+    job = None
+    try:
+        job = scheduler.get_job(keepa_import_job_id(cat))
+    except Exception:
+        pass
+
+    schedule_label = {
+        "daily": "Daily",
+        "every_other_day": "Every other day",
+        "custom_days": f"Custom days ({', '.join(custom_days)})" if custom_days else "Custom days",
+    }.get(run_mode, "Daily")
+    scheduled_time_str = f"{hour:02d}:{minute:02d} {tz_str} - {schedule_label}"
+
+    if not settings["enabled"] or not job or not job.next_run_time:
+        return {
+            "next_run_time": None,
+            "next_run_time_local": None,
+            "scheduled_time": scheduled_time_str,
+            "timezone": tz_str,
+            "run_mode": run_mode,
+            "custom_days": custom_days,
+            "enabled": settings["enabled"],
+            "message": "Keepa Import schedule is off" if not settings["enabled"] else "Scheduler not configured",
+            "seconds_until": None,
+            "is_running": is_running,
+        }
+
+    next_run = job.next_run_time.astimezone(current_tz)
+    now = datetime.now(current_tz)
+    time_diff = next_run - now
+    if time_diff.total_seconds() < 0:
+        next_run = next_run + timedelta(days=1)
+        time_diff = next_run - now
+
+    return {
+        "next_run_time": next_run.isoformat(),
+        "next_run_time_local": next_run.strftime("%Y-%m-%d %H:%M:%S %Z"),
+        "scheduled_time": scheduled_time_str,
+        "timezone": tz_str,
+        "run_mode": run_mode,
+        "custom_days": custom_days,
+        "enabled": settings["enabled"],
+        "seconds_until": int(time_diff.total_seconds()),
+        "is_running": is_running,
+    }
+
+
+@router.put("/keepa-import-export/scheduler/settings")
+@handle_api_errors("update keepa import scheduler settings")
+def update_keepa_import_scheduler_settings(
+    settings_data: KeepaImportSchedulerSettingsUpdate,
+    category: str = Query(default="dnk", pattern="^(dnk|clk|obz|ref|bor|sff|tev|cha)$"),
+    current_user: dict = Depends(get_keepa_access_user),
+    db: Client = Depends(get_supabase),
+):
+    """Update per-vendor Keepa Import File schedule (isolated from daily runs)."""
+    cat = _normalize_category(category)
+    current = _read_keepa_import_scheduler_settings(db, cat)
+    update_data: dict = {"updated_by": current_user["id"], "updated_at": datetime.utcnow().isoformat()}
+
+    if settings_data.timezone is not None:
+        update_data["timezone"] = settings_data.timezone
+    if settings_data.hour is not None:
+        if settings_data.hour < 0 or settings_data.hour > 23:
+            raise HTTPException(status_code=400, detail="Hour must be between 0 and 23")
+        update_data["hour"] = settings_data.hour
+    if settings_data.minute is not None:
+        if settings_data.minute < 0 or settings_data.minute > 59:
+            raise HTTPException(status_code=400, detail="Minute must be between 0 and 59")
+        update_data["minute"] = settings_data.minute
+    if settings_data.enabled is not None:
+        update_data["enabled"] = settings_data.enabled
+    if settings_data.run_mode is not None:
+        if settings_data.run_mode not in VALID_RUN_MODES:
+            raise HTTPException(status_code=400, detail="Invalid run_mode")
+        update_data["run_mode"] = settings_data.run_mode
+    if settings_data.custom_days is not None:
+        normalized_days = [
+            day.lower().strip()
+            for day in settings_data.custom_days
+            if isinstance(day, str)
+        ]
+        invalid_days = [day for day in normalized_days if day not in VALID_WEEKDAYS]
+        if invalid_days:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid custom_days values: {', '.join(invalid_days)}",
+            )
+        ordered_days = [
+            d for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] if d in normalized_days
+        ]
+        update_data["custom_days"] = ordered_days
+    if settings_data.anchor_date is not None:
+        if settings_data.anchor_date:
+            try:
+                datetime.strptime(settings_data.anchor_date, "%Y-%m-%d")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="anchor_date must be YYYY-MM-DD")
+        update_data["anchor_date"] = settings_data.anchor_date
+    if settings_data.email_recipients is not None:
+        allowed = _load_allowed_pool_emails(db, str(current_user["id"]))
+        requested = _parse_recipients_csv(settings_data.email_recipients)
+        filtered = [email for email in requested if email in allowed]
+        update_data["email_recipients"] = ",".join(filtered) if filtered else None
+    if settings_data.email_bcc_recipients is not None:
+        allowed = _load_allowed_pool_emails(db, str(current_user["id"]))
+        requested_bcc = _parse_recipients_csv(settings_data.email_bcc_recipients)
+        filtered_bcc = [email for email in requested_bcc if email in allowed]
+        update_data["email_bcc_recipients"] = ",".join(filtered_bcc) if filtered_bcc else None
+
+    merged = {**current, **update_data}
+    db.table(_KEEPA_IMPORT_SCHEDULER_TABLE).update(update_data).eq("category", cat).execute()
+
+    update_keepa_import_scheduler(
+        category=cat,
+        timezone_str=merged["timezone"],
+        hour=int(merged["hour"]),
+        minute=int(merged["minute"]),
+        enabled=bool(merged["enabled"]),
+        run_mode=merged["run_mode"],
+        custom_days=merged.get("custom_days") or [],
+        anchor_date=merged.get("anchor_date"),
+    )
+
+    return {**_read_keepa_import_scheduler_settings(db, cat), "message": "Keepa Import schedule updated"}
 
 
 @router.get("/keepa-import-export/settings")
@@ -435,37 +604,27 @@ async def start_keepa_import_export_build(
     cat = _normalize_category(category)
     _require_enabled(db)
 
-    upcs = await asyncio.to_thread(_scoped_upcs, db, cat)
-    if not upcs:
+    if await is_category_build_active(db, cat):
         raise HTTPException(
-            status_code=400,
-            detail="No UPCs found in Manage UPCs for this vendor.",
+            status_code=409,
+            detail=f"A Keepa Import File build is already running for {cat.upper()}.",
         )
 
-    seller_name_map = await asyncio.to_thread(_seller_name_map, db)
     creator_name = await asyncio.to_thread(_keepa_build_creator_name, current_user, db)
-    build_id = await keepa_import_build_store.create(
-        current_user["id"], cat, len(upcs)
-    )
-    await asyncio.to_thread(
-        KeepaImportBuildHistoryRepository(db).create,
-        build_id,
-        current_user["id"],
-        cat,
-        len(upcs),
-        creator_name,
-    )
-    asyncio.create_task(
-        _run_keepa_import_build(
-            build_id,
+    try:
+        build_id = await launch_keepa_import_build(
+            db,
             current_user["id"],
             cat,
-            upcs,
-            seller_name_map,
-            include_header,
-            db,
+            created_by_name=creator_name,
+            include_header=include_header,
         )
-    )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    upcs = await asyncio.to_thread(_scoped_upcs, db, cat)
     return BuildStartResponse(build_id=build_id, upc_count=len(upcs), category=cat)
 
 

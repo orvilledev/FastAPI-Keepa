@@ -478,6 +478,32 @@ export type KeepaImportBuildHistoryItem = {
   completed_at?: string | null
 }
 
+export type KeepaImportSchedulerSettings = {
+  timezone: string
+  hour: number
+  minute: number
+  enabled: boolean
+  run_mode: 'daily' | 'every_other_day' | 'custom_days'
+  custom_days: string[]
+  anchor_date?: string | null
+  email_recipients?: string | null
+  email_bcc_recipients?: string | null
+  category: string
+}
+
+export type KeepaImportSchedulerStatus = {
+  next_run_time: string | null
+  next_run_time_local: string | null
+  scheduled_time: string
+  timezone: string
+  run_mode: string
+  custom_days: string[]
+  enabled: boolean
+  message?: string
+  seconds_until: number | null
+  is_running: boolean
+}
+
 export const keepaImportExportApi = {
   getCount: async (category: string) => {
     const response = await api.get<{ category: string; upc_count: number }>(
@@ -575,6 +601,31 @@ export const keepaImportExportApi = {
     const response = await api.put<{ enabled: boolean }>(
       '/api/v1/keepa-import-export/settings',
       { enabled }
+    )
+    return response.data
+  },
+
+  getSchedulerSettings: async (category: string) => {
+    const response = await api.get<KeepaImportSchedulerSettings>(
+      `/api/v1/keepa-import-export/scheduler/settings?category=${category}`
+    )
+    return response.data
+  },
+
+  updateSchedulerSettings: async (
+    category: string,
+    settings: Partial<KeepaImportSchedulerSettings>
+  ) => {
+    const response = await api.put<KeepaImportSchedulerSettings & { message: string }>(
+      `/api/v1/keepa-import-export/scheduler/settings?category=${category}`,
+      settings
+    )
+    return response.data
+  },
+
+  getSchedulerNextRun: async (category: string) => {
+    const response = await api.get<KeepaImportSchedulerStatus>(
+      `/api/v1/keepa-import-export/scheduler/next-run?category=${category}`
     )
     return response.data
   },

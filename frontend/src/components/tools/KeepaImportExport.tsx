@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
-import { keepaImportExportApi } from '../../services/api'
+import {
+  keepaImportExportApi,
+  type KeepaImportSchedulerSettings,
+  type KeepaImportSchedulerStatus,
+} from '../../services/api'
 import { useKeepaImportBuild } from '../../contexts/KeepaImportBuildContext'
 import { BatteryProgress } from '../common/BatteryProgress'
+import SchedulerSettingsModal, {
+  type SchedulerSettingsFormState,
+} from '../common/SchedulerSettingsModal'
 import { useUser } from '../../contexts/UserContext'
 
 const VENDORS = [
@@ -88,6 +95,26 @@ export default function KeepaImportExport() {
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [togglingFlag, setTogglingFlag] = useState(false)
 
+  const [schedulerSettings, setSchedulerSettings] = useState<KeepaImportSchedulerSettings | null>(
+    null,
+  )
+  const [nextRun, setNextRun] = useState<KeepaImportSchedulerStatus | null>(null)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [settingsForm, setSettingsForm] = useState<SchedulerSettingsFormState>({
+    timezone: 'America/Chicago',
+    hour: 6,
+    minute: 0,
+    run_mode: 'daily',
+    custom_days: [],
+    anchor_date: null,
+    email_recipients: '',
+    email_bcc_recipients: '',
+  })
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [togglingSchedule, setTogglingSchedule] = useState(false)
+
+  const vendorUpper = category.toUpperCase()
+
   const loadSettings = useCallback(async () => {
     try {
       const data = await keepaImportExportApi.getSettings()
@@ -122,6 +149,29 @@ export default function KeepaImportExport() {
     void loadCount(category)
   }, [category, loadCount])
 
+  const loadSchedulerSettings = useCallback(async (cat: string) => {
+    try {
+      const data = await keepaImportExportApi.getSchedulerSettings(cat)
+      setSchedulerSettings(data)
+    } catch (e) {
+      console.error(e)
+    }
+  }, [])
+
+  const loadNextRun = useCallback(async (cat: string) => {
+    try {
+      const data = await keepaImportExportApi.getSchedulerNextRun(cat)
+      setNextRun(data)
+    } catch (e) {
+      console.error(e)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadSchedulerSettings(category)
+    void loadNextRun(category)
+  }, [category, loadSchedulerSettings, loadNextRun])
+
   const extractDetail = (e: unknown, fallback: string) =>
     (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? fallback
 
@@ -142,6 +192,60 @@ export default function KeepaImportExport() {
     }
   }
 
+  const openSettingsModal = () => {
+    if (schedulerSettings) {
+      setSettingsForm({
+        timezone: schedulerSettings.timezone,
+        hour: schedulerSettings.hour,
+        minute: schedulerSettings.minute,
+        run_mode: schedulerSettings.run_mode,
+        custom_days: schedulerSettings.custom_days || [],
+        anchor_date: schedulerSettings.anchor_date || null,
+        email_recipients: schedulerSettings.email_recipients || '',
+        email_bcc_recipients: schedulerSettings.email_bcc_recipients || '',
+      })
+    }
+    setShowSettingsModal(true)
+  }
+
+  const handleSaveSchedulerSettings = async () => {
+    setSavingSettings(true)
+    setError(null)
+    try {
+      await keepaImportExportApi.updateSchedulerSettings(category, {
+        ...settingsForm,
+        enabled: schedulerSettings?.enabled ?? false,
+      })
+      await loadSchedulerSettings(category)
+      await loadNextRun(category)
+      setShowSettingsModal(false)
+      setInfo('Keepa Import schedule saved.')
+    } catch (e) {
+      console.error(e)
+      setError(extractDetail(e, 'Could not save scheduler settings.'))
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  const handleToggleSchedule = async () => {
+    if (!schedulerSettings) return
+    setTogglingSchedule(true)
+    setError(null)
+    try {
+      const next = !schedulerSettings.enabled
+      await keepaImportExportApi.updateSchedulerSettings(category, { enabled: next })
+      await loadSchedulerSettings(category)
+      await loadNextRun(category)
+      setInfo(next ? 'Scheduled Keepa Import builds enabled.' : 'Scheduled Keepa Import builds stopped.')
+    } catch (e) {
+      console.error(e)
+      setError(extractDetail(e, 'Could not update the schedule.'))
+    } finally {
+      setTogglingSchedule(false)
+    }
+  }
+
   const handleDownload = async () => {
     setError(null)
     setInfo(null)
@@ -159,7 +263,7 @@ export default function KeepaImportExport() {
   }
 
   const noUpcs = upcCount !== null && upcCount === 0
-  const busy = downloading || togglingFlag
+  const busy = downloading || togglingFlag || togglingSchedule
   const actionsDisabled = busy || countLoading || noUpcs || !enabled
   const displayError = error ?? buildError
   const displayInfo = info ?? (!downloading ? buildInfo : null)
@@ -173,12 +277,49 @@ export default function KeepaImportExport() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-gray-900">Keepa Import File</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Pull live Keepa data for a vendor&apos;s Manage UPCs. Download a Keepa-format Excel file
-          for Daily Runs &rarr; Import Mode.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Keepa Import File</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Pull live Keepa data for a vendor&apos;s Manage UPCs. Download a Keepa-format Excel file
+            for Daily Runs &rarr; Import Mode.
+          </p>
+        </div>
+        {settingsLoaded && enabled && (
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleToggleSchedule}
+              disabled={togglingSchedule || !schedulerSettings}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50 ${
+                schedulerSettings?.enabled
+                  ? 'bg-red-600 text-white hover:bg-red-700'
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              }`}
+            >
+              {togglingSchedule
+                ? 'Updating…'
+                : schedulerSettings?.enabled
+                  ? 'Stop scheduled builds'
+                  : 'Start scheduled builds'}
+            </button>
+            <button
+              type="button"
+              onClick={openSettingsModal}
+              disabled={!schedulerSettings}
+              className="px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors text-sm font-medium flex items-center gap-2 disabled:opacity-50"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              Scheduler Settings
+            </button>
+          </div>
+        )}
       </header>
 
       {displayError && (
@@ -218,6 +359,36 @@ export default function KeepaImportExport() {
               }`}
             />
           </button>
+        </div>
+      )}
+
+      {settingsLoaded && enabled && schedulerSettings?.enabled && nextRun && (
+        <div className="card p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            Next scheduled build ({vendorUpper})
+          </h2>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Status:</span>
+              <span className="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-800">
+                Active
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Schedule:</span>
+              <span className="font-medium text-gray-900">{nextRun.scheduled_time}</span>
+            </div>
+            {nextRun.next_run_time_local && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Next run:</span>
+                <span className="font-medium text-gray-900">{nextRun.next_run_time_local}</span>
+              </div>
+            )}
+            <p className="text-xs text-gray-500 pt-2">
+              Uses the Keepa Import API key pool only — separate from Daily Run jobs. Skips if a
+              build for this vendor is already in progress.
+            </p>
+          </div>
         </div>
       )}
 
@@ -441,6 +612,17 @@ export default function KeepaImportExport() {
           </>
         )
       )}
+
+      <SchedulerSettingsModal
+        open={showSettingsModal}
+        title="Scheduler Settings"
+        vendorUpper={vendorUpper}
+        form={settingsForm}
+        onChange={setSettingsForm}
+        onClose={() => setShowSettingsModal(false)}
+        onSave={() => void handleSaveSchedulerSettings()}
+        saving={savingSettings}
+      />
     </div>
   )
 }

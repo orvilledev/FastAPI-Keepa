@@ -363,7 +363,80 @@ class EmailService:
             except Exception as e:
                 logger.error(f"Failed to send job completion email: {e}")
                 return False
-    
+
+    def send_binary_attachment(
+        self,
+        file_bytes: bytes,
+        filename: str,
+        subject: str,
+        body: str,
+        recipient_email: Optional[str] = None,
+        bcc_emails: Optional[List[str]] = None,
+        mime_type: str = "application/octet-stream",
+        use_default_recipients: bool = True,
+    ) -> bool:
+        """Send an email with an arbitrary binary attachment."""
+        if recipient_email and str(recipient_email).strip():
+            all_recipients = self._parse_recipients(recipient_email)
+        elif use_default_recipients:
+            all_recipients = self._parse_recipients(self.email_to)
+        else:
+            all_recipients = []
+
+        bcc_recipients: List[str] = []
+        bcc_seen: set[str] = set()
+        for email in bcc_emails or []:
+            normalized = email.strip()
+            if not normalized:
+                continue
+            key = normalized.lower()
+            if key in bcc_seen:
+                continue
+            bcc_seen.add(key)
+            bcc_recipients.append(normalized)
+
+        bcc_set = set(bcc_seen)
+        to_recipients = [email for email in all_recipients if email.lower() not in bcc_set]
+
+        if not self._bare_from_address() or not self.email_password:
+            logger.error("Email is not configured; cannot send attachment")
+            return False
+        if not to_recipients and not bcc_recipients:
+            logger.info("No recipients configured; skipping email send")
+            return False
+        if not to_recipients and bcc_recipients:
+            to_recipients = [self._bare_from_address()]
+
+        delivery_addrs = list(dict.fromkeys(to_recipients + bcc_recipients))
+
+        try:
+            msg = MIMEMultipart()
+            msg["From"] = self._from_header()
+            msg["To"] = ", ".join(to_recipients)
+            if bcc_recipients:
+                msg["Bcc"] = ", ".join(bcc_recipients)
+            msg["Subject"] = subject
+            msg.attach(MIMEText(body, "plain"))
+
+            maintype, _, subtype = (mime_type or "application/octet-stream").partition("/")
+            part = MIMEBase(maintype, subtype or "octet-stream")
+            part.set_payload(file_bytes)
+            encoders.encode_base64(part)
+            part.add_header("Content-Disposition", f'attachment; filename="{filename}"')
+            msg.attach(part)
+
+            with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=SMTP_TIMEOUT) as server:
+                server.starttls()
+                server.login(self._bare_from_address(), self.email_password)
+                server.send_message(msg, to_addrs=delivery_addrs)
+
+            logger.info("Attachment email sent to %s", delivery_addrs)
+            return True
+        except Exception as e:
+            logger.error("Failed to send attachment email: %s", e, exc_info=True)
+            self.last_error = str(e)
+            return False
+
     def send_email(
         self,
         to_email: str,

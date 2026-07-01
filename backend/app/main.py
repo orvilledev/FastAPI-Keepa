@@ -196,6 +196,13 @@ async def startup_event():
         setup_scheduler(category='tev')  # Use TEV defaults
         setup_scheduler(category='cha')  # Use CHA defaults
     start_scheduler()
+    try:
+        from app.keepa_import_scheduler import load_all_keepa_import_schedulers_from_db
+
+        load_all_keepa_import_schedulers_from_db(get_supabase())
+        logger.info("Keepa Import File schedulers loaded")
+    except Exception as e:
+        logger.warning("Failed to load Keepa Import schedulers: %s", e)
     logger.info("Application startup complete")
 
 
