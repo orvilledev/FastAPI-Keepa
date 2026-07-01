@@ -16,6 +16,14 @@ BuildStatus = Literal["building", "complete", "failed", "cancelled"]
 _TTL_SECONDS = 3600
 
 
+class KeepaImportBuildBusyError(Exception):
+    """Raised when a second build is requested while one is already running."""
+
+    def __init__(self, build: "KeepaImportBuild") -> None:
+        self.build = build
+        super().__init__(build.build_id)
+
+
 @dataclass
 class KeepaImportBuild:
     build_id: str
@@ -85,6 +93,11 @@ class KeepaImportBuildStore:
         build_id = str(uuid4())
         async with self._lock:
             self._purge_expired()
+            building = [b for b in self._builds.values() if b.status == "building"]
+            if building:
+                raise KeepaImportBuildBusyError(
+                    max(building, key=lambda b: b.created_at)
+                )
             self._builds[build_id] = KeepaImportBuild(
                 build_id=build_id,
                 user_id=user_id,
@@ -192,6 +205,18 @@ class KeepaImportBuildStore:
                 b.category == cat and b.status == "building"
                 for b in self._builds.values()
             )
+
+    async def get_any_active_build(self) -> Optional[KeepaImportBuild]:
+        """Return any in-progress build, regardless of vendor."""
+        async with self._lock:
+            self._purge_expired()
+            building = [b for b in self._builds.values() if b.status == "building"]
+            if not building:
+                return None
+            return max(building, key=lambda b: b.created_at)
+
+    async def has_any_active_build(self) -> bool:
+        return (await self.get_any_active_build()) is not None
 
     async def get_by_id(self, build_id: str) -> Optional[KeepaImportBuild]:
         """Return any non-expired build (shared read for history/download)."""

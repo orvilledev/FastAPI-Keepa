@@ -230,6 +230,24 @@ class KeepaImportBuildHistoryRepository:
             logger.warning("Could not load active keepa import build: %s", exc)
             return None
 
+    def get_any_active_build(self) -> Optional[dict]:
+        """Most recent building row across all users/vendors."""
+        try:
+            resp = (
+                self._db.table(_TABLE)
+                .select(_SUMMARY_COLUMNS)
+                .eq("status", "building")
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if not resp.data:
+                return None
+            return resp.data[0]
+        except Exception as exc:
+            logger.warning("Could not load global active keepa import build: %s", exc)
+            return None
+
     def get_file_bytes(self, build_id: str) -> tuple[Optional[bytes], Optional[str]]:
         row = self.get_by_id(build_id)
         if not row or row.get("status") != "complete":

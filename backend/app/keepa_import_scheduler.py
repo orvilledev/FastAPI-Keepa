@@ -19,7 +19,7 @@ from app.database import get_supabase
 from app.scheduler import scheduler
 from app.services.keepa_import_build_runner import (
     KeepaImportEmailNotify,
-    is_category_build_active,
+    is_global_build_active,
     launch_keepa_import_build,
 )
 
@@ -96,9 +96,9 @@ async def run_scheduled_keepa_import(category: str) -> None:
         logger.info("Keepa Import scheduler disabled for %s", cat.upper())
         return
 
-    if await is_category_build_active(db, cat):
+    if await is_global_build_active(db):
         logger.info(
-            "Skipping scheduled Keepa Import for %s — a build is already in progress",
+            "Skipping scheduled Keepa Import for %s — another Keepa Import build is already in progress",
             cat.upper(),
         )
         return
@@ -121,7 +121,6 @@ async def run_scheduled_keepa_import(category: str) -> None:
             cat,
             created_by_name="Scheduled run",
             email_notify=email_notify,
-            skip_if_active=True,
         )
         logger.info("Scheduled Keepa Import build started for %s: %s", cat.upper(), build_id)
     except RuntimeError as exc:

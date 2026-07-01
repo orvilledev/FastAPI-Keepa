@@ -37,6 +37,7 @@ from app.keepa_import_scheduler import (
 from app.models.keepa_import_build_history import (
     KeepaImportBuildContentsResponse,
     KeepaImportBuildHistorySummary,
+    KeepaImportGlobalBusyStatus,
 )
 from app.repositories.keepa_import_build_history_repository import (
     KeepaImportBuildHistoryRepository,
@@ -45,7 +46,8 @@ from app.repositories.seller_name_repository import SellerNameRepository
 from app.repositories.upc_repository import UPCRepository
 from app.scheduler import scheduler
 from app.services.keepa_import_build_runner import (
-    is_category_build_active,
+    get_global_active_build,
+    global_busy_detail,
     launch_keepa_import_build,
 )
 from app.services.keepa_import_build_store import keepa_import_build_store
@@ -458,6 +460,29 @@ def list_keepa_import_build_history(
     return [_history_summary_from_row(row) for row in rows]
 
 
+@router.get(
+    "/keepa-import-export/builds/busy",
+    response_model=KeepaImportGlobalBusyStatus,
+)
+@handle_api_errors("get keepa import global build busy status")
+async def get_keepa_import_global_busy(
+    current_user: dict = Depends(get_keepa_access_user),
+    db: Client = Depends(get_supabase),
+):
+    """Whether any Keepa Import File build is in progress (one at a time globally)."""
+    active = await get_global_active_build(db)
+    if not active:
+        return KeepaImportGlobalBusyStatus(busy=False)
+    return KeepaImportGlobalBusyStatus(
+        busy=True,
+        build_id=active.build_id,
+        category=active.category,
+        created_by_name=active.created_by_name,
+        progress_percent=active.progress_percent,
+        message=global_busy_detail(active),
+    )
+
+
 @router.get("/keepa-import-export/builds/history/{build_id}/download")
 @handle_api_errors("download keepa import build history file")
 def download_keepa_import_build_history(
@@ -655,11 +680,9 @@ async def start_keepa_import_export_build(
     cat = _normalize_category(category)
     _require_enabled(db)
 
-    if await is_category_build_active(db, cat):
-        raise HTTPException(
-            status_code=409,
-            detail=f"A Keepa Import File build is already running for {cat.upper()}.",
-        )
+    active = await get_global_active_build(db)
+    if active:
+        raise HTTPException(status_code=409, detail=global_busy_detail(active))
 
     creator_name = await asyncio.to_thread(_keepa_build_creator_name, current_user, db)
     try:

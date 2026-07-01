@@ -497,6 +497,15 @@ export type KeepaImportBuildContentsResponse = {
   rows: KeepaImportBuildContentRow[]
 }
 
+export type KeepaImportGlobalBusyStatus = {
+  busy: boolean
+  build_id?: string | null
+  category?: string | null
+  created_by_name?: string | null
+  progress_percent?: number | null
+  message?: string | null
+}
+
 export type KeepaImportSchedulerSettings = {
   timezone: string
   hour: number
@@ -579,6 +588,13 @@ export const keepaImportExportApi = {
   listBuildHistory: async () => {
     const response = await api.get<KeepaImportBuildHistoryItem[]>(
       '/api/v1/keepa-import-export/builds/history'
+    )
+    return response.data
+  },
+
+  getGlobalBuildBusy: async () => {
+    const response = await api.get<KeepaImportGlobalBusyStatus>(
+      '/api/v1/keepa-import-export/builds/busy'
     )
     return response.data
   },

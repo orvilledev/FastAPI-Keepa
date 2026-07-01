@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   keepaImportExportApi,
   type KeepaImportBuildHistoryItem,
+  type KeepaImportGlobalBusyStatus,
   type KeepaImportSchedulerSettings,
   type KeepaImportSchedulerStatus,
 } from '../../services/api'
@@ -67,6 +68,18 @@ function statusLabel(status: string) {
   }
 }
 
+function globalBusyMessage(
+  status: { category?: string | null; created_by_name?: string | null; progress_percent?: number | null },
+) {
+  const vendor = status.category ? vendorLabel(status.category) : 'another vendor'
+  const who = status.created_by_name?.trim() ? ` (started by ${status.created_by_name.trim()})` : ''
+  const pct =
+    status.progress_percent && status.progress_percent > 0
+      ? ` · ${status.progress_percent}% complete`
+      : ''
+  return `Cannot download at the moment — the app is busy building a Keepa file for ${vendor}${who}${pct}. Please wait until it finishes.`
+}
+
 export default function KeepaImportExport() {
   const { userInfo, isSuperadmin } = useUser()
   const isAdmin = userInfo?.role === 'admin' || isSuperadmin
@@ -114,6 +127,7 @@ export default function KeepaImportExport() {
   })
   const [savingSettings, setSavingSettings] = useState(false)
   const [contentsItem, setContentsItem] = useState<KeepaImportBuildHistoryItem | null>(null)
+  const [globalBusy, setGlobalBusy] = useState<KeepaImportGlobalBusyStatus | null>(null)
   const [togglingSchedule, setTogglingSchedule] = useState(false)
 
   const vendorUpper = category.toUpperCase()
@@ -174,6 +188,26 @@ export default function KeepaImportExport() {
     void loadSchedulerSettings(category)
     void loadNextRun(category)
   }, [category, loadSchedulerSettings, loadNextRun])
+
+  const loadGlobalBusy = useCallback(async () => {
+    if (!enabled) {
+      setGlobalBusy(null)
+      return
+    }
+    try {
+      const status = await keepaImportExportApi.getGlobalBuildBusy()
+      setGlobalBusy(status)
+    } catch (e) {
+      console.error(e)
+    }
+  }, [enabled])
+
+  useEffect(() => {
+    if (!settingsLoaded || !enabled) return
+    void loadGlobalBusy()
+    const id = window.setInterval(() => void loadGlobalBusy(), 3000)
+    return () => window.clearInterval(id)
+  }, [settingsLoaded, enabled, loadGlobalBusy, downloading])
 
   const extractDetail = (e: unknown, fallback: string) =>
     (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? fallback
@@ -266,8 +300,11 @@ export default function KeepaImportExport() {
   }
 
   const noUpcs = upcCount !== null && upcCount === 0
+  const isOwnActiveBuild =
+    downloading && buildingCategory != null && buildingCategory === category
+  const blockedByOtherBuild = globalBusy?.busy === true && !isOwnActiveBuild
   const busy = downloading || togglingFlag || togglingSchedule
-  const actionsDisabled = busy || countLoading || noUpcs || !enabled
+  const actionsDisabled = busy || countLoading || noUpcs || !enabled || blockedByOtherBuild
   const displayError = error ?? buildError
   const displayInfo = info ?? (!downloading ? buildInfo : null)
   const buildingLabel =
@@ -335,6 +372,11 @@ export default function KeepaImportExport() {
           {displayInfo}
         </div>
       )}
+      {blockedByOtherBuild && globalBusy && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          {globalBusyMessage(globalBusy)}
+        </div>
+      )}
 
       {isAdmin && settingsLoaded && (
         <div className="card flex items-center justify-between gap-4 p-4">
@@ -388,8 +430,9 @@ export default function KeepaImportExport() {
               </div>
             )}
             <p className="text-xs text-gray-500 pt-2">
-              Uses the Keepa Import API key pool only — separate from Daily Run jobs. Skips if a
-              build for this vendor is already in progress.
+              Uses the Keepa Import API key pool only — separate from Daily Run jobs. Only one
+              Keepa Import build can run at a time across all vendors; scheduled runs wait if
+              another build is in progress.
             </p>
           </div>
         </div>
@@ -480,7 +523,9 @@ export default function KeepaImportExport() {
                     ? buildingCategory === category
                       ? 'Building file…'
                       : 'Build in progress…'
-                    : 'Download Keepa file'}
+                    : blockedByOtherBuild
+                      ? 'Build in progress elsewhere'
+                      : 'Download Keepa file'}
                 </button>
 
                 {downloading && (

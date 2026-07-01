@@ -35,6 +35,15 @@ class KeepaImportBuildContentRow(BaseModel):
     amazon_url: Optional[str] = None
 
 
+class KeepaImportGlobalBusyStatus(BaseModel):
+    busy: bool
+    build_id: Optional[UUID] = None
+    category: Optional[str] = None
+    created_by_name: Optional[str] = None
+    progress_percent: Optional[int] = None
+    message: Optional[str] = None
+
+
 class KeepaImportBuildContentsResponse(BaseModel):
     build_id: UUID
     filename: Optional[str] = None

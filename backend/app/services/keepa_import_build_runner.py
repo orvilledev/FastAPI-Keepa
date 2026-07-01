@@ -14,7 +14,10 @@ from app.repositories.keepa_import_build_history_repository import (
 )
 from app.repositories.seller_name_repository import SellerNameRepository
 from app.repositories.upc_repository import UPCRepository
-from app.services.keepa_import_build_store import keepa_import_build_store
+from app.services.keepa_import_build_store import (
+    KeepaImportBuildBusyError,
+    keepa_import_build_store,
+)
 from app.services.keepa_import_export import (
     KeepaBuildCancelled,
     generate_keepa_import_file,
@@ -46,6 +49,30 @@ def _seller_name_map(db: Client) -> dict[str, str]:
         return {}
 
 
+@dataclass
+class GlobalActiveBuildInfo:
+    build_id: str
+    category: str
+    created_by_name: Optional[str] = None
+    progress_percent: int = 0
+    user_id: Optional[str] = None
+
+
+def global_busy_detail(info: GlobalActiveBuildInfo) -> str:
+    """User-facing message when another Keepa Import build is in progress."""
+    vendor = info.category.upper()
+    who = f" (started by {info.created_by_name})" if info.created_by_name else ""
+    progress = (
+        f" · {info.progress_percent}% complete"
+        if info.progress_percent and info.progress_percent > 0
+        else ""
+    )
+    return (
+        f"The app is busy building a Keepa file for {vendor}{who}{progress}. "
+        "Please wait until it finishes before starting another build."
+    )
+
+
 def category_has_active_build(db: Client, category: str) -> bool:
     """True if a Keepa Import build is already running for this vendor."""
     try:
@@ -68,6 +95,39 @@ async def is_category_build_active(db: Client, category: str) -> bool:
     if await keepa_import_build_store.has_active_build_for_category(category):
         return True
     return await asyncio.to_thread(category_has_active_build, db, category)
+
+
+async def get_global_active_build(db: Client) -> Optional[GlobalActiveBuildInfo]:
+    """Return the single in-progress Keepa Import build, if any."""
+    repo = KeepaImportBuildHistoryRepository(db)
+    in_memory = await keepa_import_build_store.get_any_active_build()
+    if in_memory:
+        created_by_name = None
+        row = await asyncio.to_thread(repo.get_by_id, in_memory.build_id)
+        if row:
+            created_by_name = row.get("created_by_name")
+        return GlobalActiveBuildInfo(
+            build_id=in_memory.build_id,
+            category=in_memory.category,
+            created_by_name=created_by_name,
+            progress_percent=in_memory.progress_percent,
+            user_id=in_memory.user_id,
+        )
+
+    row = await asyncio.to_thread(repo.get_any_active_build)
+    if not row:
+        return None
+    return GlobalActiveBuildInfo(
+        build_id=str(row["id"]),
+        category=row.get("category", ""),
+        created_by_name=row.get("created_by_name"),
+        progress_percent=int(row.get("progress_percent") or 0),
+        user_id=str(row.get("user_id")) if row.get("user_id") else None,
+    )
+
+
+async def is_global_build_active(db: Client) -> bool:
+    return (await get_global_active_build(db)) is not None
 
 
 async def _send_completion_email(
@@ -188,22 +248,36 @@ async def launch_keepa_import_build(
     created_by_name: Optional[str] = None,
     include_header: bool = True,
     email_notify: Optional[KeepaImportEmailNotify] = None,
-    skip_if_active: bool = False,
 ) -> str:
     """Start an async Keepa Import File build. Returns build_id."""
     cat = category.strip().lower()
     if cat not in VALID_CATEGORIES:
         raise ValueError(f"Unknown vendor category: {category}")
 
-    if skip_if_active and await is_category_build_active(db, cat):
-        raise RuntimeError(f"A Keepa Import File build is already running for {cat.upper()}.")
+    active = await get_global_active_build(db)
+    if active:
+        raise RuntimeError(global_busy_detail(active))
 
     upcs = await asyncio.to_thread(_scoped_upcs, db, cat)
     if not upcs:
         raise ValueError("No UPCs found in Manage UPCs for this vendor.")
 
     seller_name_map = await asyncio.to_thread(_seller_name_map, db)
-    build_id = await keepa_import_build_store.create(user_id, cat, len(upcs))
+    try:
+        build_id = await keepa_import_build_store.create(user_id, cat, len(upcs))
+    except KeepaImportBuildBusyError as exc:
+        busy = GlobalActiveBuildInfo(
+            build_id=exc.build.build_id,
+            category=exc.build.category,
+            progress_percent=exc.build.progress_percent,
+            user_id=exc.build.user_id,
+        )
+        row = await asyncio.to_thread(
+            KeepaImportBuildHistoryRepository(db).get_by_id, exc.build.build_id
+        )
+        if row:
+            busy.created_by_name = row.get("created_by_name")
+        raise RuntimeError(global_busy_detail(busy)) from exc
     await asyncio.to_thread(
         KeepaImportBuildHistoryRepository(db).create,
         build_id,
