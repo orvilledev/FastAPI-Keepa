@@ -9,7 +9,10 @@ import {
   type ReactNode,
   type SetStateAction,
 } from 'react'
-import { keepaImportExportApi } from '../services/api'
+import {
+  keepaImportExportApi,
+  type KeepaImportBuildHistoryItem,
+} from '../services/api'
 import { downloadBlob, parseMicroToolDownloadResponse } from '../utils/downloadLinkedFile'
 
 export type KeepaImportBuildProgress = {
@@ -27,11 +30,16 @@ type KeepaImportBuildContextValue = {
   progress: KeepaImportBuildProgress | null
   error: string | null
   info: string | null
+  history: KeepaImportBuildHistoryItem[]
+  historyLoading: boolean
+  historyBusyId: string | null
   setError: Dispatch<SetStateAction<string | null>>
   setInfo: Dispatch<SetStateAction<string | null>>
   startDownload: (category: string, upcCount: number | null) => Promise<void>
   cancelBuild: () => Promise<void>
   clearMessages: () => void
+  loadHistory: () => Promise<void>
+  downloadFromHistory: (item: KeepaImportBuildHistoryItem) => Promise<void>
 }
 
 const KeepaImportBuildContext = createContext<KeepaImportBuildContextValue | null>(null)
@@ -83,13 +91,27 @@ function statusCode(e: unknown): number | undefined {
   return (e as { response?: { status?: number } })?.response?.status
 }
 
+async function triggerFileDownload(
+  buildId: string,
+  category: string,
+  filenameHint?: string | null,
+) {
+  const response = await keepaImportExportApi.downloadBuild(buildId)
+  const { blob, filename } = parseMicroToolDownloadResponse(
+    response.data as Blob,
+    response.headers as Record<string, string | undefined>,
+    filenameHint ?? `${category.toUpperCase()}_Keepa_Import`,
+  )
+  downloadBlob(blob, filename)
+  return filename
+}
+
 /**
  * Holds the Keepa Import File build lifecycle above the router so a long Keepa
  * build keeps running — and its status stays visible — when the user navigates
  * within the app. The build itself runs on the server, so it continues even if
- * the app is closed; on reopen we resume polling from a persisted build id (and
- * fall back to the server's "active build" lookup) and download the file when
- * it finishes.
+ * the app is closed; on reopen we resume polling and completed files live in the
+ * build history archive for re-download.
  */
 export function KeepaImportBuildProvider({ children }: { children: ReactNode }) {
   const [building, setBuilding] = useState(false)
@@ -98,6 +120,9 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
   const [progress, setProgress] = useState<KeepaImportBuildProgress | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
+  const [history, setHistory] = useState<KeepaImportBuildHistoryItem[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyBusyId, setHistoryBusyId] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const buildIdRef = useRef<string | null>(null)
 
@@ -127,6 +152,22 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
     setInfo(null)
   }, [])
 
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true)
+    try {
+      const rows = await keepaImportExportApi.listBuildHistory()
+      setHistory(rows)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadHistory()
+  }, [loadHistory])
+
   const finishBuild = useCallback(() => {
     stopPolling()
     buildIdRef.current = null
@@ -135,7 +176,32 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
     setBuildingCategory(null)
     setBuildingUpcCount(null)
     setProgress(null)
-  }, [stopPolling])
+    void loadHistory()
+  }, [loadHistory, stopPolling])
+
+  const downloadFromHistory = useCallback(
+    async (item: KeepaImportBuildHistoryItem) => {
+      if (item.status !== 'complete') return
+      setHistoryBusyId(item.id)
+      setError(null)
+      try {
+        const response = await keepaImportExportApi.downloadBuildHistory(item.id)
+        const { blob, filename } = parseMicroToolDownloadResponse(
+          response.data as Blob,
+          response.headers as Record<string, string | undefined>,
+          item.filename ?? `${item.category.toUpperCase()}_Keepa_Import`,
+        )
+        downloadBlob(blob, filename)
+        setInfo(`Downloaded ${filename}.`)
+      } catch (e: unknown) {
+        console.error(e)
+        setError(extractDetail(e, 'Could not download the file. Please try again.'))
+      } finally {
+        setHistoryBusyId(null)
+      }
+    },
+    [],
+  )
 
   const pollBuild = useCallback(
     async (buildId: string, category: string) => {
@@ -148,17 +214,31 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
           phase: status.phase,
           message: status.message,
         })
+        void loadHistory()
 
         if (status.status === 'complete') {
           stopPolling()
-          const response = await keepaImportExportApi.downloadBuild(buildId)
-          const { blob, filename } = parseMicroToolDownloadResponse(
-            response.data as Blob,
-            response.headers as Record<string, string | undefined>,
-            status.filename ?? `${category.toUpperCase()}_Keepa_Import`,
-          )
-          downloadBlob(blob, filename)
-          setInfo(`Downloaded ${filename}.`)
+          try {
+            const filename = await triggerFileDownload(
+              buildId,
+              category,
+              status.filename,
+            )
+            setInfo(`Build complete — downloaded ${filename}. You can also re-download from Build history below.`)
+          } catch (e: unknown) {
+            console.error(e)
+            setInfo(
+              'Build complete. The file is saved in Build history below — click Download to get your Excel file.',
+            )
+            if (statusCode(e) !== 409) {
+              setError(
+                extractDetail(
+                  e,
+                  'Auto-download failed. Use Download in Build history below.',
+                ),
+              )
+            }
+          }
           finishBuild()
           return
         }
@@ -177,18 +257,16 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
         }
       } catch (e: unknown) {
         console.error(e)
-        // A 404 means the build is gone (server restarted/redeployed or it
-        // expired). Stop and tell the user to start a new one. Any other error
-        // (transient network blip) is ignored so a single failed poll does not
-        // abandon a long-running build.
         if (statusCode(e) === 404) {
           setInfo(null)
-          setError('That build is no longer available (the server may have restarted). Please start a new build.')
+          setError(
+            'That build is no longer available on the server. Check Build history below for completed files.',
+          )
           finishBuild()
         }
       }
     },
-    [finishBuild, stopPolling],
+    [finishBuild, loadHistory, stopPolling],
   )
 
   const beginPolling = useCallback(
@@ -219,12 +297,13 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
       setError(null)
       const countLabel = upcCount ? `${upcCount.toLocaleString()} UPCs` : 'this vendor'
       setInfo(
-        `Building the Keepa file for ${countLabel}. This runs on the server — you can leave this page, or even close the app, and it keeps building. Come back and it will resume here.`,
+        `Building the Keepa file for ${countLabel}. This runs on the server — you can leave this page, or even close the app, and it keeps building. When it finishes, the file is saved to Build history below.`,
       )
 
       try {
         const { build_id } = await keepaImportExportApi.startBuild(category)
         beginPolling(build_id, category, upcCount)
+        void loadHistory()
       } catch (e: unknown) {
         console.error(e)
         setInfo(null)
@@ -232,7 +311,7 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
         finishBuild()
       }
     },
-    [building, finishBuild, beginPolling, stopPolling],
+    [building, finishBuild, beginPolling, stopPolling, loadHistory],
   )
 
   const cancelBuild = useCallback(async () => {
@@ -249,25 +328,41 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
     finishBuild()
   }, [finishBuild, stopPolling])
 
-  // On mount, resume any build that is still running on the server.
+  // On mount, resume any build that is still running (or just finished) on the server.
   useEffect(() => {
     let active = true
     const resume = async () => {
       const persisted = loadPersisted()
-      let target: { buildId: string; category: string; upcCount: number | null } | null = persisted
-        ? { buildId: persisted.buildId, category: persisted.category, upcCount: persisted.upcCount }
-        : null
+      let target: { buildId: string; category: string; upcCount: number | null } | null =
+        persisted
+          ? {
+              buildId: persisted.buildId,
+              category: persisted.category,
+              upcCount: persisted.upcCount,
+            }
+          : null
 
       try {
         const serverBuild = await keepaImportExportApi.getActiveBuild()
-        if (serverBuild && serverBuild.status === 'building') {
-          target = {
-            buildId: serverBuild.build_id,
-            category: serverBuild.category,
-            upcCount: serverBuild.total,
+        if (serverBuild) {
+          if (serverBuild.status === 'building') {
+            target = {
+              buildId: serverBuild.build_id,
+              category: serverBuild.category,
+              upcCount: serverBuild.total,
+            }
+          } else if (serverBuild.status === 'complete') {
+            if (active) {
+              setInfo(
+                'Your Keepa file finished while you were away. Download it from Build history below.',
+              )
+            }
+            clearPersisted()
+            target = null
+          } else if (!persisted) {
+            target = null
           }
-        } else if (!serverBuild && persisted) {
-          // Server has no live build for this user; the saved id is stale.
+        } else if (persisted) {
           clearPersisted()
           target = null
         }
@@ -295,11 +390,16 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
     progress,
     error,
     info,
+    history,
+    historyLoading,
+    historyBusyId,
     setError,
     setInfo,
     startDownload,
     cancelBuild,
     clearMessages,
+    loadHistory,
+    downloadFromHistory,
   }
 
   return (

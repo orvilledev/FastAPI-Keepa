@@ -460,6 +460,23 @@ export type KeepaImportBuildStatus = {
   filename?: string | null
 }
 
+export type KeepaImportBuildHistoryItem = {
+  id: string
+  user_id: string
+  category: string
+  status: 'building' | 'complete' | 'failed' | 'cancelled'
+  upc_count: number
+  completed_upcs: number
+  progress_percent: number
+  phase?: string | null
+  message?: string | null
+  error?: string | null
+  filename?: string | null
+  created_at: string
+  updated_at?: string | null
+  completed_at?: string | null
+}
+
 export const keepaImportExportApi = {
   getCount: async (category: string) => {
     const response = await api.get<{ category: string; upc_count: number }>(
@@ -507,7 +524,25 @@ export const keepaImportExportApi = {
       `/api/v1/keepa-import-export/builds/${buildId}/download`,
       {
         responseType: 'blob',
-        timeout: 60_000,
+        timeout: 5 * 60 * 1000,
+      }
+    )
+    return response
+  },
+
+  listBuildHistory: async () => {
+    const response = await api.get<KeepaImportBuildHistoryItem[]>(
+      '/api/v1/keepa-import-export/builds/history'
+    )
+    return response.data
+  },
+
+  downloadBuildHistory: async (buildId: string) => {
+    const response = await api.get(
+      `/api/v1/keepa-import-export/builds/history/${buildId}/download`,
+      {
+        responseType: 'blob',
+        timeout: 5 * 60 * 1000,
       }
     )
     return response

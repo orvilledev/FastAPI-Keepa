@@ -22,6 +22,10 @@ from supabase import Client
 
 from app.database import get_supabase
 from app.dependencies import get_admin_user, get_keepa_access_user
+from app.models.keepa_import_build_history import KeepaImportBuildHistorySummary
+from app.repositories.keepa_import_build_history_repository import (
+    KeepaImportBuildHistoryRepository,
+)
 from app.repositories.seller_name_repository import SellerNameRepository
 from app.repositories.upc_repository import UPCRepository
 from app.services.keepa_import_build_store import keepa_import_build_store
@@ -102,15 +106,38 @@ def _require_enabled(db: Client) -> None:
         )
 
 
+def _history_summary_from_row(row: dict) -> KeepaImportBuildHistorySummary:
+    return KeepaImportBuildHistorySummary(**row)
+
+
+def _status_from_history(row: dict) -> dict:
+    """Map a persisted history row to the same shape as in-memory status polling."""
+    return {
+        "build_id": row["id"],
+        "category": row["category"],
+        "status": row["status"],
+        "phase": row.get("phase") or "",
+        "completed": row.get("completed_upcs", 0),
+        "total": row.get("upc_count", 0),
+        "progress_percent": row.get("progress_percent", 0),
+        "message": row.get("message") or "",
+        "error": row.get("error"),
+        "filename": row.get("filename"),
+    }
+
+
 async def _run_keepa_import_build(
     build_id: str,
+    user_id: str,
     cat: str,
     upcs: list[str],
     seller_name_map: dict[str, str],
     include_header: bool,
+    db: Client,
 ) -> None:
     """Background task: fetch Keepa data and store the finished workbook."""
     enrich_total = 0
+    history = KeepaImportBuildHistoryRepository(db)
 
     async def on_progress(
         completed: int,
@@ -132,6 +159,16 @@ async def _run_keepa_import_build(
             message=message,
             enrich_total=enrich_total or None,
         )
+        build = await keepa_import_build_store.get_for_user(build_id, user_id)
+        if build:
+            await asyncio.to_thread(
+                history.update_progress,
+                build_id,
+                phase=build.phase,
+                completed_upcs=build.completed,
+                progress_percent=build.progress_percent,
+                message=build.message,
+            )
 
     def should_cancel() -> bool:
         return keepa_import_build_store.is_cancelled(build_id)
@@ -146,12 +183,15 @@ async def _run_keepa_import_build(
         )
         filename = f"{cat.upper()}_Keepa_{datetime.now().strftime('%m.%d.%y')}.xlsx"
         await keepa_import_build_store.complete(build_id, file_bytes, filename)
+        await asyncio.to_thread(history.complete, build_id, filename, file_bytes)
     except KeepaBuildCancelled:
         # Status was already set to "cancelled" by the cancel endpoint.
         logger.info("Keepa Import File build %s cancelled by user", build_id)
+        await asyncio.to_thread(history.cancel, build_id)
     except Exception as exc:
         logger.exception("Keepa Import File build %s failed", build_id)
         await keepa_import_build_store.fail(build_id, str(exc))
+        await asyncio.to_thread(history.fail, build_id, str(exc))
 
 
 @router.get("/keepa-import-export/settings")
@@ -195,17 +235,66 @@ def get_keepa_import_export_count(
     return {"category": cat, "upc_count": len(upcs)}
 
 
+@router.get("/keepa-import-export/builds/history")
+@handle_api_errors("list keepa import build history")
+def list_keepa_import_build_history(
+    current_user: dict = Depends(get_keepa_access_user),
+    db: Client = Depends(get_supabase),
+):
+    """Return the caller's archived Keepa Import File builds (newest first)."""
+    rows = KeepaImportBuildHistoryRepository(db).list_for_user(current_user["id"])
+    return [_history_summary_from_row(row) for row in rows]
+
+
+@router.get("/keepa-import-export/builds/history/{build_id}/download")
+@handle_api_errors("download keepa import build history file")
+def download_keepa_import_build_history(
+    build_id: str,
+    current_user: dict = Depends(get_keepa_access_user),
+    db: Client = Depends(get_supabase),
+):
+    """Download a completed build from the persistent history archive."""
+    repo = KeepaImportBuildHistoryRepository(db)
+    row = repo.get_for_user(build_id, current_user["id"])
+    if not row:
+        raise HTTPException(status_code=404, detail="Build not found.")
+    if row.get("status") == "building":
+        raise HTTPException(status_code=409, detail="Build is still in progress.")
+    if row.get("status") == "failed":
+        raise HTTPException(
+            status_code=500,
+            detail=row.get("error") or "Build failed.",
+        )
+    file_bytes, filename = repo.get_file_bytes(build_id, current_user["id"])
+    if not file_bytes or not filename:
+        raise HTTPException(status_code=500, detail="Build file is missing.")
+
+    return StreamingResponse(
+        BytesIO(file_bytes),
+        media_type=_EXCEL_MEDIA_TYPE,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/keepa-import-export/builds/active")
 @handle_api_errors("get active keepa import build")
 async def get_active_keepa_import_build(
     current_user: dict = Depends(get_keepa_access_user),
+    db: Client = Depends(get_supabase),
 ):
     """Return the caller's most recent in-memory build so a reopened client can
     resume progress (or download a finished file) without its saved build id."""
     build = await keepa_import_build_store.get_active_for_user(current_user["id"])
-    if not build:
-        return {"build": None}
-    return {"build": build.to_status_dict()}
+    if build:
+        return {"build": build.to_status_dict()}
+
+    history_row = await asyncio.to_thread(
+        KeepaImportBuildHistoryRepository(db).get_active_for_user,
+        current_user["id"],
+    )
+    if history_row:
+        return {"build": _status_from_history(history_row)}
+    return {"build": None}
 
 
 @router.get("/keepa-import-export/builds/{build_id}/status")
@@ -213,12 +302,21 @@ async def get_active_keepa_import_build(
 async def get_keepa_import_build_status(
     build_id: str,
     current_user: dict = Depends(get_keepa_access_user),
+    db: Client = Depends(get_supabase),
 ):
     """Poll progress for an async Keepa Import File build."""
     build = await keepa_import_build_store.get_for_user(build_id, current_user["id"])
-    if not build:
-        raise HTTPException(status_code=404, detail="Build not found.")
-    return build.to_status_dict()
+    if build:
+        return build.to_status_dict()
+
+    history_row = await asyncio.to_thread(
+        KeepaImportBuildHistoryRepository(db).get_for_user,
+        build_id,
+        current_user["id"],
+    )
+    if history_row:
+        return _status_from_history(history_row)
+    raise HTTPException(status_code=404, detail="Build not found.")
 
 
 @router.post("/keepa-import-export/builds/{build_id}/cancel")
@@ -226,15 +324,28 @@ async def get_keepa_import_build_status(
 async def cancel_keepa_import_build(
     build_id: str,
     current_user: dict = Depends(get_keepa_access_user),
+    db: Client = Depends(get_supabase),
 ):
     """Stop a still-running Keepa Import File build."""
     build = await keepa_import_build_store.get_for_user(build_id, current_user["id"])
     if not build:
-        raise HTTPException(status_code=404, detail="Build not found.")
+        history_row = await asyncio.to_thread(
+            KeepaImportBuildHistoryRepository(db).get_for_user,
+            build_id,
+            current_user["id"],
+        )
+        if not history_row:
+            raise HTTPException(status_code=404, detail="Build not found.")
+        return {
+            "build_id": build_id,
+            "status": history_row.get("status", "unknown"),
+            "cancelled": False,
+        }
     cancelled = await keepa_import_build_store.cancel(build_id, current_user["id"])
     if not cancelled:
         # Already finished/failed/cancelled — surface current state, not an error.
         return {"build_id": build_id, "status": build.status, "cancelled": False}
+    await asyncio.to_thread(KeepaImportBuildHistoryRepository(db).cancel, build_id)
     return {"build_id": build_id, "status": "cancelled", "cancelled": True}
 
 
@@ -243,25 +354,46 @@ async def cancel_keepa_import_build(
 async def download_keepa_import_build(
     build_id: str,
     current_user: dict = Depends(get_keepa_access_user),
+    db: Client = Depends(get_supabase),
 ):
     """Download a completed async Keepa Import File build."""
     build = await keepa_import_build_store.get_for_user(build_id, current_user["id"])
-    if not build:
+    if build:
+        if build.status == "building":
+            raise HTTPException(status_code=409, detail="Build is still in progress.")
+        if build.status == "failed":
+            raise HTTPException(
+                status_code=500,
+                detail=build.error or "Build failed.",
+            )
+        if build.file_bytes and build.filename:
+            return StreamingResponse(
+                BytesIO(build.file_bytes),
+                media_type=_EXCEL_MEDIA_TYPE,
+                headers={
+                    "Content-Disposition": f'attachment; filename="{build.filename}"'
+                },
+            )
+
+    repo = KeepaImportBuildHistoryRepository(db)
+    row = await asyncio.to_thread(repo.get_for_user, build_id, current_user["id"])
+    if not row:
         raise HTTPException(status_code=404, detail="Build not found.")
-    if build.status == "building":
+    if row.get("status") == "building":
         raise HTTPException(status_code=409, detail="Build is still in progress.")
-    if build.status == "failed":
+    if row.get("status") == "failed":
         raise HTTPException(
             status_code=500,
-            detail=build.error or "Build failed.",
+            detail=row.get("error") or "Build failed.",
         )
-    if not build.file_bytes or not build.filename:
+    file_bytes, filename = repo.get_file_bytes(build_id, current_user["id"])
+    if not file_bytes or not filename:
         raise HTTPException(status_code=500, detail="Build file is missing.")
 
     return StreamingResponse(
-        BytesIO(build.file_bytes),
+        BytesIO(file_bytes),
         media_type=_EXCEL_MEDIA_TYPE,
-        headers={"Content-Disposition": f'attachment; filename="{build.filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -288,9 +420,22 @@ async def start_keepa_import_export_build(
     build_id = await keepa_import_build_store.create(
         current_user["id"], cat, len(upcs)
     )
+    await asyncio.to_thread(
+        KeepaImportBuildHistoryRepository(db).create,
+        build_id,
+        current_user["id"],
+        cat,
+        len(upcs),
+    )
     asyncio.create_task(
         _run_keepa_import_build(
-            build_id, cat, upcs, seller_name_map, include_header
+            build_id,
+            current_user["id"],
+            cat,
+            upcs,
+            seller_name_map,
+            include_header,
+            db,
         )
     )
     return BuildStartResponse(build_id=build_id, upc_count=len(upcs), category=cat)

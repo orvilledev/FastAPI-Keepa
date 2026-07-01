@@ -15,6 +15,34 @@ const VENDORS = [
   { code: 'cha', label: 'CHA (Chaco)' },
 ] as const
 
+function vendorLabel(code: string) {
+  return VENDORS.find((v) => v.code === code)?.label ?? code.toUpperCase()
+}
+
+function formatWhen(iso: string | null | undefined) {
+  if (!iso) return '—'
+  try {
+    return new Date(iso).toLocaleString()
+  } catch {
+    return iso
+  }
+}
+
+function statusBadgeClass(status: string) {
+  switch (status) {
+    case 'complete':
+      return 'bg-green-100 text-green-800'
+    case 'building':
+      return 'bg-blue-100 text-blue-800'
+    case 'failed':
+      return 'bg-red-100 text-red-800'
+    case 'cancelled':
+      return 'bg-gray-100 text-gray-600'
+    default:
+      return 'bg-gray-100 text-gray-700'
+  }
+}
+
 export default function KeepaImportExport() {
   const { userInfo, isSuperadmin } = useUser()
   const isAdmin = userInfo?.role === 'admin' || isSuperadmin
@@ -28,9 +56,14 @@ export default function KeepaImportExport() {
     progress,
     error: buildError,
     info: buildInfo,
+    history,
+    historyLoading,
+    historyBusyId,
     startDownload,
     cancelBuild,
     clearMessages: clearBuildMessages,
+    loadHistory,
+    downloadFromHistory,
   } = useKeepaImportBuild()
   const [cancelling, setCancelling] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -267,6 +300,98 @@ export default function KeepaImportExport() {
             <p className="text-xs text-amber-600">
               Add UPCs in Manage UPCs for this vendor before running.
             </p>
+          )}
+        </div>
+      )}
+
+      {settingsLoaded && enabled && (
+        <div className="max-w-3xl space-y-3 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Build history</h2>
+              <p className="text-xs text-gray-500">
+                Completed builds are saved here. Close the app anytime — the server keeps
+                building and your file appears when it finishes.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadHistory()}
+              disabled={historyLoading}
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              {historyLoading ? 'Refreshing…' : 'Refresh'}
+            </button>
+          </div>
+
+          {historyLoading && history.length === 0 ? (
+            <p className="text-sm text-gray-500">Loading build history…</p>
+          ) : history.length === 0 ? (
+            <p className="text-sm text-gray-500">No builds yet. Start one above.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <thead>
+                  <tr className="text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                    <th className="py-2 pr-4">Vendor</th>
+                    <th className="py-2 pr-4">Status</th>
+                    <th className="py-2 pr-4">UPCs</th>
+                    <th className="py-2 pr-4">Started</th>
+                    <th className="py-2 pr-4">Finished</th>
+                    <th className="py-2">File</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {history.map((item) => (
+                    <tr key={item.id}>
+                      <td className="py-2.5 pr-4 font-medium text-gray-900">
+                        {vendorLabel(item.category)}
+                      </td>
+                      <td className="py-2.5 pr-4">
+                        <span
+                          className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${statusBadgeClass(item.status)}`}
+                        >
+                          {item.status === 'building'
+                            ? `${item.progress_percent}%`
+                            : item.status}
+                        </span>
+                      </td>
+                      <td className="py-2.5 pr-4 text-gray-600">
+                        {item.status === 'building'
+                          ? `${item.completed_upcs.toLocaleString()} / ${item.upc_count.toLocaleString()}`
+                          : item.upc_count.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 pr-4 whitespace-nowrap text-gray-600">
+                        {formatWhen(item.created_at)}
+                      </td>
+                      <td className="py-2.5 pr-4 whitespace-nowrap text-gray-600">
+                        {formatWhen(item.completed_at)}
+                      </td>
+                      <td className="py-2.5">
+                        {item.status === 'complete' ? (
+                          <button
+                            type="button"
+                            onClick={() => void downloadFromHistory(item)}
+                            disabled={historyBusyId === item.id}
+                            className="text-xs font-semibold text-[#404040] underline-offset-2 hover:underline disabled:opacity-50"
+                          >
+                            {historyBusyId === item.id ? 'Downloading…' : 'Download'}
+                          </button>
+                        ) : item.status === 'building' ? (
+                          <span className="text-xs text-gray-500">In progress…</span>
+                        ) : item.status === 'failed' ? (
+                          <span className="text-xs text-red-600" title={item.error ?? undefined}>
+                            Failed
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
