@@ -10,6 +10,7 @@ from app.scheduler import (
     remember_input_mode,
 )
 from app.database import get_supabase
+from app.services.daily_run_completion import uploaded_daily_run_in_progress
 from app.utils.error_handler import handle_api_errors
 from datetime import datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal, InvalidOperation
@@ -1043,6 +1044,12 @@ async def rerun_uploaded_report(
     parse_status = (report.get("parse_status") or "").strip().lower()
     if parse_status != "completed":
         raise HTTPException(status_code=409, detail=f"Uploaded report is not ready yet (status: {parse_status or 'pending'}).")
+
+    if await asyncio.to_thread(uploaded_daily_run_in_progress, db, category):
+        raise HTTPException(
+            status_code=409,
+            detail=f"A {category.upper()} import run is already in progress. Please wait until it finishes.",
+        )
 
     asyncio.create_task(run_daily_job_for_category(category, forced_input_mode="uploaded"))
     return {"message": f"{category.upper()} import run queued"}

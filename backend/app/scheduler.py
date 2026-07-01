@@ -11,9 +11,12 @@ from app.database import get_supabase
 from app.repositories.upc_repository import UPCRepository
 from app.repositories.map_repository import MAPRepository
 from app.services.batch_processor import BatchProcessor
-from app.services.email_service import EmailService
-from app.services.report_service import ReportService
-from app.utils.email_recipient_utils import parse_recipient_csv
+from app.services.daily_run_completion import (
+    release_category_daily_run_lock,
+    scheduled_uploaded_run_completed_today,
+    send_daily_run_completion_email_for_job,
+    try_acquire_category_daily_run_lock,
+)
 from app.utils.notifications import create_notification, create_completion_notifications_for_all_profiles
 from typing import List, Optional
 from dataclasses import dataclass
@@ -326,6 +329,21 @@ _scheduler_configs = {
 
 async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: Optional[str] = None):
     """Execute daily batch job for a specific category (DNK or CLK)."""
+    if not await try_acquire_category_daily_run_lock(category):
+        logger.warning(
+            "%s daily run already in progress on this worker; skipping duplicate invocation",
+            category.upper(),
+        )
+        return
+
+    try:
+        await _run_daily_job_for_category_impl(category, forced_input_mode)
+    finally:
+        release_category_daily_run_lock(category)
+
+
+async def _run_daily_job_for_category_impl(category: str = 'dnk', forced_input_mode: Optional[str] = None):
+    """Inner daily run implementation (caller holds the per-category lock)."""
     try:
         from datetime import datetime
         config = _scheduler_configs.get(category, _scheduler_configs['dnk'])
@@ -337,6 +355,8 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
         processor = BatchProcessor()
         custom_recipients = None
         custom_bcc_recipients = None
+        email_subject_template = None
+        email_body_template = None
         input_mode = "api"
         normalized_forced_mode = (forced_input_mode or "").strip().lower()
         if normalized_forced_mode and normalized_forced_mode not in {"api", "uploaded"}:
@@ -351,7 +371,8 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
             category_settings_response = await _run_sync(
                 lambda: db.table("scheduler_settings")
                 .select(
-                    "email_recipients, email_bcc_recipients, input_mode, uploaded_wait_timeout_seconds"
+                    "email_recipients, email_bcc_recipients, input_mode, "
+                    "uploaded_wait_timeout_seconds, email_subject_template, email_body_template"
                 )
                 .eq("category", category)
                 .limit(1)
@@ -360,6 +381,8 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
             if category_settings_response.data:
                 custom_recipients = category_settings_response.data[0].get("email_recipients")
                 custom_bcc_recipients = category_settings_response.data[0].get("email_bcc_recipients")
+                email_subject_template = category_settings_response.data[0].get("email_subject_template")
+                email_body_template = category_settings_response.data[0].get("email_body_template")
                 raw_mode = str(category_settings_response.data[0].get("input_mode") or "").strip().lower()
                 if raw_mode in VALID_INPUT_MODES:
                     input_mode = raw_mode
@@ -407,6 +430,18 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                 category.upper(),
                 input_mode,
             )
+
+        run_date = current_time.strftime("%Y-%m-%d")
+        if input_mode == "uploaded" and not normalized_forced_mode:
+            if await _run_sync(
+                lambda: scheduled_uploaded_run_completed_today(db, category, run_date)
+            ):
+                logger.info(
+                    "Skipping scheduled %s import run — an uploaded daily job already completed on %s",
+                    category.upper(),
+                    run_date,
+                )
+                return
         
         # Get admin user ID (or system user)
         profiles_response = await _run_sync(
@@ -751,7 +786,7 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                     action_url="/jobs",
                 ))
 
-                # Generate the off-price CSV (one row per flagged UPC) and email it.
+                # Generate the off-price CSV (one row per flagged UPC) and email it once.
                 try:
                     latest_job_resp = await _run_sync(
                         lambda: db.table("batch_jobs").select("status").eq("id", str(job_id)).limit(1).execute()
@@ -768,41 +803,14 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
                             latest_job_status or "missing",
                         )
                         return
-                    report_service = ReportService(db)
-                    csv_bytes, filename, alerts_count = await _run_sync(
-                        lambda: report_service.generate_csv_for_job(
+                    await _run_sync(
+                        lambda: send_daily_run_completion_email_for_job(
+                            db,
                             job_id,
-                            job_name,
-                            map_vendor_type=category,
-                            off_price_scope="buybox_and_non_buybox_below_map",
+                            email_subject_template=email_subject_template,
+                            email_body_template=email_body_template,
                         )
                     )
-                    total_upcs = await _run_sync(lambda: report_service.get_total_upcs_for_job(job_id))
-                    recipient_csv = custom_recipients if custom_recipients and str(custom_recipients).strip() else None
-                    bcc_csv = (
-                        custom_bcc_recipients
-                        if custom_bcc_recipients and str(custom_bcc_recipients).strip()
-                        else None
-                    )
-                    to_list = parse_recipient_csv(recipient_csv)
-                    bcc_list = parse_recipient_csv(bcc_csv)
-                    if not to_list and not bcc_list:
-                        logger.info(
-                            "Daily %s uploaded run has no recipients configured; skipping email",
-                            category.upper(),
-                        )
-                    else:
-                        await _run_sync(lambda: EmailService().send_csv_report(
-                            csv_bytes=csv_bytes,
-                            filename=filename,
-                            job_name=job_name,
-                            total_upcs=total_upcs,
-                            alerts_count=alerts_count,
-                            recipient_email=recipient_csv,
-                            vendor=category,
-                            bcc_emails=bcc_list,
-                            use_default_recipients=False,
-                        ))
                 except Exception as email_err:
                     logger.warning("Uploaded daily run email/report step failed for %s: %s", category.upper(), email_err)
             else:
@@ -899,6 +907,7 @@ def setup_scheduler(
         id=job_id,
         name=f"{category.upper()} MSW Overwatch Job - {schedule_description}",
         replace_existing=True,
+        max_instances=1,
     )
 
     logger.info(f"{category.upper()} Scheduler configured to run {schedule_description}")
