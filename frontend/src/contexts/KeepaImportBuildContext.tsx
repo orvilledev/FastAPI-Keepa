@@ -38,7 +38,7 @@ type KeepaImportBuildContextValue = {
   startDownload: (category: string, upcCount: number | null) => Promise<void>
   cancelBuild: () => Promise<void>
   clearMessages: () => void
-  loadHistory: () => Promise<void>
+  loadHistory: (options?: { silent?: boolean }) => Promise<void>
   downloadFromHistory: (item: KeepaImportBuildHistoryItem) => Promise<void>
 }
 
@@ -152,15 +152,16 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
     setInfo(null)
   }, [])
 
-  const loadHistory = useCallback(async () => {
-    setHistoryLoading(true)
+  const loadHistory = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false
+    if (!silent) setHistoryLoading(true)
     try {
       const rows = await keepaImportExportApi.listBuildHistory()
       setHistory(rows)
     } catch (e) {
       console.error(e)
     } finally {
-      setHistoryLoading(false)
+      if (!silent) setHistoryLoading(false)
     }
   }, [])
 
@@ -176,7 +177,7 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
     setBuildingCategory(null)
     setBuildingUpcCount(null)
     setProgress(null)
-    void loadHistory()
+    void loadHistory({ silent: true })
   }, [loadHistory, stopPolling])
 
   const downloadFromHistory = useCallback(
@@ -214,7 +215,7 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
           phase: status.phase,
           message: status.message,
         })
-        void loadHistory()
+        void loadHistory({ silent: true })
 
         if (status.status === 'complete') {
           stopPolling()
@@ -303,7 +304,7 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
       try {
         const { build_id } = await keepaImportExportApi.startBuild(category)
         beginPolling(build_id, category, upcCount)
-        void loadHistory()
+        void loadHistory({ silent: true })
       } catch (e: unknown) {
         console.error(e)
         setInfo(null)
