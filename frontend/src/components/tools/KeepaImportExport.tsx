@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   keepaImportExportApi,
   type KeepaImportBuildHistoryItem,
@@ -85,6 +85,7 @@ export default function KeepaImportExport() {
   const isAdmin = userInfo?.role === 'admin' || isSuperadmin
 
   const [category, setCategory] = useState<string>('dnk')
+  const userPickedVendorRef = useRef(false)
   const [upcCount, setUpcCount] = useState<number | null>(null)
   const [countLoading, setCountLoading] = useState(false)
   const {
@@ -165,6 +166,26 @@ export default function KeepaImportExport() {
   useEffect(() => {
     void loadCount(category)
   }, [category, loadCount])
+
+  // Default vendor dropdown to the active build on page open; otherwise stay on DNK.
+  useEffect(() => {
+    if (userPickedVendorRef.current) return
+
+    if (buildingCategory) {
+      setCategory(buildingCategory)
+      return
+    }
+
+    if (globalBusy?.busy && globalBusy.category) {
+      setCategory(globalBusy.category.toLowerCase())
+      return
+    }
+
+    const buildingRow = history.find((item) => item.status === 'building')
+    if (buildingRow?.category) {
+      setCategory(buildingRow.category.toLowerCase())
+    }
+  }, [buildingCategory, globalBusy, history])
 
   const loadSchedulerSettings = useCallback(async (cat: string) => {
     try {
@@ -454,7 +475,10 @@ export default function KeepaImportExport() {
                 <select
                   id="vendor"
                   value={category}
-                  onChange={(e) => setCategory(e.target.value)}
+                  onChange={(e) => {
+                    userPickedVendorRef.current = true
+                    setCategory(e.target.value)
+                  }}
                   className="mt-1 block w-full max-w-md rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
                 >
                   {VENDORS.map(({ code, label }) => (
