@@ -38,13 +38,14 @@ type KeepaImportBuildContextValue = {
   startDownload: (category: string, upcCount: number | null) => Promise<void>
   cancelBuild: () => Promise<void>
   clearMessages: () => void
-  loadHistory: (options?: { silent?: boolean }) => Promise<void>
+  loadHistory: (options?: { silent?: boolean }) => Promise<KeepaImportBuildHistoryItem[] | null>
   downloadFromHistory: (item: KeepaImportBuildHistoryItem) => Promise<void>
 }
 
 const KeepaImportBuildContext = createContext<KeepaImportBuildContextValue | null>(null)
 
 const POLL_MS = 2000
+const HISTORY_POLL_MS = 2000
 const STORAGE_KEY = 'keepaImportBuild'
 
 type PersistedBuild = {
@@ -123,8 +124,14 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
   const [history, setHistory] = useState<KeepaImportBuildHistoryItem[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyBusyId, setHistoryBusyId] = useState<string | null>(null)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollRef = useRef<ReturnType<typeof window.setInterval> | null>(null)
+  const historyPollRef = useRef<ReturnType<typeof window.setInterval> | null>(null)
   const buildIdRef = useRef<string | null>(null)
+  const buildingCategoryRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    buildingCategoryRef.current = buildingCategory
+  }, [buildingCategory])
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -133,9 +140,19 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
     }
   }, [])
 
+  const stopHistoryPolling = useCallback(() => {
+    if (historyPollRef.current) {
+      clearInterval(historyPollRef.current)
+      historyPollRef.current = null
+    }
+  }, [])
+
   useEffect(() => {
-    return () => stopPolling()
-  }, [stopPolling])
+    return () => {
+      stopPolling()
+      stopHistoryPolling()
+    }
+  }, [stopPolling, stopHistoryPolling])
 
   useEffect(() => {
     if (!building) return
@@ -152,18 +169,35 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
     setInfo(null)
   }, [])
 
+  const syncProgressFromHistory = useCallback((rows: KeepaImportBuildHistoryItem[]) => {
+    const buildId = buildIdRef.current
+    if (!buildId) return
+    const row = rows.find((item) => item.id === buildId && item.status === 'building')
+    if (!row) return
+    setProgress({
+      percent: row.progress_percent,
+      completed: row.completed_upcs,
+      total: row.upc_count,
+      phase: row.phase ?? '',
+      message: row.message ?? '',
+    })
+  }, [])
+
   const loadHistory = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false
     if (!silent) setHistoryLoading(true)
     try {
       const rows = await keepaImportExportApi.listBuildHistory()
       setHistory(rows)
+      syncProgressFromHistory(rows)
+      return rows
     } catch (e) {
       console.error(e)
+      return null
     } finally {
       if (!silent) setHistoryLoading(false)
     }
-  }, [])
+  }, [syncProgressFromHistory])
 
   useEffect(() => {
     void loadHistory()
@@ -171,14 +205,16 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
 
   const finishBuild = useCallback(async () => {
     stopPolling()
+    stopHistoryPolling()
     buildIdRef.current = null
+    buildingCategoryRef.current = null
     clearPersisted()
     setBuilding(false)
     setBuildingCategory(null)
     setBuildingUpcCount(null)
     setProgress(null)
     await loadHistory({ silent: true })
-  }, [loadHistory, stopPolling])
+  }, [loadHistory, stopHistoryPolling, stopPolling])
 
   const downloadFromHistory = useCallback(
     async (item: KeepaImportBuildHistoryItem) => {
@@ -215,10 +251,15 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
           phase: status.phase,
           message: status.message,
         })
+
+        if (status.status === 'building') {
+          return
+        }
+
+        stopPolling()
         void loadHistory({ silent: true })
 
         if (status.status === 'complete') {
-          stopPolling()
           try {
             const filename = await triggerFileDownload(
               buildId,
@@ -274,17 +315,109 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
     (buildId: string, category: string, upcCount: number | null) => {
       stopPolling()
       buildIdRef.current = buildId
+      buildingCategoryRef.current = category
       savePersisted({ buildId, category, upcCount })
       setBuilding(true)
       setBuildingCategory(category)
       setBuildingUpcCount(upcCount)
       void pollBuild(buildId, category)
-      pollRef.current = setInterval(() => {
-        void pollBuild(buildId, category)
+      pollRef.current = window.setInterval(() => {
+        const id = buildIdRef.current
+        const cat = buildingCategoryRef.current
+        if (id && cat) {
+          void pollBuild(id, cat)
+        }
       }, POLL_MS)
     },
     [pollBuild, stopPolling],
   )
+
+  const startHistoryPolling = useCallback(() => {
+    if (historyPollRef.current) return
+    const tick = () => {
+      void loadHistory({ silent: true })
+      const id = buildIdRef.current
+      const cat = buildingCategoryRef.current
+      if (id && cat && !pollRef.current) {
+        void pollBuild(id, cat)
+      }
+    }
+    void tick()
+    historyPollRef.current = window.setInterval(tick, HISTORY_POLL_MS)
+  }, [loadHistory, pollBuild])
+
+  const refreshLiveProgress = useCallback(() => {
+    const id = buildIdRef.current
+    const cat = buildingCategoryRef.current
+    void loadHistory({ silent: true })
+    if (id && cat) {
+      void pollBuild(id, cat)
+    }
+  }, [loadHistory, pollBuild])
+
+  // Keep build history percentages fresh for everyone while any build is running.
+  useEffect(() => {
+    let active = true
+
+    const ensureHistoryPolling = async () => {
+      try {
+        const busy = await keepaImportExportApi.getGlobalBuildBusy()
+        if (!active) return
+        if (busy.busy || building) {
+          startHistoryPolling()
+          return
+        }
+        stopHistoryPolling()
+      } catch {
+        if (building) {
+          startHistoryPolling()
+        }
+      }
+    }
+
+    void ensureHistoryPolling()
+    const id = window.setInterval(() => void ensureHistoryPolling(), HISTORY_POLL_MS)
+    return () => {
+      active = false
+      window.clearInterval(id)
+    }
+  }, [building, startHistoryPolling, stopHistoryPolling])
+
+  // Restart status polling if the interval was lost while a build is still active.
+  useEffect(() => {
+    if (!building || !buildIdRef.current || !buildingCategoryRef.current) return
+
+    const watchdog = window.setInterval(() => {
+      if (!building || !buildIdRef.current || !buildingCategoryRef.current) return
+      if (pollRef.current) return
+      const id = buildIdRef.current
+      const cat = buildingCategoryRef.current
+      void pollBuild(id, cat)
+      pollRef.current = window.setInterval(() => {
+        const currentId = buildIdRef.current
+        const currentCat = buildingCategoryRef.current
+        if (currentId && currentCat) {
+          void pollBuild(currentId, currentCat)
+        }
+      }, POLL_MS)
+    }, 3000)
+
+    return () => window.clearInterval(watchdog)
+  }, [building, pollBuild])
+
+  // Catch up immediately when the window regains focus.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      refreshLiveProgress()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [refreshLiveProgress])
 
   const startDownload = useCallback(
     async (category: string, upcCount: number | null) => {

@@ -53,6 +53,7 @@ from app.services.keepa_import_build_runner import (
 from app.services.keepa_import_build_store import keepa_import_build_store
 from app.services.keepa_import_export import generate_keepa_import_file, parse_keepa_import_workbook
 from app.utils.error_handler import handle_api_errors
+from app.utils.user_display_name import format_stored_creator_name, profile_display_name
 
 logger = logging.getLogger(__name__)
 
@@ -139,12 +140,30 @@ def _require_enabled(db: Client) -> None:
 
 
 def _history_summary_from_row(row: dict) -> KeepaImportBuildHistorySummary:
-    return KeepaImportBuildHistorySummary(**row)
+    data = dict(row)
+    if data.get("created_by_name"):
+        data["created_by_name"] = format_stored_creator_name(data["created_by_name"])
+    return KeepaImportBuildHistorySummary(**data)
+
+
+async def _merge_live_build_row(row: dict) -> dict:
+    """Overlay in-memory progress onto a building history row when the worker is live."""
+    if row.get("status") != "building":
+        return row
+    live = await keepa_import_build_store.get_by_id(str(row["id"]))
+    if not live:
+        return row
+    merged = dict(row)
+    merged["progress_percent"] = live.progress_percent
+    merged["completed_upcs"] = live.completed
+    merged["phase"] = live.phase
+    merged["message"] = live.message
+    return merged
 
 
 def _keepa_build_creator_name(current_user: dict, db: Client) -> str | None:
     """Return a stable display name snapshot for the user starting a build."""
-    profile = {}
+    profile: dict = {}
     try:
         response = (
             db.table("profiles")
@@ -158,20 +177,7 @@ def _keepa_build_creator_name(current_user: dict, db: Client) -> str | None:
     except Exception as exc:
         logger.warning("Could not load keepa build creator profile: %s", exc)
 
-    metadata = current_user.get("user_metadata") or {}
-    candidates = [
-        profile.get("display_name"),
-        profile.get("full_name"),
-        metadata.get("display_name"),
-        metadata.get("full_name"),
-        metadata.get("name"),
-        profile.get("email"),
-        current_user.get("email"),
-    ]
-    for value in candidates:
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return None
+    return profile_display_name(profile, current_user)
 
 
 def _streaming_excel_response(file_bytes: bytes, filename: str) -> StreamingResponse:
@@ -451,13 +457,17 @@ def get_keepa_import_export_count(
 
 @router.get("/keepa-import-export/builds/history")
 @handle_api_errors("list keepa import build history")
-def list_keepa_import_build_history(
+async def list_keepa_import_build_history(
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase),
 ):
     """Return all Keepa Import File builds (newest first), visible to every user."""
-    rows = KeepaImportBuildHistoryRepository(db).list_all()
-    return [_history_summary_from_row(row) for row in rows]
+    rows = await asyncio.to_thread(KeepaImportBuildHistoryRepository(db).list_all)
+    summaries: list[KeepaImportBuildHistorySummary] = []
+    for row in rows:
+        merged = await _merge_live_build_row(row)
+        summaries.append(_history_summary_from_row(merged))
+    return summaries
 
 
 @router.get(
@@ -477,7 +487,7 @@ async def get_keepa_import_global_busy(
         busy=True,
         build_id=active.build_id,
         category=active.category,
-        created_by_name=active.created_by_name,
+        created_by_name=format_stored_creator_name(active.created_by_name),
         progress_percent=active.progress_percent,
         message=global_busy_detail(active),
     )
@@ -580,14 +590,13 @@ async def get_keepa_import_build_status(
     db: Client = Depends(get_supabase),
 ):
     """Poll progress for an async Keepa Import File build."""
-    build = await keepa_import_build_store.get_for_user(build_id, current_user["id"])
+    build = await keepa_import_build_store.get_by_id(build_id)
     if build:
         return build.to_status_dict()
 
     history_row = await asyncio.to_thread(
-        KeepaImportBuildHistoryRepository(db).get_for_user,
+        KeepaImportBuildHistoryRepository(db).get_by_id,
         build_id,
-        current_user["id"],
     )
     if history_row:
         return _status_from_history(history_row)

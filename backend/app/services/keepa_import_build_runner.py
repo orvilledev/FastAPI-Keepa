@@ -23,6 +23,7 @@ from app.services.keepa_import_export import (
     generate_keepa_import_file,
 )
 from app.utils.email_recipient_utils import parse_recipient_csv
+from app.utils.user_display_name import format_stored_creator_name
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,8 @@ class GlobalActiveBuildInfo:
 def global_busy_detail(info: GlobalActiveBuildInfo) -> str:
     """User-facing message when another Keepa Import build is in progress."""
     vendor = info.category.upper()
-    who = f" (started by {info.created_by_name})" if info.created_by_name else ""
+    who_name = format_stored_creator_name(info.created_by_name)
+    who = f" (started by {who_name})" if who_name else ""
     progress = (
         f" · {info.progress_percent}% complete"
         if info.progress_percent and info.progress_percent > 0

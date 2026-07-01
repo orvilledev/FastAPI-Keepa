@@ -30,6 +30,7 @@ from app.services.tracking_scanner import (
     rows_to_csv_bytes,
 )
 from app.utils.error_handler import handle_api_errors
+from app.utils.user_display_name import format_stored_creator_name, profile_display_name
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +154,7 @@ def _history_summary_from_row(row: dict) -> TrackingHistorySummary:
     return TrackingHistorySummary(
         id=row["id"],
         user_id=row["user_id"],
-        created_by_name=row.get("created_by_name"),
+        created_by_name=format_stored_creator_name(row.get("created_by_name")),
         name=row.get("name"),
         source_count=row.get("source_count", 0),
         file_count=row.get("file_count", 0),
@@ -167,7 +168,7 @@ def _history_summary_from_row(row: dict) -> TrackingHistorySummary:
 
 def _tracking_history_creator_name(current_user: dict, db: Client) -> str | None:
     """Return a stable display name snapshot for the user saving this scan."""
-    profile = {}
+    profile: dict = {}
     try:
         response = (
             db.table("profiles")
@@ -181,20 +182,7 @@ def _tracking_history_creator_name(current_user: dict, db: Client) -> str | None
     except Exception as exc:  # pragma: no cover - history metadata should not block saves
         logger.warning("Could not load tracking history creator profile: %s", exc)
 
-    metadata = current_user.get("user_metadata") or {}
-    candidates = [
-        profile.get("display_name"),
-        profile.get("full_name"),
-        metadata.get("display_name"),
-        metadata.get("full_name"),
-        metadata.get("name"),
-        profile.get("email"),
-        current_user.get("email"),
-    ]
-    for value in candidates:
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return None
+    return profile_display_name(profile, current_user)
 
 
 @router.get("/tracking-scanner/history", response_model=List[TrackingHistorySummary])
@@ -232,7 +220,7 @@ def get_tracking_history(
     return TrackingHistoryDetail(
         id=row["id"],
         user_id=row["user_id"],
-        created_by_name=row.get("created_by_name"),
+        created_by_name=format_stored_creator_name(row.get("created_by_name")),
         name=row.get("name"),
         source_count=row.get("source_count", 0),
         file_count=row.get("file_count", 0),
