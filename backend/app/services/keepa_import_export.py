@@ -431,7 +431,9 @@ async def generate_keepa_import_file(
         enrich_total=0,
         phase_completed=1,
     )
-    return build_workbook_bytes(upcs, fields_by_upc, include_header=include_header)
+    return await asyncio.to_thread(
+        build_workbook_bytes, upcs, fields_by_upc, include_header
+    )
 
 
 # 1-based Excel columns written by ``build_workbook_bytes``.

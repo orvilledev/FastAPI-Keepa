@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Optional
 
 from supabase import Client
@@ -113,6 +113,24 @@ class KeepaImportBuildHistoryRepository:
             self._db.table(_TABLE).update(patch).eq("id", build_id).eq("status", "building").execute()
         except Exception as exc:
             logger.warning("Could not update keepa import build progress: %s", exc)
+
+    def list_stale_building(self, *, older_than_minutes: int = 30) -> list[dict]:
+        """Building rows with no updates for a while (likely orphaned after deploy)."""
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(minutes=max(older_than_minutes, 1))
+        ).isoformat()
+        try:
+            resp = (
+                self._db.table(_TABLE)
+                .select("id,updated_at,category,progress_percent,created_by_name")
+                .eq("status", "building")
+                .lt("updated_at", cutoff)
+                .execute()
+            )
+            return list(resp.data or [])
+        except Exception as exc:
+            logger.warning("Could not list stale keepa import builds: %s", exc)
+            return []
 
     def complete(self, build_id: str, filename: str, file_bytes: bytes) -> None:
         _last_progress_write.pop(build_id, None)

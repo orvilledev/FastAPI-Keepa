@@ -197,6 +197,14 @@ async def startup_event():
         setup_scheduler(category='cha')  # Use CHA defaults
     start_scheduler()
     try:
+        from app.services.keepa_import_build_runner import reconcile_stale_keepa_import_builds
+
+        reconciled = await reconcile_stale_keepa_import_builds(get_supabase())
+        if reconciled:
+            logger.info("Reconciled %d orphaned Keepa Import build(s) on startup", reconciled)
+    except Exception as e:
+        logger.warning("Failed to reconcile stale Keepa Import builds: %s", e)
+    try:
         from app.keepa_import_scheduler import load_all_keepa_import_schedulers_from_db
 
         load_all_keepa_import_schedulers_from_db(get_supabase())

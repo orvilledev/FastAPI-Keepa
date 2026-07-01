@@ -28,6 +28,31 @@ logger = logging.getLogger(__name__)
 
 VALID_CATEGORIES = frozenset({"dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha"})
 
+# Orphaned DB rows older than this are failed on startup (deploy killed the worker).
+_STALE_BUILD_MINUTES = 30
+
+_last_persisted_phase: dict[str, str] = {}
+_last_persisted_percent: dict[str, int] = {}
+
+
+def _should_force_progress_persist(build_id: str, phase: str, progress_percent: int) -> bool:
+    """Bypass DB throttle on phase changes and any forward progress jump."""
+    if _last_persisted_phase.get(build_id) != phase:
+        return True
+    if phase == "excel":
+        return True
+    return progress_percent > _last_persisted_percent.get(build_id, 0)
+
+
+def _record_persisted_progress(build_id: str, phase: str, progress_percent: int) -> None:
+    _last_persisted_phase[build_id] = phase
+    _last_persisted_percent[build_id] = progress_percent
+
+
+def _clear_persisted_progress(build_id: str) -> None:
+    _last_persisted_phase.pop(build_id, None)
+    _last_persisted_percent.pop(build_id, None)
+
 
 @dataclass
 class KeepaImportEmailNotify:
@@ -130,6 +155,45 @@ async def is_global_build_active(db: Client) -> bool:
     return (await get_global_active_build(db)) is not None
 
 
+async def reconcile_stale_keepa_import_builds(
+    db: Client,
+    *,
+    older_than_minutes: int = _STALE_BUILD_MINUTES,
+) -> int:
+    """Fail orphaned history rows left 'building' after a server restart.
+
+    Skips the build that is still running in memory on this process.
+    """
+    repo = KeepaImportBuildHistoryRepository(db)
+    in_memory = await keepa_import_build_store.get_any_active_build()
+    active_id = in_memory.build_id if in_memory else None
+
+    stale_rows = await asyncio.to_thread(
+        repo.list_stale_building, older_than_minutes=older_than_minutes
+    )
+    reconciled = 0
+    for row in stale_rows:
+        build_id = str(row.get("id") or "")
+        if not build_id or build_id == active_id:
+            continue
+        logger.warning(
+            "Reconciling stale Keepa Import build %s (%s, %s%%)",
+            build_id,
+            row.get("category"),
+            row.get("progress_percent"),
+        )
+        await asyncio.to_thread(
+            repo.fail,
+            build_id,
+            "Build interrupted when the server restarted. Please start a new build.",
+        )
+        _clear_persisted_progress(build_id)
+        reconciled += 1
+    if reconciled:
+        logger.info("Reconciled %d stale Keepa Import build(s)", reconciled)
+    return reconciled
+
+
 async def _send_completion_email(
     file_bytes: bytes,
     filename: str,
@@ -204,6 +268,9 @@ async def run_keepa_import_build(
             return
         build = await keepa_import_build_store.get_by_id(build_id)
         if build and build.status == "building":
+            force = _should_force_progress_persist(
+                build_id, build.phase, build.progress_percent
+            )
             await asyncio.to_thread(
                 history.update_progress,
                 build_id,
@@ -211,7 +278,12 @@ async def run_keepa_import_build(
                 completed_upcs=build.completed,
                 progress_percent=build.progress_percent,
                 message=build.message,
+                force=force,
             )
+            if force:
+                _record_persisted_progress(
+                    build_id, build.phase, build.progress_percent
+                )
 
     def should_cancel() -> bool:
         return keepa_import_build_store.is_cancelled(build_id)
@@ -225,6 +297,25 @@ async def run_keepa_import_build(
             should_cancel=should_cancel,
         )
         filename = f"{cat.upper()}_Keepa_{datetime.now().strftime('%m.%d.%y')}.xlsx"
+        await keepa_import_build_store.update_progress(
+            build_id,
+            phase="excel",
+            message="Saving file to archive…",
+        )
+        build = await keepa_import_build_store.get_by_id(build_id)
+        if build and build.status == "building":
+            await asyncio.to_thread(
+                history.update_progress,
+                build_id,
+                phase=build.phase,
+                completed_upcs=build.completed,
+                progress_percent=build.progress_percent,
+                message=build.message,
+                force=True,
+            )
+            _record_persisted_progress(
+                build_id, build.phase, build.progress_percent
+            )
         await keepa_import_build_store.complete(build_id, file_bytes, filename)
         await asyncio.to_thread(history.complete, build_id, filename, file_bytes)
         if email_notify:
@@ -238,6 +329,8 @@ async def run_keepa_import_build(
         logger.exception("Keepa Import File build %s failed", build_id)
         await keepa_import_build_store.fail(build_id, str(exc))
         await asyncio.to_thread(history.fail, build_id, str(exc))
+    finally:
+        _clear_persisted_progress(build_id)
 
 
 async def launch_keepa_import_build(

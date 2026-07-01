@@ -145,7 +145,7 @@ class KeepaImportBuildStore:
                 build.phase, pct_completed, build.total, enrich
             )
             if build.phase == "excel":
-                build.progress_percent = new_percent
+                build.progress_percent = max(build.progress_percent, new_percent)
             else:
                 build.progress_percent = max(build.progress_percent, new_percent)
 
