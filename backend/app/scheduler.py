@@ -18,7 +18,7 @@ from app.services.daily_run_completion import (
     try_acquire_category_daily_run_lock,
 )
 from app.utils.notifications import create_notification, create_completion_notifications_for_all_profiles
-from typing import List, Optional
+from typing import Any, List, Optional
 from dataclasses import dataclass
 from datetime import datetime
 import hashlib
@@ -111,6 +111,41 @@ def _build_synthetic_uploaded_offer(entry: dict) -> dict:
             "amazon_link": amazon_link,
         }]
     }
+
+
+def find_uploaded_off_price_match(
+    entry: dict,
+    map_price: Any,
+) -> Optional[tuple[dict, float]]:
+    """Return the first uploaded candidate priced below MAP (import-mode rules)."""
+    if map_price is None:
+        return None
+    try:
+        map_f = float(map_price)
+    except (TypeError, ValueError):
+        return None
+    if map_f <= 0:
+        return None
+
+    candidates = entry.get("uploaded_candidates")
+    if not isinstance(candidates, list) or not candidates:
+        candidates = [entry]
+
+    for cand in candidates:
+        if not isinstance(cand, dict):
+            continue
+        uploaded_value = cand.get("uploaded_price")
+        try:
+            uploaded_f = float(uploaded_value) if uploaded_value is not None else None
+        except (TypeError, ValueError):
+            uploaded_f = None
+        if uploaded_f is None or uploaded_f <= 0:
+            continue
+        if uploaded_f >= map_f:
+            continue
+        merged = {**entry, **cand}
+        return merged, map_f
+    return None
 
 
 def _normalize_uploaded_payload(payload: List[dict]) -> List[dict]:
@@ -650,48 +685,26 @@ async def _run_daily_job_for_category_impl(category: str = 'dnk', forced_input_m
                 now_iso = datetime.utcnow().isoformat()
                 for upc, entry in upc_to_entry.items():
                     map_price = map_prices.get(upc)
-                    if map_price is None:
-                        keepa_by_upc[upc] = _build_synthetic_uploaded_offer(entry)
-                        continue
-                    try:
-                        map_f = float(map_price)
-                    except (TypeError, ValueError):
-                        keepa_by_upc[upc] = _build_synthetic_uploaded_offer(entry)
-                        continue
-                    if map_f <= 0:
-                        keepa_by_upc[upc] = _build_synthetic_uploaded_offer(entry)
-                        continue
+                    match = find_uploaded_off_price_match(entry, map_price)
 
                     candidates = entry.get("uploaded_candidates")
                     if not isinstance(candidates, list) or not candidates:
                         candidates = [entry]
 
-                    selected_entry = None
-                    selected_price = None
-                    for cand in candidates:
-                        if not isinstance(cand, dict):
-                            continue
-                        uploaded_value = cand.get("uploaded_price")
-                        try:
-                            uploaded_f = float(uploaded_value) if uploaded_value is not None else None
-                        except (TypeError, ValueError):
-                            uploaded_f = None
-                        if uploaded_f is None or uploaded_f <= 0:
-                            continue
-                        if uploaded_f >= map_f:
-                            continue
-                        selected_entry = cand
-                        selected_price = uploaded_f
-                        break
-
                     # Keep first candidate for traceability in batch item Keepa payload even
                     # when no off-price candidate is found.
-                    keepa_source = selected_entry or (candidates[0] if candidates else entry)
+                    keepa_source = (
+                        match[0]
+                        if match
+                        else (candidates[0] if candidates else entry)
+                    )
                     keepa_data = _build_synthetic_uploaded_offer(keepa_source)
                     keepa_by_upc[upc] = keepa_data
-                    if selected_entry is None or selected_price is None:
+                    if not match:
                         continue
 
+                    selected_entry, map_f = match
+                    selected_price = float(selected_entry.get("uploaded_price"))
                     price_change_percent = ((selected_price - map_f) / map_f) * 100 if map_f else 0.0
                     seller_display = str(selected_entry.get("uploaded_seller") or "").strip() or "Uploaded Report"
                     alert_rows.append({

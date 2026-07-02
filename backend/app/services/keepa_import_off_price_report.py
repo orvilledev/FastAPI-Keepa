@@ -15,13 +15,20 @@ from app.repositories.keepa_import_build_history_repository import (
 from app.repositories.map_repository import MAPRepository
 from app.repositories.seller_name_repository import SellerNameRepository
 from app.repositories.upc_repository import UPCRepository
-from app.scheduler import _build_synthetic_uploaded_offer, _normalize_price
+from app.scheduler import (
+    _build_synthetic_uploaded_offer,
+    _normalize_price,
+    find_uploaded_off_price_match,
+)
 from app.services.csv_generator import CSVGenerator
 from app.services.email_service import EmailService
 from app.services.keepa_import_export import parse_all_keepa_import_workbook
 from app.utils.email_recipient_utils import parse_recipient_csv
 
 logger = logging.getLogger(__name__)
+
+# Match daily import uploaded-mode jobs: direct column-H price vs MAP, not buy-box stats.
+UPLOADED_OFF_PRICE_SCOPE = "buybox_and_non_buybox_below_map"
 
 
 def _parse_workbook_row(row: dict[str, str]) -> Optional[dict[str, Any]]:
@@ -74,17 +81,23 @@ def generate_off_price_report_bytes(
         for upc, price in map_prices.items()
         if price is not None
     }
-    processed_items = [
-        {"upc": upc, "keepa_data": _build_synthetic_uploaded_offer(entry)}
-        for upc, entry in upc_to_entry.items()
-    ]
+    processed_items = []
+    for upc, entry in upc_to_entry.items():
+        match = find_uploaded_off_price_match(entry, map_prices.get(upc))
+        if not match:
+            continue
+        selected_entry, _map_f = match
+        processed_items.append({
+            "upc": upc,
+            "keepa_data": _build_synthetic_uploaded_offer(selected_entry),
+        })
     seller_name_map = SellerNameRepository(db).get_seller_name_map()
     csv_bytes, off_price_count = CSVGenerator.generate_comprehensive_report_csv(
         processed_items=processed_items,
         map_prices_by_upc=map_decimals,
         seller_name_map=seller_name_map,
         excluded_seller_substrings=settings.report_excluded_seller_pattern_list,
-        off_price_scope="buybox_only",
+        off_price_scope=UPLOADED_OFF_PRICE_SCOPE,
     )
     return csv_bytes, len(upc_scope), off_price_count
 
