@@ -76,9 +76,9 @@ function globalBusyMessage(
   const who = status.created_by_name?.trim() ? ` (started by ${status.created_by_name.trim()})` : ''
   const pct =
     status.progress_percent && status.progress_percent > 0
-      ? ` · ${status.progress_percent}% complete`
+      ? ` · ${status.progress_percent}%`
       : ''
-  return `Cannot download at the moment — the app is busy building a Keepa file for ${vendor}${who}${pct}. Please wait until it finishes.`
+  return `A build is already running for ${vendor}${who}${pct}. Wait for it to finish.`
 }
 
 function normalizeRecipientString(raw?: string | null) {
@@ -90,21 +90,54 @@ function normalizeRecipientString(raw?: string | null) {
     .join(', ')
 }
 
-function offPriceScheduleLabel(settings: KeepaImportSchedulerSettings) {
-  const mode = settings.off_price_run_mode || 'daily'
-  const days = settings.off_price_custom_days || []
+function scheduleSummary(
+  settings: KeepaImportSchedulerSettings,
+  prefix: '' | 'off_price_' = '',
+) {
+  const mode = settings[`${prefix}run_mode` as keyof KeepaImportSchedulerSettings] as string || 'daily'
+  const days = (settings[`${prefix}custom_days` as keyof KeepaImportSchedulerSettings] as string[]) || []
   const frequency =
     mode === 'every_other_day'
       ? 'Every other day'
-      : mode === 'custom_days'
-        ? days.length
-          ? `Custom days (${days.join(', ')})`
-          : 'Custom days'
+      : mode === 'custom_days' && days.length
+        ? days.join(', ')
         : 'Daily'
-  const hour = settings.off_price_hour ?? 7
-  const minute = settings.off_price_minute ?? 0
-  const tz = settings.off_price_timezone || 'America/Chicago'
-  return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} ${tz} — ${frequency}`
+  const hour = (settings[`${prefix}hour` as keyof KeepaImportSchedulerSettings] as number) ?? (prefix ? 7 : 6)
+  const minute = (settings[`${prefix}minute` as keyof KeepaImportSchedulerSettings] as number) ?? 0
+  const tz = (settings[`${prefix}timezone` as keyof KeepaImportSchedulerSettings] as string) || 'America/Chicago'
+  return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} ${tz} · ${frequency}`
+}
+
+function ToggleSwitch({
+  checked,
+  disabled,
+  onChange,
+  label,
+}: {
+  checked: boolean
+  disabled?: boolean
+  onChange: () => void
+  label: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      disabled={disabled}
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+        checked ? 'bg-[#81B81D]' : 'bg-gray-300'
+      }`}
+    >
+      <span
+        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+          checked ? 'translate-x-5' : 'translate-x-0.5'
+        }`}
+      />
+    </button>
+  )
 }
 
 export default function KeepaImportExport() {
@@ -212,7 +245,6 @@ export default function KeepaImportExport() {
     void loadCount(category)
   }, [category, loadCount])
 
-  // Default vendor dropdown to the active build on page open; otherwise stay on DNK.
   useEffect(() => {
     if (userPickedVendorRef.current) return
 
@@ -357,10 +389,10 @@ export default function KeepaImportExport() {
       await loadNextRun(category)
       await loadOffPriceNextRun(category)
       setShowSettingsModal(false)
-      setInfo('Keepa Import schedule saved.')
+      setInfo('Settings saved.')
     } catch (e) {
       console.error(e)
-      setError(extractDetail(e, 'Could not save scheduler settings.'))
+      setError(extractDetail(e, 'Could not save settings.'))
     } finally {
       setSavingSettings(false)
     }
@@ -375,10 +407,10 @@ export default function KeepaImportExport() {
         off_price_email_bcc_recipients: offPriceBccRecipients.trim() || null,
       })
       await loadSchedulerSettings(category)
-      setInfo(`Off-price email recipients saved for ${vendorUpper}.`)
+      setInfo(`Recipients saved for ${vendorUpper}.`)
     } catch (e) {
       console.error(e)
-      setError(extractDetail(e, 'Could not save off-price recipients.'))
+      setError(extractDetail(e, 'Could not save recipients.'))
     } finally {
       setSavingOffPriceRecipients(false)
     }
@@ -394,14 +426,9 @@ export default function KeepaImportExport() {
         off_price_send_after_build: next,
       })
       await loadSchedulerSettings(category)
-      setInfo(
-        next
-          ? `Off-price reports will email after each successful ${vendorUpper} build.`
-          : `Off-price reports will no longer email automatically after ${vendorUpper} builds.`,
-      )
     } catch (e) {
       console.error(e)
-      setError(extractDetail(e, 'Could not update send-after-build setting.'))
+      setError(extractDetail(e, 'Could not update setting.'))
     } finally {
       setTogglingSendAfterBuild(false)
     }
@@ -416,10 +443,9 @@ export default function KeepaImportExport() {
       await keepaImportExportApi.updateSchedulerSettings(category, { enabled: next })
       await loadSchedulerSettings(category)
       await loadNextRun(category)
-      setInfo(next ? 'Scheduled Keepa Import builds enabled.' : 'Scheduled Keepa Import builds stopped.')
     } catch (e) {
       console.error(e)
-      setError(extractDetail(e, 'Could not update the schedule.'))
+      setError(extractDetail(e, 'Could not update schedule.'))
     } finally {
       setTogglingSchedule(false)
     }
@@ -434,14 +460,9 @@ export default function KeepaImportExport() {
       await keepaImportExportApi.updateSchedulerSettings(category, { off_price_enabled: next })
       await loadSchedulerSettings(category)
       await loadOffPriceNextRun(category)
-      setInfo(
-        next
-          ? 'Scheduled off-price MAP reports enabled.'
-          : 'Scheduled off-price MAP reports stopped.',
-      )
     } catch (e) {
       console.error(e)
-      setError(extractDetail(e, 'Could not update the off-price schedule.'))
+      setError(extractDetail(e, 'Could not update schedule.'))
     } finally {
       setTogglingOffPriceSchedule(false)
     }
@@ -486,364 +507,237 @@ export default function KeepaImportExport() {
     downloading && buildingCategory
       ? VENDORS.find((v) => v.code === buildingCategory)?.label ?? buildingCategory.toUpperCase()
       : null
-
   const showProgress =
     downloading && progress && (!buildingCategory || buildingCategory === category)
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+    <div className="mx-auto max-w-4xl space-y-5">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Keepa Import File</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Pull live Keepa data for a vendor&apos;s Manage UPCs. Download a Keepa-format Excel file
-            for Daily Runs &rarr; Import Mode.
+          <p className="mt-0.5 text-sm text-gray-500">
+            Build Keepa Excel files from Manage UPCs for Daily Run import mode.
           </p>
         </div>
-        {settingsLoaded && enabled && (
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={handleToggleSchedule}
-              disabled={togglingSchedule || !schedulerSettings}
-              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50 ${
-                schedulerSettings?.enabled
-                  ? 'bg-red-600 text-white hover:bg-red-700'
-                  : 'bg-green-600 text-white hover:bg-green-700'
-              }`}
-            >
-              {togglingSchedule
-                ? 'Updating…'
-                : schedulerSettings?.enabled
-                  ? 'Stop scheduled builds'
-                  : 'Start scheduled builds'}
-            </button>
-            <button
-              type="button"
-              onClick={openBuildSettingsModal}
-              disabled={!schedulerSettings}
-              className="px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors text-sm font-medium flex items-center gap-2 disabled:opacity-50"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              Build schedule
-            </button>
-          </div>
+        {isAdmin && settingsLoaded && (
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            <span>Tool {enabled ? 'on' : 'off'}</span>
+            <ToggleSwitch
+              checked={enabled}
+              disabled={togglingFlag}
+              onChange={() => void handleToggle()}
+              label="Tool availability"
+            />
+          </label>
         )}
       </header>
 
       {displayError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {displayError}
         </div>
       )}
       {displayInfo && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
           {displayInfo}
         </div>
       )}
       {blockedByOtherBuild && globalBusy && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {globalBusyMessage(globalBusy)}
-        </div>
-      )}
-
-      {isAdmin && settingsLoaded && (
-        <div className="card flex items-center justify-between gap-4 p-4">
-          <div>
-            <p className="text-sm font-semibold text-gray-900">Tool availability</p>
-            <p className="text-xs text-gray-500">
-              {enabled
-                ? 'On — all users with Keepa access can use this tool.'
-                : 'Off — hidden/blocked for all users.'}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleToggle}
-            disabled={togglingFlag}
-            role="switch"
-            aria-checked={enabled}
-            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-              enabled ? 'bg-[#81B81D]' : 'bg-gray-300'
-            }`}
-          >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                enabled ? 'translate-x-5' : 'translate-x-0.5'
-              }`}
-            />
-          </button>
-        </div>
-      )}
-
-      {settingsLoaded && enabled && schedulerSettings?.enabled && nextRun && (
-        <div className="card p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Next scheduled build ({vendorUpper})
-          </h2>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Status:</span>
-              <span className="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-800">
-                Active
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Schedule:</span>
-              <span className="font-medium text-gray-900">{nextRun.scheduled_time}</span>
-            </div>
-            {nextRun.next_run_time_local && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Next run:</span>
-                <span className="font-medium text-gray-900">{nextRun.next_run_time_local}</span>
-              </div>
-            )}
-            <p className="text-xs text-gray-500 pt-2">
-              Uses the Keepa Import API key pool only — separate from Daily Run jobs. Only one
-              Keepa Import build can run at a time across all vendors; scheduled runs wait if
-              another build is in progress.
-            </p>
-          </div>
         </div>
       )}
 
       {settingsLoaded && !enabled && !isAdmin ? (
         <div className="card border-amber-200/80 bg-amber-50/80 p-4 text-sm text-amber-800">
-          The Keepa Import File tool is currently turned off. Please check back later.
+          This tool is currently turned off.
         </div>
       ) : (
         settingsLoaded &&
         enabled && (
           <>
-            <div className="card space-y-5 p-6">
-              <div>
-                <label htmlFor="vendor" className="block text-sm font-medium text-gray-700">
-                  Vendor
-                </label>
-                <select
-                  id="vendor"
-                  value={category}
-                  onChange={(e) => {
-                    userPickedVendorRef.current = true
-                    setCategory(e.target.value)
-                  }}
-                  className="mt-1 block w-full max-w-md rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
-                >
-                  {VENDORS.map(({ code, label }) => (
-                    <option key={code} value={code}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
+            <section className="card p-5 space-y-4">
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="min-w-[12rem] flex-1">
+                  <label htmlFor="vendor" className="block text-sm font-medium text-gray-700">
+                    Vendor
+                  </label>
+                  <select
+                    id="vendor"
+                    value={category}
+                    onChange={(e) => {
+                      userPickedVendorRef.current = true
+                      setCategory(e.target.value)
+                    }}
+                    className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
+                  >
+                    {VENDORS.map(({ code, label }) => (
+                      <option key={code} value={code}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="pb-2 text-sm text-gray-600">
+                  {countLoading ? (
+                    'Loading UPCs…'
+                  ) : upcCount === null ? (
+                    'UPC count unavailable'
+                  ) : (
+                    <>
+                      <span className="font-semibold text-gray-900">{upcCount.toLocaleString()}</span>{' '}
+                      UPCs
+                    </>
+                  )}
+                </p>
               </div>
 
-              <div className="rounded-lg border border-gray-100 bg-gray-50/80 px-4 py-3 text-sm text-gray-700">
-                {countLoading ? (
-                  <span>Checking Manage UPCs&hellip;</span>
-                ) : upcCount === null ? (
-                  <span>UPC count unavailable.</span>
-                ) : (
-                  <span>
-                    <span className="font-semibold text-gray-900">{upcCount.toLocaleString()}</span>{' '}
-                    UPC{upcCount === 1 ? '' : 's'} in Manage UPCs for this vendor will be used.
-                  </span>
-                )}
-              </div>
-
-              <p className="text-xs leading-relaxed text-gray-500">
-                Only UPCs on the Manage UPCs list are fetched from Keepa. We pull the buy-box winner
-                cheaply for every UPC, then automatically re-check just the ones still missing data
-                so the file fills in like a manual Keepa export — without a full seller scan. Large
-                lists may take a few minutes.
-              </p>
-
-              {downloading && buildInfo && (
-                <div className="card border-[#81B81D]/55 bg-[#81B81D]/10 p-4">
-                  <p className="text-sm text-[#111827]">{buildInfo}</p>
+              {showProgress && (
+                <div className="space-y-2 rounded-lg bg-gray-50 px-4 py-3">
+                  <BatteryProgress percent={progress.percent} />
+                  <p className="text-xs text-gray-600">
+                    {progress.percent}% · {progress.completed.toLocaleString()}/
+                    {progress.total.toLocaleString()} UPCs · {progress.message}
+                  </p>
                 </div>
               )}
 
               {downloading && buildingLabel && buildingCategory !== category && (
                 <p className="text-xs text-gray-500">
-                  A Keepa file is still building for {buildingLabel}
-                  {progress ? ` (${progress.percent}%)` : ''}. Switch back to that vendor to follow
-                  progress.
+                  Build in progress for {buildingLabel}
+                  {progress ? ` (${progress.percent}%)` : ''}.
                 </p>
               )}
 
-              {showProgress && (
-                <div className="space-y-2 rounded-lg border border-gray-100 bg-gray-50/50 p-4">
-                  <BatteryProgress percent={progress.percent} />
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                    <p className="text-xs font-medium text-gray-700">
-                      {progress.percent}% ({progress.completed.toLocaleString()}/
-                      {progress.total.toLocaleString()} UPCs with data)
-                    </p>
-                    <p className="text-xs text-gray-500">{progress.message}</p>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex flex-wrap gap-3 pt-1">
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={handleDownload}
                   disabled={actionsDisabled}
-                  className="btn-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:transform-none disabled:hover:shadow-sm"
+                  className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {downloading
                     ? buildingCategory === category
-                      ? 'Building file…'
+                      ? 'Building…'
                       : 'Build in progress…'
                     : blockedByOtherBuild
-                      ? 'Build in progress elsewhere'
+                      ? 'Busy'
                       : 'Download Keepa file'}
                 </button>
-
                 {downloading && (
                   <button
                     type="button"
                     onClick={handleStopBuild}
                     disabled={cancelling}
-                    className="inline-flex items-center justify-center rounded-lg border border-red-300 bg-white px-6 py-2.5 text-sm font-medium text-red-700 shadow-sm transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
                   >
-                    {cancelling ? 'Stopping…' : 'Stop build'}
+                    {cancelling ? 'Stopping…' : 'Stop'}
                   </button>
                 )}
               </div>
 
               {noUpcs && (
-                <p className="text-xs text-amber-700">
-                  Add UPCs in Manage UPCs for this vendor before running.
-                </p>
+                <p className="text-xs text-amber-700">Add UPCs in Manage UPCs first.</p>
               )}
-            </div>
+            </section>
 
             {schedulerSettings && (
-              <div className="card space-y-5 p-6 border-[#81B81D]/40">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+              <section className="card divide-y divide-gray-100">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
                   <div>
-                    <h2 className="text-xl font-semibold text-gray-900">
-                      Off-price MAP report — {vendorLabel(category)}
-                    </h2>
-                    <p className="mt-1 text-sm text-gray-500">
-                      Per-vendor schedule and email list for MAP off-price listings. Separate from
-                      Daily Run and from the Keepa file build email. Change the vendor above to
-                      configure each brand independently.
+                    <p className="text-sm font-medium text-gray-900">Scheduled file builds</p>
+                    <p className="text-xs text-gray-500">
+                      {scheduleSummary(schedulerSettings)}
+                      {schedulerSettings.enabled && nextRun?.next_run_time_local
+                        ? ` · Next ${nextRun.next_run_time_local}`
+                        : ''}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleToggleOffPriceSchedule}
-                    disabled={togglingOffPriceSchedule}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
-                      schedulerSettings.off_price_enabled
-                        ? 'bg-red-600 text-white hover:bg-red-700'
-                        : 'bg-green-600 text-white hover:bg-green-700'
-                    }`}
-                  >
-                    {togglingOffPriceSchedule
-                      ? 'Updating…'
-                      : schedulerSettings.off_price_enabled
-                        ? 'Stop scheduled reports'
-                        : 'Start scheduled reports'}
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <ToggleSwitch
+                      checked={schedulerSettings.enabled}
+                      disabled={togglingSchedule}
+                      onChange={() => void handleToggleSchedule()}
+                      label="Scheduled file builds"
+                    />
+                    <button
+                      type="button"
+                      onClick={openBuildSettingsModal}
+                      className="text-sm font-medium text-[#404040] hover:underline"
+                    >
+                      Configure
+                    </button>
+                  </div>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-lg border border-gray-100 bg-gray-50/80 px-4 py-3">
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                      Schedule
-                    </p>
-                    <p className="mt-1 text-sm font-medium text-gray-900">
-                      {offPriceScheduleLabel(schedulerSettings)}
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Status:{' '}
-                      {schedulerSettings.off_price_enabled ? (
-                        <span className="font-medium text-green-700">Scheduled reports on</span>
-                      ) : (
-                        <span className="font-medium text-gray-600">Scheduled reports off</span>
-                      )}
-                    </p>
-                    {schedulerSettings.off_price_enabled &&
-                      offPriceNextRun?.next_run_time_local && (
-                        <p className="mt-1 text-xs text-gray-600">
-                          Next run: {offPriceNextRun.next_run_time_local}
-                        </p>
-                      )}
-                  </div>
-                  <div className="rounded-lg border border-gray-100 bg-gray-50/80 px-4 py-3">
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                      After build
-                    </p>
-                    <label className="mt-2 flex items-start gap-2 text-sm text-gray-700">
-                      <input
-                        type="checkbox"
-                        checked={schedulerSettings.off_price_send_after_build ?? true}
-                        onChange={() => void handleToggleSendAfterBuild()}
-                        disabled={togglingSendAfterBuild}
-                        className="mt-0.5 rounded border-gray-300"
+                <div className="px-5 py-4 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Off-price MAP report</p>
+                      <p className="text-xs text-gray-500">
+                        {scheduleSummary(schedulerSettings, 'off_price_')}
+                        {schedulerSettings.off_price_enabled && offPriceNextRun?.next_run_time_local
+                          ? ` · Next ${offPriceNextRun.next_run_time_local}`
+                          : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <ToggleSwitch
+                        checked={!!schedulerSettings.off_price_enabled}
+                        disabled={togglingOffPriceSchedule}
+                        onChange={() => void handleToggleOffPriceSchedule()}
+                        label="Scheduled off-price reports"
                       />
-                      <span>Email off-price report after each successful Keepa file build</span>
-                    </label>
+                      <button
+                        type="button"
+                        onClick={openOffPriceSettingsModal}
+                        className="text-sm font-medium text-[#404040] hover:underline"
+                      >
+                        Schedule
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email recipients ({vendorUpper})
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={schedulerSettings.off_price_send_after_build ?? true}
+                      onChange={() => void handleToggleSendAfterBuild()}
+                      disabled={togglingSendAfterBuild}
+                      className="rounded border-gray-300"
+                    />
+                    Email off-price report after each successful build
                   </label>
-                  <EmailRecipientsPicker
-                    value={offPriceRecipients}
-                    bccValue={offPriceBccRecipients}
-                    onChange={setOffPriceRecipients}
-                    onBccChange={setOffPriceBccRecipients}
-                    disabled={savingOffPriceRecipients}
-                    emptyMeansNoRecipients
-                    allowVendorBcc
-                  />
-                  <div className="mt-3 flex flex-wrap items-center gap-3">
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Report recipients ({vendorUpper})
+                    </label>
+                    <EmailRecipientsPicker
+                      value={offPriceRecipients}
+                      bccValue={offPriceBccRecipients}
+                      onChange={setOffPriceRecipients}
+                      onBccChange={setOffPriceBccRecipients}
+                      disabled={savingOffPriceRecipients}
+                      emptyMeansNoRecipients
+                      allowVendorBcc
+                    />
                     <button
                       type="button"
                       onClick={() => void handleSaveOffPriceRecipients()}
                       disabled={!offPriceRecipientsDirty || savingOffPriceRecipients}
-                      className="px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors text-sm font-medium disabled:opacity-50"
+                      className="mt-3 rounded-lg bg-[#404040] px-4 py-2 text-sm font-medium text-white hover:bg-[#3B3B3B] disabled:opacity-50"
                     >
                       {savingOffPriceRecipients ? 'Saving…' : 'Save recipients'}
                     </button>
-                    <button
-                      type="button"
-                      onClick={openOffPriceSettingsModal}
-                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
-                    >
-                      Edit schedule
-                    </button>
                   </div>
                 </div>
-
-                <p className="text-xs text-gray-500">
-                  Uses the latest completed Keepa Import file for this vendor. Does not appear in
-                  Dashboard Active Runs.
-                </p>
-              </div>
+              </section>
             )}
 
             <section className="card overflow-hidden">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-700">Build history</h2>
-                  <p className="text-xs text-gray-500">
-                    Shared with everyone who has Keepa access. Each build logs who started it.
-                    Finished files stay here for re-download.
-                  </p>
-                </div>
+              <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
+                <h2 className="text-sm font-semibold text-gray-900">Build history</h2>
                 <button
                   type="button"
                   onClick={() => void loadHistory()}
@@ -855,94 +749,76 @@ export default function KeepaImportExport() {
               </div>
 
               {historyLoading && history.length === 0 ? (
-                <p className="px-4 py-6 text-sm text-gray-500">Loading build history…</p>
+                <p className="px-5 py-6 text-sm text-gray-500">Loading…</p>
               ) : history.length === 0 ? (
-                <p className="px-4 py-6 text-sm text-gray-500">No builds yet. Start one above.</p>
+                <p className="px-5 py-6 text-sm text-gray-500">No builds yet.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50">
+                  <table className="min-w-full divide-y divide-gray-100">
+                    <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
-                          Vendor
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
-                          Built by
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
-                          Status
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
-                          UPCs
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
-                          Started
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
-                          Finished
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
-                          Actions
-                        </th>
+                        {['Vendor', 'Built by', 'Status', 'UPCs', 'Started', 'Finished', ''].map(
+                          (col) => (
+                            <th
+                              key={col || 'actions'}
+                              className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wide text-gray-500"
+                            >
+                              {col}
+                            </th>
+                          ),
+                        )}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100 bg-white">
+                    <tbody className="divide-y divide-gray-50 bg-white">
                       {history.map((item) => (
-                        <tr key={item.id} className="transition-colors hover:bg-gray-50/50">
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                        <tr key={item.id} className="hover:bg-gray-50/50">
+                          <td className="px-4 py-2.5 text-sm font-medium text-gray-900">
                             {vendorLabel(item.category)}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">
-                            {item.created_by_name?.trim() || 'Unknown user'}
+                          <td className="px-4 py-2.5 text-sm text-gray-600">
+                            {item.created_by_name?.trim() || '—'}
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
+                          <td className="px-4 py-2.5 whitespace-nowrap">
                             <span
-                              className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusBadgeClass(item.status)}`}
+                              className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadgeClass(item.status)}`}
                             >
                               {item.status === 'building'
-                                ? `Building · ${item.progress_percent}%`
+                                ? `${item.progress_percent}%`
                                 : statusLabel(item.status)}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">
+                          <td className="px-4 py-2.5 text-sm text-gray-600">
                             {item.status === 'building'
-                              ? `${item.completed_upcs.toLocaleString()} / ${item.upc_count.toLocaleString()}`
+                              ? `${item.completed_upcs}/${item.upc_count}`
                               : item.upc_count.toLocaleString()}
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
+                          <td className="whitespace-nowrap px-4 py-2.5 text-sm text-gray-600">
                             {formatWhen(item.created_at)}
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
+                          <td className="whitespace-nowrap px-4 py-2.5 text-sm text-gray-600">
                             {formatWhen(item.completed_at)}
                           </td>
-                          <td className="px-4 py-3 text-sm">
+                          <td className="px-4 py-2.5 text-sm">
                             {item.status === 'complete' ? (
-                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <div className="flex gap-3">
                                 <button
                                   type="button"
                                   onClick={() => setContentsItem(item)}
-                                  className="font-semibold text-[#404040] hover:text-[#3B3B3B] hover:underline"
+                                  className="font-medium text-[#404040] hover:underline"
                                 >
-                                  View contents
+                                  View
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => void downloadFromHistory(item)}
                                   disabled={historyBusyId === item.id}
-                                  className="font-semibold text-[#404040] hover:text-[#3B3B3B] hover:underline disabled:opacity-50"
+                                  className="font-medium text-[#404040] hover:underline disabled:opacity-50"
                                 >
-                                  {historyBusyId === item.id ? 'Downloading…' : 'Download report'}
+                                  {historyBusyId === item.id ? '…' : 'Download'}
                                 </button>
                               </div>
-                            ) : item.status === 'building' ? (
-                              <span className="text-xs text-gray-500">In progress</span>
-                            ) : item.status === 'cancelled' ? (
-                              <span className="text-xs text-gray-500">Cancelled</span>
                             ) : item.status === 'failed' ? (
-                              <span
-                                className="text-xs font-medium text-red-600"
-                                title={item.error ?? undefined}
-                              >
+                              <span className="text-xs text-red-600" title={item.error ?? undefined}>
                                 Failed
                               </span>
                             ) : (
@@ -975,8 +851,8 @@ export default function KeepaImportExport() {
           settingsModalSections === 'build'
             ? `Build schedule — ${vendorUpper}`
             : settingsModalSections === 'off-price'
-              ? `Off-price report schedule — ${vendorUpper}`
-              : `Scheduler settings — ${vendorUpper}`
+              ? `Off-price schedule — ${vendorUpper}`
+              : `Settings — ${vendorUpper}`
         }
         sections={settingsModalSections}
         vendorUpper={vendorUpper}
