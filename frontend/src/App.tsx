@@ -20,6 +20,7 @@ import MfaGate from './components/auth/MfaGate'
 import About from './components/About'
 import Maintenance from './components/Maintenance'
 import DesktopUpdateOverlay from './components/desktop/DesktopUpdateOverlay'
+import WebReleaseAnnouncement from './components/common/WebReleaseAnnouncement'
 import { systemApi } from './services/api'
 import { fetchMfaStatus, isMfaIdleReverifyDue, recordMfaActivity, shouldShowMfaSetup, shouldShowMfaVerify, shouldSkipMfaForEmail } from './lib/mfa'
 import { isUserHiddenFromFeedbackPage } from './constants/feedbackAccess'
@@ -246,6 +247,7 @@ function PrivateLayout() {
             <Layout>
               <Outlet />
             </Layout>
+            <WebReleaseAnnouncement />
           </WarehouseRouteGuard>
         </KeepaImportBuildProvider>
       </TrackingScanProvider>
