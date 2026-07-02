@@ -46,8 +46,10 @@ from app.repositories.seller_name_repository import SellerNameRepository
 from app.repositories.upc_repository import UPCRepository
 from app.scheduler import scheduler
 from app.services.keepa_import_build_runner import (
+    _fail_orphan_build,
     get_global_active_build,
     global_busy_detail,
+    is_keepa_import_build_live,
     launch_keepa_import_build,
 )
 from app.services.keepa_import_build_store import keepa_import_build_store
@@ -146,19 +148,26 @@ def _history_summary_from_row(row: dict) -> KeepaImportBuildHistorySummary:
     return KeepaImportBuildHistorySummary(**data)
 
 
-async def _merge_live_build_row(row: dict) -> dict:
+async def _merge_live_build_row(row: dict, db: Client) -> dict:
     """Overlay in-memory progress onto a building history row when the worker is live."""
     if row.get("status") != "building":
         return row
-    live = await keepa_import_build_store.get_by_id(str(row["id"]))
-    if not live:
-        return row
-    merged = dict(row)
-    merged["progress_percent"] = live.progress_percent
-    merged["completed_upcs"] = live.completed
-    merged["phase"] = live.phase
-    merged["message"] = live.message
-    return merged
+    build_id = str(row["id"])
+    live = await keepa_import_build_store.get_by_id(build_id)
+    if live:
+        merged = dict(row)
+        merged["progress_percent"] = live.progress_percent
+        merged["completed_upcs"] = live.completed
+        merged["phase"] = live.phase
+        merged["message"] = live.message
+        return merged
+    if not await is_keepa_import_build_live(build_id):
+        if await _fail_orphan_build(db, build_id):
+            failed = await asyncio.to_thread(
+                KeepaImportBuildHistoryRepository(db).get_by_id, build_id
+            )
+            return failed or row
+    return row
 
 
 def _keepa_build_creator_name(current_user: dict, db: Client) -> str | None:
@@ -465,7 +474,7 @@ async def list_keepa_import_build_history(
     rows = await asyncio.to_thread(KeepaImportBuildHistoryRepository(db).list_all)
     summaries: list[KeepaImportBuildHistorySummary] = []
     for row in rows:
-        merged = await _merge_live_build_row(row)
+        merged = await _merge_live_build_row(row, db)
         summaries.append(_history_summary_from_row(merged))
     return summaries
 
@@ -578,7 +587,8 @@ async def get_active_keepa_import_build(
         current_user["id"],
     )
     if history_row:
-        return {"build": _status_from_history(history_row)}
+        merged = await _merge_live_build_row(history_row, db)
+        return {"build": _status_from_history(merged)}
     return {"build": None}
 
 
@@ -599,7 +609,8 @@ async def get_keepa_import_build_status(
         build_id,
     )
     if history_row:
-        return _status_from_history(history_row)
+        merged = await _merge_live_build_row(history_row, db)
+        return _status_from_history(merged)
     raise HTTPException(status_code=404, detail="Build not found.")
 
 

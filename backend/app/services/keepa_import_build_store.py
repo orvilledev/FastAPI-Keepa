@@ -85,7 +85,11 @@ class KeepaImportBuildStore:
 
     def _purge_expired(self) -> None:
         cutoff = time.time() - _TTL_SECONDS
-        expired = [bid for bid, b in self._builds.items() if b.created_at < cutoff]
+        expired = [
+            bid
+            for bid, b in self._builds.items()
+            if b.created_at < cutoff and b.status != "building"
+        ]
         for bid in expired:
             del self._builds[bid]
 
@@ -188,6 +192,16 @@ class KeepaImportBuildStore:
         """Non-locking quick check used by the worker between fetches."""
         build = self._builds.get(build_id)
         return bool(build and build.status == "cancelled")
+
+    async def force_cancel(self, build_id: str) -> None:
+        """System cancellation (orphan/stale sweeper) without an owner check."""
+        async with self._lock:
+            build = self._builds.get(build_id)
+            if not build or build.status != "building":
+                return
+            build.status = "cancelled"
+            build.phase = "cancelled"
+            build.message = "Build cancelled"
 
     async def get_for_user(self, build_id: str, user_id: str) -> Optional[KeepaImportBuild]:
         async with self._lock:

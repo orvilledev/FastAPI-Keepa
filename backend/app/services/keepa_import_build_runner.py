@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from supabase import Client
@@ -29,8 +29,22 @@ logger = logging.getLogger(__name__)
 
 VALID_CATEGORIES = frozenset({"dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha"})
 
-# Orphaned DB rows older than this are failed on startup (deploy killed the worker).
-_STALE_BUILD_MINUTES = 30
+# Orphaned DB rows with no heartbeat for this long are failed by the sweeper.
+_STALE_HEARTBEAT_MINUTES = 5
+# How often the background sweeper checks for orphans / hung builds.
+_SWEEP_INTERVAL_SECONDS = 60
+
+_ORPHAN_FAIL_MESSAGE = (
+    "Build interrupted when the server restarted or lost connection. "
+    "Please start a new build."
+)
+_STALE_FAIL_MESSAGE = (
+    "Build stopped because progress was not updated for several minutes. "
+    "Please start a new build."
+)
+
+_running_build_ids: set[str] = set()
+_sweeper_task: Optional[asyncio.Task] = None
 
 _last_persisted_phase: dict[str, str] = {}
 _last_persisted_percent: dict[str, int] = {}
@@ -100,6 +114,165 @@ def global_busy_detail(info: GlobalActiveBuildInfo) -> str:
     )
 
 
+def _parse_updated_at(value: object) -> Optional[datetime]:
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed
+    except ValueError:
+        return None
+
+
+def is_keepa_import_build_task_running(build_id: str) -> bool:
+    """True when this process has an asyncio worker for the build."""
+    return build_id in _running_build_ids
+
+
+async def is_keepa_import_build_live(build_id: str) -> bool:
+    """True when a build is actively running on this worker."""
+    if is_keepa_import_build_task_running(build_id):
+        return True
+    build = await keepa_import_build_store.get_by_id(build_id)
+    return bool(build and build.status == "building")
+
+
+async def _fail_orphan_build(
+    db: Client,
+    build_id: str,
+    *,
+    message: str = _ORPHAN_FAIL_MESSAGE,
+) -> bool:
+    """Mark a dead build failed in memory and DB. Returns True if it was orphaned."""
+    if await is_keepa_import_build_live(build_id):
+        return False
+    repo = KeepaImportBuildHistoryRepository(db)
+    row = await asyncio.to_thread(repo.get_by_id, build_id)
+    if not row or row.get("status") != "building":
+        return False
+    logger.warning("Failing orphaned Keepa Import build %s (%s)", build_id, row.get("category"))
+    await keepa_import_build_store.fail(build_id, message)
+    await asyncio.to_thread(repo.fail, build_id, message)
+    _clear_persisted_progress(build_id)
+    return True
+
+
+async def reconcile_orphaned_keepa_import_builds(
+    db: Client,
+    *,
+    stale_minutes: int = 0,
+) -> int:
+    """Fail DB rows still marked building but with no live worker on this process.
+
+  When ``stale_minutes`` is 0 (startup), every orphan is failed immediately.
+  During periodic sweeps, only rows whose ``updated_at`` is older than
+  ``stale_minutes`` are touched so brief API hiccups do not cancel healthy builds.
+    """
+    repo = KeepaImportBuildHistoryRepository(db)
+    if stale_minutes <= 0:
+        rows = await asyncio.to_thread(repo.list_building)
+    else:
+        rows = await asyncio.to_thread(
+            repo.list_stale_building, older_than_minutes=stale_minutes
+        )
+
+    reconciled = 0
+    for row in rows:
+        build_id = str(row.get("id") or "")
+        if not build_id:
+            continue
+        if await is_keepa_import_build_live(build_id):
+            continue
+        if stale_minutes > 0:
+            updated = _parse_updated_at(row.get("updated_at"))
+            if updated is not None:
+                age_minutes = (
+                    datetime.now(timezone.utc) - updated
+                ).total_seconds() / 60.0
+                if age_minutes < stale_minutes:
+                    continue
+        if await _fail_orphan_build(db, build_id):
+            reconciled += 1
+    if reconciled:
+        logger.info("Reconciled %d orphaned Keepa Import build(s)", reconciled)
+    return reconciled
+
+
+async def reconcile_stale_keepa_import_builds(
+    db: Client,
+    *,
+    older_than_minutes: int = 0,
+) -> int:
+    """Backward-compatible alias used on startup."""
+    return await reconcile_orphaned_keepa_import_builds(
+        db, stale_minutes=older_than_minutes
+    )
+
+
+async def _reconcile_stale_running_builds(db: Client) -> int:
+    """Fail builds whose worker is running but DB heartbeat stopped updating."""
+    repo = KeepaImportBuildHistoryRepository(db)
+    rows = await asyncio.to_thread(
+        repo.list_stale_building, older_than_minutes=_STALE_HEARTBEAT_MINUTES
+    )
+    reconciled = 0
+    for row in rows:
+        build_id = str(row.get("id") or "")
+        if not build_id or not is_keepa_import_build_task_running(build_id):
+            continue
+        logger.warning(
+            "Failing stale Keepa Import build %s (%s) — no progress heartbeat",
+            build_id,
+            row.get("category"),
+        )
+        await keepa_import_build_store.force_cancel(build_id)
+        await asyncio.to_thread(repo.fail, build_id, _STALE_FAIL_MESSAGE)
+        _running_build_ids.discard(build_id)
+        _clear_persisted_progress(build_id)
+        reconciled += 1
+    return reconciled
+
+
+async def _keepa_import_build_sweeper_loop() -> None:
+    while True:
+        try:
+            await asyncio.sleep(_SWEEP_INTERVAL_SECONDS)
+            from app.database import get_supabase
+
+            db = get_supabase()
+            await reconcile_orphaned_keepa_import_builds(
+                db, stale_minutes=_STALE_HEARTBEAT_MINUTES
+            )
+            await _reconcile_stale_running_builds(db)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning("Keepa Import build sweeper error: %s", exc)
+
+
+def start_keepa_import_build_sweeper() -> None:
+    """Start the periodic orphan/stale build sweeper (idempotent)."""
+    global _sweeper_task
+    if _sweeper_task is not None and not _sweeper_task.done():
+        return
+    _sweeper_task = asyncio.create_task(_keepa_import_build_sweeper_loop())
+
+
+async def stop_keepa_import_build_sweeper() -> None:
+    """Stop the periodic sweeper on shutdown."""
+    global _sweeper_task
+    if _sweeper_task is None:
+        return
+    _sweeper_task.cancel()
+    try:
+        await _sweeper_task
+    except asyncio.CancelledError:
+        pass
+    _sweeper_task = None
+
+
 def category_has_active_build(db: Client, category: str) -> bool:
     """True if a Keepa Import build is already running for this vendor."""
     try:
@@ -118,10 +291,33 @@ def category_has_active_build(db: Client, category: str) -> bool:
     return False
 
 
+async def _global_active_from_history_row(
+    db: Client, row: dict
+) -> Optional[GlobalActiveBuildInfo]:
+    build_id = str(row.get("id") or "")
+    if not build_id:
+        return None
+    if not await is_keepa_import_build_live(build_id):
+        await _fail_orphan_build(db, build_id)
+        return None
+    return GlobalActiveBuildInfo(
+        build_id=build_id,
+        category=row.get("category", ""),
+        created_by_name=row.get("created_by_name"),
+        progress_percent=int(row.get("progress_percent") or 0),
+        user_id=str(row.get("user_id")) if row.get("user_id") else None,
+    )
+
+
 async def is_category_build_active(db: Client, category: str) -> bool:
     if await keepa_import_build_store.has_active_build_for_category(category):
         return True
-    return await asyncio.to_thread(category_has_active_build, db, category)
+    repo = KeepaImportBuildHistoryRepository(db)
+    row = await asyncio.to_thread(repo.get_any_active_build)
+    if not row or row.get("category", "").lower() != category.strip().lower():
+        return False
+    build_id = str(row.get("id") or "")
+    return bool(build_id) and await is_keepa_import_build_live(build_id)
 
 
 async def get_global_active_build(db: Client) -> Optional[GlobalActiveBuildInfo]:
@@ -144,56 +340,11 @@ async def get_global_active_build(db: Client) -> Optional[GlobalActiveBuildInfo]
     row = await asyncio.to_thread(repo.get_any_active_build)
     if not row:
         return None
-    return GlobalActiveBuildInfo(
-        build_id=str(row["id"]),
-        category=row.get("category", ""),
-        created_by_name=row.get("created_by_name"),
-        progress_percent=int(row.get("progress_percent") or 0),
-        user_id=str(row.get("user_id")) if row.get("user_id") else None,
-    )
+    return await _global_active_from_history_row(db, row)
 
 
 async def is_global_build_active(db: Client) -> bool:
     return (await get_global_active_build(db)) is not None
-
-
-async def reconcile_stale_keepa_import_builds(
-    db: Client,
-    *,
-    older_than_minutes: int = _STALE_BUILD_MINUTES,
-) -> int:
-    """Fail orphaned history rows left 'building' after a server restart.
-
-    Skips the build that is still running in memory on this process.
-    """
-    repo = KeepaImportBuildHistoryRepository(db)
-    in_memory = await keepa_import_build_store.get_any_active_build()
-    active_id = in_memory.build_id if in_memory else None
-
-    stale_rows = await asyncio.to_thread(
-        repo.list_stale_building, older_than_minutes=older_than_minutes
-    )
-    reconciled = 0
-    for row in stale_rows:
-        build_id = str(row.get("id") or "")
-        if not build_id or build_id == active_id:
-            continue
-        logger.warning(
-            "Reconciling stale Keepa Import build %s (%s, %s%%)",
-            build_id,
-            row.get("category"),
-            row.get("progress_percent"),
-        )
-        await asyncio.to_thread(
-            repo.fail,
-            build_id,
-            "Build interrupted when the server restarted. Please start a new build.",
-        )
-        _clear_persisted_progress(build_id)
-        reconciled += 1
-    if reconciled:
-        logger.info("Reconciled %d stale Keepa Import build(s)", reconciled)
-    return reconciled
 
 
 async def _send_completion_email(
@@ -335,6 +486,32 @@ async def run_keepa_import_build(
         _clear_persisted_progress(build_id)
 
 
+async def _run_build_task(
+    build_id: str,
+    user_id: str,
+    cat: str,
+    upcs: list[str],
+    seller_name_map: dict[str, str],
+    include_header: bool,
+    db: Client,
+    email_notify: Optional[KeepaImportEmailNotify] = None,
+) -> None:
+    _running_build_ids.add(build_id)
+    try:
+        await run_keepa_import_build(
+            build_id,
+            user_id,
+            cat,
+            upcs,
+            seller_name_map,
+            include_header,
+            db,
+            email_notify=email_notify,
+        )
+    finally:
+        _running_build_ids.discard(build_id)
+
+
 async def launch_keepa_import_build(
     db: Client,
     user_id: str,
@@ -348,6 +525,8 @@ async def launch_keepa_import_build(
     cat = category.strip().lower()
     if cat not in VALID_CATEGORIES:
         raise ValueError(f"Unknown vendor category: {category}")
+
+    await reconcile_orphaned_keepa_import_builds(db, stale_minutes=0)
 
     active = await get_global_active_build(db)
     if active:
@@ -382,7 +561,7 @@ async def launch_keepa_import_build(
         created_by_name,
     )
     asyncio.create_task(
-        run_keepa_import_build(
+        _run_build_task(
             build_id,
             user_id,
             cat,

@@ -197,11 +197,15 @@ async def startup_event():
         setup_scheduler(category='cha')  # Use CHA defaults
     start_scheduler()
     try:
-        from app.services.keepa_import_build_runner import reconcile_stale_keepa_import_builds
+        from app.services.keepa_import_build_runner import (
+            reconcile_stale_keepa_import_builds,
+            start_keepa_import_build_sweeper,
+        )
 
         reconciled = await reconcile_stale_keepa_import_builds(get_supabase())
         if reconciled:
             logger.info("Reconciled %d orphaned Keepa Import build(s) on startup", reconciled)
+        start_keepa_import_build_sweeper()
     except Exception as e:
         logger.warning("Failed to reconcile stale Keepa Import builds: %s", e)
     try:
@@ -219,6 +223,12 @@ async def shutdown_event():
     """Cleanup on shutdown."""
     logger.info("Shutting down scheduler...")
     shutdown_scheduler()
+    try:
+        from app.services.keepa_import_build_runner import stop_keepa_import_build_sweeper
+
+        await stop_keepa_import_build_sweeper()
+    except Exception as e:
+        logger.warning("Failed to stop Keepa Import build sweeper: %s", e)
     logger.info("Application shutdown")
 
 

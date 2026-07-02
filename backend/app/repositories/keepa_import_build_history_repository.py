@@ -114,6 +114,20 @@ class KeepaImportBuildHistoryRepository:
         except Exception as exc:
             logger.warning("Could not update keepa import build progress: %s", exc)
 
+    def list_building(self) -> list[dict]:
+        """All rows still marked building (used to detect orphans after worker restart)."""
+        try:
+            resp = (
+                self._db.table(_TABLE)
+                .select("id,updated_at,category,progress_percent,created_by_name")
+                .eq("status", "building")
+                .execute()
+            )
+            return list(resp.data or [])
+        except Exception as exc:
+            logger.warning("Could not list building keepa import rows: %s", exc)
+            return []
+
     def list_stale_building(self, *, older_than_minutes: int = 30) -> list[dict]:
         """Building rows with no updates for a while (likely orphaned after deploy)."""
         cutoff = (

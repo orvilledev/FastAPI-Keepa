@@ -506,6 +506,15 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
             }
             clearPersisted()
             target = null
+          } else if (serverBuild.status === 'failed') {
+            if (active) {
+              setError(
+                serverBuild.error ||
+                  'Your Keepa file build was interrupted. Start a new build from Build history below.',
+              )
+            }
+            clearPersisted()
+            target = null
           } else if (!persisted) {
             target = null
           }
