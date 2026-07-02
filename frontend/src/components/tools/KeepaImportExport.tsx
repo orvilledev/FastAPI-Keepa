@@ -12,6 +12,7 @@ import KeepaImportBuildContentsModal from './KeepaImportBuildContentsModal'
 import SchedulerSettingsModal, {
   type SchedulerSettingsFormState,
 } from '../common/SchedulerSettingsModal'
+import EmailRecipientsPicker from '../jobs/EmailRecipientsPicker'
 import { useUser } from '../../contexts/UserContext'
 
 const VENDORS = [
@@ -80,6 +81,32 @@ function globalBusyMessage(
   return `Cannot download at the moment — the app is busy building a Keepa file for ${vendor}${who}${pct}. Please wait until it finishes.`
 }
 
+function normalizeRecipientString(raw?: string | null) {
+  return (raw || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+    .sort()
+    .join(', ')
+}
+
+function offPriceScheduleLabel(settings: KeepaImportSchedulerSettings) {
+  const mode = settings.off_price_run_mode || 'daily'
+  const days = settings.off_price_custom_days || []
+  const frequency =
+    mode === 'every_other_day'
+      ? 'Every other day'
+      : mode === 'custom_days'
+        ? days.length
+          ? `Custom days (${days.join(', ')})`
+          : 'Custom days'
+        : 'Daily'
+  const hour = settings.off_price_hour ?? 7
+  const minute = settings.off_price_minute ?? 0
+  const tz = settings.off_price_timezone || 'America/Chicago'
+  return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} ${tz} — ${frequency}`
+}
+
 export default function KeepaImportExport() {
   const { userInfo, isSuperadmin } = useUser()
   const isAdmin = userInfo?.role === 'admin' || isSuperadmin
@@ -117,6 +144,13 @@ export default function KeepaImportExport() {
   const [nextRun, setNextRun] = useState<KeepaImportSchedulerStatus | null>(null)
   const [offPriceNextRun, setOffPriceNextRun] = useState<KeepaImportSchedulerStatus | null>(null)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [settingsModalSections, setSettingsModalSections] = useState<'both' | 'build' | 'off-price'>(
+    'both',
+  )
+  const [offPriceRecipients, setOffPriceRecipients] = useState('')
+  const [offPriceBccRecipients, setOffPriceBccRecipients] = useState('')
+  const [savingOffPriceRecipients, setSavingOffPriceRecipients] = useState(false)
+  const [togglingSendAfterBuild, setTogglingSendAfterBuild] = useState(false)
   const [settingsForm, setSettingsForm] = useState<SchedulerSettingsFormState>({
     timezone: 'America/Chicago',
     hour: 6,
@@ -231,6 +265,11 @@ export default function KeepaImportExport() {
     void loadOffPriceNextRun(category)
   }, [category, loadSchedulerSettings, loadNextRun, loadOffPriceNextRun])
 
+  useEffect(() => {
+    setOffPriceRecipients(schedulerSettings?.off_price_email_recipients || '')
+    setOffPriceBccRecipients(schedulerSettings?.off_price_email_bcc_recipients || '')
+  }, [schedulerSettings, category])
+
   const loadGlobalBusy = useCallback(async () => {
     if (!enabled) {
       setGlobalBusy(null)
@@ -271,28 +310,38 @@ export default function KeepaImportExport() {
     }
   }
 
-  const openSettingsModal = () => {
-    if (schedulerSettings) {
-      setSettingsForm({
-        timezone: schedulerSettings.timezone,
-        hour: schedulerSettings.hour,
-        minute: schedulerSettings.minute,
-        run_mode: schedulerSettings.run_mode,
-        custom_days: schedulerSettings.custom_days || [],
-        anchor_date: schedulerSettings.anchor_date || null,
-        email_recipients: schedulerSettings.email_recipients || '',
-        email_bcc_recipients: schedulerSettings.email_bcc_recipients || '',
-        off_price_timezone: schedulerSettings.off_price_timezone || 'America/Chicago',
-        off_price_hour: schedulerSettings.off_price_hour ?? 7,
-        off_price_minute: schedulerSettings.off_price_minute ?? 0,
-        off_price_run_mode: schedulerSettings.off_price_run_mode || 'daily',
-        off_price_custom_days: schedulerSettings.off_price_custom_days || [],
-        off_price_anchor_date: schedulerSettings.off_price_anchor_date || null,
-        off_price_email_recipients: schedulerSettings.off_price_email_recipients || '',
-        off_price_email_bcc_recipients: schedulerSettings.off_price_email_bcc_recipients || '',
-        off_price_send_after_build: schedulerSettings.off_price_send_after_build ?? true,
-      })
-    }
+  const populateSettingsForm = () => {
+    if (!schedulerSettings) return
+    setSettingsForm({
+      timezone: schedulerSettings.timezone,
+      hour: schedulerSettings.hour,
+      minute: schedulerSettings.minute,
+      run_mode: schedulerSettings.run_mode,
+      custom_days: schedulerSettings.custom_days || [],
+      anchor_date: schedulerSettings.anchor_date || null,
+      email_recipients: schedulerSettings.email_recipients || '',
+      email_bcc_recipients: schedulerSettings.email_bcc_recipients || '',
+      off_price_timezone: schedulerSettings.off_price_timezone || 'America/Chicago',
+      off_price_hour: schedulerSettings.off_price_hour ?? 7,
+      off_price_minute: schedulerSettings.off_price_minute ?? 0,
+      off_price_run_mode: schedulerSettings.off_price_run_mode || 'daily',
+      off_price_custom_days: schedulerSettings.off_price_custom_days || [],
+      off_price_anchor_date: schedulerSettings.off_price_anchor_date || null,
+      off_price_email_recipients: schedulerSettings.off_price_email_recipients || '',
+      off_price_email_bcc_recipients: schedulerSettings.off_price_email_bcc_recipients || '',
+      off_price_send_after_build: schedulerSettings.off_price_send_after_build ?? true,
+    })
+  }
+
+  const openBuildSettingsModal = () => {
+    populateSettingsForm()
+    setSettingsModalSections('build')
+    setShowSettingsModal(true)
+  }
+
+  const openOffPriceSettingsModal = () => {
+    populateSettingsForm()
+    setSettingsModalSections('off-price')
     setShowSettingsModal(true)
   }
 
@@ -314,6 +363,47 @@ export default function KeepaImportExport() {
       setError(extractDetail(e, 'Could not save scheduler settings.'))
     } finally {
       setSavingSettings(false)
+    }
+  }
+
+  const handleSaveOffPriceRecipients = async () => {
+    setSavingOffPriceRecipients(true)
+    setError(null)
+    try {
+      await keepaImportExportApi.updateSchedulerSettings(category, {
+        off_price_email_recipients: offPriceRecipients.trim() || null,
+        off_price_email_bcc_recipients: offPriceBccRecipients.trim() || null,
+      })
+      await loadSchedulerSettings(category)
+      setInfo(`Off-price email recipients saved for ${vendorUpper}.`)
+    } catch (e) {
+      console.error(e)
+      setError(extractDetail(e, 'Could not save off-price recipients.'))
+    } finally {
+      setSavingOffPriceRecipients(false)
+    }
+  }
+
+  const handleToggleSendAfterBuild = async () => {
+    if (!schedulerSettings) return
+    setTogglingSendAfterBuild(true)
+    setError(null)
+    try {
+      const next = !(schedulerSettings.off_price_send_after_build ?? true)
+      await keepaImportExportApi.updateSchedulerSettings(category, {
+        off_price_send_after_build: next,
+      })
+      await loadSchedulerSettings(category)
+      setInfo(
+        next
+          ? `Off-price reports will email after each successful ${vendorUpper} build.`
+          : `Off-price reports will no longer email automatically after ${vendorUpper} builds.`,
+      )
+    } catch (e) {
+      console.error(e)
+      setError(extractDetail(e, 'Could not update send-after-build setting.'))
+    } finally {
+      setTogglingSendAfterBuild(false)
     }
   }
 
@@ -377,10 +467,21 @@ export default function KeepaImportExport() {
   const isOwnActiveBuild =
     downloading && buildingCategory != null && buildingCategory === category
   const blockedByOtherBuild = globalBusy?.busy === true && !isOwnActiveBuild
-  const busy = downloading || togglingFlag || togglingSchedule || togglingOffPriceSchedule
+  const busy =
+    downloading ||
+    togglingFlag ||
+    togglingSchedule ||
+    togglingOffPriceSchedule ||
+    savingOffPriceRecipients ||
+    togglingSendAfterBuild
   const actionsDisabled = busy || countLoading || noUpcs || !enabled || blockedByOtherBuild
   const displayError = error ?? buildError
   const displayInfo = info ?? (!downloading ? buildInfo : null)
+  const offPriceRecipientsDirty =
+    normalizeRecipientString(offPriceRecipients) !==
+      normalizeRecipientString(schedulerSettings?.off_price_email_recipients) ||
+    normalizeRecipientString(offPriceBccRecipients) !==
+      normalizeRecipientString(schedulerSettings?.off_price_email_bcc_recipients)
   const buildingLabel =
     downloading && buildingCategory
       ? VENDORS.find((v) => v.code === buildingCategory)?.label ?? buildingCategory.toUpperCase()
@@ -419,23 +520,7 @@ export default function KeepaImportExport() {
             </button>
             <button
               type="button"
-              onClick={handleToggleOffPriceSchedule}
-              disabled={togglingOffPriceSchedule || !schedulerSettings}
-              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50 ${
-                schedulerSettings?.off_price_enabled
-                  ? 'bg-red-600 text-white hover:bg-red-700'
-                  : 'bg-green-600 text-white hover:bg-green-700'
-              }`}
-            >
-              {togglingOffPriceSchedule
-                ? 'Updating…'
-                : schedulerSettings?.off_price_enabled
-                  ? 'Stop off-price reports'
-                  : 'Start off-price reports'}
-            </button>
-            <button
-              type="button"
-              onClick={openSettingsModal}
+              onClick={openBuildSettingsModal}
               disabled={!schedulerSettings}
               className="px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors text-sm font-medium flex items-center gap-2 disabled:opacity-50"
             >
@@ -446,7 +531,7 @@ export default function KeepaImportExport() {
                   clipRule="evenodd"
                 />
               </svg>
-              Scheduler Settings
+              Build schedule
             </button>
           </div>
         )}
@@ -523,42 +608,6 @@ export default function KeepaImportExport() {
               Uses the Keepa Import API key pool only — separate from Daily Run jobs. Only one
               Keepa Import build can run at a time across all vendors; scheduled runs wait if
               another build is in progress.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {settingsLoaded && enabled && schedulerSettings?.off_price_enabled && offPriceNextRun && (
-        <div className="card p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Next off-price MAP report ({vendorUpper})
-          </h2>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Status:</span>
-              <span className="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-800">
-                Active
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Schedule:</span>
-              <span className="font-medium text-gray-900">{offPriceNextRun.scheduled_time}</span>
-            </div>
-            {offPriceNextRun.next_run_time_local && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Next run:</span>
-                <span className="font-medium text-gray-900">
-                  {offPriceNextRun.next_run_time_local}
-                </span>
-              </div>
-            )}
-            <p className="text-xs text-gray-500 pt-2">
-              Compares the latest completed Keepa Import file for this vendor against MAP and emails
-              an off-price listing report. Uses its own recipient list — separate from Daily Run and
-              from the Keepa file build email. Does not appear in Dashboard Active Runs.
-              {schedulerSettings.off_price_send_after_build
-                ? ' Also sent automatically after each successful build when recipients are set.'
-                : ''}
             </p>
           </div>
         </div>
@@ -675,6 +724,116 @@ export default function KeepaImportExport() {
                 </p>
               )}
             </div>
+
+            {schedulerSettings && (
+              <div className="card space-y-5 p-6 border-[#81B81D]/40">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      Off-price MAP report — {vendorLabel(category)}
+                    </h2>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Per-vendor schedule and email list for MAP off-price listings. Separate from
+                      Daily Run and from the Keepa file build email. Change the vendor above to
+                      configure each brand independently.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleToggleOffPriceSchedule}
+                    disabled={togglingOffPriceSchedule}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                      schedulerSettings.off_price_enabled
+                        ? 'bg-red-600 text-white hover:bg-red-700'
+                        : 'bg-green-600 text-white hover:bg-green-700'
+                    }`}
+                  >
+                    {togglingOffPriceSchedule
+                      ? 'Updating…'
+                      : schedulerSettings.off_price_enabled
+                        ? 'Stop scheduled reports'
+                        : 'Start scheduled reports'}
+                  </button>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-lg border border-gray-100 bg-gray-50/80 px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Schedule
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-gray-900">
+                      {offPriceScheduleLabel(schedulerSettings)}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Status:{' '}
+                      {schedulerSettings.off_price_enabled ? (
+                        <span className="font-medium text-green-700">Scheduled reports on</span>
+                      ) : (
+                        <span className="font-medium text-gray-600">Scheduled reports off</span>
+                      )}
+                    </p>
+                    {schedulerSettings.off_price_enabled &&
+                      offPriceNextRun?.next_run_time_local && (
+                        <p className="mt-1 text-xs text-gray-600">
+                          Next run: {offPriceNextRun.next_run_time_local}
+                        </p>
+                      )}
+                  </div>
+                  <div className="rounded-lg border border-gray-100 bg-gray-50/80 px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      After build
+                    </p>
+                    <label className="mt-2 flex items-start gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={schedulerSettings.off_price_send_after_build ?? true}
+                        onChange={() => void handleToggleSendAfterBuild()}
+                        disabled={togglingSendAfterBuild}
+                        className="mt-0.5 rounded border-gray-300"
+                      />
+                      <span>Email off-price report after each successful Keepa file build</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email recipients ({vendorUpper})
+                  </label>
+                  <EmailRecipientsPicker
+                    value={offPriceRecipients}
+                    bccValue={offPriceBccRecipients}
+                    onChange={setOffPriceRecipients}
+                    onBccChange={setOffPriceBccRecipients}
+                    disabled={savingOffPriceRecipients}
+                    emptyMeansNoRecipients
+                    allowVendorBcc
+                  />
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveOffPriceRecipients()}
+                      disabled={!offPriceRecipientsDirty || savingOffPriceRecipients}
+                      className="px-4 py-2 bg-[#404040] text-white rounded-lg hover:bg-[#3B3B3B] transition-colors text-sm font-medium disabled:opacity-50"
+                    >
+                      {savingOffPriceRecipients ? 'Saving…' : 'Save recipients'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openOffPriceSettingsModal}
+                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                    >
+                      Edit schedule
+                    </button>
+                  </div>
+                </div>
+
+                <p className="text-xs text-gray-500">
+                  Uses the latest completed Keepa Import file for this vendor. Does not appear in
+                  Dashboard Active Runs.
+                </p>
+              </div>
+            )}
 
             <section className="card overflow-hidden">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
@@ -812,7 +971,14 @@ export default function KeepaImportExport() {
 
       <SchedulerSettingsModal
         open={showSettingsModal}
-        title="Scheduler Settings"
+        title={
+          settingsModalSections === 'build'
+            ? `Build schedule — ${vendorUpper}`
+            : settingsModalSections === 'off-price'
+              ? `Off-price report schedule — ${vendorUpper}`
+              : `Scheduler settings — ${vendorUpper}`
+        }
+        sections={settingsModalSections}
         vendorUpper={vendorUpper}
         form={settingsForm}
         onChange={setSettingsForm}

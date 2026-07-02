@@ -34,6 +34,7 @@ type SchedulerSettingsModalProps = {
   open: boolean
   title?: string
   vendorUpper: string
+  sections?: 'both' | 'build' | 'off-price'
   form: SchedulerSettingsFormState
   onChange: (form: SchedulerSettingsFormState) => void
   onClose: () => void
@@ -191,6 +192,7 @@ export default function SchedulerSettingsModal({
   open,
   title = 'Scheduler Settings',
   vendorUpper,
+  sections = 'both',
   form,
   onChange,
   onClose,
@@ -198,6 +200,9 @@ export default function SchedulerSettingsModal({
   saving,
 }: SchedulerSettingsModalProps) {
   if (!open) return null
+
+  const showBuild = sections === 'both' || sections === 'build'
+  const showOffPrice = sections === 'both' || sections === 'off-price'
 
   const toggleBuildDay = (day: string) => {
     const next = form.custom_days.includes(day)
@@ -231,64 +236,70 @@ export default function SchedulerSettingsModal({
         </div>
 
         <div className="space-y-6">
-          <ScheduleBlock
-            label="Keepa file build"
-            timezone={form.timezone}
-            hour={form.hour}
-            minute={form.minute}
-            runMode={form.run_mode}
-            customDays={form.custom_days}
-            anchorDate={form.anchor_date}
-            emailRecipients={form.email_recipients}
-            emailBccRecipients={form.email_bcc_recipients}
-            saving={saving}
-            onTimezone={(value) => onChange({ ...form, timezone: value })}
-            onHour={(value) => onChange({ ...form, hour: value })}
-            onMinute={(value) => onChange({ ...form, minute: value })}
-            onRunMode={(value) => onChange({ ...form, run_mode: value })}
-            onToggleDay={toggleBuildDay}
-            onAnchorDate={(value) => onChange({ ...form, anchor_date: value })}
-            onEmailRecipients={(value) => onChange({ ...form, email_recipients: value })}
-            onEmailBccRecipients={(value) => onChange({ ...form, email_bcc_recipients: value })}
-            recipientsLabel={`Keepa file email recipients (${vendorUpper})`}
-          />
-
-          <ScheduleBlock
-            label="Off-price MAP report"
-            timezone={form.off_price_timezone}
-            hour={form.off_price_hour}
-            minute={form.off_price_minute}
-            runMode={form.off_price_run_mode}
-            customDays={form.off_price_custom_days}
-            anchorDate={form.off_price_anchor_date}
-            emailRecipients={form.off_price_email_recipients}
-            emailBccRecipients={form.off_price_email_bcc_recipients}
-            saving={saving}
-            onTimezone={(value) => onChange({ ...form, off_price_timezone: value })}
-            onHour={(value) => onChange({ ...form, off_price_hour: value })}
-            onMinute={(value) => onChange({ ...form, off_price_minute: value })}
-            onRunMode={(value) => onChange({ ...form, off_price_run_mode: value })}
-            onToggleDay={toggleOffPriceDay}
-            onAnchorDate={(value) => onChange({ ...form, off_price_anchor_date: value })}
-            onEmailRecipients={(value) => onChange({ ...form, off_price_email_recipients: value })}
-            onEmailBccRecipients={(value) =>
-              onChange({ ...form, off_price_email_bcc_recipients: value })
-            }
-            recipientsLabel={`Off-price report recipients (${vendorUpper}, separate from Daily Run)`}
-          />
-
-          <label className="flex items-start gap-3 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={form.off_price_send_after_build}
-              onChange={(e) => onChange({ ...form, off_price_send_after_build: e.target.checked })}
-              className="mt-1 rounded border-gray-300"
+          {showBuild && (
+            <ScheduleBlock
+              label="Keepa file build"
+              timezone={form.timezone}
+              hour={form.hour}
+              minute={form.minute}
+              runMode={form.run_mode}
+              customDays={form.custom_days}
+              anchorDate={form.anchor_date}
+              emailRecipients={form.email_recipients}
+              emailBccRecipients={form.email_bcc_recipients}
+              saving={saving}
+              onTimezone={(value) => onChange({ ...form, timezone: value })}
+              onHour={(value) => onChange({ ...form, hour: value })}
+              onMinute={(value) => onChange({ ...form, minute: value })}
+              onRunMode={(value) => onChange({ ...form, run_mode: value })}
+              onToggleDay={toggleBuildDay}
+              onAnchorDate={(value) => onChange({ ...form, anchor_date: value })}
+              onEmailRecipients={(value) => onChange({ ...form, email_recipients: value })}
+              onEmailBccRecipients={(value) => onChange({ ...form, email_bcc_recipients: value })}
+              recipientsLabel={`Keepa file email recipients (${vendorUpper})`}
             />
-            <span>
-              Email the off-price MAP report automatically after each successful Keepa file build
-              (manual or scheduled).
-            </span>
-          </label>
+          )}
+
+          {showOffPrice && (
+            <ScheduleBlock
+              label="Off-price MAP report"
+              timezone={form.off_price_timezone}
+              hour={form.off_price_hour}
+              minute={form.off_price_minute}
+              runMode={form.off_price_run_mode}
+              customDays={form.off_price_custom_days}
+              anchorDate={form.off_price_anchor_date}
+              emailRecipients={form.off_price_email_recipients}
+              emailBccRecipients={form.off_price_email_bcc_recipients}
+              saving={saving}
+              onTimezone={(value) => onChange({ ...form, off_price_timezone: value })}
+              onHour={(value) => onChange({ ...form, off_price_hour: value })}
+              onMinute={(value) => onChange({ ...form, off_price_minute: value })}
+              onRunMode={(value) => onChange({ ...form, off_price_run_mode: value })}
+              onToggleDay={toggleOffPriceDay}
+              onAnchorDate={(value) => onChange({ ...form, off_price_anchor_date: value })}
+              onEmailRecipients={(value) => onChange({ ...form, off_price_email_recipients: value })}
+              onEmailBccRecipients={(value) =>
+                onChange({ ...form, off_price_email_bcc_recipients: value })
+              }
+              recipientsLabel={`Off-price report recipients (${vendorUpper}, separate from Daily Run)`}
+            />
+          )}
+
+          {showOffPrice && (
+            <label className="flex items-start gap-3 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={form.off_price_send_after_build}
+                onChange={(e) => onChange({ ...form, off_price_send_after_build: e.target.checked })}
+                className="mt-1 rounded border-gray-300"
+              />
+              <span>
+                Email the off-price MAP report automatically after each successful Keepa file build
+                (manual or scheduled).
+              </span>
+            </label>
+          )}
         </div>
 
         <div className="flex justify-end gap-3 mt-6">
