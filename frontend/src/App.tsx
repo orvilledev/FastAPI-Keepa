@@ -247,7 +247,6 @@ function PrivateLayout() {
             <Layout>
               <Outlet />
             </Layout>
-            <WebReleaseAnnouncement />
           </WarehouseRouteGuard>
         </KeepaImportBuildProvider>
       </TrackingScanProvider>
@@ -456,6 +455,7 @@ function App() {
       <UserProvider>
         <AppRoutes />
         <DesktopUpdateOverlay />
+        <WebReleaseAnnouncement />
       </UserProvider>
     </AppRouter>
   )

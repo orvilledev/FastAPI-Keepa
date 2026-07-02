@@ -1,36 +1,91 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { APP_NAME } from '../../constants/app'
-import { isElectronDesktop } from '../../lib/privatePath'
+import { useUser } from '../../contexts/UserContext'
+import { isInstalledPwa, shouldShowWebReleaseAnnouncement } from '../../lib/privatePath'
+import {
+  clearLegacyPermanentDismiss,
+  clearWebBrowserHeartbeat,
+  dismissReleaseAnnouncementThisSession,
+  HEARTBEAT_INTERVAL_MS,
+  isWebBrowserTab,
+  shouldShowReleaseAnnouncementPopup,
+  WEB_BROWSER_HEARTBEAT_KEY,
+  writeWebBrowserHeartbeat,
+} from '../../lib/webReleaseAnnouncement'
 
-const DISMISS_KEY = 'msw_web_release_v3_0_0_announcement_dismissed'
 const RELEASE_VERSION = '3.0.0'
 const RELEASE_DATE_LABEL = 'Monday, July 6, 2026'
 
 /**
- * One-time welcome popup announcing the upcoming v3.0.0 web release. Web only —
- * the Electron desktop build stays on its current version and never shows this.
- * Dismissal is remembered per browser so users are not nagged repeatedly.
+ * Welcome popup for the upcoming v3.0.0 web release (browser + PWA only).
+ *
+ * - Dismissal lasts for this client session only — reopening after a full close
+ *   shows the popup again.
+ * - When both a browser tab and the PWA are open, only the browser tab shows it.
+ * - Electron desktop never shows this.
  */
 export default function WebReleaseAnnouncement() {
+  const { authUser } = useUser()
   const [visible, setVisible] = useState(false)
 
-  useEffect(() => {
-    if (isElectronDesktop()) return
-    let alreadyDismissed = false
-    try {
-      alreadyDismissed = localStorage.getItem(DISMISS_KEY) === '1'
-    } catch {
-      alreadyDismissed = false
+  const syncVisibility = useCallback(() => {
+    if (!authUser || !shouldShowWebReleaseAnnouncement()) {
+      setVisible(false)
+      return
     }
-    if (!alreadyDismissed) setVisible(true)
-  }, [])
+    setVisible(shouldShowReleaseAnnouncementPopup())
+  }, [authUser])
+
+  useEffect(() => {
+    clearLegacyPermanentDismiss()
+    syncVisibility()
+  }, [syncVisibility])
+
+  // Browser tabs publish a heartbeat so the PWA stays quiet while web is open.
+  useEffect(() => {
+    if (!authUser || !isWebBrowserTab()) return
+
+    const beat = () => {
+      if (!document.hidden) writeWebBrowserHeartbeat()
+    }
+
+    beat()
+    const interval = window.setInterval(beat, HEARTBEAT_INTERVAL_MS)
+    const onVisibility = () => beat()
+    const onPageHide = () => clearWebBrowserHeartbeat()
+
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pagehide', onPageHide)
+    window.addEventListener('beforeunload', onPageHide)
+
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pagehide', onPageHide)
+      window.removeEventListener('beforeunload', onPageHide)
+      clearWebBrowserHeartbeat()
+    }
+  }, [authUser])
+
+  // PWA listens for a browser tab coming online (storage event) or going stale.
+  useEffect(() => {
+    if (!authUser || !isInstalledPwa()) return
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === WEB_BROWSER_HEARTBEAT_KEY) syncVisibility()
+    }
+
+    window.addEventListener('storage', onStorage)
+    const interval = window.setInterval(syncVisibility, HEARTBEAT_INTERVAL_MS)
+
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.clearInterval(interval)
+    }
+  }, [authUser, syncVisibility])
 
   const handleDismiss = () => {
-    try {
-      localStorage.setItem(DISMISS_KEY, '1')
-    } catch {
-      // storage may be unavailable; popup just reappears next load
-    }
+    dismissReleaseAnnouncementThisSession()
     setVisible(false)
   }
 
@@ -104,43 +159,31 @@ export default function WebReleaseAnnouncement() {
           >
             <ellipse cx="100" cy="182" rx="52" ry="8" fill="#000000" opacity="0.08" />
 
-            {/* sparkles */}
             <g fill="#F5C518">
               <path className="capy-sparkle" d="M40 40 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3 z" />
               <path className="capy-sparkle-2" d="M162 34 l2.5 6 6 2.5 -6 2.5 -2.5 6 -2.5 -6 -6 -2.5 6 -2.5 z" />
               <path className="capy-sparkle-3" d="M168 96 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2 z" />
             </g>
 
-            {/* ears */}
             <ellipse className="capy-ear-l" cx="72" cy="58" rx="12" ry="14" fill="#9A6B43" />
             <ellipse className="capy-ear-r" cx="128" cy="58" rx="12" ry="14" fill="#9A6B43" />
-
-            {/* body */}
             <ellipse cx="100" cy="140" rx="56" ry="46" fill="#B07C4F" />
-            {/* arm (waving) */}
             <g className="capy-arm">
               <ellipse cx="52" cy="138" rx="14" ry="22" fill="#A06E45" />
             </g>
             <ellipse cx="150" cy="150" rx="13" ry="20" fill="#A06E45" />
-            {/* feet */}
             <ellipse cx="82" cy="182" rx="12" ry="8" fill="#7E5733" />
             <ellipse cx="120" cy="182" rx="12" ry="8" fill="#7E5733" />
-
-            {/* head */}
             <ellipse cx="100" cy="82" rx="50" ry="44" fill="#B98A5A" />
-            {/* cheeks */}
             <circle cx="66" cy="92" r="9" fill="#E8A0A0" opacity="0.55" />
             <circle cx="134" cy="92" r="9" fill="#E8A0A0" opacity="0.55" />
-            {/* eyes (happy) */}
             <circle cx="80" cy="76" r="8" fill="#2B2B2B" />
             <circle cx="120" cy="76" r="8" fill="#2B2B2B" />
             <circle cx="83" cy="73" r="2.6" fill="#FFFFFF" />
             <circle cx="123" cy="73" r="2.6" fill="#FFFFFF" />
-            {/* snout */}
             <ellipse cx="100" cy="102" rx="30" ry="22" fill="#A9784C" />
             <ellipse cx="88" cy="98" rx="4" ry="5" fill="#4A3016" />
             <ellipse cx="112" cy="98" rx="4" ry="5" fill="#4A3016" />
-            {/* big excited smile */}
             <path
               d="M82 108 Q100 126 118 108"
               stroke="#4A3016"

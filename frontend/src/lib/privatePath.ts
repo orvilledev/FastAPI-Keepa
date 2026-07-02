@@ -4,6 +4,28 @@ export function isElectronDesktop(): boolean {
   return typeof window !== 'undefined' && Boolean(window.desktop?.isElectron)
 }
 
+/** True when the app is running as an installed PWA (home-screen / standalone). */
+export function isInstalledPwa(): boolean {
+  if (typeof window === 'undefined') return false
+  const nav = window.navigator as Navigator & { standalone?: boolean }
+  if (nav.standalone) return true
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches ||
+    window.matchMedia('(display-mode: minimal-ui)').matches
+  )
+}
+
+/** Browser tab or installed PWA — never the Electron desktop shell. */
+export function isWebOrPwaClient(): boolean {
+  return !isElectronDesktop()
+}
+
+/** Whether the v3 web-release announcement should be shown in this client. */
+export function shouldShowWebReleaseAnnouncement(): boolean {
+  return isWebOrPwaClient()
+}
+
 function pathStorage(): Storage {
   return isElectronDesktop() ? window.localStorage : window.sessionStorage
 }
