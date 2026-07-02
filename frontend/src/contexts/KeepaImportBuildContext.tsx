@@ -154,16 +154,6 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
     }
   }, [stopPolling, stopHistoryPolling])
 
-  useEffect(() => {
-    if (!building) return
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault()
-      event.returnValue = ''
-    }
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [building])
-
   const clearMessages = useCallback(() => {
     setError(null)
     setInfo(null)
