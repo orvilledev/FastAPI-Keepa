@@ -115,6 +115,7 @@ export default function KeepaImportExport() {
     null,
   )
   const [nextRun, setNextRun] = useState<KeepaImportSchedulerStatus | null>(null)
+  const [offPriceNextRun, setOffPriceNextRun] = useState<KeepaImportSchedulerStatus | null>(null)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [settingsForm, setSettingsForm] = useState<SchedulerSettingsFormState>({
     timezone: 'America/Chicago',
@@ -125,11 +126,21 @@ export default function KeepaImportExport() {
     anchor_date: null,
     email_recipients: '',
     email_bcc_recipients: '',
+    off_price_timezone: 'America/Chicago',
+    off_price_hour: 7,
+    off_price_minute: 0,
+    off_price_run_mode: 'daily',
+    off_price_custom_days: [],
+    off_price_anchor_date: null,
+    off_price_email_recipients: '',
+    off_price_email_bcc_recipients: '',
+    off_price_send_after_build: true,
   })
   const [savingSettings, setSavingSettings] = useState(false)
   const [contentsItem, setContentsItem] = useState<KeepaImportBuildHistoryItem | null>(null)
   const [globalBusy, setGlobalBusy] = useState<KeepaImportGlobalBusyStatus | null>(null)
   const [togglingSchedule, setTogglingSchedule] = useState(false)
+  const [togglingOffPriceSchedule, setTogglingOffPriceSchedule] = useState(false)
 
   const vendorUpper = category.toUpperCase()
 
@@ -205,10 +216,20 @@ export default function KeepaImportExport() {
     }
   }, [])
 
+  const loadOffPriceNextRun = useCallback(async (cat: string) => {
+    try {
+      const data = await keepaImportExportApi.getOffPriceSchedulerNextRun(cat)
+      setOffPriceNextRun(data)
+    } catch (e) {
+      console.error(e)
+    }
+  }, [])
+
   useEffect(() => {
     void loadSchedulerSettings(category)
     void loadNextRun(category)
-  }, [category, loadSchedulerSettings, loadNextRun])
+    void loadOffPriceNextRun(category)
+  }, [category, loadSchedulerSettings, loadNextRun, loadOffPriceNextRun])
 
   const loadGlobalBusy = useCallback(async () => {
     if (!enabled) {
@@ -261,6 +282,15 @@ export default function KeepaImportExport() {
         anchor_date: schedulerSettings.anchor_date || null,
         email_recipients: schedulerSettings.email_recipients || '',
         email_bcc_recipients: schedulerSettings.email_bcc_recipients || '',
+        off_price_timezone: schedulerSettings.off_price_timezone || 'America/Chicago',
+        off_price_hour: schedulerSettings.off_price_hour ?? 7,
+        off_price_minute: schedulerSettings.off_price_minute ?? 0,
+        off_price_run_mode: schedulerSettings.off_price_run_mode || 'daily',
+        off_price_custom_days: schedulerSettings.off_price_custom_days || [],
+        off_price_anchor_date: schedulerSettings.off_price_anchor_date || null,
+        off_price_email_recipients: schedulerSettings.off_price_email_recipients || '',
+        off_price_email_bcc_recipients: schedulerSettings.off_price_email_bcc_recipients || '',
+        off_price_send_after_build: schedulerSettings.off_price_send_after_build ?? true,
       })
     }
     setShowSettingsModal(true)
@@ -276,6 +306,7 @@ export default function KeepaImportExport() {
       })
       await loadSchedulerSettings(category)
       await loadNextRun(category)
+      await loadOffPriceNextRun(category)
       setShowSettingsModal(false)
       setInfo('Keepa Import schedule saved.')
     } catch (e) {
@@ -304,6 +335,28 @@ export default function KeepaImportExport() {
     }
   }
 
+  const handleToggleOffPriceSchedule = async () => {
+    if (!schedulerSettings) return
+    setTogglingOffPriceSchedule(true)
+    setError(null)
+    try {
+      const next = !schedulerSettings.off_price_enabled
+      await keepaImportExportApi.updateSchedulerSettings(category, { off_price_enabled: next })
+      await loadSchedulerSettings(category)
+      await loadOffPriceNextRun(category)
+      setInfo(
+        next
+          ? 'Scheduled off-price MAP reports enabled.'
+          : 'Scheduled off-price MAP reports stopped.',
+      )
+    } catch (e) {
+      console.error(e)
+      setError(extractDetail(e, 'Could not update the off-price schedule.'))
+    } finally {
+      setTogglingOffPriceSchedule(false)
+    }
+  }
+
   const handleDownload = async () => {
     setError(null)
     setInfo(null)
@@ -324,7 +377,7 @@ export default function KeepaImportExport() {
   const isOwnActiveBuild =
     downloading && buildingCategory != null && buildingCategory === category
   const blockedByOtherBuild = globalBusy?.busy === true && !isOwnActiveBuild
-  const busy = downloading || togglingFlag || togglingSchedule
+  const busy = downloading || togglingFlag || togglingSchedule || togglingOffPriceSchedule
   const actionsDisabled = busy || countLoading || noUpcs || !enabled || blockedByOtherBuild
   const displayError = error ?? buildError
   const displayInfo = info ?? (!downloading ? buildInfo : null)
@@ -363,6 +416,22 @@ export default function KeepaImportExport() {
                 : schedulerSettings?.enabled
                   ? 'Stop scheduled builds'
                   : 'Start scheduled builds'}
+            </button>
+            <button
+              type="button"
+              onClick={handleToggleOffPriceSchedule}
+              disabled={togglingOffPriceSchedule || !schedulerSettings}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50 ${
+                schedulerSettings?.off_price_enabled
+                  ? 'bg-red-600 text-white hover:bg-red-700'
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              }`}
+            >
+              {togglingOffPriceSchedule
+                ? 'Updating…'
+                : schedulerSettings?.off_price_enabled
+                  ? 'Stop off-price reports'
+                  : 'Start off-price reports'}
             </button>
             <button
               type="button"
@@ -454,6 +523,42 @@ export default function KeepaImportExport() {
               Uses the Keepa Import API key pool only — separate from Daily Run jobs. Only one
               Keepa Import build can run at a time across all vendors; scheduled runs wait if
               another build is in progress.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {settingsLoaded && enabled && schedulerSettings?.off_price_enabled && offPriceNextRun && (
+        <div className="card p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            Next off-price MAP report ({vendorUpper})
+          </h2>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Status:</span>
+              <span className="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-800">
+                Active
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Schedule:</span>
+              <span className="font-medium text-gray-900">{offPriceNextRun.scheduled_time}</span>
+            </div>
+            {offPriceNextRun.next_run_time_local && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Next run:</span>
+                <span className="font-medium text-gray-900">
+                  {offPriceNextRun.next_run_time_local}
+                </span>
+              </div>
+            )}
+            <p className="text-xs text-gray-500 pt-2">
+              Compares the latest completed Keepa Import file for this vendor against MAP and emails
+              an off-price listing report. Uses its own recipient list — separate from Daily Run and
+              from the Keepa file build email. Does not appear in Dashboard Active Runs.
+              {schedulerSettings.off_price_send_after_build
+                ? ' Also sent automatically after each successful build when recipients are set.'
+                : ''}
             </p>
           </div>
         </div>

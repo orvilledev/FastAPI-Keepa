@@ -209,6 +209,15 @@ async def startup_event():
     except Exception as e:
         logger.warning("Failed to reconcile stale Keepa Import builds: %s", e)
     try:
+        from app.keepa_import_off_price_scheduler import (
+            load_all_keepa_import_off_price_schedulers_from_db,
+        )
+
+        load_all_keepa_import_off_price_schedulers_from_db(get_supabase())
+        logger.info("Keepa Import off-price schedulers loaded")
+    except Exception as e:
+        logger.warning("Failed to load Keepa Import off-price schedulers: %s", e)
+    try:
         from app.keepa_import_scheduler import load_all_keepa_import_schedulers_from_db
 
         load_all_keepa_import_schedulers_from_db(get_supabase())

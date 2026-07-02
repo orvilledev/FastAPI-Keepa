@@ -516,6 +516,16 @@ export type KeepaImportSchedulerSettings = {
   anchor_date?: string | null
   email_recipients?: string | null
   email_bcc_recipients?: string | null
+  off_price_enabled?: boolean
+  off_price_timezone?: string
+  off_price_hour?: number
+  off_price_minute?: number
+  off_price_run_mode?: 'daily' | 'every_other_day' | 'custom_days'
+  off_price_custom_days?: string[]
+  off_price_anchor_date?: string | null
+  off_price_email_recipients?: string | null
+  off_price_email_bcc_recipients?: string | null
+  off_price_send_after_build?: boolean
   category: string
 }
 
@@ -675,6 +685,13 @@ export const keepaImportExportApi = {
   getSchedulerNextRun: async (category: string) => {
     const response = await api.get<KeepaImportSchedulerStatus>(
       `/api/v1/keepa-import-export/scheduler/next-run?category=${category}`
+    )
+    return response.data
+  },
+
+  getOffPriceSchedulerNextRun: async (category: string) => {
+    const response = await api.get<KeepaImportSchedulerStatus>(
+      `/api/v1/keepa-import-export/scheduler/off-price/next-run?category=${category}`
     )
     return response.data
   },

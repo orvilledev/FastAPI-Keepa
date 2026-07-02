@@ -34,6 +34,10 @@ from app.keepa_import_scheduler import (
     _job_id as keepa_import_job_id,
     update_keepa_import_scheduler,
 )
+from app.keepa_import_off_price_scheduler import (
+    _job_id as keepa_import_offprice_job_id,
+    update_keepa_import_off_price_scheduler,
+)
 from app.models.keepa_import_build_history import (
     KeepaImportBuildContentsResponse,
     KeepaImportBuildHistorySummary,
@@ -90,6 +94,18 @@ class KeepaImportSchedulerSettingsUpdate(BaseModel):
     anchor_date: Optional[str] = None
     email_recipients: Optional[str] = None
     email_bcc_recipients: Optional[str] = None
+    off_price_enabled: Optional[bool] = None
+    off_price_timezone: Optional[str] = None
+    off_price_hour: Optional[int] = None
+    off_price_minute: Optional[int] = None
+    off_price_run_mode: Optional[str] = None
+    off_price_custom_days: Optional[List[str]] = None
+    off_price_anchor_date: Optional[str] = None
+    off_price_email_recipients: Optional[str] = None
+    off_price_email_bcc_recipients: Optional[str] = None
+    off_price_email_subject_template: Optional[str] = None
+    off_price_email_body_template: Optional[str] = None
+    off_price_send_after_build: Optional[bool] = None
 
 
 def _normalize_category(category: str) -> str:
@@ -208,6 +224,18 @@ def _default_keepa_import_scheduler_settings(category: str) -> dict:
         "anchor_date": None,
         "email_recipients": None,
         "email_bcc_recipients": None,
+        "off_price_enabled": False,
+        "off_price_timezone": "America/Chicago",
+        "off_price_hour": 7,
+        "off_price_minute": 0,
+        "off_price_run_mode": "daily",
+        "off_price_custom_days": [],
+        "off_price_anchor_date": None,
+        "off_price_email_recipients": None,
+        "off_price_email_bcc_recipients": None,
+        "off_price_email_subject_template": None,
+        "off_price_email_body_template": None,
+        "off_price_send_after_build": True,
         "category": category,
     }
 
@@ -234,6 +262,18 @@ def _read_keepa_import_scheduler_settings(db: Client, category: str) -> dict:
             "anchor_date": row.get("anchor_date"),
             "email_recipients": row.get("email_recipients"),
             "email_bcc_recipients": row.get("email_bcc_recipients"),
+            "off_price_enabled": bool(row.get("off_price_enabled", False)),
+            "off_price_timezone": row.get("off_price_timezone", "America/Chicago"),
+            "off_price_hour": row.get("off_price_hour", 7),
+            "off_price_minute": row.get("off_price_minute", 0),
+            "off_price_run_mode": row.get("off_price_run_mode", "daily"),
+            "off_price_custom_days": row.get("off_price_custom_days") or [],
+            "off_price_anchor_date": row.get("off_price_anchor_date"),
+            "off_price_email_recipients": row.get("off_price_email_recipients"),
+            "off_price_email_bcc_recipients": row.get("off_price_email_bcc_recipients"),
+            "off_price_email_subject_template": row.get("off_price_email_subject_template"),
+            "off_price_email_body_template": row.get("off_price_email_body_template"),
+            "off_price_send_after_build": bool(row.get("off_price_send_after_build", True)),
             "category": category,
         }
     except Exception as exc:
@@ -343,6 +383,106 @@ def get_keepa_import_scheduler_next_run(
     }
 
 
+def _scheduler_next_run_payload(
+    *,
+    settings: dict,
+    enabled_key: str,
+    timezone_key: str,
+    hour_key: str,
+    minute_key: str,
+    run_mode_key: str,
+    custom_days_key: str,
+    job_id: str,
+    disabled_message: str,
+) -> dict:
+    tz_str = settings.get(timezone_key, "America/Chicago")
+    hour = int(settings.get(hour_key, 0))
+    minute = int(settings.get(minute_key, 0))
+    run_mode = settings.get(run_mode_key, "daily")
+    custom_days = settings.get(custom_days_key) or []
+    enabled = bool(settings.get(enabled_key, False))
+
+    try:
+        current_tz = pytz_timezone(tz_str)
+    except Exception:
+        current_tz = pytz_timezone("America/Chicago")
+        tz_str = "America/Chicago"
+
+    try:
+        is_running = scheduler.running
+    except (AttributeError, RuntimeError):
+        is_running = False
+
+    job = None
+    try:
+        job = scheduler.get_job(job_id)
+    except Exception:
+        pass
+
+    schedule_label = {
+        "daily": "Daily",
+        "every_other_day": "Every other day",
+        "custom_days": f"Custom days ({', '.join(custom_days)})" if custom_days else "Custom days",
+    }.get(run_mode, "Daily")
+    scheduled_time_str = f"{hour:02d}:{minute:02d} {tz_str} - {schedule_label}"
+
+    if not enabled or not job or not job.next_run_time:
+        return {
+            "next_run_time": None,
+            "next_run_time_local": None,
+            "scheduled_time": scheduled_time_str,
+            "timezone": tz_str,
+            "run_mode": run_mode,
+            "custom_days": custom_days,
+            "enabled": enabled,
+            "message": disabled_message if not enabled else "Scheduler not configured",
+            "seconds_until": None,
+            "is_running": is_running,
+        }
+
+    next_run = job.next_run_time.astimezone(current_tz)
+    now = datetime.now(current_tz)
+    time_diff = next_run - now
+    if time_diff.total_seconds() < 0:
+        next_run = next_run + timedelta(days=1)
+        time_diff = next_run - now
+
+    return {
+        "next_run_time": next_run.isoformat(),
+        "next_run_time_local": next_run.strftime("%Y-%m-%d %H:%M:%S %Z"),
+        "scheduled_time": scheduled_time_str,
+        "timezone": tz_str,
+        "run_mode": run_mode,
+        "custom_days": custom_days,
+        "enabled": enabled,
+        "seconds_until": int(time_diff.total_seconds()),
+        "is_running": is_running,
+    }
+
+
+@router.get("/keepa-import-export/scheduler/off-price/next-run")
+@handle_api_errors("get keepa import off-price scheduler next run")
+def get_keepa_import_off_price_scheduler_next_run(
+    category: str = Query(default="dnk", pattern="^(dnk|clk|obz|ref|bor|sff|tev|cha)$"),
+    current_user: dict = Depends(get_keepa_access_user),
+    db: Client = Depends(get_supabase),
+):
+    """Next scheduled off-price MAP report run for a vendor."""
+    cat = _normalize_category(category)
+    settings = _read_keepa_import_scheduler_settings(db, cat)
+    return _scheduler_next_run_payload(
+        settings=settings,
+        enabled_key="off_price_enabled",
+        timezone_key="off_price_timezone",
+        hour_key="off_price_hour",
+        minute_key="off_price_minute",
+        run_mode_key="off_price_run_mode",
+        custom_days_key="off_price_custom_days",
+        job_id=keepa_import_offprice_job_id(cat),
+        disabled_message="Off-price report schedule is off",
+    )
+
+
 @router.put("/keepa-import-export/scheduler/settings")
 @handle_api_errors("update keepa import scheduler settings")
 def update_keepa_import_scheduler_settings(
@@ -406,6 +546,62 @@ def update_keepa_import_scheduler_settings(
         filtered_bcc = [email for email in requested_bcc if email in allowed]
         update_data["email_bcc_recipients"] = ",".join(filtered_bcc) if filtered_bcc else None
 
+    off_price_fields = (
+        "off_price_enabled",
+        "off_price_timezone",
+        "off_price_hour",
+        "off_price_minute",
+        "off_price_run_mode",
+        "off_price_anchor_date",
+        "off_price_email_subject_template",
+        "off_price_email_body_template",
+        "off_price_send_after_build",
+    )
+    for field in off_price_fields:
+        value = getattr(settings_data, field, None)
+        if value is not None:
+            update_data[field] = value
+
+    if settings_data.off_price_hour is not None:
+        if settings_data.off_price_hour < 0 or settings_data.off_price_hour > 23:
+            raise HTTPException(status_code=400, detail="off_price_hour must be between 0 and 23")
+    if settings_data.off_price_minute is not None:
+        if settings_data.off_price_minute < 0 or settings_data.off_price_minute > 59:
+            raise HTTPException(status_code=400, detail="off_price_minute must be between 0 and 59")
+    if settings_data.off_price_run_mode is not None:
+        if settings_data.off_price_run_mode not in VALID_RUN_MODES:
+            raise HTTPException(status_code=400, detail="Invalid off_price_run_mode")
+    if settings_data.off_price_custom_days is not None:
+        normalized_off_days = [
+            day.lower().strip()
+            for day in settings_data.off_price_custom_days
+            if isinstance(day, str)
+        ]
+        invalid_off_days = [day for day in normalized_off_days if day not in VALID_WEEKDAYS]
+        if invalid_off_days:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid off_price_custom_days values: {', '.join(invalid_off_days)}",
+            )
+        update_data["off_price_custom_days"] = [
+            d for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] if d in normalized_off_days
+        ]
+    if settings_data.off_price_anchor_date is not None and settings_data.off_price_anchor_date:
+        try:
+            datetime.strptime(settings_data.off_price_anchor_date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="off_price_anchor_date must be YYYY-MM-DD")
+    if settings_data.off_price_email_recipients is not None:
+        allowed = _load_allowed_pool_emails(db, str(current_user["id"]))
+        requested = _parse_recipients_csv(settings_data.off_price_email_recipients)
+        filtered = [email for email in requested if email in allowed]
+        update_data["off_price_email_recipients"] = ",".join(filtered) if filtered else None
+    if settings_data.off_price_email_bcc_recipients is not None:
+        allowed = _load_allowed_pool_emails(db, str(current_user["id"]))
+        requested_bcc = _parse_recipients_csv(settings_data.off_price_email_bcc_recipients)
+        filtered_bcc = [email for email in requested_bcc if email in allowed]
+        update_data["off_price_email_bcc_recipients"] = ",".join(filtered_bcc) if filtered_bcc else None
+
     merged = {**current, **update_data}
     db.table(_KEEPA_IMPORT_SCHEDULER_TABLE).update(update_data).eq("category", cat).execute()
 
@@ -418,6 +614,16 @@ def update_keepa_import_scheduler_settings(
         run_mode=merged["run_mode"],
         custom_days=merged.get("custom_days") or [],
         anchor_date=merged.get("anchor_date"),
+    )
+    update_keepa_import_off_price_scheduler(
+        category=cat,
+        timezone_str=merged.get("off_price_timezone", "America/Chicago"),
+        hour=int(merged.get("off_price_hour", 7)),
+        minute=int(merged.get("off_price_minute", 0)),
+        enabled=bool(merged.get("off_price_enabled", False)),
+        run_mode=merged.get("off_price_run_mode", "daily"),
+        custom_days=merged.get("off_price_custom_days") or [],
+        anchor_date=merged.get("off_price_anchor_date"),
     )
 
     return {**_read_keepa_import_scheduler_settings(db, cat), "message": "Keepa Import schedule updated"}

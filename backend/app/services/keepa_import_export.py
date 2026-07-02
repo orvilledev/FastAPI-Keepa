@@ -501,3 +501,30 @@ def parse_keepa_import_workbook(
             }
         )
     return rows, total
+
+
+def parse_all_keepa_import_workbook(file_bytes: bytes) -> list[dict[str, str]]:
+    """Parse every data row from a Keepa Import workbook (for MAP off-price reports)."""
+    from openpyxl import load_workbook
+
+    wb = load_workbook(BytesIO(file_bytes), read_only=True, data_only=True)
+    rows: list[dict[str, str]] = []
+    try:
+        ws = wb.active
+        for row_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
+            if row is None:
+                continue
+            row_tuple = tuple(row)
+            if row_idx == 1 and _is_header_row(row_tuple):
+                continue
+            if not any(cell is not None and str(cell).strip() for cell in row_tuple):
+                continue
+            rows.append(
+                {
+                    key: _row_cell(row_tuple, col)
+                    for key, col in _CONTENT_COLUMN_INDICES.items()
+                }
+            )
+    finally:
+        wb.close()
+    return rows

@@ -22,6 +22,10 @@ from app.services.keepa_import_export import (
     KeepaBuildCancelled,
     generate_keepa_import_file,
 )
+from app.services.keepa_import_off_price_report import (
+    _load_off_price_settings,
+    send_keepa_import_off_price_email,
+)
 from app.utils.email_recipient_utils import parse_recipient_csv
 from app.utils.user_display_name import format_stored_creator_name
 
@@ -383,6 +387,32 @@ async def _send_completion_email(
     )
 
 
+async def _maybe_send_off_price_after_build(
+    db: Client,
+    build_id: str,
+    category: str,
+    file_bytes: bytes,
+) -> None:
+    settings_row = await asyncio.to_thread(_load_off_price_settings, db, category)
+    if not settings_row.get("off_price_send_after_build", True):
+        return
+    recipients = (settings_row.get("off_price_email_recipients") or "").strip()
+    bcc = (settings_row.get("off_price_email_bcc_recipients") or "").strip()
+    if not recipients and not bcc:
+        return
+    await asyncio.to_thread(
+        send_keepa_import_off_price_email,
+        db,
+        build_id=build_id,
+        category=category,
+        file_bytes=file_bytes,
+        email_recipients=settings_row.get("off_price_email_recipients"),
+        email_bcc_recipients=settings_row.get("off_price_email_bcc_recipients"),
+        email_subject_template=settings_row.get("off_price_email_subject_template"),
+        email_body_template=settings_row.get("off_price_email_body_template"),
+    )
+
+
 async def run_keepa_import_build(
     build_id: str,
     user_id: str,
@@ -475,6 +505,7 @@ async def run_keepa_import_build(
             await _send_completion_email(
                 file_bytes, filename, cat, len(upcs), email_notify
             )
+        await _maybe_send_off_price_after_build(db, build_id, cat, file_bytes)
     except KeepaBuildCancelled:
         logger.info("Keepa Import File build %s cancelled", build_id)
         await asyncio.to_thread(history.cancel, build_id)

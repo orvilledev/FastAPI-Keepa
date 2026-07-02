@@ -9,7 +9,7 @@ import {
   HEARTBEAT_INTERVAL_MS,
   isWebBrowserTab,
   shouldShowReleaseAnnouncementPopup,
-  WEB_BROWSER_HEARTBEAT_KEY,
+  webBrowserHeartbeatKey,
   writeWebBrowserHeartbeat,
 } from '../../lib/webReleaseAnnouncement'
 
@@ -19,40 +19,42 @@ const RELEASE_DATE_LABEL = 'Monday, July 6, 2026'
 /**
  * Welcome popup for the upcoming v3.0.0 web release (browser + PWA only).
  *
- * - Dismissal lasts for this client session only — reopening after a full close
- *   shows the popup again.
+ * - Dismissal is per user and per client session — reopening after a full close
+ *   shows the popup again for that user.
  * - When both a browser tab and the PWA are open, only the browser tab shows it.
  * - Electron desktop never shows this.
  */
 export default function WebReleaseAnnouncement() {
   const { authUser } = useUser()
   const [visible, setVisible] = useState(false)
+  const userId = authUser?.id ?? null
 
   const syncVisibility = useCallback(() => {
-    if (!authUser || !shouldShowWebReleaseAnnouncement()) {
+    if (!userId || !shouldShowWebReleaseAnnouncement()) {
       setVisible(false)
       return
     }
-    setVisible(shouldShowReleaseAnnouncementPopup())
-  }, [authUser])
+    setVisible(shouldShowReleaseAnnouncementPopup(userId))
+  }, [userId])
 
   useEffect(() => {
-    clearLegacyPermanentDismiss()
+    if (!userId) return
+    clearLegacyPermanentDismiss(userId)
     syncVisibility()
-  }, [syncVisibility])
+  }, [userId, syncVisibility])
 
   // Browser tabs publish a heartbeat so the PWA stays quiet while web is open.
   useEffect(() => {
-    if (!authUser || !isWebBrowserTab()) return
+    if (!userId || !isWebBrowserTab()) return
 
     const beat = () => {
-      if (!document.hidden) writeWebBrowserHeartbeat()
+      if (!document.hidden) writeWebBrowserHeartbeat(userId)
     }
 
     beat()
     const interval = window.setInterval(beat, HEARTBEAT_INTERVAL_MS)
     const onVisibility = () => beat()
-    const onPageHide = () => clearWebBrowserHeartbeat()
+    const onPageHide = () => clearWebBrowserHeartbeat(userId)
 
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('pagehide', onPageHide)
@@ -63,16 +65,17 @@ export default function WebReleaseAnnouncement() {
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('pagehide', onPageHide)
       window.removeEventListener('beforeunload', onPageHide)
-      clearWebBrowserHeartbeat()
+      clearWebBrowserHeartbeat(userId)
     }
-  }, [authUser])
+  }, [userId])
 
   // PWA listens for a browser tab coming online (storage event) or going stale.
   useEffect(() => {
-    if (!authUser || !isInstalledPwa()) return
+    if (!userId || !isInstalledPwa()) return
 
+    const heartbeatKey = webBrowserHeartbeatKey(userId)
     const onStorage = (event: StorageEvent) => {
-      if (event.key === WEB_BROWSER_HEARTBEAT_KEY) syncVisibility()
+      if (event.key === heartbeatKey) syncVisibility()
     }
 
     window.addEventListener('storage', onStorage)
@@ -82,10 +85,11 @@ export default function WebReleaseAnnouncement() {
       window.removeEventListener('storage', onStorage)
       window.clearInterval(interval)
     }
-  }, [authUser, syncVisibility])
+  }, [userId, syncVisibility])
 
   const handleDismiss = () => {
-    dismissReleaseAnnouncementThisSession()
+    if (!userId) return
+    dismissReleaseAnnouncementThisSession(userId)
     setVisible(false)
   }
 
