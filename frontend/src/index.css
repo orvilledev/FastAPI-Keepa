@@ -774,3 +774,163 @@ code {
   color: rgb(var(--color-text-primary)) !important;
 }
 
+/* Brand / charcoal text must read on dark surfaces */
+.dark .text-\[\#404040\],
+.dark .text-\[\#3B3B3B\] {
+  color: rgb(226 232 240) !important;
+}
+
+.dark .hover\:text-\[\#404040\]:hover,
+.dark .hover\:text-\[\#3B3B3B\]:hover {
+  color: rgb(241 245 249) !important;
+}
+
+.dark .text-\[\#81B81D\] {
+  color: #b8e04a !important;
+}
+
+.dark .text-gray-400,
+.dark .text-gray-300 {
+  color: rgb(148 163 184) !important;
+}
+
+.dark .text-red-600 {
+  color: rgb(248 113 113) !important;
+}
+
+/* Preserve intentional light text on dark fills */
+.dark .text-white {
+  color: rgb(255 255 255) !important;
+}
+
+.dark .text-white\/70 {
+  color: rgb(255 255 255 / 0.7) !important;
+}
+
+.dark .text-white\/80 {
+  color: rgb(255 255 255 / 0.8) !important;
+}
+
+.dark .text-\[\#DDF5B0\] {
+  color: #ddf5b0 !important;
+}
+
+.dark .text-\[\#E8F8C8\] {
+  color: #e8f8c8 !important;
+}
+
+.dark .text-\[\#FFD8B0\] {
+  color: #ffd8b0 !important;
+}
+
+.dark .text-\[\#FFE7CC\] {
+  color: #ffe7cc !important;
+}
+
+/* Tinted surfaces and status panels */
+.dark .bg-gray-200 {
+  background-color: rgb(var(--color-border-strong)) !important;
+}
+
+.dark .bg-gray-300 {
+  background-color: rgb(71 85 105) !important;
+}
+
+.dark .bg-green-50 {
+  background-color: rgb(34 197 94 / 0.12) !important;
+}
+
+.dark .text-green-700,
+.dark .text-green-900 {
+  color: rgb(134 239 172) !important;
+}
+
+.dark .border-green-200,
+.dark .border-green-500 {
+  border-color: rgb(34 197 94 / 0.35) !important;
+}
+
+.dark .bg-amber-50,
+.dark .bg-amber-50\/60,
+.dark .bg-amber-50\/80 {
+  background-color: rgb(245 158 11 / 0.12) !important;
+}
+
+.dark .bg-amber-100 {
+  background-color: rgb(245 158 11 / 0.18) !important;
+}
+
+.dark .text-amber-800,
+.dark .text-amber-900,
+.dark .text-amber-700 {
+  color: rgb(252 211 77) !important;
+}
+
+.dark .border-amber-200 {
+  border-color: rgb(245 158 11 / 0.35) !important;
+}
+
+.dark .border-blue-500 {
+  border-color: rgb(96 165 250 / 0.45) !important;
+}
+
+.dark .divide-gray-50 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgb(var(--color-border) / 0.5) !important;
+}
+
+.dark .focus\:bg-white:focus {
+  background-color: rgb(var(--color-surface-elevated)) !important;
+}
+
+.dark .border-\[\#404040\] {
+  border-color: rgb(148 163 184 / 0.45) !important;
+}
+
+.dark .border-\[\#81B81D\],
+.dark .border-\[\#81B81D\]\/30,
+.dark .border-\[\#81B81D\]\/40 {
+  border-color: rgb(163 214 54 / 0.45) !important;
+}
+
+.dark .bg-\[\#404040\]\/5 {
+  background-color: rgb(148 163 184 / 0.12) !important;
+}
+
+.dark .bg-\[\#404040\]\/10 {
+  background-color: rgb(148 163 184 / 0.18) !important;
+}
+
+.dark .bg-\[\#81B81D\]\/10 {
+  background-color: rgb(129 184 29 / 0.16) !important;
+}
+
+.dark .bg-\[\#81B81D\]\/20 {
+  background-color: rgb(129 184 29 / 0.22) !important;
+}
+
+.dark .bg-\[\#81B81D\]\/30 {
+  background-color: rgb(129 184 29 / 0.28) !important;
+}
+
+.dark .bg-\[\#F97316\]\/20 {
+  background-color: rgb(249 115 22 / 0.2) !important;
+}
+
+.dark .bg-\[\#F97316\]\/30 {
+  background-color: rgb(249 115 22 / 0.28) !important;
+}
+
+/* Charcoal panels keep white copy */
+.dark .bg-\[\#404040\],
+.dark .bg-\[\#404040\]\/90 {
+  color: rgb(255 255 255);
+}
+
+.dark .bg-\[\#404040\] .text-gray-900,
+.dark .bg-\[\#404040\] .text-gray-800,
+.dark .bg-\[\#404040\] .text-gray-700,
+.dark .bg-\[\#404040\] .text-\[\#404040\],
+.dark .bg-\[\#404040\] .text-\[\#111827\] {
+  color: rgb(255 255 255) !important;
+}
+

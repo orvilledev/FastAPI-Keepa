@@ -445,9 +445,9 @@ export default function Sidebar() {
         )}
       </nav>
       {isElectron && (
-        <div className="mx-4 mb-4 mt-3 shrink-0 rounded-lg border border-gray-200 bg-gray-50 p-3">
-          <p className="text-xs font-semibold text-gray-700">Desktop</p>
-          <p className="mt-1 text-xs text-gray-600">
+        <div className="mx-4 mb-4 mt-3 shrink-0 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-border dark:bg-surface-muted">
+          <p className="text-xs font-semibold text-gray-700 dark:text-content-secondary">Desktop</p>
+          <p className="mt-1 text-xs text-gray-600 dark:text-content-muted">
             Version: <span className="font-mono text-[11px]">{desktopVersion ?? 'loading...'}</span>
           </p>
           <button
@@ -458,7 +458,7 @@ export default function Sidebar() {
           >
             {isCheckingUpdates ? 'Checking...' : 'Check for Updates'}
           </button>
-          {updateMessage && <p className="mt-2 text-[11px] text-gray-600">{updateMessage}</p>}
+          {updateMessage && <p className="mt-2 text-[11px] text-gray-600 dark:text-content-muted">{updateMessage}</p>}
         </div>
       )}
     </aside>

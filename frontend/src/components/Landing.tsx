@@ -51,7 +51,7 @@ export default function Landing() {
             <ThemeToggle />
             <Link
               to="/login"
-              className="text-gray-700 hover:text-[#404040] font-medium transition-colors"
+              className="text-gray-700 hover:text-[#404040] dark:text-slate-300 dark:hover:text-slate-100 font-medium transition-colors"
             >
               Sign In
             </Link>

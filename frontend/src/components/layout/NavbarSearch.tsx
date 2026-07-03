@@ -151,7 +151,7 @@ export default function NavbarSearch() {
           aria-label="Search pages"
           aria-expanded={open && results.length > 0}
           aria-controls="navbar-search-results"
-          className="block w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-500 transition-colors focus:border-gray-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#404040]/15"
+          className="block w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-500 transition-colors focus:border-gray-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#404040]/15 dark:border-border dark:bg-surface-muted dark:text-content dark:placeholder:text-content-muted dark:focus:border-border-strong dark:focus:bg-surface-elevated"
         />
       </form>
 
@@ -159,7 +159,7 @@ export default function NavbarSearch() {
         <ul
           id="navbar-search-results"
           role="listbox"
-          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-border dark:bg-surface-elevated"
         >
           {results.length === 0 ? (
             <li className="px-4 py-2.5 text-sm text-gray-500">No pages found</li>
