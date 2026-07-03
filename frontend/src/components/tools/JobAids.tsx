@@ -22,10 +22,11 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     q: 'What is in the Menu section?',
     a: (
       <>
-        Menu includes <strong>Dashboard</strong>, <strong>Express Jobs</strong>, <strong>Daily Runs</strong>,{' '}
-        <strong>Manage UPCs</strong>, <strong>Manage MAP</strong>, <strong>Seller List</strong>, and{' '}
-        <strong>Email List</strong>. Express Jobs through Email List require Keepa access on your account; Dashboard is
-        available to all signed-in users.
+        Menu includes <strong>Dashboard</strong>, <strong>Notifications</strong>, <strong>Express Jobs</strong>,{' '}
+        <strong>Daily Runs</strong>, <strong>Manage UPCs</strong>, <strong>Manage MAP</strong>,{' '}
+        <strong>Seller List</strong>, and <strong>Email List</strong>. Express Jobs through Email List require Keepa
+        access on your account; Dashboard and Notifications are available to all signed-in users (warehouse-only accounts
+        do not see the notifications bell).
       </>
     ),
   },
@@ -45,7 +46,8 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
       <>
         Express Jobs are on-demand Keepa checks against managed UPCs. You create a job, choose recipients, and run in{' '}
         <strong>API Mode</strong> (live Keepa data) or <strong>Import Mode</strong> (uploaded Keepa report file). Job
-        status, results, and cleanup live under Express Jobs in the sidebar.
+        status, results, and cleanup live under Express Jobs in the sidebar. Delete finished jobs from the job list or
+        detail page when you no longer need them.
       </>
     ),
   },
@@ -165,9 +167,10 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     q: 'What is in the Tools section?',
     a: (
       <>
-        Tools includes <strong>Micro Tools</strong>, <strong>Tracking Extractor</strong>, <strong>FNSKU Labels</strong>,
-        and <strong>Label Station</strong>. Micro Tools, Tracking Extractor, and FNSKU Labels are available to all
-        signed-in users. <strong>Label Station</strong> requires Keepa access or a warehouse-only account.
+        Tools includes <strong>Micro Tools</strong>, <strong>Tracking Extractor</strong>, <strong>FNSKU Labels</strong>,{' '}
+        <strong>Keepa Import File</strong>, and <strong>Label Station</strong>. Micro Tools, Tracking Extractor, and
+        FNSKU Labels are available to all signed-in users. <strong>Keepa Import File</strong> and{' '}
+        <strong>Label Station</strong> require Keepa access or a warehouse-only account.
       </>
     ),
   },
@@ -194,7 +197,8 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         FNSKU Labels parses FBA shipment spreadsheets (CSV, Excel, or ZIP bundles) and generates FNSKU label PDFs or
-        workbooks for warehouse labeling.
+        workbooks for warehouse labeling. Past runs are kept in history — delete individual entries or use{' '}
+        <strong>Clear history</strong> to remove them all.
       </>
     ),
   },
@@ -218,6 +222,71 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         Staff always scan the <strong>UPC</strong> barcode. If the catalog SKU has <strong>7 numeric digits or fewer</strong>{' '}
         (for example <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs">9990357</code>), the label prints that{' '}
         <strong>SKU</strong> under the barcode instead of the UPC. Longer SKUs print the UPC as before.
+      </>
+    ),
+  },
+  {
+    q: 'What is Keepa Import File?',
+    a: (
+      <>
+        <strong>Keepa Import File</strong> builds Keepa Excel files from the UPCs in Manage UPCs so you can feed Daily Run{' '}
+        <strong>Import Mode</strong>. Pick a vendor, click <strong>Download Keepa file</strong>, and use the output on a
+        vendor Daily Run page. You can also schedule automatic builds, optional off-price MAP reports, and email delivery
+        per vendor. Build history shows past runs with download, contents preview, and <strong>Clear history</strong>{' '}
+        controls. The tool requires Keepa access; admins can turn the tool on or off globally.
+      </>
+    ),
+  },
+  {
+    q: 'What are Notifications?',
+    a: (
+      <>
+        Notifications is the team feed for completed express and daily runs. Click the <strong>bell icon</strong> in the
+        top bar (or open <strong>Notifications</strong> from search) to see recent activity, mark items as read, or clear
+        the list. The red badge shows how many unread items you have. Warehouse-only accounts do not see the notifications
+        bell.
+      </>
+    ),
+  },
+  {
+    q: 'How do I switch between light and dark mode?',
+    a: (
+      <>
+        Click the <strong>theme toggle</strong> in the top bar — a <strong>moon</strong> icon in light mode and a{' '}
+        <strong>sun</strong> icon in dark mode. The same control appears on the landing and login pages before sign-in.
+        Your choice is saved on this device and applies across every page. On first visit, the app follows your
+        computer&apos;s light/dark system setting until you pick a theme.
+      </>
+    ),
+  },
+  {
+    q: 'How does two-factor authentication work?',
+    a: (
+      <>
+        Most staff accounts sign in with email, password, and a 6-digit code from an authenticator app (Google
+        Authenticator, Authy, 1Password, etc.). On first login you scan a QR code labeled <strong>MSW Overwatch</strong>.
+        Shared <strong>warehouse-only</strong> station logins skip MFA. To replace a lost phone, open the profile menu in
+        the top bar and choose <strong>Reset authenticator</strong>, then scan the new QR code.
+      </>
+    ),
+  },
+  {
+    q: 'How do I find a page quickly?',
+    a: (
+      <>
+        Use the <strong>search box</strong> in the top bar. Type part of a page name (for example &quot;Express&quot;,
+        &quot;MAP&quot;, or &quot;FAQ&quot;) and pick from the grouped results under Menu, Tools, or General. Warehouse-only
+        accounts see a shorter list focused on Label Station and General pages.
+      </>
+    ),
+  },
+  {
+    q: 'Can I use MSW Overwatch on Windows without a browser?',
+    a: (
+      <>
+        Yes. Click <strong>Download app</strong> in the top bar (browser only) to install the Windows desktop client. The
+        Electron app includes the same features as the web UI, plus Label Station Zebra printing and an in-app{' '}
+        <strong>Check for Updates</strong> button on the About page.
       </>
     ),
   },
@@ -270,7 +339,7 @@ export default function JobAids() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">FAQ</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Common questions about {APP_NAME} Menu, Tools, and General features, aligned with the{' '}
+          Common questions about {APP_NAME} Menu, Tools, General, appearance, and account access — aligned with the{' '}
           <Link to="/about" className="text-[#404040] font-medium underline">
             About
           </Link>{' '}
@@ -298,8 +367,8 @@ export default function JobAids() {
       </div>
 
       <p className="text-xs text-gray-400">
-        Keepa-related Menu items and Label Station require the right account access; other Tools are available to all
-        signed-in users. Warehouse-only accounts see Label Station and General only.
+        Keepa-related Menu items, Keepa Import File, and Label Station require the right account access; other Tools are
+        available to all signed-in users. Warehouse-only accounts see Label Station and General only.
       </p>
     </div>
   )
