@@ -515,7 +515,7 @@ export default function MAPManagement() {
                 type="file"
                 accept=".csv,.txt,text/plain,text/csv"
                 onChange={handleMapFileUpload}
-                className="mt-1 block w-full text-sm text-gray-700 file:mr-3 file:rounded-md file:border file:border-gray-300 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-gray-50"
+                className="mt-1 block w-full text-sm text-gray-700 dark:text-slate-300 file:mr-3 file:rounded-md file:border file:border-gray-300 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-50 dark:file:border-border dark:file:bg-surface-elevated dark:file:text-slate-100 hover:dark:file:bg-surface-hover"
               />
               <p className="mt-1 text-xs text-gray-500">
                 CSV format: Column A = UPC, Column B = price, Column C = vendor. No header needed.
