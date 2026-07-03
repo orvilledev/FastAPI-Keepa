@@ -1,5 +1,5 @@
 import JSZip from 'jszip'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildFnskuLabelsPdfBlob,
   buildFnskuLabelsWorkbookBlob,
@@ -11,6 +11,13 @@ import {
   type FnskuShipment,
   type FnskuShipmentSummary,
 } from '../../utils/fnskuLabelGenerator'
+import {
+  addFnskuLabelHistoryEntry,
+  clearFnskuLabelHistory,
+  deleteFnskuLabelHistoryEntry,
+  listFnskuLabelHistory,
+  type FnskuLabelHistoryEntry,
+} from '../../utils/fnskuLabelHistory'
 
 const ACCEPTED =
   '.csv,.xlsx,.xls,.xlsm,.zip,text/csv,application/vnd.ms-excel,' +
@@ -36,6 +43,14 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
+function formatWhen(iso: string) {
+  try {
+    return new Date(iso).toLocaleString()
+  } catch {
+    return iso
+  }
+}
+
 async function extractFromZip(zipFile: File): Promise<File[]> {
   const zip = await JSZip.loadAsync(zipFile)
   const extracted: File[] = []
@@ -51,11 +66,30 @@ async function extractFromZip(zipFile: File): Promise<File[]> {
 
 export default function FNSKULabelGenerator() {
   const [entries, setEntries] = useState<FileEntry[]>([])
+  const [history, setHistory] = useState<FnskuLabelHistoryEntry[]>([])
+  const [historyBusyId, setHistoryBusyId] = useState<string | null>(null)
+  const [historyClearing, setHistoryClearing] = useState(false)
   const [globalError, setGlobalError] = useState<string | null>(null)
   const [globalSuccess, setGlobalSuccess] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [exporting, setExporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const loadHistory = useCallback(() => {
+    setHistory(listFnskuLabelHistory())
+  }, [])
+
+  useEffect(() => {
+    loadHistory()
+  }, [loadHistory])
+
+  const recordHistory = useCallback(
+    (sourceFilename: string, shipment: FnskuShipment) => {
+      addFnskuLabelHistoryEntry(sourceFilename, shipment)
+      loadHistory()
+    },
+    [loadHistory],
+  )
 
   const reset = useCallback(() => {
     setEntries([])
@@ -135,8 +169,14 @@ export default function FNSKULabelGenerator() {
         })
         return updated
       })
+
+      results.forEach((result) => {
+        if (result.shipment) {
+          recordHistory(result.file.name, result.shipment)
+        }
+      })
     },
-    [parseFile]
+    [parseFile, recordHistory]
   )
 
   const handleDrop = useCallback(
@@ -212,6 +252,64 @@ export default function FNSKULabelGenerator() {
       setExporting(false)
     }
   }, [entries, handleDownloadPdf])
+
+  const downloadHistoryWorkbook = useCallback((item: FnskuLabelHistoryEntry) => {
+    setHistoryBusyId(item.id)
+    setGlobalError(null)
+    try {
+      const filename = handleDownloadWorkbook(item.shipment)
+      setGlobalSuccess(`Generated ${filename}.`)
+    } catch (err) {
+      setGlobalError(err instanceof Error ? err.message : 'Failed to generate workbook.')
+    } finally {
+      setHistoryBusyId(null)
+    }
+  }, [handleDownloadWorkbook])
+
+  const downloadHistoryPdf = useCallback((item: FnskuLabelHistoryEntry) => {
+    setHistoryBusyId(item.id)
+    setGlobalError(null)
+    try {
+      const filename = handleDownloadPdf(item.shipment)
+      setGlobalSuccess(`Generated ${filename}.`)
+    } catch (err) {
+      setGlobalError(err instanceof Error ? err.message : 'Failed to generate PDF.')
+    } finally {
+      setHistoryBusyId(null)
+    }
+  }, [handleDownloadPdf])
+
+  const deleteHistory = useCallback(
+    (id: string) => {
+      if (!window.confirm('Delete this history record?')) return
+      setHistoryBusyId(id)
+      setGlobalError(null)
+      try {
+        deleteFnskuLabelHistoryEntry(id)
+        setHistory((prev) => prev.filter((item) => item.id !== id))
+      } catch {
+        setGlobalError('Could not delete selected history record.')
+      } finally {
+        setHistoryBusyId(null)
+      }
+    },
+    [],
+  )
+
+  const clearAllHistory = useCallback(() => {
+    if (!window.confirm('Delete all saved FNSKU label history? This cannot be undone.')) return
+    setHistoryClearing(true)
+    setGlobalError(null)
+    try {
+      clearFnskuLabelHistory()
+      setHistory([])
+      setGlobalSuccess('History cleared.')
+    } catch {
+      setGlobalError('Could not clear history.')
+    } finally {
+      setHistoryClearing(false)
+    }
+  }, [])
 
   const readyCount = useMemo(() => entries.filter((e) => e.shipment).length, [entries])
   const parsingCount = useMemo(() => entries.filter((e) => e.parsing).length, [entries])
@@ -368,6 +466,103 @@ export default function FNSKULabelGenerator() {
           ))}
         </section>
       )}
+
+      <section className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-gray-700">History</h2>
+          <div className="flex items-center gap-3 shrink-0">
+            {history.length > 0 && (
+              <button
+                type="button"
+                onClick={() => void clearAllHistory()}
+                disabled={historyClearing || historyBusyId !== null}
+                className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {historyClearing ? 'Clearing…' : 'Clear history'}
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="p-4">
+          {history.length === 0 ? (
+            <p className="text-xs text-gray-500">
+              No history yet. Successfully parsed shipments are saved here so you can re-download
+              labels later.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-100 text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {['Source file', 'Shipment', 'Boxes', 'SKUs', 'Units', 'Saved', ''].map(
+                      (col) => (
+                        <th
+                          key={col || 'actions'}
+                          className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500"
+                        >
+                          {col}
+                        </th>
+                      ),
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 bg-white">
+                  {history.map((item) => {
+                    const summary = summarizeFnskuShipment(item.shipment)
+                    const busy = historyBusyId === item.id
+                    return (
+                      <tr key={item.id} className="hover:bg-gray-50/50">
+                        <td className="px-3 py-2.5 font-medium text-gray-900 max-w-[12rem] truncate">
+                          {item.sourceFilename}
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-600">
+                          <div className="max-w-[14rem] truncate" title={summary.shipmentName}>
+                            {summary.shipmentId || summary.shipmentName || '—'}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-600">{summary.boxCount}</td>
+                        <td className="px-3 py-2.5 text-gray-600">{summary.skuCount}</td>
+                        <td className="px-3 py-2.5 text-gray-600">{summary.computedUnits}</td>
+                        <td className="px-3 py-2.5 whitespace-nowrap text-gray-600">
+                          {formatWhen(item.createdAt)}
+                        </td>
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={busy || historyClearing}
+                              onClick={() => downloadHistoryWorkbook(item)}
+                              className="px-2 py-1 text-xs rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                            >
+                              {busy ? '…' : 'Excel'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy || historyClearing}
+                              onClick={() => downloadHistoryPdf(item)}
+                              className="px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                              {busy ? '…' : 'PDF'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy || historyClearing}
+                              onClick={() => deleteHistory(item.id)}
+                              className="px-2 py-1 text-xs rounded bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   )
 }

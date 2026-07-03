@@ -33,6 +33,7 @@ type KeepaImportBuildContextValue = {
   history: KeepaImportBuildHistoryItem[]
   historyLoading: boolean
   historyBusyId: string | null
+  historyClearing: boolean
   setError: Dispatch<SetStateAction<string | null>>
   setInfo: Dispatch<SetStateAction<string | null>>
   startDownload: (category: string, upcCount: number | null) => Promise<void>
@@ -40,6 +41,8 @@ type KeepaImportBuildContextValue = {
   clearMessages: () => void
   loadHistory: (options?: { silent?: boolean }) => Promise<KeepaImportBuildHistoryItem[] | null>
   downloadFromHistory: (item: KeepaImportBuildHistoryItem) => Promise<void>
+  deleteHistory: (id: string) => Promise<void>
+  clearAllHistory: () => Promise<void>
 }
 
 const KeepaImportBuildContext = createContext<KeepaImportBuildContextValue | null>(null)
@@ -124,6 +127,7 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
   const [history, setHistory] = useState<KeepaImportBuildHistoryItem[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyBusyId, setHistoryBusyId] = useState<string | null>(null)
+  const [historyClearing, setHistoryClearing] = useState(false)
   const pollRef = useRef<ReturnType<typeof window.setInterval> | null>(null)
   const historyPollRef = useRef<ReturnType<typeof window.setInterval> | null>(null)
   const buildIdRef = useRef<string | null>(null)
@@ -229,6 +233,43 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
     },
     [],
   )
+
+  const deleteHistory = useCallback(async (id: string) => {
+    if (!window.confirm('Delete this build from history?')) return
+    setHistoryBusyId(id)
+    setError(null)
+    try {
+      await keepaImportExportApi.deleteBuildHistory(id)
+      setHistory((prev) => prev.filter((item) => item.id !== id))
+    } catch (e: unknown) {
+      console.error(e)
+      setError(extractDetail(e, 'Could not delete selected build history record.'))
+    } finally {
+      setHistoryBusyId(null)
+    }
+  }, [])
+
+  const clearAllHistory = useCallback(async () => {
+    if (
+      !window.confirm(
+        'Delete all finished builds from history? In-progress builds will be kept. This cannot be undone.',
+      )
+    ) {
+      return
+    }
+    setHistoryClearing(true)
+    setError(null)
+    try {
+      await keepaImportExportApi.clearBuildHistory()
+      setHistory((prev) => prev.filter((item) => item.status === 'building'))
+      setInfo('Build history cleared.')
+    } catch (e: unknown) {
+      console.error(e)
+      setError(extractDetail(e, 'Could not clear build history.'))
+    } finally {
+      setHistoryClearing(false)
+    }
+  }, [])
 
   const pollBuild = useCallback(
     async (buildId: string, category: string) => {
@@ -539,6 +580,7 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
     history,
     historyLoading,
     historyBusyId,
+    historyClearing,
     setError,
     setInfo,
     startDownload,
@@ -546,6 +588,8 @@ export function KeepaImportBuildProvider({ children }: { children: ReactNode }) 
     clearMessages,
     loadHistory,
     downloadFromHistory,
+    deleteHistory,
+    clearAllHistory,
   }
 
   return (

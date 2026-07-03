@@ -620,6 +620,14 @@ export const keepaImportExportApi = {
     return response
   },
 
+  deleteBuildHistory: async (buildId: string) => {
+    await api.delete(`/api/v1/keepa-import-export/builds/history/${buildId}`)
+  },
+
+  clearBuildHistory: async () => {
+    await api.delete('/api/v1/keepa-import-export/builds/history/all')
+  },
+
   getBuildHistoryContents: async (
     buildId: string,
     params?: { offset?: number; limit?: number }

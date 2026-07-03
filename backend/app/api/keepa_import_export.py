@@ -685,6 +685,36 @@ async def list_keepa_import_build_history(
     return summaries
 
 
+@router.delete("/keepa-import-export/builds/history/all")
+@handle_api_errors("clear keepa import build history")
+def clear_keepa_import_build_history(
+    current_user: dict = Depends(get_keepa_access_user),
+    db: Client = Depends(get_supabase),
+):
+    """Remove all finished builds from the shared history archive (in-progress builds are kept)."""
+    deleted = KeepaImportBuildHistoryRepository(db).delete_finished()
+    return {"message": "Build history cleared.", "deleted_count": deleted}
+
+
+@router.delete("/keepa-import-export/builds/history/{build_id}")
+@handle_api_errors("delete keepa import build history")
+def delete_keepa_import_build_history(
+    build_id: str,
+    current_user: dict = Depends(get_keepa_access_user),
+    db: Client = Depends(get_supabase),
+):
+    """Remove one finished build from the shared history archive."""
+    repo = KeepaImportBuildHistoryRepository(db)
+    row = repo.get_by_id(build_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Build not found.")
+    if row.get("status") == "building":
+        raise HTTPException(status_code=409, detail="Cannot delete a build that is still in progress.")
+    if not repo.delete_by_id(build_id):
+        raise HTTPException(status_code=500, detail="Could not delete build history record.")
+    return {"message": "Build history record deleted.", "id": build_id}
+
+
 @router.get(
     "/keepa-import-export/builds/busy",
     response_model=KeepaImportGlobalBusyStatus,

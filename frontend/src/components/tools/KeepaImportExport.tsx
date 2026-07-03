@@ -157,11 +157,14 @@ export default function KeepaImportExport() {
     history,
     historyLoading,
     historyBusyId,
+    historyClearing,
     startDownload,
     cancelBuild,
     clearMessages: clearBuildMessages,
     loadHistory,
     downloadFromHistory,
+    deleteHistory,
+    clearAllHistory,
   } = useKeepaImportBuild()
   const [cancelling, setCancelling] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -738,14 +741,26 @@ export default function KeepaImportExport() {
             <section className="card overflow-hidden">
               <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
                 <h2 className="text-sm font-semibold text-gray-900">Build history</h2>
-                <button
-                  type="button"
-                  onClick={() => void loadHistory()}
-                  disabled={historyLoading}
-                  className="text-xs font-medium text-[#404040] hover:underline disabled:opacity-50"
-                >
-                  {historyLoading ? 'Refreshing…' : 'Refresh'}
-                </button>
+                <div className="flex items-center gap-3 shrink-0">
+                  {history.some((item) => item.status !== 'building') && (
+                    <button
+                      type="button"
+                      onClick={() => void clearAllHistory()}
+                      disabled={historyLoading || historyClearing || historyBusyId !== null}
+                      className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {historyClearing ? 'Clearing…' : 'Clear history'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void loadHistory()}
+                    disabled={historyLoading || historyClearing}
+                    className="text-xs font-medium text-[#404040] hover:underline disabled:opacity-50"
+                  >
+                    {historyLoading ? 'Refreshing…' : 'Refresh'}
+                  </button>
+                </div>
               </div>
 
               {historyLoading && history.length === 0 ? (
@@ -811,16 +826,43 @@ export default function KeepaImportExport() {
                                 <button
                                   type="button"
                                   onClick={() => void downloadFromHistory(item)}
-                                  disabled={historyBusyId === item.id}
+                                  disabled={historyBusyId === item.id || historyClearing}
                                   className="font-medium text-[#404040] hover:underline disabled:opacity-50"
                                 >
                                   {historyBusyId === item.id ? '…' : 'Download'}
                                 </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void deleteHistory(item.id)}
+                                  disabled={historyBusyId === item.id || historyClearing}
+                                  className="font-medium text-red-600 hover:underline disabled:opacity-50"
+                                >
+                                  Delete
+                                </button>
                               </div>
                             ) : item.status === 'failed' ? (
-                              <span className="text-xs text-red-600" title={item.error ?? undefined}>
-                                Failed
-                              </span>
+                              <div className="flex items-center gap-3">
+                                <span className="text-xs text-red-600" title={item.error ?? undefined}>
+                                  Failed
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => void deleteHistory(item.id)}
+                                  disabled={historyBusyId === item.id || historyClearing}
+                                  className="font-medium text-red-600 hover:underline disabled:opacity-50"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            ) : item.status === 'cancelled' ? (
+                              <button
+                                type="button"
+                                onClick={() => void deleteHistory(item.id)}
+                                disabled={historyBusyId === item.id || historyClearing}
+                                className="font-medium text-red-600 hover:underline disabled:opacity-50"
+                              >
+                                Delete
+                              </button>
                             ) : (
                               <span className="text-xs text-gray-400">—</span>
                             )}

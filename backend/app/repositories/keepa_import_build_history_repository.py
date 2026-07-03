@@ -285,3 +285,37 @@ class KeepaImportBuildHistoryRepository:
         if not row or row.get("status") != "complete":
             return None, None
         return _decode_bytea(row.get("file_data")), row.get("filename")
+
+    def delete_by_id(self, build_id: str) -> bool:
+        """Remove one history row. Returns False if missing or still building."""
+        row = self.get_by_id(build_id)
+        if not row:
+            return False
+        if row.get("status") == "building":
+            return False
+        try:
+            self._db.table(_TABLE).delete().eq("id", build_id).execute()
+            _last_progress_write.pop(build_id, None)
+            return True
+        except Exception as exc:
+            logger.warning("Could not delete keepa import build history row: %s", exc)
+            return False
+
+    def delete_finished(self) -> int:
+        """Remove all completed, failed, and cancelled rows (keeps in-progress builds)."""
+        try:
+            resp = (
+                self._db.table(_TABLE)
+                .delete()
+                .in_("status", ["complete", "failed", "cancelled"])
+                .execute()
+            )
+            rows = list(resp.data or [])
+            for row in rows:
+                row_id = row.get("id")
+                if row_id:
+                    _last_progress_write.pop(str(row_id), None)
+            return len(rows)
+        except Exception as exc:
+            logger.warning("Could not clear keepa import build history: %s", exc)
+            return 0
