@@ -19,7 +19,8 @@ type SyntheticScheduledJob = BatchJob & {
   scheduler_input_mode: 'api' | 'uploaded'
 }
 
-const SCHEDULED_STATUS_CLASS = 'bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200'
+const SCHEDULED_STATUS_CLASS =
+  'bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:ring-amber-500/40'
 
 const getRunMethod = (jobName: string): 'import' | 'api' => {
   const normalized = (jobName || '').toLowerCase()
@@ -216,8 +217,8 @@ export default function JobList() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Express Jobs</h1>
-          <p className="mt-1 text-sm text-gray-500">Manage and monitor your batch processing jobs</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100">Express Jobs</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">Manage and monitor your batch processing jobs</p>
           {stats.processing > 0 && (
             <p
               className="mt-2 inline-flex items-center rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800 border border-amber-200"
@@ -238,46 +239,46 @@ export default function JobList() {
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="stat-card">
-          <div className="text-sm font-medium text-gray-500 mb-1">Total Jobs</div>
-          <div className="text-3xl font-bold text-gray-900">{stats.total}</div>
+          <div className="text-sm font-medium text-gray-500 dark:text-slate-400 mb-1">Total Jobs</div>
+          <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">{stats.total}</div>
         </div>
-        <div className="stat-card border-blue-200/50 bg-gradient-to-br from-blue-50/50 to-white">
-          <div className="text-sm font-medium text-gray-500 mb-1">Processing</div>
-          <div className="text-3xl font-bold text-[#81B81D]">{stats.processing}</div>
+        <div className="stat-card border-blue-200/50 bg-gradient-to-br from-blue-50/50 to-white dark:border-blue-500/30 dark:from-blue-500/15 dark:to-surface">
+          <div className="text-sm font-medium text-gray-500 dark:text-slate-400 mb-1">Processing</div>
+          <div className="text-3xl font-bold text-[#81B81D] dark:text-accent-bright">{stats.processing}</div>
         </div>
-        <div className="stat-card border-green-200/50 bg-gradient-to-br from-green-50/50 to-white">
-          <div className="text-sm font-medium text-gray-500 mb-1">Completed</div>
-          <div className="text-3xl font-bold text-green-600">{stats.completed}</div>
+        <div className="stat-card border-green-200/50 bg-gradient-to-br from-green-50/50 to-white dark:border-green-500/30 dark:from-green-500/15 dark:to-surface">
+          <div className="text-sm font-medium text-gray-500 dark:text-slate-400 mb-1">Completed</div>
+          <div className="text-3xl font-bold text-green-600 dark:text-green-400">{stats.completed}</div>
         </div>
-        <div className="stat-card border-red-200/50 bg-gradient-to-br from-red-50/50 to-white">
-          <div className="text-sm font-medium text-gray-500 mb-1">Failed</div>
-          <div className="text-3xl font-bold text-red-600">{stats.failed}</div>
+        <div className="stat-card border-red-200/50 bg-gradient-to-br from-red-50/50 to-white dark:border-red-500/30 dark:from-red-500/15 dark:to-surface">
+          <div className="text-sm font-medium text-gray-500 dark:text-slate-400 mb-1">Failed</div>
+          <div className="text-3xl font-bold text-red-600 dark:text-red-400">{stats.failed}</div>
         </div>
       </div>
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto lg:overflow-x-visible">
-        <table className="w-full table-fixed divide-y divide-gray-200">
-          <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50">
+        <table className="w-full table-fixed divide-y divide-gray-200 dark:divide-border">
+          <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50 dark:from-surface-muted dark:to-surface-hover">
             <tr>
-              <th className="w-[38%] px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+              <th className="w-[38%] px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wider">
                 Job Name
               </th>
-              <th className="w-[14%] px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+              <th className="w-[14%] px-3 py-3 text-left text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wider">
                 Status
               </th>
-              <th className="w-[14%] px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+              <th className="w-[14%] px-3 py-3 text-left text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wider">
                 Run Method
               </th>
-              <th className="w-[20%] px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+              <th className="w-[20%] px-3 py-3 text-left text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wider">
                 Progress
               </th>
-              <th className="w-[14%] px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+              <th className="w-[14%] px-3 py-3 text-left text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-100">
+          <tbody className="bg-white dark:bg-surface divide-y divide-gray-100 dark:divide-border">
             {loading ? (
               <tr>
                 <td colSpan={5} className="px-6 py-8 text-center text-sm text-gray-500">
@@ -297,13 +298,13 @@ export default function JobList() {
               return (
               <tr
                 key={job.id}
-                className={`transition-colors duration-150 ${isSynthetic ? 'bg-amber-50/30 hover:bg-amber-50/40' : 'hover:bg-gray-50/50'}`}
+                className={`transition-colors duration-150 ${isSynthetic ? 'bg-amber-50/30 hover:bg-amber-50/40 dark:bg-amber-500/10 dark:hover:bg-amber-500/15' : 'hover:bg-gray-50/50 dark:hover:bg-surface-hover/50'}`}
               >
                 <td className="px-4 py-3">
-                  <div className={`text-sm font-semibold truncate ${isImportRun ? 'text-[#2F6F0F]' : 'text-[#0B3D91]'}`}>
+                  <div className={`text-sm font-semibold truncate ${isImportRun ? 'text-[#2F6F0F] dark:text-green-400' : 'text-[#0B3D91] dark:text-blue-400'}`}>
                     {job.job_name}
                   </div>
-                  <div className="mt-1 text-xs text-gray-500 truncate">
+                  <div className="mt-1 text-xs text-gray-500 dark:text-slate-400 truncate">
                     UPCs: {job.total_upcs.toLocaleString()} • By: {job.initiated_by || 'Unknown'} • Done:{' '}
                     {job.completed_at ? new Date(job.completed_at).toLocaleDateString() : '-'} • Duration:{' '}
                     {isSynthetic ? '-' : formatRunDuration(job.created_at, job.completed_at)}
@@ -323,21 +324,21 @@ export default function JobList() {
                   <span
                     className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       isImportRun
-                        ? 'bg-[#81B81D]/20 text-[#111827]'
-                        : 'bg-blue-100 text-[#81B81D]'
+                        ? 'bg-[#81B81D]/20 text-[#111827] dark:bg-[#81B81D]/25 dark:text-green-200'
+                        : 'bg-blue-100 text-[#81B81D] dark:bg-blue-500/20 dark:text-blue-300'
                     }`}
                   >
                     {isImportRun ? 'Import Mode' : 'API Mode'}
                   </span>
                 </td>
-                <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600">
+                <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-slate-300">
                   {isSynthetic
                     ? 'Waiting for countdown'
                     : `${job.completed_batches} / ${job.total_batches} batches`}
                 </td>
                 <td className="px-3 py-3 whitespace-nowrap text-sm font-medium">
                   {isSynthetic ? (
-                    <span className="text-xs text-amber-700 font-medium">Auto-run placeholder</span>
+                    <span className="text-xs text-amber-700 dark:text-amber-300 font-medium">Auto-run placeholder</span>
                   ) : (
                     <div className="flex items-center gap-3">
                       <Link
@@ -349,7 +350,7 @@ export default function JobList() {
                       <button
                         onClick={() => handleDeleteJob(job.id, job.job_name)}
                         disabled={job.status === 'processing'}
-                        className={`text-red-600 hover:text-red-700 font-medium transition-colors ${
+                        className={`text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium transition-colors ${
                           job.status === 'processing'
                             ? 'opacity-50 cursor-not-allowed'
                             : 'hover:underline'
@@ -375,8 +376,8 @@ export default function JobList() {
       {jobs.length > 0 && (
         <div className="card px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              Page <span className="font-semibold text-gray-900">{currentPage + 1}</span> • Showing {currentPage * JOBS_PER_PAGE + 1}-
+            <div className="text-sm text-gray-600 dark:text-slate-400">
+              Page <span className="font-semibold text-gray-900 dark:text-slate-100">{currentPage + 1}</span> • Showing {currentPage * JOBS_PER_PAGE + 1}-
               {currentPage * JOBS_PER_PAGE + jobs.length} job{jobs.length !== 1 ? 's' : ''}
             </div>
             <div className="flex gap-2">

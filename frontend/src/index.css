@@ -934,3 +934,162 @@ code {
   color: rgb(255 255 255) !important;
 }
 
+/* Gradient stat cards and table headers */
+.dark .from-blue-50\/50 {
+  --tw-gradient-from: rgb(59 130 246 / 0.15) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(59 130 246 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.dark .from-green-50\/50 {
+  --tw-gradient-from: rgb(34 197 94 / 0.15) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(34 197 94 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.dark .from-red-50\/50 {
+  --tw-gradient-from: rgb(239 68 68 / 0.15) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(239 68 68 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.dark .to-white {
+  --tw-gradient-to: rgb(var(--color-surface)) var(--tw-gradient-to-position) !important;
+}
+
+.dark .from-gray-50 {
+  --tw-gradient-from: rgb(var(--color-surface-muted)) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(var(--color-surface-muted) / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.dark .to-gray-100\/50 {
+  --tw-gradient-to: rgb(var(--color-surface-hover) / 0.5) var(--tw-gradient-to-position) !important;
+}
+
+.dark .text-green-600 {
+  color: rgb(74 222 128) !important;
+}
+
+.dark .text-red-600 {
+  color: rgb(248 113 113) !important;
+}
+
+.dark .text-\[\#2F6F0F\] {
+  color: rgb(134 239 172) !important;
+}
+
+.dark .text-\[\#0B3D91\] {
+  color: rgb(96 165 250) !important;
+}
+
+.dark .text-amber-700 {
+  color: rgb(252 211 77) !important;
+}
+
+.dark .border-blue-200\/50 {
+  border-color: rgb(96 165 250 / 0.3) !important;
+}
+
+.dark .border-green-200\/50 {
+  border-color: rgb(34 197 94 / 0.3) !important;
+}
+
+.dark .border-red-200\/50 {
+  border-color: rgb(248 113 113 / 0.3) !important;
+}
+
+.dark .ring-amber-200 {
+  --tw-ring-color: rgb(245 158 11 / 0.35) !important;
+}
+
+.dark .bg-blue-500\/20 {
+  background-color: rgb(59 130 246 / 0.2) !important;
+}
+
+.dark .text-blue-300 {
+  color: rgb(147 197 253) !important;
+}
+
+.dark .text-green-200 {
+  color: rgb(187 247 208) !important;
+}
+
+.dark .text-amber-200 {
+  color: rgb(253 230 138) !important;
+}
+
+.dark .ring-amber-500\/40 {
+  --tw-ring-color: rgb(245 158 11 / 0.4) !important;
+}
+
+.dark .bg-amber-500\/10 {
+  background-color: rgb(245 158 11 / 0.1) !important;
+}
+
+.dark .bg-amber-500\/15 {
+  background-color: rgb(245 158 11 / 0.15) !important;
+}
+
+.dark .bg-amber-500\/20 {
+  background-color: rgb(245 158 11 / 0.2) !important;
+}
+
+.dark .hover\:bg-amber-500\/15:hover {
+  background-color: rgb(245 158 11 / 0.15) !important;
+}
+
+.dark .from-blue-500\/15 {
+  --tw-gradient-from: rgb(59 130 246 / 0.15) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(59 130 246 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.dark .from-green-500\/15 {
+  --tw-gradient-from: rgb(34 197 94 / 0.15) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(34 197 94 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.dark .from-red-500\/15 {
+  --tw-gradient-from: rgb(239 68 68 / 0.15) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(239 68 68 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.dark .bg-red-500\/20 {
+  background-color: rgb(239 68 68 / 0.2) !important;
+}
+
+.dark .text-red-300 {
+  color: rgb(252 165 165) !important;
+}
+
+.dark .hover\:text-red-300:hover {
+  color: rgb(252 165 165) !important;
+}
+
+.dark .text-green-300 {
+  color: rgb(134 239 172) !important;
+}
+
+.dark .text-green-400 {
+  color: rgb(74 222 128) !important;
+}
+
+.dark .text-red-400 {
+  color: rgb(248 113 113) !important;
+}
+
+.dark .bg-slate-600\/40 {
+  background-color: rgb(71 85 105 / 0.4) !important;
+}
+
+.dark .hover\:bg-surface-hover\/50:hover {
+  background-color: rgb(var(--color-surface-hover) / 0.5) !important;
+}
+
+.dark .dark\:to-surface {
+  --tw-gradient-to: rgb(var(--color-surface)) var(--tw-gradient-to-position) !important;
+}
+
