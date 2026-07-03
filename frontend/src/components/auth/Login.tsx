@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { fetchMfaStatus, shouldSkipMfaForEmail, shouldShowMfaSetup, shouldShowMfaVerify } from '../../lib/mfa'
 import { APP_ICON_URL } from '../../constants/app'
+import ThemeToggle from '../common/ThemeToggle'
 import { WAREHOUSE_HOME_PATH } from '../../constants/warehouseAccess'
 
 export default function Login() {
@@ -108,12 +109,15 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-app-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="relative min-h-app-screen flex items-center justify-center app-page-bg py-12 px-4 sm:px-6 lg:px-8">
+      <div className="absolute right-4 top-4 sm:right-6 sm:top-6">
+        <ThemeToggle />
+      </div>
       <div className="max-w-md w-full">
         <div className="card p-8 shadow-xl">
           <div className="text-center mb-8">
             <img src={APP_ICON_URL} alt="MSW Overwatch" className="w-16 h-16 mx-auto mb-4" />
-            <h2 className="text-3xl font-bold text-[#404040]">
+            <h2 className="text-3xl font-bold text-[#404040] dark:text-slate-100">
               Welcome to MSW Overwatch
             </h2>
             <p className="mt-2 text-sm text-gray-500">Sign in to MSW Overwatch</p>

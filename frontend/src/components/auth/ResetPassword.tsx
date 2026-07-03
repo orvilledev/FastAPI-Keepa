@@ -129,7 +129,7 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center app-page-bg py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full">
         <div className="card p-8 shadow-xl">
           <div className="text-center mb-8">

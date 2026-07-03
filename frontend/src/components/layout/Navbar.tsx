@@ -6,6 +6,7 @@ import { notificationsApi } from '../../services/api'
 import { resetTotpEnrollment } from '../../lib/mfa'
 import { DESKTOP_APP_DOWNLOAD_URL } from '../../constants/app'
 import NavbarSearch from './NavbarSearch'
+import ThemeToggle from '../common/ThemeToggle'
 
 const VITE_DESKTOP_URL = DESKTOP_APP_DOWNLOAD_URL
 
@@ -105,7 +106,7 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 shrink-0 border-b border-gray-200/80 bg-white/80 shadow-sm backdrop-blur-lg">
+    <nav className="sticky top-0 z-50 shrink-0 border-b border-gray-200/80 bg-white/80 shadow-sm backdrop-blur-lg dark:border-border/80 dark:bg-surface/90">
       <div className="px-6 lg:px-8">
         <div className="flex h-20 items-center gap-4">
           {!isWarehouseOnly ? (
@@ -115,7 +116,8 @@ export default function Navbar() {
           ) : (
             <div className="min-w-0 flex-1" />
           )}
-          <div className="flex shrink-0 items-center space-x-4 ml-auto">
+          <div className="flex shrink-0 items-center space-x-2 ml-auto">
+            <ThemeToggle />
             {!isElectron && desktopDownloadUrl ? (
               <a
                 href={desktopDownloadUrl}

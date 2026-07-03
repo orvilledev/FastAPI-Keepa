@@ -181,11 +181,11 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="flex h-app-screen w-60 shrink-0 flex-col border-r border-gray-200/80 bg-white/80 shadow-lg backdrop-blur-lg">
+    <aside className="flex h-app-screen w-60 shrink-0 flex-col border-r border-gray-200/80 bg-white/80 shadow-lg backdrop-blur-lg dark:border-border/80 dark:bg-surface/90">
       <div className="flex h-20 shrink-0 items-center px-4">
         <div className="flex min-w-0 items-center gap-3">
           <img src={APP_ICON_URL} alt="MSW Overwatch" className="h-11 w-11 shrink-0" />
-          <h2 className="min-w-0 truncate text-lg font-bold tracking-tight text-[#404040]">
+          <h2 className="min-w-0 truncate text-lg font-bold tracking-tight text-[#404040] dark:text-slate-100">
             {APP_NAME}
           </h2>
         </div>

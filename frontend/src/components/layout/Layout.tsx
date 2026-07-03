@@ -4,7 +4,7 @@ import Sidebar from './Sidebar'
 
 export default function Layout() {
   return (
-    <div className="flex h-app-screen min-h-0 overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
+    <div className="flex h-app-screen min-h-0 overflow-hidden app-shell-bg">
       <Sidebar />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <Navbar />

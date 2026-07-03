@@ -103,7 +103,7 @@ export default function MfaGate({ children, requireFullAuth = true }: MfaGatePro
 
   if (authLoading || skipMfa === null || (checking && status === null && !skipMfa)) {
     return (
-      <div className="min-h-app-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
+      <div className="min-h-app-screen flex items-center justify-center app-page-bg">
         <div className="w-10 h-10 border-4 border-[#404040] border-t-transparent rounded-full animate-spin" />
       </div>
     )

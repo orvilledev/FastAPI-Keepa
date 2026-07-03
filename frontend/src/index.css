@@ -4,6 +4,35 @@
 
 :root {
   --app-zoom: 0.9;
+
+  /* Light theme tokens */
+  --color-surface: 255 255 255;
+  --color-surface-elevated: 255 255 255;
+  --color-surface-muted: 249 250 251;
+  --color-surface-hover: 243 244 246;
+  --color-text-primary: 17 24 39;
+  --color-text-secondary: 55 65 81;
+  --color-text-muted: 107 114 128;
+  --color-border: 229 231 235;
+  --color-border-strong: 209 213 219;
+  --color-page-from: 248 250 252;
+  --color-page-via: 239 246 255;
+  --color-page-to: 238 242 255;
+}
+
+.dark {
+  --color-surface: 30 41 59;
+  --color-surface-elevated: 51 65 85;
+  --color-surface-muted: 15 23 42;
+  --color-surface-hover: 71 85 105;
+  --color-text-primary: 241 245 249;
+  --color-text-secondary: 203 213 225;
+  --color-text-muted: 148 163 184;
+  --color-border: 51 65 85;
+  --color-border-strong: 71 85 105;
+  --color-page-from: 15 23 42;
+  --color-page-via: 15 23 42;
+  --color-page-to: 30 27 75;
 }
 
 @layer base {
@@ -26,13 +55,24 @@
   }
 
   body {
-    @apply bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 text-base text-gray-900;
+    @apply text-base text-content;
+    background: linear-gradient(
+      to bottom right,
+      rgb(var(--color-page-from)),
+      rgb(var(--color-page-via) / 0.3),
+      rgb(var(--color-page-to) / 0.2)
+    );
     height: 100%;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
       'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
       sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  .dark {
+    color-scheme: dark;
   }
 
   #root {
@@ -41,16 +81,29 @@
 }
 
 @layer components {
+  .app-page-bg {
+    background: linear-gradient(
+      to bottom right,
+      rgb(var(--color-page-from)),
+      rgb(var(--color-page-via) / 0.3),
+      rgb(var(--color-page-to) / 0.2)
+    );
+  }
+
+  .app-shell-bg {
+    @apply app-page-bg;
+  }
+
   .card {
-    @apply bg-white rounded-xl shadow-sm border border-gray-100/80 backdrop-blur-sm;
+    @apply rounded-xl shadow-sm border backdrop-blur-sm bg-surface border-border/80;
   }
   
   .card-hover {
-    @apply transition-all duration-200 hover:shadow-md hover:border-gray-200;
+    @apply transition-all duration-200 hover:shadow-md dark:hover:border-border-strong;
   }
 
   .vendor-hub-card {
-    @apply flex flex-col gap-2 rounded-xl border border-gray-100/80 bg-white p-5 shadow-sm;
+    @apply flex flex-col gap-2 rounded-xl border border-border/80 bg-surface p-5 shadow-sm;
     transition: background 0.3s ease-in, color 0.3s ease-in, box-shadow 0.3s ease-in;
     will-change: background, color;
   }
@@ -79,11 +132,11 @@
   }
   
   .btn-secondary {
-    @apply bg-white border border-gray-200 text-gray-700 font-medium px-6 py-2.5 rounded-lg shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-200;
+    @apply bg-surface border border-border text-content-secondary font-medium px-6 py-2.5 rounded-lg shadow-sm hover:shadow-md hover:border-border-strong transition-all duration-200;
   }
   
   .stat-card {
-    @apply bg-gradient-to-br from-white to-gray-50/50 rounded-xl p-4 sm:p-5 border border-gray-100/80 shadow-sm hover:shadow-md transition-all duration-200;
+    @apply bg-gradient-to-br from-surface to-surface-muted/50 rounded-xl p-4 sm:p-5 border border-border/80 shadow-sm hover:shadow-md transition-all duration-200;
   }
   
   .sidebar-link {
@@ -97,7 +150,7 @@
   }
 
   .sidebar-section-label {
-    @apply px-3 pb-1.5 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500;
+    @apply px-3 pb-1.5 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-content-muted;
   }
   
   .sidebar-link-active {
@@ -111,12 +164,16 @@
   }
   
   .sidebar-link-inactive {
-    @apply text-gray-700;
+    @apply text-content-secondary;
   }
   
-  /* Parent menu buttons should have pure black text */
+  /* Parent menu buttons should have strong text */
   button.sidebar-link.sidebar-link-inactive {
-    @apply text-black;
+    @apply text-content;
+  }
+
+  .dark button.sidebar-link.sidebar-link-inactive {
+    @apply text-slate-200;
   }
   
   /* Hover state - always white text on dark background */
@@ -158,8 +215,16 @@
     background: transparent !important;
   }
 
+  .dark .ml-4.mt-1:not(.dark-submenu):not(.dark-dropdown) > .sidebar-link-inactive {
+    color: rgb(203 213 225) !important;
+  }
+
   .ml-4.mt-1:not(.dark-submenu):not(.dark-dropdown) > .sidebar-link-inactive span {
     color: #374151 !important;
+  }
+
+  .dark .ml-4.mt-1:not(.dark-submenu):not(.dark-dropdown) > .sidebar-link-inactive span {
+    color: rgb(203 213 225) !important;
   }
 
   /* 2nd level menu items hover in dark container - ORANGE text */
@@ -192,14 +257,22 @@
     color: white !important;
   }
 
-  /* Dashboard link when Keepa menu is open - BLACK text, transparent background */
+  /* Dashboard link when Keepa menu is open - dark text in light mode, light in dark mode */
   .dark-dropdown .sidebar-link.keepa-open {
     color: black !important;
     background: transparent !important;
   }
 
+  .dark .dark-dropdown .sidebar-link.keepa-open {
+    color: rgb(241 245 249) !important;
+  }
+
   .dark-dropdown .sidebar-link.keepa-open span {
     color: black !important;
+  }
+
+  .dark .dark-dropdown .sidebar-link.keepa-open span {
+    color: rgb(241 245 249) !important;
   }
 
   /* Dashboard link hover when Keepa menu is open - still ORANGE */
@@ -265,7 +338,7 @@ code {
 /* Note Content Styling - Ensures all React Quill formatting displays correctly */
 .note-content {
   line-height: 1.6;
-  color: #374151;
+  color: rgb(var(--color-text-secondary));
 }
 
 .note-content p {
@@ -332,9 +405,17 @@ code {
   cursor: pointer;
 }
 
+.dark .note-content a {
+  color: #a3d636;
+}
+
 .note-content a:hover {
   color: #3B3B3B;
   text-decoration: underline;
+}
+
+.dark .note-content a:hover {
+  color: #c4e85a;
 }
 
 /* Text Formatting */
@@ -425,20 +506,20 @@ code {
 
 /* Blockquotes */
 .note-content blockquote {
-  border-left: 4px solid #e5e7eb;
+  border-left: 4px solid rgb(var(--color-border-strong));
   padding-left: 1rem;
   margin-left: 0;
   margin-right: 0;
   margin-top: 0.75rem;
   margin-bottom: 0.75rem;
-  color: #6b7280;
+  color: rgb(var(--color-text-muted));
   font-style: italic;
 }
 
 /* Code blocks */
 .note-content pre {
-  background-color: #f3f4f6;
-  border: 1px solid #e5e7eb;
+  background-color: rgb(var(--color-surface-muted));
+  border: 1px solid rgb(var(--color-border));
   border-radius: 0.375rem;
   padding: 0.75rem;
   margin: 0.75rem 0;
@@ -448,7 +529,7 @@ code {
 }
 
 .note-content code {
-  background-color: #f3f4f6;
+  background-color: rgb(var(--color-surface-muted));
   padding: 0.125rem 0.25rem;
   border-radius: 0.25rem;
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
@@ -458,7 +539,7 @@ code {
 /* Horizontal rules */
 .note-content hr {
   border: none;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid rgb(var(--color-border));
   margin: 1rem 0;
 }
 
@@ -515,5 +596,181 @@ code {
   .min-h-app-screen {
     min-height: calc(100vh / var(--app-zoom));
   }
+}
+
+/*
+ * Dark mode compatibility for legacy Tailwind utility classes used across the app.
+ * These only affect presentation — no business logic.
+ */
+.dark .bg-white {
+  background-color: rgb(var(--color-surface)) !important;
+}
+
+.dark .bg-white\/80,
+.dark .bg-white\/90,
+.dark .bg-white\/95 {
+  background-color: rgb(var(--color-surface) / 0.9) !important;
+}
+
+.dark .bg-gray-50,
+.dark .bg-gray-50\/50,
+.dark .bg-gray-50\/60,
+.dark .bg-gray-50\/80 {
+  background-color: rgb(var(--color-surface-muted)) !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: rgb(var(--color-surface-hover)) !important;
+}
+
+.dark .bg-slate-50 {
+  background-color: rgb(var(--color-surface-muted)) !important;
+}
+
+.dark .from-white {
+  --tw-gradient-from: rgb(var(--color-surface)) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(var(--color-surface) / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.dark .to-stone-50\/50 {
+  --tw-gradient-to: rgb(var(--color-surface-muted) / 0.5) var(--tw-gradient-to-position) !important;
+}
+
+.dark .text-gray-900,
+.dark .text-gray-800 {
+  color: rgb(var(--color-text-primary)) !important;
+}
+
+.dark .text-gray-700 {
+  color: rgb(var(--color-text-secondary)) !important;
+}
+
+.dark .text-gray-600,
+.dark .text-gray-500 {
+  color: rgb(var(--color-text-muted)) !important;
+}
+
+.dark .text-black {
+  color: rgb(var(--color-text-primary)) !important;
+}
+
+.dark .text-stone-800 {
+  color: rgb(var(--color-text-primary)) !important;
+}
+
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-200\/80,
+.dark .border-gray-300,
+.dark .border-gray-300\/80,
+.dark .border-stone-200,
+.dark .border-stone-200\/90,
+.dark .border-stone-300 {
+  border-color: rgb(var(--color-border) / 0.8) !important;
+}
+
+.dark .border-dashed.border-gray-300 {
+  border-color: rgb(var(--color-border-strong) / 0.6) !important;
+}
+
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgb(var(--color-border) / 0.6) !important;
+}
+
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-gray-50\/50:hover,
+.dark .hover\:bg-gray-50\/80:hover {
+  background-color: rgb(var(--color-surface-hover) / 0.5) !important;
+}
+
+.dark .hover\:bg-gray-100:hover {
+  background-color: rgb(var(--color-surface-hover)) !important;
+}
+
+.dark .hover\:bg-stone-50:hover {
+  background-color: rgb(var(--color-surface-hover)) !important;
+}
+
+.dark .hover\:text-gray-900:hover {
+  color: rgb(var(--color-text-primary)) !important;
+}
+
+.dark input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+.dark select,
+.dark textarea {
+  background-color: rgb(var(--color-surface-muted));
+  color: rgb(var(--color-text-primary));
+  border-color: rgb(var(--color-border-strong));
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: rgb(var(--color-text-muted));
+}
+
+.dark .shadow-sm,
+.dark .shadow-md,
+.dark .shadow-lg,
+.dark .shadow-xl {
+  --tw-shadow-color: rgb(0 0 0 / 0.35);
+}
+
+.dark .bg-green-100 {
+  background-color: rgb(34 197 94 / 0.15) !important;
+}
+
+.dark .text-green-800 {
+  color: rgb(134 239 172) !important;
+}
+
+.dark .bg-blue-100 {
+  background-color: rgb(59 130 246 / 0.15) !important;
+}
+
+.dark .bg-red-100 {
+  background-color: rgb(239 68 68 / 0.15) !important;
+}
+
+.dark .text-red-800,
+.dark .text-red-700 {
+  color: rgb(252 165 165) !important;
+}
+
+.dark .bg-amber-50\/30 {
+  background-color: rgb(245 158 11 / 0.1) !important;
+}
+
+.dark .hover\:bg-amber-50\/40:hover {
+  background-color: rgb(245 158 11 / 0.15) !important;
+}
+
+.dark .bg-red-50 {
+  background-color: rgb(239 68 68 / 0.1) !important;
+}
+
+.dark .hover\:bg-red-50:hover {
+  background-color: rgb(239 68 68 / 0.15) !important;
+}
+
+.dark .border-red-200\/90 {
+  border-color: rgb(248 113 113 / 0.35) !important;
+}
+
+.dark .bg-blue-50 {
+  background-color: rgb(59 130 246 / 0.12) !important;
+}
+
+.dark .border-blue-200 {
+  border-color: rgb(96 165 250 / 0.3) !important;
+}
+
+.dark .border-red-200 {
+  border-color: rgb(248 113 113 / 0.3) !important;
+}
+
+.dark .text-\[\#111827\] {
+  color: rgb(var(--color-text-primary)) !important;
 }
 

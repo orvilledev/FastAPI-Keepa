@@ -11,6 +11,7 @@ import {
 } from 'react-router-dom'
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { UserProvider, useUser } from './contexts/UserContext'
+import { ThemeProvider } from './contexts/ThemeContext'
 import { TrackingScanProvider } from './contexts/TrackingScanContext'
 import { KeepaImportBuildProvider } from './contexts/KeepaImportBuildContext'
 import Layout from './components/layout/Layout'
@@ -75,10 +76,10 @@ function AppRouter({ children }: { children: ReactNode }) {
 // Loading spinner component
 function LoadingSpinner() {
   return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center app-page-bg">
       <div className="flex flex-col items-center space-y-4">
-        <div className="w-12 h-12 border-4 border-[#404040] border-t-transparent rounded-full animate-spin"></div>
-        <div className="text-gray-600">Loading...</div>
+        <div className="w-12 h-12 border-4 border-[#404040] dark:border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+        <div className="text-gray-600 dark:text-slate-400">Loading...</div>
       </div>
     </div>
   )
@@ -451,13 +452,15 @@ function AppRoutes() {
 // Main App component wrapped with providers
 function App() {
   return (
-    <AppRouter>
-      <UserProvider>
-        <AppRoutes />
-        <DesktopUpdateOverlay />
-        <WebReleaseAnnouncement />
-      </UserProvider>
-    </AppRouter>
+    <ThemeProvider>
+      <AppRouter>
+        <UserProvider>
+          <AppRoutes />
+          <DesktopUpdateOverlay />
+          <WebReleaseAnnouncement />
+        </UserProvider>
+      </AppRouter>
+    </ThemeProvider>
   )
 }
 

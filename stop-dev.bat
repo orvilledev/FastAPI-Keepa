@@ -3,7 +3,7 @@ REM Stop Development Servers
 REM This script kills processes running on ports 8000 (backend) and 5173 (frontend)
 
 echo.
-echo 🛑 Stopping Orbit Development Servers...
+echo  Stopping MSW Overwatch Development Servers...
 echo.
 
 REM Kill processes on port 8000 (Backend)
