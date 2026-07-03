@@ -317,6 +317,13 @@ export const jobsApi = {
     const response = await api.delete(`/api/v1/jobs/${jobId}`)
     return response.data
   },
+
+  deleteCompletedJobs: async () => {
+    const response = await api.delete<{ message: string; deleted_count: number }>(
+      '/api/v1/jobs/completed'
+    )
+    return response.data
+  },
 }
 
 export type EmailPoolEntry = { id: string; email: string; display_name?: string | null }

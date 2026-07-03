@@ -345,3 +345,22 @@ class JobRepository:
 
         self.db.table(self.table).delete().eq("id", jid).execute()
 
+    def list_completed_job_ids(self) -> List[UUID]:
+        """Return IDs of all jobs with status completed."""
+        rows = read_all_paginated(
+            lambda start, end: self.db.table(self.table)
+            .select("id")
+            .eq("status", "completed")
+            .order("created_at", desc=True)
+            .range(start, end)
+            .execute()
+        )
+        return [UUID(row["id"]) for row in rows]
+
+    def delete_completed_jobs(self) -> int:
+        """Delete every completed job and related data. Returns count removed."""
+        job_ids = self.list_completed_job_ids()
+        for job_id in job_ids:
+            self.delete_job(job_id)
+        return len(job_ids)
+

@@ -108,6 +108,21 @@ def get_jobs_stats(
     }
 
 
+@router.delete("/jobs/completed")
+@handle_api_errors("delete completed jobs")
+def delete_completed_jobs(
+    _current_user: dict = Depends(get_job_runner_user),
+    db: Client = Depends(get_supabase),
+):
+    """Delete all completed express jobs and related data in one action."""
+    job_repo = JobRepository(db)
+    deleted_count = job_repo.delete_completed_jobs()
+    return {
+        "message": f"Deleted {deleted_count} completed job(s)",
+        "deleted_count": deleted_count,
+    }
+
+
 @router.get("/jobs/{job_id}", response_model=BatchJobResponse)
 @handle_api_errors("get job")
 def get_job(

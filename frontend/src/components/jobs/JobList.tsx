@@ -71,6 +71,7 @@ export default function JobList() {
     completed: 0,
     failed: 0,
   })
+  const [clearingCompleted, setClearingCompleted] = useState(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const calendarCacheRef = useRef<SchedulerCalendar | null>(null)
   const lastCalendarFetchAtRef = useRef<number>(0)
@@ -212,6 +213,37 @@ export default function JobList() {
     }
   }
 
+  const handleClearCompletedJobs = async () => {
+    if (stats.completed === 0) return
+
+    const noun = stats.completed === 1 ? 'job' : 'jobs'
+    if (
+      !window.confirm(
+        `Remove all ${stats.completed} completed ${noun}? This cannot be undone and deletes related batches, items, and alerts.`
+      )
+    ) {
+      return
+    }
+
+    setClearingCompleted(true)
+    try {
+      const result = await jobsApi.deleteCompletedJobs()
+      setCurrentPage(0)
+      await loadAllJobsForStats()
+      await loadJobs(0, { silent: true })
+      if (result.deleted_count === 0) {
+        window.alert('No completed jobs were found to remove.')
+      }
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.detail || error?.message || 'Failed to remove completed jobs'
+      alert(`Error: ${errorMessage}`)
+      console.error('Failed to remove completed jobs:', error)
+    } finally {
+      setClearingCompleted(false)
+    }
+  }
+
 
   return (
     <div className="space-y-6">
@@ -228,12 +260,27 @@ export default function JobList() {
             </p>
           )}
         </div>
-        <Link
-          to="/jobs/new"
-          className="btn-primary"
-        >
-          + Create New Job
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void handleClearCompletedJobs()}
+            disabled={stats.completed === 0 || clearingCompleted || loading}
+            className="inline-flex items-center rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-medium text-red-700 shadow-sm transition-all hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-500/40 dark:bg-surface dark:text-red-400 dark:hover:bg-red-500/10"
+            title={
+              stats.completed === 0
+                ? 'No completed jobs to remove'
+                : 'Remove all completed jobs in one click'
+            }
+          >
+            {clearingCompleted ? 'Removing…' : 'Clear completed'}
+          </button>
+          <Link
+            to="/jobs/new"
+            className="btn-primary"
+          >
+            + Create New Job
+          </Link>
+        </div>
       </div>
 
       {/* Statistics Cards */}
