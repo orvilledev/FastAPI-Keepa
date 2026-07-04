@@ -48,7 +48,7 @@ export default function VendorRunCard({ vendor, nowMs }: { vendor: CalendarVendo
             <p className="text-gray-500 text-sm">Daily run is currently stopped.</p>
             <div className="mt-2">
               <span
-                className={`inline-flex items-center rounded-md px-3 py-1.5 text-base font-extrabold uppercase tracking-wide ring-2 ${
+                className={`inline-flex w-fit items-center rounded-md px-2.5 py-1 text-xs font-extrabold uppercase tracking-wide ring-2 sm:px-3 sm:py-1.5 sm:text-sm ${
                   inputMode === 'uploaded'
                     ? 'bg-[#81B81D]/20 text-[#DDF5B0] ring-[#81B81D]/80'
                     : 'bg-[#F97316]/20 text-[#FFD8B0] ring-[#F97316]/80'
@@ -100,10 +100,12 @@ export default function VendorRunCard({ vendor, nowMs }: { vendor: CalendarVendo
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1">
           <h3 className="text-lg font-semibold mb-2">{code} Keepa Off Price Daily Run</h3>
-          <p className="text-white/70 text-sm mb-4">
-            Scheduled for {vendor.scheduled_time}
+          <div className="mb-4 space-y-2">
+            <p className="text-sm leading-relaxed text-white/70 break-words">
+              Scheduled for {vendor.scheduled_time}
+            </p>
             <span
-              className={`ml-2 inline-flex items-center rounded-md px-3 py-1.5 text-base font-extrabold uppercase tracking-wide ring-2 ${
+              className={`inline-flex w-fit items-center rounded-md px-2.5 py-1 text-xs font-extrabold uppercase tracking-wide ring-2 sm:px-3 sm:py-1.5 sm:text-sm ${
                 inputMode === 'uploaded'
                   ? 'bg-[#81B81D]/30 text-[#E8F8C8] ring-[#81B81D]/85'
                   : 'bg-[#F97316]/30 text-[#FFE7CC] ring-[#F97316]/85'
@@ -111,7 +113,7 @@ export default function VendorRunCard({ vendor, nowMs }: { vendor: CalendarVendo
             >
               {inputMode === 'uploaded' ? 'Import Mode' : 'API Mode'}
             </span>
-          </p>
+          </div>
           {timeLeft && secondsUntil !== null && secondsUntil > 0 ? (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <div className="text-center">

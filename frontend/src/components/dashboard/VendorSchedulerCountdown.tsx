@@ -147,13 +147,13 @@ export default function VendorSchedulerCountdown({
   if (!enabled) {
     return (
       <div className="bg-gray-100 rounded-xl shadow p-6 border border-gray-300">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex-1">
             <h3 className="text-lg font-semibold mb-2 text-gray-900">{title}</h3>
             <p className="text-gray-500 text-sm">Daily run is currently stopped.</p>
             <div className="mt-2">
               <span
-                className={`inline-flex items-center rounded-md px-3 py-1.5 text-base font-extrabold uppercase tracking-wide ring-2 ${
+                className={`inline-flex w-fit items-center rounded-md px-2.5 py-1 text-xs font-extrabold uppercase tracking-wide ring-2 sm:px-3 sm:py-1.5 sm:text-sm ${
                   inputMode === 'uploaded'
                     ? 'bg-[#81B81D]/20 text-[#DDF5B0] ring-[#81B81D]/80'
                     : 'bg-[#F97316]/20 text-[#FFD8B0] ring-[#F97316]/80'
@@ -163,7 +163,7 @@ export default function VendorSchedulerCountdown({
               </span>
             </div>
           </div>
-          <div className="text-right ml-6">
+          <div className="shrink-0 sm:text-right">
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#81B81D]/20 text-[#111827]">
               Stopped
             </span>
@@ -185,19 +185,21 @@ export default function VendorSchedulerCountdown({
 
   return (
     <div
-      className={`rounded-xl shadow-xl p-6 text-white border ${
+      className={`rounded-xl shadow-xl p-4 text-white border sm:p-6 ${
         inputMode === 'uploaded'
           ? 'bg-[#404040] border-white/20'
           : 'bg-[#404040] border-white/20'
       }`}
     >
-      <div className="flex items-center justify-between">
-        <div className="flex-1">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1">
           <h3 className="text-lg font-semibold mb-2">{title}</h3>
-          <p className="text-white/70 text-sm mb-4">
-            Scheduled for {status.scheduled_time} ({status.timezone})
+          <div className="mb-4 space-y-2">
+            <p className="text-sm leading-relaxed text-white/70 break-words">
+              Scheduled for {status.scheduled_time} ({status.timezone})
+            </p>
             <span
-              className={`ml-2 inline-flex items-center rounded-md px-3 py-1.5 text-base font-extrabold uppercase tracking-wide ring-2 ${
+              className={`inline-flex w-fit items-center rounded-md px-2.5 py-1 text-xs font-extrabold uppercase tracking-wide ring-2 sm:px-3 sm:py-1.5 sm:text-sm ${
                 inputMode === 'uploaded'
                   ? 'bg-[#81B81D]/30 text-[#E8F8C8] ring-[#81B81D]/85'
                   : 'bg-[#F97316]/30 text-[#FFE7CC] ring-[#F97316]/85'
@@ -205,38 +207,38 @@ export default function VendorSchedulerCountdown({
             >
               {inputMode === 'uploaded' ? 'Import Mode' : 'API Mode'}
             </span>
-          </p>
+          </div>
           {timeLeft && status.seconds_until !== null && status.seconds_until > 0 ? (
-            <div className="flex items-center space-x-4">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <div className="text-center">
                 <div
-                  className={`text-4xl font-bold ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}
+                  className={`text-2xl font-bold sm:text-4xl ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}
                 >
                   {String(timeLeft.hours).padStart(2, '0')}
                 </div>
                 <div className="text-xs text-white/70 mt-1">Hours</div>
               </div>
               <div
-                className={`text-3xl font-bold ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}
+                className={`text-xl font-bold sm:text-3xl ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}
               >
                 :
               </div>
               <div className="text-center">
                 <div
-                  className={`text-4xl font-bold ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}
+                  className={`text-2xl font-bold sm:text-4xl ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}
                 >
                   {String(timeLeft.minutes).padStart(2, '0')}
                 </div>
                 <div className="text-xs text-white/70 mt-1">Minutes</div>
               </div>
               <div
-                className={`text-3xl font-bold ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}
+                className={`text-xl font-bold sm:text-3xl ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}
               >
                 :
               </div>
               <div className="text-center">
                 <div
-                  className={`text-4xl font-bold ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}
+                  className={`text-2xl font-bold sm:text-4xl ${inputMode === 'uploaded' ? 'text-[#81B81D]' : 'text-[#F97316]'}`}
                 >
                   {String(timeLeft.seconds).padStart(2, '0')}
                 </div>
@@ -244,10 +246,10 @@ export default function VendorSchedulerCountdown({
               </div>
             </div>
           ) : (
-            <div className="text-lg font-semibold">Email will be sent soon...</div>
+            <div className="text-base font-semibold sm:text-lg">Email will be sent soon...</div>
           )}
         </div>
-        <div className="text-right ml-6">
+        <div className="shrink-0 sm:text-right">
           <div className="text-sm text-white/70 mb-1">Next Run</div>
           <div className="text-lg font-semibold">{status.next_run_time_taipei}</div>
           <div className="mt-2">
