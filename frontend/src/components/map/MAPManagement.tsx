@@ -461,14 +461,14 @@ export default function MAPManagement() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Manage MAP (Minimum Advertised Price)</h1>
+        <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Manage MAP (Minimum Advertised Price)</h1>
         <p className="mt-2 text-sm text-gray-600">
           Manage Minimum Advertised Prices for UPCs. Total: {totalCount} entries
         </p>
       </div>
 
       {/* Add MAPs Form */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Add MAP Entries</h2>
 
         {error && (
@@ -549,8 +549,8 @@ export default function MAPManagement() {
 
       {/* MAPs List */}
       <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex justify-between items-center mb-4">
+        <div className="app-card-body-lg px-4 py-4 sm:px-6 sm:py-4 border-b border-gray-200">
+          <div className="app-section-header flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Delete MAP Entries</h2>
             <div className="text-sm text-gray-500">
               Showing {currentPage * limit + 1} - {Math.min((currentPage + 1) * limit, totalCount)} of {totalCount}
@@ -738,7 +738,7 @@ export default function MAPManagement() {
           </div>
         ) : (
           <>
-            <div className="app-table-scroll overflow-x-auto">
+            <div className="hidden lg:block app-table-scroll overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -795,9 +795,36 @@ export default function MAPManagement() {
               </table>
             </div>
 
+            <div className="app-mobile-data-list lg:hidden">
+              {maps.map((map) => (
+                <div key={map.id} className="app-mobile-data-row">
+                  <div className="break-all font-mono text-sm font-medium text-gray-900">{map.upc}</div>
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-700">
+                      {map.vendor_type.toUpperCase()}
+                    </span>
+                    <span className="font-semibold text-[#404040]">${Number(map.map_price).toFixed(2)}</span>
+                  </div>
+                  <div className="space-y-0.5 text-xs text-gray-500">
+                    <div>Created {new Date(map.created_at).toLocaleString()}</div>
+                    <div>Updated {new Date(map.updated_at).toLocaleString()}</div>
+                  </div>
+                  <div className="app-mobile-data-row-actions">
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteMAP(map.upc, map.vendor_type)}
+                      className="rounded-md border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="app-pagination-bar px-6 py-4 border-t border-gray-200 flex justify-between items-center">
+              <div className="app-pagination-bar app-card-body-lg px-4 py-4 sm:px-6 border-t border-gray-200 flex justify-between items-center">
                 <button
                   onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
                   disabled={currentPage === 0}

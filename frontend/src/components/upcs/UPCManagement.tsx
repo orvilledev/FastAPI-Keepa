@@ -290,7 +290,7 @@ export default function UPCManagement() {
     <div className="space-y-6">
       <div className="app-page-header flex justify-between items-center">
         <div className="space-y-3">
-          <h1 className="text-3xl font-bold text-gray-900">{displayTitle}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">{displayTitle}</h1>
           <p className="mt-2 text-sm text-gray-600">
             {displayDescription}
           </p>
@@ -306,7 +306,7 @@ export default function UPCManagement() {
       </div>
 
       {/* Add UPCs Form */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Add UPCs</h2>
         
         {error && (
@@ -354,8 +354,8 @@ export default function UPCManagement() {
 
       {/* UPCs List */}
       <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex justify-between items-center mb-4">
+        <div className="app-card-body-lg px-4 py-4 sm:px-6 sm:py-4 border-b border-gray-200">
+          <div className="app-section-header flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Delete UPCs</h2>
             <div className="text-sm text-gray-500">
               Showing {currentPage * limit + 1} - {Math.min((currentPage + 1) * limit, totalCount)} of {totalCount}
@@ -527,7 +527,7 @@ export default function UPCManagement() {
           </div>
         ) : (
           <>
-            <div className="app-table-scroll overflow-x-auto">
+            <div className="hidden lg:block app-table-scroll overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -565,9 +565,29 @@ export default function UPCManagement() {
               </table>
             </div>
 
+            <div className="app-mobile-data-list lg:hidden">
+              {upcs.map((upc) => (
+                <div key={upc.id} className="app-mobile-data-row">
+                  <div className="break-all font-mono text-sm font-medium text-gray-900">{upc.upc}</div>
+                  <div className="text-xs text-gray-500">
+                    Added {new Date(upc.created_at).toLocaleString()}
+                  </div>
+                  <div className="app-mobile-data-row-actions">
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteUPC(upc.upc)}
+                      className="rounded-md border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="app-pagination-bar px-6 py-4 border-t border-gray-200 flex justify-between items-center">
+              <div className="app-pagination-bar app-card-body-lg px-4 py-4 sm:px-6 border-t border-gray-200 flex justify-between items-center">
                 <button
                   onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
                   disabled={currentPage === 0}

@@ -1194,6 +1194,44 @@ code {
     gap: 0.5rem;
   }
 
+  .app-section-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.5rem;
+  }
+
+  .app-card-body {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .app-card-body-lg {
+    padding-left: 1rem;
+    padding-right: 1rem;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  /* Stacked data rows for list pages on phones */
+  .app-mobile-data-list > * + * {
+    border-top: 1px solid rgb(var(--color-border) / 0.6);
+  }
+
+  .app-mobile-data-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+  }
+
+  .app-mobile-data-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    padding-top: 0.25rem;
+  }
+
   /* Tables inside this wrapper scroll horizontally instead of squashing columns. */
   .app-table-scroll {
     overflow-x: auto;

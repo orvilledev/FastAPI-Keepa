@@ -208,7 +208,7 @@ export default function SellerList() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Add Sellers</h1>
+        <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Add Sellers</h1>
         <p className="mt-1 text-sm text-gray-500">
           Amazon seller IDs and display names used in reports. One seller per line — seller code, comma, then name (e.g.{' '}
           <span className="font-mono text-gray-700">A1HQOHOLTUK58E,Buy DBDeals</span>).
@@ -226,7 +226,7 @@ export default function SellerList() {
       )}
 
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-4 py-5 sm:px-6 space-y-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Paste or upload your list</h2>
             <p className="mt-1 text-sm text-gray-500">
@@ -247,7 +247,7 @@ export default function SellerList() {
               type="button"
               disabled={importing}
               onClick={() => void onImportText()}
-              className="inline-flex justify-center items-center px-6 py-3 rounded-lg bg-[#404040] text-white text-base font-semibold shadow-sm hover:bg-[#3B3B3B] disabled:opacity-50 min-w-[200px]"
+              className="inline-flex w-full justify-center items-center px-6 py-3 rounded-lg bg-[#404040] text-white text-base font-semibold shadow-sm hover:bg-[#3B3B3B] disabled:opacity-50 sm:w-auto sm:min-w-[200px]"
             >
               {importing ? 'Adding…' : 'Add sellers'}
             </button>
@@ -271,21 +271,21 @@ export default function SellerList() {
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
+        <div className="app-section-header px-4 py-4 sm:px-6 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-gray-900">Sellers in the system</h2>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="app-toolbar-row flex w-full flex-col sm:w-auto sm:flex-row sm:flex-wrap sm:items-center gap-3">
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by code or name…"
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm w-56 text-gray-900"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 sm:w-56"
             />
             <button
               type="button"
               disabled={bulkDeleting || selected.size === 0}
               onClick={() => void onDeleteSelected()}
-              className="inline-flex items-center px-3 py-2 rounded-lg border border-red-200 text-red-700 text-sm font-medium hover:bg-red-50 disabled:opacity-50"
+              className="inline-flex w-full justify-center items-center px-3 py-2 rounded-lg border border-red-200 text-red-700 text-sm font-medium hover:bg-red-50 disabled:opacity-50 sm:w-auto"
             >
               {bulkDeleting ? 'Deleting…' : `Delete selected (${selected.size})`}
             </button>
@@ -293,59 +293,103 @@ export default function SellerList() {
         </div>
 
         {loading ? (
-          <div className="px-6 py-12 text-center text-gray-500">Loading…</div>
+          <div className="px-4 py-12 text-center text-gray-500 sm:px-6">Loading…</div>
         ) : filtered.length === 0 ? (
-          <div className="px-6 py-12 text-center text-gray-500">
+          <div className="px-4 py-12 text-center text-gray-500 sm:px-6">
             {sellers.length === 0
               ? 'No sellers saved yet. Paste your list above and click Add sellers.'
               : 'No matches for this search.'}
           </div>
         ) : (
-          <div className="app-table-scroll overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 text-left text-gray-600">
-                  <th className="px-4 py-3 w-10">
-                    <input
-                      type="checkbox"
-                      checked={allVisibleSelected}
-                      onChange={toggleAllVisible}
-                      aria-label="Select all visible"
-                    />
-                  </th>
-                  <th className="px-4 py-3 font-medium">Seller code</th>
-                  <th className="px-4 py-3 font-medium">Seller name</th>
-                  <th className="px-4 py-3 font-medium w-28 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filtered.map((s) => (
-                  <tr key={s.id} className="hover:bg-gray-50/80">
-                    <td className="px-4 py-3">
+          <>
+            <div className="hidden lg:block app-table-scroll overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 text-left text-gray-600">
+                    <th className="px-4 py-3 w-10">
                       <input
                         type="checkbox"
-                        checked={selected.has(s.seller_id)}
-                        onChange={() => toggle(s.seller_id)}
-                        aria-label={`Select ${s.seller_id}`}
+                        checked={allVisibleSelected}
+                        onChange={toggleAllVisible}
+                        aria-label="Select all visible"
                       />
-                    </td>
-                    <td className="px-4 py-3 font-mono text-gray-900">{s.seller_id}</td>
-                    <td className="px-4 py-3 text-gray-900">{s.seller_name}</td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        disabled={busyDelete === s.seller_id}
-                        onClick={() => void onDeleteOne(s.seller_id)}
-                        className="text-red-600 text-sm font-medium hover:underline disabled:opacity-50"
-                      >
-                        {busyDelete === s.seller_id ? '…' : 'Delete'}
-                      </button>
-                    </td>
+                    </th>
+                    <th className="px-4 py-3 font-medium">Seller code</th>
+                    <th className="px-4 py-3 font-medium">Seller name</th>
+                    <th className="px-4 py-3 font-medium w-28 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filtered.map((s) => (
+                    <tr key={s.id} className="hover:bg-gray-50/80">
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(s.seller_id)}
+                          onChange={() => toggle(s.seller_id)}
+                          aria-label={`Select ${s.seller_id}`}
+                        />
+                      </td>
+                      <td className="px-4 py-3 font-mono text-gray-900">{s.seller_id}</td>
+                      <td className="px-4 py-3 text-gray-900">{s.seller_name}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          disabled={busyDelete === s.seller_id}
+                          onClick={() => void onDeleteOne(s.seller_id)}
+                          className="text-red-600 text-sm font-medium hover:underline disabled:opacity-50"
+                        >
+                          {busyDelete === s.seller_id ? '…' : 'Delete'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="app-mobile-data-list lg:hidden">
+              <div className="app-mobile-data-row flex-row flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-gray-50">
+                <label className="inline-flex items-center gap-2 text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleAllVisible}
+                    aria-label="Select all visible"
+                  />
+                  Select all
+                </label>
+                <span className="text-xs text-gray-500">{filtered.length} shown</span>
+              </div>
+              {filtered.map((s) => (
+                <div key={s.id} className="app-mobile-data-row">
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(s.seller_id)}
+                      onChange={() => toggle(s.seller_id)}
+                      aria-label={`Select ${s.seller_id}`}
+                      className="mt-1 shrink-0"
+                    />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="break-all font-mono text-sm font-medium text-gray-900">{s.seller_id}</div>
+                      <div className="break-words text-sm text-gray-700">{s.seller_name}</div>
+                    </div>
+                  </div>
+                  <div className="app-mobile-data-row-actions pl-7">
+                    <button
+                      type="button"
+                      disabled={busyDelete === s.seller_id}
+                      onClick={() => void onDeleteOne(s.seller_id)}
+                      className="rounded-md border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      {busyDelete === s.seller_id ? 'Deleting…' : 'Delete'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>
