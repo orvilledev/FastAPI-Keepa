@@ -112,34 +112,33 @@ export default function Navbar({ onMenuClick }: NavbarProps = {}) {
 
   return (
     <nav className="sticky top-0 z-50 shrink-0 border-b border-gray-200/80 bg-white/80 shadow-sm backdrop-blur-lg dark:border-border/80 dark:bg-surface/90">
-      <div className="px-6 lg:px-8">
-        <div className="flex h-20 items-center gap-4">
+      <div className="px-3 sm:px-6 lg:px-8">
+        <div className="flex h-20 items-center gap-2 sm:gap-4">
           {/* Hamburger — opens the mobile nav drawer. Hidden on lg+ so desktop/Electron are unchanged. */}
           <button
             type="button"
             onClick={onMenuClick}
             aria-label="Open menu"
-            className="-ml-2 shrink-0 rounded-lg p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-content-secondary dark:hover:bg-surface-hover lg:hidden"
+            className="-ml-1 shrink-0 rounded-lg p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-content-secondary dark:hover:bg-surface-hover lg:hidden"
           >
             <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
           {!isWarehouseOnly ? (
-            <div className="min-w-0 w-full max-w-sm lg:max-w-md">
+            /* Search collapses awkwardly on phones; the drawer covers navigation there. Show it from sm+. */
+            <div className="hidden min-w-0 w-full max-w-sm sm:block lg:max-w-md">
               <NavbarSearch />
             </div>
-          ) : (
-            <div className="min-w-0 flex-1" />
-          )}
-          <div className="flex shrink-0 items-center space-x-2 ml-auto">
+          ) : null}
+          <div className="flex shrink-0 items-center space-x-1.5 sm:space-x-2 ml-auto">
             <ThemeToggle />
             {!isElectron && desktopDownloadUrl ? (
               <a
                 href={desktopDownloadUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-white border border-purple-600 bg-purple-600 hover:bg-purple-700 hover:border-purple-700 rounded-lg transition-colors duration-200"
+                className="hidden sm:inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-white border border-purple-600 bg-purple-600 hover:bg-purple-700 hover:border-purple-700 rounded-lg transition-colors duration-200"
                 title="Download Windows desktop app (.exe)"
               >
                 <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -151,7 +150,7 @@ export default function Navbar({ onMenuClick }: NavbarProps = {}) {
             {!isWarehouseOnly && (
             <Link
               to="/notifications"
-              className="relative z-10 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+              className="relative z-10 mr-1.5 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200 sm:mr-0"
               title="Notifications"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -227,7 +226,7 @@ export default function Navbar({ onMenuClick }: NavbarProps = {}) {
             </div>
             <button
               onClick={handleSignOut}
-              className="sm:hidden px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+              className="shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-gray-700 transition-colors duration-200 hover:bg-gray-100 hover:text-gray-900 sm:hidden"
             >
               Sign Out
             </button>
