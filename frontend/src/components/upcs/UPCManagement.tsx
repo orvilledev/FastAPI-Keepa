@@ -288,7 +288,7 @@ export default function UPCManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="app-page-header flex justify-between items-center">
         <div className="space-y-3">
           <h1 className="text-3xl font-bold text-gray-900">{displayTitle}</h1>
           <p className="mt-2 text-sm text-gray-600">
@@ -527,7 +527,7 @@ export default function UPCManagement() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="app-table-scroll overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -567,7 +567,7 @@ export default function UPCManagement() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="px-6 py-4 border-t border-gray-200 flex justify-between items-center">
+              <div className="app-pagination-bar px-6 py-4 border-t border-gray-200 flex justify-between items-center">
                 <button
                   onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
                   disabled={currentPage === 0}

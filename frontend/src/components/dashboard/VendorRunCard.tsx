@@ -42,8 +42,8 @@ export default function VendorRunCard({ vendor, nowMs }: { vendor: CalendarVendo
   if (!vendor.enabled) {
     return (
       <div className="bg-gray-100 rounded-xl shadow p-6 border border-gray-300">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex-1">
             <h3 className="text-lg font-semibold mb-2 text-gray-900">{code} Keepa Off Price Daily Run</h3>
             <p className="text-gray-500 text-sm">Daily run is currently stopped.</p>
             <div className="mt-2">
@@ -58,7 +58,7 @@ export default function VendorRunCard({ vendor, nowMs }: { vendor: CalendarVendo
               </span>
             </div>
           </div>
-          <div className="text-right ml-6">
+          <div className="shrink-0 sm:text-right">
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#81B81D]/20 text-[#111827]">
               Stopped
             </span>

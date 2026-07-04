@@ -1160,5 +1160,55 @@ code {
     max-width: 100%;
     overflow-x: auto;
   }
+
+  /* Shared layout helpers — add these classes in JSX; only active below lg. */
+  .app-page-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 1rem;
+  }
+
+  .app-page-header > :last-child {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .app-pagination-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.75rem;
+  }
+
+  .app-pagination-bar > :last-child {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .app-pagination-bar > :last-child button {
+    flex: 1;
+  }
+
+  .app-toolbar-row {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  /* Tables inside this wrapper scroll horizontally instead of squashing columns. */
+  .app-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  .app-table-scroll > table {
+    min-width: 720px;
+    width: max-content;
+    table-layout: auto;
+  }
+
+  .app-table-scroll > table.table-fixed {
+    table-layout: auto;
+  }
 }
 

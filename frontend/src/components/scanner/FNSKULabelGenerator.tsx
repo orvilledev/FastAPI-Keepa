@@ -490,7 +490,7 @@ export default function FNSKULabelGenerator() {
               labels later.
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="app-table-scroll overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-100 text-sm">
                 <thead className="bg-gray-50">
                   <tr>
@@ -685,7 +685,7 @@ function FileCard({
                 Order matches source export's box columns.
               </p>
             </div>
-            <div className="overflow-x-auto">
+            <div className="app-table-scroll overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide">
                   <tr>
@@ -724,7 +724,7 @@ function FileCard({
                 Items ({shipment.items.length})
               </h3>
             </div>
-            <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
+            <div className="app-table-scroll overflow-x-auto max-h-[360px] overflow-y-auto">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide sticky top-0">
                   <tr>

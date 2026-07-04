@@ -194,7 +194,7 @@ export default function EmailList() {
         {error && <p className="text-sm text-red-600">{error}</p>}
         {!loading && sorted.length === 0 && <p className="text-sm text-gray-500">No recipients yet.</p>}
         {!loading && sorted.length > 0 && (
-          <div className="overflow-x-auto">
+          <div className="app-table-scroll overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="text-left text-gray-500 border-b">

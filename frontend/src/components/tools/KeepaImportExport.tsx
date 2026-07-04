@@ -768,7 +768,7 @@ export default function KeepaImportExport() {
               ) : history.length === 0 ? (
                 <p className="px-5 py-6 text-sm text-gray-500">No builds yet.</p>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="app-table-scroll overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-100">
                     <thead className="bg-gray-50">
                       <tr>

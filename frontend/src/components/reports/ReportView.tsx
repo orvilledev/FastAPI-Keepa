@@ -69,7 +69,7 @@ export default function ReportView() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="app-page-header flex justify-between items-center">
         <div>
           <Link
             to="/jobs"
@@ -106,7 +106,7 @@ export default function ReportView() {
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="app-table-scroll overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>

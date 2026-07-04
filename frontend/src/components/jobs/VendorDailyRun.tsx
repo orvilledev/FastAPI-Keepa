@@ -475,7 +475,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-start">
+      <div className="app-page-header flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">{VENDOR_UPPER} Daily Run</h1>
           <p className="mt-1 text-sm text-gray-500">Manage and view {VENDOR_UPPER} Daily Email Runs</p>
@@ -830,7 +830,7 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
               {settingsForm.run_mode === 'custom_days' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Run Days</label>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
                     {WEEKDAYS.map((day) => (
                       <label key={day.value} className="inline-flex items-center gap-2 text-sm text-gray-700">
                         <input

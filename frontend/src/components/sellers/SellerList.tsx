@@ -301,7 +301,7 @@ export default function SellerList() {
               : 'No matches for this search.'}
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="app-table-scroll overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 text-left text-gray-600">

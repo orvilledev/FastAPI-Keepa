@@ -138,7 +138,7 @@ export default function WarehouseProductCatalog({
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <div className="app-table-scroll overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200 bg-white text-left text-xs font-semibold uppercase tracking-wide text-gray-500">

@@ -126,7 +126,7 @@ export default function KeepaImportBuildContentsModal({
           ) : rows.length === 0 ? (
             <p className="py-8 text-center text-sm text-gray-500">No rows in this report.</p>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <div className="app-table-scroll overflow-x-auto rounded-lg border border-gray-200">
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className="bg-gray-50">
                   <tr>

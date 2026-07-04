@@ -61,6 +61,33 @@ const buildSyntheticScheduledJob = (vendor: SchedulerVendor): SyntheticScheduled
   }
 }
 
+type JobRowMeta = {
+  syntheticJob: BatchJob & Partial<SyntheticScheduledJob>
+  isSynthetic: boolean
+  displayStatus: string
+  runMethod: 'import' | 'api'
+  isImportRun: boolean
+}
+
+const getJobRowMeta = (job: BatchJob): JobRowMeta => {
+  const syntheticJob = job as BatchJob & Partial<SyntheticScheduledJob>
+  const isSynthetic = syntheticJob.is_synthetic === true
+  const displayStatus = isSynthetic ? 'scheduled' : job.status
+  const runMethod = isSynthetic
+    ? syntheticJob.scheduler_input_mode === 'uploaded'
+      ? 'import'
+      : 'api'
+    : getRunMethod(job.job_name || '')
+
+  return {
+    syntheticJob,
+    isSynthetic,
+    displayStatus,
+    runMethod,
+    isImportRun: runMethod === 'import',
+  }
+}
+
 export default function JobList() {
   const [jobs, setJobs] = useState<BatchJob[]>([])
   const [loading, setLoading] = useState(true)
@@ -247,9 +274,9 @@ export default function JobList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="app-page-header flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100">Express Jobs</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100 sm:text-3xl">Express Jobs</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">Manage and monitor your batch processing jobs</p>
           {stats.processing > 0 && (
             <p
@@ -304,7 +331,8 @@ export default function JobList() {
       </div>
 
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto lg:overflow-x-visible">
+        {/* Desktop / Electron table — unchanged at lg+ */}
+        <div className="app-table-scroll hidden lg:block lg:overflow-x-visible">
         <table className="w-full table-fixed divide-y divide-gray-200 dark:divide-border">
           <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50 dark:from-surface-muted dark:to-surface-hover">
             <tr>
@@ -333,15 +361,7 @@ export default function JobList() {
                 </td>
               </tr>
             ) : jobs.map((job) => {
-              const syntheticJob = job as BatchJob & Partial<SyntheticScheduledJob>
-              const isSynthetic = syntheticJob.is_synthetic === true
-              const displayStatus = isSynthetic ? 'scheduled' : job.status
-              const runMethod = isSynthetic
-                ? syntheticJob.scheduler_input_mode === 'uploaded'
-                  ? 'import'
-                  : 'api'
-                : getRunMethod(job.job_name || '')
-              const isImportRun = runMethod === 'import'
+              const { isSynthetic, displayStatus, isImportRun } = getJobRowMeta(job)
               return (
               <tr
                 key={job.id}
@@ -414,6 +434,84 @@ export default function JobList() {
           </tbody>
         </table>
         </div>
+
+        {/* Mobile card list — stacked fields instead of cramped table columns */}
+        <div className="divide-y divide-gray-100 dark:divide-border lg:hidden">
+          {loading ? (
+            <div className="px-4 py-8 text-center text-sm text-gray-500">Loading jobs...</div>
+          ) : jobs.map((job) => {
+            const { isSynthetic, displayStatus, isImportRun } = getJobRowMeta(job)
+            return (
+              <div
+                key={job.id}
+                className={`space-y-3 p-4 ${isSynthetic ? 'bg-amber-50/30 dark:bg-amber-500/10' : ''}`}
+              >
+                <div>
+                  <div className={`text-sm font-semibold break-words ${isImportRun ? 'text-[#2F6F0F] dark:text-green-400' : 'text-[#0B3D91] dark:text-blue-400'}`}>
+                    {job.job_name}
+                  </div>
+                  <div className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-slate-400">
+                    UPCs: {job.total_upcs.toLocaleString()} • By: {job.initiated_by || 'Unknown'}
+                  </div>
+                  <div className="mt-0.5 text-xs text-gray-500 dark:text-slate-400">
+                    Done: {job.completed_at ? new Date(job.completed_at).toLocaleDateString() : '-'} • Duration:{' '}
+                    {isSynthetic ? '-' : formatRunDuration(job.created_at, job.completed_at)}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      isSynthetic ? SCHEDULED_STATUS_CLASS : getStatusColor(job.status)
+                    }`}
+                  >
+                    {displayStatus}
+                  </span>
+                  <span
+                    className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      isImportRun
+                        ? 'bg-[#81B81D]/20 text-[#111827] dark:bg-[#81B81D]/25 dark:text-green-200'
+                        : 'bg-blue-100 text-[#81B81D] dark:bg-blue-500/20 dark:text-blue-300'
+                    }`}
+                  >
+                    {isImportRun ? 'Import Mode' : 'API Mode'}
+                  </span>
+                </div>
+                <div className="text-sm text-gray-600 dark:text-slate-300">
+                  {isSynthetic
+                    ? 'Waiting for countdown'
+                    : `${job.completed_batches} / ${job.total_batches} batches`}
+                </div>
+                <div className="text-sm font-medium">
+                  {isSynthetic ? (
+                    <span className="text-xs text-amber-700 dark:text-amber-300">Auto-run placeholder</span>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-4">
+                      <Link
+                        to={`/jobs/${job.id}`}
+                        className="text-[#404040] hover:text-[#3B3B3B] font-semibold hover:underline transition-colors dark:text-slate-200"
+                      >
+                        View →
+                      </Link>
+                      <button
+                        onClick={() => handleDeleteJob(job.id, job.job_name)}
+                        disabled={job.status === 'processing'}
+                        className={`text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium transition-colors ${
+                          job.status === 'processing'
+                            ? 'opacity-50 cursor-not-allowed'
+                            : 'hover:underline'
+                        }`}
+                        title={job.status === 'processing' ? 'Cannot delete a job that is currently processing' : 'Delete job'}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
         {jobs.length === 0 && !loading && (
           <div className="text-center py-8 text-gray-500">No jobs found</div>
         )}
@@ -421,8 +519,8 @@ export default function JobList() {
 
       {/* Pagination Controls */}
       {jobs.length > 0 && (
-        <div className="card px-6 py-4">
-          <div className="flex items-center justify-between">
+        <div className="card px-4 py-4 sm:px-6">
+          <div className="app-pagination-bar flex items-center justify-between">
             <div className="text-sm text-gray-600 dark:text-slate-400">
               Page <span className="font-semibold text-gray-900 dark:text-slate-100">{currentPage + 1}</span> • Showing {currentPage * JOBS_PER_PAGE + 1}-
               {currentPage * JOBS_PER_PAGE + jobs.length} job{jobs.length !== 1 ? 's' : ''}

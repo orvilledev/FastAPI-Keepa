@@ -30,11 +30,12 @@ export default function ReportList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="app-page-header flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Reports</h1>
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="app-table-scroll overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -72,6 +73,7 @@ export default function ReportList() {
             ))}
           </tbody>
         </table>
+        </div>
         {jobs.length === 0 && (
           <div className="text-center py-8 text-gray-500">No completed jobs found</div>
         )}

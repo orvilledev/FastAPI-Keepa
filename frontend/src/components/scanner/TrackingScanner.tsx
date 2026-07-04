@@ -247,7 +247,7 @@ export default function TrackingScanner() {
               You can edit any cell before exporting to Excel.
             </p>
           </div>
-          <div className="overflow-x-auto">
+          <div className="app-table-scroll overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide">
                 <tr>
