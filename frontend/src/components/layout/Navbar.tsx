@@ -10,7 +10,12 @@ import ThemeToggle from '../common/ThemeToggle'
 
 const VITE_DESKTOP_URL = DESKTOP_APP_DOWNLOAD_URL
 
-export default function Navbar() {
+interface NavbarProps {
+  /** Mobile-only: opens the off-canvas navigation drawer. Unused on lg+ (button is hidden). */
+  onMenuClick?: () => void
+}
+
+export default function Navbar({ onMenuClick }: NavbarProps = {}) {
   const { user, signOut } = useAuth()
   const { isWarehouseOnly } = useUser()
   const navigate = useNavigate()
@@ -109,6 +114,17 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 shrink-0 border-b border-gray-200/80 bg-white/80 shadow-sm backdrop-blur-lg dark:border-border/80 dark:bg-surface/90">
       <div className="px-6 lg:px-8">
         <div className="flex h-20 items-center gap-4">
+          {/* Hamburger — opens the mobile nav drawer. Hidden on lg+ so desktop/Electron are unchanged. */}
+          <button
+            type="button"
+            onClick={onMenuClick}
+            aria-label="Open menu"
+            className="-ml-2 shrink-0 rounded-lg p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-content-secondary dark:hover:bg-surface-hover lg:hidden"
+          >
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
           {!isWarehouseOnly ? (
             <div className="min-w-0 w-full max-w-sm lg:max-w-md">
               <NavbarSearch />

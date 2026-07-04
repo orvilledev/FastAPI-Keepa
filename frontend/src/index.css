@@ -1109,3 +1109,56 @@ code {
   --tw-gradient-to: rgb(var(--color-surface)) var(--tw-gradient-to-position) !important;
 }
 
+/* ==================================================================== *
+ * MOBILE-ONLY REFINEMENTS  (phones / small tablets, viewport < 1024px)
+ *
+ * Everything in this block is gated behind `@media (max-width: 1023px)`.
+ * Desktop browsers and the packaged Electron desktop app always render at
+ * >= 1024px, so none of these rules ever apply there — the desktop and
+ * Electron experience is unchanged. These rules are presentation only and
+ * do not alter any tool behaviour or data processing.
+ * ==================================================================== */
+@media (max-width: 1023px) {
+  /* The app is authored at a global `zoom: 0.9`, which shrinks touch targets
+     and text on phones. Neutralise it on small screens for legibility. */
+  :root {
+    --app-zoom: 1;
+  }
+
+  html {
+    zoom: 1;
+  }
+
+  /* Use the dynamic viewport height so the mobile browser's collapsing
+     address bar doesn't clip or double-scroll the app shell. */
+  .h-app-screen {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .min-h-app-screen {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  /* Desktop layouts occasionally assume lots of horizontal room; prevent a
+     stray wide element from creating a sideways scroll on phones. */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Comfortable minimum tap size for icon-only controls on touch screens. */
+  .sidebar-link {
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+  }
+
+  /* Long tables and code/pre blocks should scroll within themselves rather
+     than stretching the whole page on narrow screens. */
+  .note-content pre,
+  .note-content table {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+}
+

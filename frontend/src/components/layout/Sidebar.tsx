@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type MouseEvent } from 'react'
 import { useUser } from '../../contexts/UserContext'
 import { APP_ICON_URL, APP_NAME } from '../../constants/app'
 import { isUserHiddenFromFeedbackPage } from '../../constants/feedbackAccess'
@@ -90,7 +90,14 @@ const Icons = {
   ),
 }
 
-export default function Sidebar() {
+interface SidebarProps {
+  /** Mobile-only: whether the off-canvas drawer is open. Ignored on lg+ where the sidebar is always static. */
+  mobileOpen?: boolean
+  /** Mobile-only: called when a navigation link is tapped so the drawer can close. */
+  onNavigate?: () => void
+}
+
+export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps = {}) {
   const location = useLocation()
   const { hasKeepaAccess, isWarehouseOnly, isSuperadmin, userInfo, authUser, userInfoLoading } = useUser()
   const isElectron = Boolean(window.desktop?.isElectron)
@@ -180,19 +187,44 @@ export default function Sidebar() {
     }
   }
 
+  // Event-delegated close: on mobile, tapping any nav link closes the drawer.
+  // Harmless on desktop where `onNavigate` is not provided.
+  const handleNavClick = (event: MouseEvent<HTMLElement>) => {
+    if (!onNavigate) return
+    if ((event.target as HTMLElement).closest('a')) {
+      onNavigate()
+    }
+  }
+
   return (
-    <aside className="flex h-app-screen w-60 shrink-0 flex-col border-r border-gray-200/80 bg-white/80 shadow-lg backdrop-blur-lg dark:border-border/80 dark:bg-surface/90">
+    <aside
+      className={`fixed inset-y-0 left-0 z-50 flex h-app-screen w-60 shrink-0 flex-col border-r border-gray-200/80 bg-white/80 shadow-lg backdrop-blur-lg transition-transform duration-300 ease-in-out dark:border-border/80 dark:bg-surface/90 lg:static lg:z-auto lg:translate-x-0 lg:shadow-lg lg:transition-none ${
+        mobileOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}
+    >
       <div className="flex h-20 shrink-0 items-center px-4">
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <img src={APP_ICON_URL} alt="MSW Overwatch" className="h-11 w-11 shrink-0" />
           <h2 className="min-w-0 truncate text-lg font-bold tracking-tight text-[#404040] dark:text-slate-100">
             {APP_NAME}
           </h2>
         </div>
+        {/* Close button — mobile drawer only. */}
+        <button
+          type="button"
+          onClick={onNavigate}
+          aria-label="Close menu"
+          className="ml-2 shrink-0 rounded-lg p-2 text-gray-600 hover:bg-gray-100 dark:text-content-secondary dark:hover:bg-surface-hover lg:hidden"
+        >
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
       <nav
         className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-3"
         onMouseLeave={() => setHoveredNav(null)}
+        onClick={handleNavClick}
       >
         {isWarehouseOnly ? (
           <>
