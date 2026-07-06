@@ -1,7 +1,7 @@
 import { isInstalledPwa, shouldShowWebReleaseAnnouncement } from './privatePath'
 
-const SESSION_DISMISS_PREFIX = 'msw_web_release_v3_0_0_announcement_dismissed_'
-const LEGACY_DISMISS_KEY = 'msw_web_release_v3_0_0_announcement_dismissed'
+const SESSION_DISMISS_PREFIX = 'msw_web_release_v3_0_0_launched_dismissed_'
+const LEGACY_DISMISS_KEY = 'msw_web_release_v3_0_0_launched_dismissed'
 const WEB_BROWSER_HEARTBEAT_PREFIX = 'msw_web_browser_client_heartbeat_'
 
 const HEARTBEAT_INTERVAL_MS = 3_000

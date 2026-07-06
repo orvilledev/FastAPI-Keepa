@@ -14,10 +14,10 @@ import {
 } from '../../lib/webReleaseAnnouncement'
 
 const RELEASE_VERSION = '3.0.0'
-const RELEASE_DATE_LABEL = 'Monday, July 6, 2026'
+const RELEASE_DATE_LABEL = 'Tuesday, July 7, 2026'
 
 /**
- * Welcome popup for the upcoming v3.0.0 web release (browser + PWA only).
+ * Welcome popup for the v3.0.0 release (browser + PWA only).
  *
  * - Dismissal is per user and per client session — reopening after a full close
  *   shows the popup again for that user.
@@ -200,21 +200,28 @@ export default function WebReleaseAnnouncement() {
 
         <div className="px-8 pb-8 pt-2 text-center">
           <p className="text-xs font-semibold uppercase tracking-wide text-[#81B81D]">
-            {APP_NAME} · What&apos;s coming
+            {APP_NAME} · What&apos;s new
           </p>
           <h2 id="web-release-title" className="mt-2 text-2xl font-bold text-gray-900">
-            Version {RELEASE_VERSION} is on the way!
+            Version {RELEASE_VERSION} is here!
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-gray-600">
-            Get excited — a brand-new release drops on{' '}
-            <strong className="text-gray-900">{RELEASE_DATE_LABEL}</strong>. Our capybara mascot
-            can barely sit still. Keep an eye out for fresh features and improvements across the
-            web app.
+            Released {RELEASE_DATE_LABEL}. The desktop app and web app now include Keepa Import File,
+            dark mode, Express Jobs improvements, and a mobile-friendly layout when you use MSW Overwatch
+            in your phone browser.
           </p>
+
+          <ul className="mt-4 space-y-1.5 text-left text-sm text-gray-700">
+            <li>• <strong>Keepa Import File</strong> — build vendor import files with live progress, shared history, scheduling, and off-price MAP reports</li>
+            <li>• <strong>Dark mode</strong> — theme toggle with improved contrast across the app</li>
+            <li>• <strong>Express Jobs</strong> — clear all completed jobs in one click</li>
+            <li>• <strong>Micro Tools</strong> — NFA Shipment Work Sheet download</li>
+            <li>• <strong>Mobile web</strong> — hamburger navigation and stacked list layouts on phones</li>
+          </ul>
 
           <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#81B81D]/15 px-4 py-1.5 text-sm font-semibold text-[#4d6f12]">
             <span className="h-2 w-2 rounded-full bg-[#81B81D]" aria-hidden />
-            Launching {RELEASE_DATE_LABEL}
+            Desktop users: check for updates in the sidebar or About page
           </div>
 
           <button
@@ -222,7 +229,7 @@ export default function WebReleaseAnnouncement() {
             onClick={handleDismiss}
             className="mt-7 w-full rounded-lg bg-[#404040] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-gray-800"
           >
-            Can&apos;t wait — got it!
+            Got it — let&apos;s go!
           </button>
         </div>
       </div>

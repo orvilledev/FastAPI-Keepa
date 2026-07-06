@@ -1,0 +1,35 @@
+MSW Overwatch 3.0.0 — desktop and web release
+
+This release ships everything that landed on the web after Electron 2.2.24 (June 24, 2026). Installers and auto-update use GitHub Releases; existing desktop users can use **Check for Updates** in the sidebar or About page.
+
+## Keepa Import File (new tool)
+- Standalone **Keepa Import File** page under Tools for building vendor import spreadsheets from Manage UPCs
+- Live build progress bar, friendly builder names, and builds that continue while you navigate the app
+- Shared build history across all Keepa users with view-contents and report download
+- Per-vendor scheduling, stop/cancel, resume-after-close, and one active global build at a time
+- Per-vendor off-price MAP report settings aligned with daily import uploaded mode
+- History delete controls and many reliability fixes (orphaned builds, 95% progress stall, flickering refresh, duplicate emails)
+
+## Dark mode
+- Light/dark theme toggle in the top bar
+- Contrast fixes across Express Jobs, file uploads, tables, and legacy utility classes
+
+## Express Jobs
+- **Clear completed** — remove all finished jobs in one click
+
+## Micro Tools
+- NFA Shipment Work Sheet in Testing Materials with reliable Excel download (API-proxied)
+
+## Mobile web (browser only; desktop/Electron layout unchanged)
+- Hamburger navigation drawer on phones
+- Stacked card layouts for Express Jobs, Manage UPCs, Manage MAP, Seller List, and Email List
+- Dashboard run-card and pagination overlap fixes
+
+## Other improvements
+- Updated About and FAQ for current layout, MFA, Keepa Import, and Label Station
+- Notification badge no longer stacks over the profile menu
+- FNSKU Labels history delete controls
+- Label Station from 2.2.24: scan UPC, print short SKU on labels (included in prior desktop build)
+
+## Upgrade from 2.2.24
+Windows desktop: open MSW Overwatch → sidebar **Check for Updates**, or About → **Check for Updates**. Web/PWA users get 3.0.0 on the next deploy/refresh.
