@@ -17,7 +17,7 @@ const RELEASE_VERSION = '3.0.0'
 const RELEASE_DATE_LABEL = 'Tuesday, July 7, 2026'
 
 /**
- * Welcome popup for the v3.0.0 release (browser + PWA only).
+ * Congratulatory popup after updating to v3.0.0 (browser + PWA only).
  *
  * - Dismissal is per user and per client session — reopening after a full close
  *   shows the popup again for that user.
@@ -103,96 +103,132 @@ export default function WebReleaseAnnouncement() {
       aria-labelledby="web-release-title"
     >
       <style>{`
-        @keyframes capy-hop {
-          0%, 100% { transform: translateY(0) rotate(-1deg); }
-          25% { transform: translateY(-10px) rotate(1.5deg); }
-          50% { transform: translateY(0) rotate(-1deg); }
-          75% { transform: translateY(-5px) rotate(0.5deg); }
+        @keyframes capy-swim-glide {
+          0%, 100% { transform: translate(0, 0) rotate(-2deg); }
+          50% { transform: translate(6px, -3px) rotate(1deg); }
         }
-        @keyframes capy-ear {
-          0%, 100% { transform: rotate(0deg); }
-          50% { transform: rotate(-12deg); }
+        @keyframes capy-paddle-l {
+          0%, 100% { transform: rotate(35deg); }
+          50% { transform: rotate(-20deg); }
         }
-        @keyframes capy-arm {
-          0%, 100% { transform: rotate(0deg); }
-          50% { transform: rotate(-28deg); }
+        @keyframes capy-paddle-r {
+          0%, 100% { transform: rotate(-20deg); }
+          50% { transform: rotate(35deg); }
         }
-        @keyframes capy-sparkle {
-          0%, 100% { opacity: 0.2; transform: scale(0.7); }
-          50% { opacity: 1; transform: scale(1.15); }
+        @keyframes capy-tail {
+          0%, 100% { transform: rotate(-8deg); }
+          50% { transform: rotate(12deg); }
         }
-        @keyframes capy-confetti {
-          0% { transform: translateY(0) rotate(0deg); opacity: 0; }
-          10% { opacity: 1; }
-          100% { transform: translateY(120px) rotate(320deg); opacity: 0; }
+        @keyframes capy-ripple {
+          0% { transform: scale(0.6); opacity: 0.55; }
+          100% { transform: scale(1.35); opacity: 0; }
         }
-        .capy-hop { animation: capy-hop 1.4s ease-in-out infinite; transform-origin: center bottom; }
-        .capy-ear-l { animation: capy-ear 1.4s ease-in-out infinite; transform-origin: 78px 60px; }
-        .capy-ear-r { animation: capy-ear 1.4s ease-in-out infinite; transform-origin: 132px 60px; animation-delay: .1s; }
-        .capy-arm { animation: capy-arm 1.1s ease-in-out infinite; transform-origin: 60px 150px; }
-        .capy-sparkle { animation: capy-sparkle 1.6s ease-in-out infinite; }
-        .capy-sparkle-2 { animation: capy-sparkle 1.6s ease-in-out infinite; animation-delay: .5s; }
-        .capy-sparkle-3 { animation: capy-sparkle 1.6s ease-in-out infinite; animation-delay: .9s; }
-        .capy-confetti { animation: capy-confetti 2.2s linear infinite; }
-        .capy-confetti-2 { animation: capy-confetti 2.6s linear infinite; animation-delay: .4s; }
-        .capy-confetti-3 { animation: capy-confetti 2.4s linear infinite; animation-delay: .8s; }
-        .capy-confetti-4 { animation: capy-confetti 2.8s linear infinite; animation-delay: 1.2s; }
+        @keyframes capy-wave {
+          0%, 100% { transform: translateX(0); }
+          50% { transform: translateX(-8px); }
+        }
+        @keyframes capy-bubble {
+          0% { transform: translateY(0) scale(1); opacity: 0.7; }
+          100% { transform: translateY(-28px) scale(0.5); opacity: 0; }
+        }
+        .capy-swim { animation: capy-swim-glide 2.4s ease-in-out infinite; transform-origin: center center; }
+        .capy-paddle-l { animation: capy-paddle-l 0.9s ease-in-out infinite; transform-origin: 158px 88px; }
+        .capy-paddle-r { animation: capy-paddle-r 0.9s ease-in-out infinite; transform-origin: 142px 92px; }
+        .capy-tail { animation: capy-tail 1.2s ease-in-out infinite; transform-origin: 52px 86px; }
+        .capy-ripple { animation: capy-ripple 2s ease-out infinite; }
+        .capy-ripple-2 { animation: capy-ripple 2s ease-out infinite; animation-delay: 0.7s; }
+        .capy-ripple-3 { animation: capy-ripple 2s ease-out infinite; animation-delay: 1.4s; }
+        .capy-wave { animation: capy-wave 3s ease-in-out infinite; }
+        .capy-bubble { animation: capy-bubble 2.2s ease-in infinite; }
+        .capy-bubble-2 { animation: capy-bubble 2.6s ease-in infinite; animation-delay: 0.5s; }
+        .capy-bubble-3 { animation: capy-bubble 2.4s ease-in infinite; animation-delay: 1.1s; }
         @media (prefers-reduced-motion: reduce) {
-          .capy-hop, .capy-ear-l, .capy-ear-r, .capy-arm,
-          .capy-sparkle, .capy-sparkle-2, .capy-sparkle-3,
-          .capy-confetti, .capy-confetti-2, .capy-confetti-3, .capy-confetti-4 {
+          .capy-swim, .capy-paddle-l, .capy-paddle-r, .capy-tail,
+          .capy-ripple, .capy-ripple-2, .capy-ripple-3,
+          .capy-wave, .capy-bubble, .capy-bubble-2, .capy-bubble-3 {
             animation: none;
           }
         }
       `}</style>
 
       <div className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl">
-        <div className="relative flex items-center justify-center bg-gradient-to-b from-[#81B81D]/15 to-white px-6 pt-8 pb-4">
-          <span className="capy-confetti absolute left-10 top-6 h-2.5 w-2.5 rounded-sm bg-pink-400" aria-hidden />
-          <span className="capy-confetti-2 absolute left-24 top-4 h-2.5 w-2.5 rounded-sm bg-yellow-400" aria-hidden />
-          <span className="capy-confetti-3 absolute right-24 top-5 h-2.5 w-2.5 rounded-sm bg-sky-400" aria-hidden />
-          <span className="capy-confetti-4 absolute right-10 top-7 h-2.5 w-2.5 rounded-sm bg-purple-400" aria-hidden />
-
+        <div className="relative flex items-center justify-center overflow-hidden bg-gradient-to-b from-sky-100 to-sky-200 px-4 pt-6 pb-2">
           <svg
-            className="capy-hop h-40 w-40"
-            viewBox="0 0 200 200"
+            className="h-44 w-full max-w-[280px]"
+            viewBox="0 0 280 140"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
             role="img"
-            aria-label="Excited cartoon capybara celebrating the update"
+            aria-label="Cartoon capybara swimming"
           >
-            <ellipse cx="100" cy="182" rx="52" ry="8" fill="#000000" opacity="0.08" />
+            <defs>
+              <linearGradient id="capy-water" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#7EC8E3" />
+                <stop offset="100%" stopColor="#3A9EC4" />
+              </linearGradient>
+              <clipPath id="capy-below-water">
+                <rect x="0" y="78" width="280" height="62" />
+              </clipPath>
+            </defs>
 
-            <g fill="#F5C518">
-              <path className="capy-sparkle" d="M40 40 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3 z" />
-              <path className="capy-sparkle-2" d="M162 34 l2.5 6 6 2.5 -6 2.5 -2.5 6 -2.5 -6 -6 -2.5 6 -2.5 z" />
-              <path className="capy-sparkle-3" d="M168 96 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2 z" />
+            <rect x="0" y="62" width="280" height="78" fill="url(#capy-water)" />
+
+            <g className="capy-wave" opacity="0.35">
+              <path
+                d="M0 62 Q35 54 70 62 T140 62 T210 62 T280 62 V78 H0 Z"
+                fill="#5BB8D9"
+              />
             </g>
 
-            <ellipse className="capy-ear-l" cx="72" cy="58" rx="12" ry="14" fill="#9A6B43" />
-            <ellipse className="capy-ear-r" cx="128" cy="58" rx="12" ry="14" fill="#9A6B43" />
-            <ellipse cx="100" cy="140" rx="56" ry="46" fill="#B07C4F" />
-            <g className="capy-arm">
-              <ellipse cx="52" cy="138" rx="14" ry="22" fill="#A06E45" />
+            <ellipse className="capy-ripple" cx="200" cy="72" rx="18" ry="6" fill="none" stroke="#FFFFFF" strokeWidth="1.5" />
+            <ellipse className="capy-ripple-2" cx="168" cy="74" rx="14" ry="5" fill="none" stroke="#FFFFFF" strokeWidth="1.2" />
+            <ellipse className="capy-ripple-3" cx="228" cy="73" rx="16" ry="5" fill="none" stroke="#FFFFFF" strokeWidth="1.2" />
+
+            <circle className="capy-bubble" cx="118" cy="98" r="3" fill="#FFFFFF" opacity="0.6" />
+            <circle className="capy-bubble-2" cx="132" cy="104" r="2.2" fill="#FFFFFF" opacity="0.5" />
+            <circle className="capy-bubble-3" cx="108" cy="106" r="2.5" fill="#FFFFFF" opacity="0.45" />
+
+            <g className="capy-swim">
+              <g className="capy-tail">
+                <ellipse cx="48" cy="86" rx="22" ry="14" fill="#A06E45" />
+              </g>
+
+              <ellipse cx="108" cy="84" rx="58" ry="28" fill="#B07C4F" />
+              <ellipse cx="108" cy="84" rx="58" ry="28" fill="#9A6840" clipPath="url(#capy-below-water)" opacity="0.45" />
+
+              <g className="capy-paddle-l">
+                <ellipse cx="158" cy="88" rx="10" ry="16" fill="#A06E45" />
+              </g>
+              <g className="capy-paddle-r">
+                <ellipse cx="142" cy="92" rx="9" ry="14" fill="#9A6840" />
+              </g>
+
+              <ellipse cx="168" cy="78" rx="34" ry="26" fill="#B98A5A" />
+              <ellipse cx="72" cy="58" rx="11" ry="13" fill="#9A6B43" />
+              <ellipse cx="92" cy="54" rx="11" ry="13" fill="#9A6B43" />
+
+              <ellipse cx="188" cy="76" rx="28" ry="24" fill="#B98A5A" />
+              <circle cx="204" cy="70" r="7" fill="#E8A0A0" opacity="0.5" />
+              <circle cx="198" cy="66" r="4.5" fill="#2B2B2B" />
+              <circle cx="199.5" cy="64.5" r="1.5" fill="#FFFFFF" />
+              <ellipse cx="214" cy="78" rx="14" ry="10" fill="#A9784C" />
+              <ellipse cx="220" cy="76" rx="3" ry="3.5" fill="#4A3016" />
+              <ellipse cx="212" cy="76" rx="3" ry="3.5" fill="#4A3016" />
+              <path
+                d="M208 82 Q218 88 224 82"
+                stroke="#4A3016"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                fill="none"
+              />
             </g>
-            <ellipse cx="150" cy="150" rx="13" ry="20" fill="#A06E45" />
-            <ellipse cx="82" cy="182" rx="12" ry="8" fill="#7E5733" />
-            <ellipse cx="120" cy="182" rx="12" ry="8" fill="#7E5733" />
-            <ellipse cx="100" cy="82" rx="50" ry="44" fill="#B98A5A" />
-            <circle cx="66" cy="92" r="9" fill="#E8A0A0" opacity="0.55" />
-            <circle cx="134" cy="92" r="9" fill="#E8A0A0" opacity="0.55" />
-            <circle cx="80" cy="76" r="8" fill="#2B2B2B" />
-            <circle cx="120" cy="76" r="8" fill="#2B2B2B" />
-            <circle cx="83" cy="73" r="2.6" fill="#FFFFFF" />
-            <circle cx="123" cy="73" r="2.6" fill="#FFFFFF" />
-            <ellipse cx="100" cy="102" rx="30" ry="22" fill="#A9784C" />
-            <ellipse cx="88" cy="98" rx="4" ry="5" fill="#4A3016" />
-            <ellipse cx="112" cy="98" rx="4" ry="5" fill="#4A3016" />
+
             <path
-              d="M82 108 Q100 126 118 108"
-              stroke="#4A3016"
-              strokeWidth="4"
-              strokeLinecap="round"
+              className="capy-wave"
+              d="M0 62 Q35 70 70 62 T140 62 T210 62 T280 62"
+              stroke="#FFFFFF"
+              strokeWidth="2"
+              strokeOpacity="0.55"
               fill="none"
             />
           </svg>
@@ -200,36 +236,27 @@ export default function WebReleaseAnnouncement() {
 
         <div className="px-8 pb-8 pt-2 text-center">
           <p className="text-xs font-semibold uppercase tracking-wide text-[#81B81D]">
-            {APP_NAME} · What&apos;s new
+            {APP_NAME} · Congratulations!
           </p>
           <h2 id="web-release-title" className="mt-2 text-2xl font-bold text-gray-900">
-            Version {RELEASE_VERSION} is here!
+            You&apos;ve updated to Version {RELEASE_VERSION}!
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-gray-600">
-            Released {RELEASE_DATE_LABEL}. The desktop app and web app now include Keepa Import File,
-            dark mode, Express Jobs improvements, and a mobile-friendly layout when you use MSW Overwatch
-            in your phone browser.
+            Great job staying current — you&apos;re now on our biggest release yet, shipped{' '}
+            {RELEASE_DATE_LABEL}. Explore Keepa Import File, dark mode, Express Jobs improvements,
+            and a smoother experience on your phone browser.
           </p>
 
-          <ul className="mt-4 space-y-1.5 text-left text-sm text-gray-700">
-            <li>• <strong>Keepa Import File</strong> — build vendor import files with live progress, shared history, scheduling, and off-price MAP reports</li>
-            <li>• <strong>Dark mode</strong> — theme toggle with improved contrast across the app</li>
-            <li>• <strong>Express Jobs</strong> — clear all completed jobs in one click</li>
-            <li>• <strong>Micro Tools</strong> — NFA Shipment Work Sheet download</li>
-            <li>• <strong>Mobile web</strong> — hamburger navigation and stacked list layouts on phones</li>
-          </ul>
-
-          <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#81B81D]/15 px-4 py-1.5 text-sm font-semibold text-[#4d6f12]">
-            <span className="h-2 w-2 rounded-full bg-[#81B81D]" aria-hidden />
-            Desktop users: check for updates in the sidebar or About page
-          </div>
+          <p className="mt-4 text-sm font-medium text-gray-700">
+            Thank you for updating. We hope you enjoy everything new in 3.0.0.
+          </p>
 
           <button
             type="button"
             onClick={handleDismiss}
             className="mt-7 w-full rounded-lg bg-[#404040] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-gray-800"
           >
-            Got it — let&apos;s go!
+            Thanks — let&apos;s go!
           </button>
         </div>
       </div>

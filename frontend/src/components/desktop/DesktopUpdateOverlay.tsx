@@ -165,10 +165,16 @@ export default function DesktopUpdateOverlay() {
       body = 'MSW Overwatch will restart briefly to finish installing. Your session will be kept.'
       break
     case 'installed':
-      title = 'Update complete'
-      body = status.version
-        ? `You are on the latest version (${status.version}).`
-        : 'You are on the latest version.'
+      if (status.version === '3.0.0') {
+        title = 'Congratulations!'
+        body =
+          "You've successfully updated to Version 3.0.0 — our biggest release yet. Enjoy Keepa Import File, dark mode, and everything new."
+      } else {
+        title = 'Update complete'
+        body = status.version
+          ? `You are on the latest version (${status.version}).`
+          : 'You are on the latest version.'
+      }
       showContinue = true
       break
     case 'uptodate':
@@ -216,7 +222,9 @@ export default function DesktopUpdateOverlay() {
 
         {status.phase === 'installed' && (
           <p className="mt-6 text-center text-sm text-gray-700">
-            You are still signed in and can continue where you left off.
+            {status.version === '3.0.0'
+              ? 'Thank you for updating. You are still signed in and can pick up right where you left off.'
+              : 'You are still signed in and can continue where you left off.'}
           </p>
         )}
 
