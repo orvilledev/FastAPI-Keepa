@@ -144,7 +144,7 @@ class Settings(BaseSettings):
     maintenance_allowlist_emails: str = ""
 
     # Comma-separated emails that skip TOTP MFA (password-only sign-in for shared stations).
-    mfa_exempt_emails: str = "warehouse1@metroshoewarehouse.com"
+    mfa_exempt_emails: str = "warehouse1@metroshoewarehouse.com,hello@warehouserepublic.com"
 
     # Report: comma-separated substrings matched case-insensitively (after removing
     # spaces/punctuation) against resolved seller display text. Rows for matching

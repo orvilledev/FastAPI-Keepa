@@ -56,7 +56,7 @@ function parseBuiltInMfaExemptEmails(): string[] {
   const isElectron =
     typeof window !== 'undefined' && Boolean(window.desktop?.isElectron)
   if (isElectron) {
-    return ['warehouse1@metroshoewarehouse.com']
+    return ['warehouse1@metroshoewarehouse.com', 'hello@warehouserepublic.com']
   }
   return []
 }
