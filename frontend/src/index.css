@@ -53,6 +53,8 @@
   --color-page-from: 255 255 255;
   --color-page-via: 255 255 255;
   --color-page-to: 242 242 242;
+  --color-stealth-btn: 157 2 8;
+  --color-stealth-btn-hover: 100 1 5;
 }
 
 /* ==================================================================== *
@@ -1710,37 +1712,37 @@ code {
 }
 
 /* ==================================================================== *
- * STEALTH PRIMARY + DESTRUCTIVE ACTIONS
- * Black for standard actions; deep red reserved for destructive buttons.
+ * STEALTH BUTTONS — all filled action buttons use #9d0208.
  * ==================================================================== */
-[data-theme='stealth'] .btn-primary {
-  background-color: #000000 !important;
-}
-
-[data-theme='stealth'] .btn-primary:hover {
-  background-color: #1a1a1a !important;
-}
-
+[data-theme='stealth'] .btn-primary,
 [data-theme='stealth'] .sidebar-link-active,
 [data-theme='stealth'] button.sidebar-link.sidebar-link-active,
 [data-theme='stealth'] .sidebar-link:hover,
 [data-theme='stealth'] .sidebar-link-inactive:hover,
-[data-theme='stealth'] .vendor-hub-card:hover {
-  background: #000000 !important;
-}
-
-[data-theme='stealth'] .bg-\[\#404040\],
+[data-theme='stealth'] .vendor-hub-card:hover,
+[data-theme='stealth'] button.bg-\[\#404040\],
+[data-theme='stealth'] a.bg-\[\#404040\],
+[data-theme='stealth'] .bg-\[\#404040\]:not(.rounded-full),
+[data-theme='stealth'] .bg-\[\#3B3B3B\],
 [data-theme='stealth'] .bg-\[\#81B81D\],
+[data-theme='stealth'] .bg-\[\#F97316\],
+[data-theme='stealth'] .bg-black,
+[data-theme='stealth'] .bg-blue-500,
 [data-theme='stealth'] .bg-blue-600,
-[data-theme='stealth'] .bg-green-600,
 [data-theme='stealth'] .bg-green-500,
+[data-theme='stealth'] .bg-green-600,
 [data-theme='stealth'] .bg-emerald-600,
 [data-theme='stealth'] .bg-emerald-700,
 [data-theme='stealth'] .bg-indigo-600,
-[data-theme='stealth'] .bg-purple-600 {
-  background-color: #000000 !important;
+[data-theme='stealth'] .bg-purple-600,
+[data-theme='stealth'] .bg-red-600,
+[data-theme='stealth'] .bg-red-700,
+[data-theme='stealth'] .bg-red-800 {
+  background-color: #9d0208 !important;
+  border-color: #9d0208 !important;
 }
 
+[data-theme='stealth'] .btn-primary:hover,
 [data-theme='stealth'] .hover\:bg-\[\#3B3B3B\]:hover,
 [data-theme='stealth'] .hover\:bg-gray-800:hover,
 [data-theme='stealth'] .hover\:bg-blue-700:hover,
@@ -1748,28 +1750,55 @@ code {
 [data-theme='stealth'] .hover\:bg-emerald-700:hover,
 [data-theme='stealth'] .hover\:bg-emerald-800:hover,
 [data-theme='stealth'] .hover\:bg-indigo-700:hover,
-[data-theme='stealth'] .hover\:bg-purple-700:hover {
-  background-color: #1a1a1a !important;
-}
-
-[data-theme='stealth'] .bg-red-600,
-[data-theme='stealth'] .bg-red-700,
-[data-theme='stealth'] .bg-red-800 {
-  background-color: #b22222 !important;
-}
-
+[data-theme='stealth'] .hover\:bg-purple-700:hover,
 [data-theme='stealth'] .hover\:bg-red-700:hover,
-[data-theme='stealth'] .hover\:bg-red-800:hover {
-  background-color: #8b1a1a !important;
+[data-theme='stealth'] .hover\:bg-red-800:hover,
+[data-theme='stealth'] .hover\:bg-\[\#EA580C\]:hover,
+[data-theme='stealth'] .hover\:bg-black:hover {
+  background-color: #640105 !important;
+  border-color: #640105 !important;
 }
 
+[data-theme='stealth'] .from-emerald-500,
+[data-theme='stealth'] .from-green-500,
+[data-theme='stealth'] .hover\:from-green-600:hover {
+  --tw-gradient-from: #9d0208 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(157 2 8 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+[data-theme='stealth'] .to-emerald-600,
+[data-theme='stealth'] .to-green-600,
+[data-theme='stealth'] .hover\:to-green-700:hover {
+  --tw-gradient-to: #640105 var(--tw-gradient-to-position) !important;
+}
+
+[data-theme='stealth'] .btn-primary,
+[data-theme='stealth'] .bg-\[\#404040\].text-white,
+[data-theme='stealth'] .bg-\[\#81B81D\].text-white,
+[data-theme='stealth'] .bg-black.text-white,
+[data-theme='stealth'] .bg-blue-600.text-white,
+[data-theme='stealth'] .bg-green-500.text-white,
+[data-theme='stealth'] .bg-green-600.text-white,
+[data-theme='stealth'] .bg-emerald-600.text-white,
+[data-theme='stealth'] .bg-emerald-700.text-white,
+[data-theme='stealth'] .bg-indigo-600.text-white,
+[data-theme='stealth'] .bg-purple-600.text-white,
 [data-theme='stealth'] .bg-red-600.text-white,
 [data-theme='stealth'] .bg-red-700.text-white,
-[data-theme='stealth'] .bg-red-800.text-white {
+[data-theme='stealth'] .bg-red-800.text-white,
+[data-theme='stealth'] .sidebar-link-active,
+[data-theme='stealth'] .sidebar-link-active span,
+[data-theme='stealth'] .sidebar-link:hover,
+[data-theme='stealth'] .sidebar-link:hover span,
+[data-theme='stealth'] .vendor-hub-card:hover,
+[data-theme='stealth'] .vendor-hub-card:hover .vendor-hub-card-title,
+[data-theme='stealth'] .vendor-hub-card:hover .vendor-hub-card-subtitle {
   color: #ffffff !important;
 }
 
-[data-theme='stealth'] .border-purple-600 {
-  border-color: #000000 !important;
+[data-theme='stealth'] .border-purple-600,
+[data-theme='stealth'] .hover\:border-purple-700:hover {
+  border-color: #9d0208 !important;
 }
 

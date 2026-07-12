@@ -20,7 +20,7 @@ export interface ThemeOption {
 export const THEME_OPTIONS: ThemeOption[] = [
   { value: 'light', label: 'MSW', description: 'Default light theme', swatch: '#81B81D' },
   { value: 'dark', label: 'Dark Mode', description: 'Dark slate theme', swatch: '#0f172a' },
-  { value: 'stealth', label: 'Stealth', description: 'White UI with red destructive actions', swatch: '#B22222' },
+  { value: 'stealth', label: 'Stealth', description: 'White UI with red action buttons', swatch: '#9d0208' },
   { value: 'monochrome', label: 'Monochrome', description: 'Black & white', swatch: '#111111' },
 ]
 
