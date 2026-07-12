@@ -1385,6 +1385,50 @@ code {
   color: #111111 !important;
 }
 
+/* On dark surfaces (charcoal cards, black/blue panels) the darkened accent
+ * text above would be black-on-dark. Keep it white there instead. */
+[data-theme='monochrome'] .bg-\[\#404040\] .text-\[\#81B81D\],
+[data-theme='monochrome'] .bg-\[\#404040\] .text-\[\#F97316\],
+[data-theme='monochrome'] .bg-\[\#404040\] .text-\[\#DDF5B0\],
+[data-theme='monochrome'] .bg-\[\#404040\] .text-\[\#E8F8C8\],
+[data-theme='monochrome'] .bg-\[\#404040\] .text-\[\#FFD8B0\],
+[data-theme='monochrome'] .bg-\[\#404040\] .text-\[\#FFE7CC\],
+[data-theme='monochrome'] .bg-gray-800 .text-\[\#81B81D\],
+[data-theme='monochrome'] .bg-gray-800 .text-\[\#F97316\],
+[data-theme='monochrome'] .bg-gray-900 .text-\[\#81B81D\],
+[data-theme='monochrome'] .bg-gray-900 .text-\[\#F97316\],
+[data-theme='monochrome'] .bg-black .text-\[\#81B81D\],
+[data-theme='monochrome'] .bg-black .text-\[\#F97316\],
+[data-theme='monochrome'] .bg-blue-600 .text-\[\#81B81D\],
+[data-theme='monochrome'] .bg-blue-600 .text-\[\#E8F8C8\] {
+  color: #ffffff !important;
+}
+
+/* Badge pills inside dark cards: light fill + light ring so the pill and
+ * its white text stay visible on the charcoal background. */
+[data-theme='monochrome'] .bg-\[\#404040\] .bg-\[\#81B81D\]\/20,
+[data-theme='monochrome'] .bg-\[\#404040\] .bg-\[\#81B81D\]\/30,
+[data-theme='monochrome'] .bg-\[\#404040\] .bg-\[\#F97316\]\/20,
+[data-theme='monochrome'] .bg-\[\#404040\] .bg-\[\#F97316\]\/30 {
+  background-color: rgb(255 255 255 / 0.15) !important;
+}
+
+[data-theme='monochrome'] .bg-\[\#404040\] .ring-\[\#81B81D\]\/80,
+[data-theme='monochrome'] .bg-\[\#404040\] .ring-\[\#81B81D\]\/85,
+[data-theme='monochrome'] .bg-\[\#404040\] .ring-\[\#F97316\]\/80,
+[data-theme='monochrome'] .bg-\[\#404040\] .ring-\[\#F97316\]\/85 {
+  --tw-ring-color: rgb(255 255 255 / 0.6) !important;
+}
+
+[data-theme='monochrome'] .hover\:bg-\[\#81B81D\]\/30:hover,
+[data-theme='monochrome'] .hover\:bg-\[\#81B81D\]\/40:hover {
+  background-color: rgb(17 17 17 / 0.18) !important;
+}
+
+[data-theme='monochrome'] .bg-\[\#404040\] .hover\:bg-\[\#81B81D\]\/40:hover {
+  background-color: rgb(255 255 255 / 0.25) !important;
+}
+
 [data-theme='monochrome'] .border-\[\#81B81D\],
 [data-theme='monochrome'] .border-\[\#81B81D\]\/30,
 [data-theme='monochrome'] .border-\[\#81B81D\]\/40,
@@ -1397,6 +1441,8 @@ code {
 
 [data-theme='monochrome'] .ring-\[\#81B81D\]\/80,
 [data-theme='monochrome'] .ring-\[\#81B81D\]\/85,
+[data-theme='monochrome'] .ring-\[\#F97316\]\/80,
+[data-theme='monochrome'] .ring-\[\#F97316\]\/85,
 [data-theme='monochrome'] .focus\:ring-\[\#81B81D\]:focus {
   --tw-ring-color: rgb(17 17 17 / 0.4) !important;
 }
@@ -1410,6 +1456,14 @@ code {
 }
 
 [data-theme='monochrome'] .bg-\[\#81B81D\]\/30 {
+  background-color: rgb(17 17 17 / 0.14) !important;
+}
+
+[data-theme='monochrome'] .bg-\[\#F97316\]\/20 {
+  background-color: rgb(17 17 17 / 0.1) !important;
+}
+
+[data-theme='monochrome'] .bg-\[\#F97316\]\/30 {
   background-color: rgb(17 17 17 / 0.14) !important;
 }
 
