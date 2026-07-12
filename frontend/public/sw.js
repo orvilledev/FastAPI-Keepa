@@ -1,7 +1,24 @@
-const SW_VERSION = 'v11'
+const SW_VERSION = 'v12'
 const STATIC_CACHE = `msw-overwatch-static-${SW_VERSION}`
 const RUNTIME_CACHE = `msw-overwatch-runtime-${SW_VERSION}`
 const APP_SHELL_FILES = ['/', '/index.html', '/manifest.webmanifest', '/app-icon.svg', '/favicon.svg', '/orbit-logo.svg']
+
+function expectedContentType(pathname) {
+  if (pathname.endsWith('.css')) return 'text/css'
+  if (pathname.endsWith('.js') || pathname.endsWith('.mjs')) return 'javascript'
+  return null
+}
+
+function isCacheableAssetResponse(response, pathname) {
+  if (!response || !response.ok) return false
+  if (response.type !== 'basic' && response.type !== 'cors') return false
+
+  const expected = expectedContentType(pathname)
+  if (!expected) return true
+
+  const contentType = response.headers.get('content-type') || ''
+  return contentType.includes(expected)
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -53,21 +70,39 @@ self.addEventListener('fetch', (event) => {
   const isStaticAsset =
     sameOrigin &&
     (url.pathname.startsWith('/assets/') ||
-      /\.(js|css|png|jpg|jpeg|svg|webp|ico|woff2?|ttf|eot)$/.test(url.pathname))
+      /\.(js|css|png|jpg|jpeg|svg|webp|ico|woff2?|ttf|eot|mjs)$/.test(url.pathname))
 
   if (!isStaticAsset) return
 
-  // Static assets: stale-while-revalidate with runtime cache.
+  const isScriptOrStyle = /\.(css|js|mjs)$/.test(url.pathname)
+
   event.respondWith(
-    caches.open(RUNTIME_CACHE).then((cache) =>
-      cache.match(request).then((cachedResponse) => {
+    caches.open(RUNTIME_CACHE).then((cache) => {
+      const putIfValid = (response) => {
+        if (isCacheableAssetResponse(response, url.pathname)) {
+          cache.put(request, response.clone())
+        }
+        return response
+      }
+
+      // CSS/JS: network-first so edge challenges or deploys cannot leave a stale shell.
+      if (isScriptOrStyle) {
+        return fetch(request)
+          .then((networkResponse) => putIfValid(networkResponse))
+          .catch(() =>
+            cache.match(request).then((cachedResponse) => {
+              if (cachedResponse && isCacheableAssetResponse(cachedResponse, url.pathname)) {
+                return cachedResponse
+              }
+              return Response.error()
+            })
+          )
+      }
+
+      // Other static assets: stale-while-revalidate.
+      return cache.match(request).then((cachedResponse) => {
         const networkFetch = fetch(request)
-          .then((networkResponse) => {
-            if (networkResponse.ok && (networkResponse.type === 'basic' || networkResponse.type === 'cors')) {
-              cache.put(request, networkResponse.clone())
-            }
-            return networkResponse
-          })
+          .then((networkResponse) => putIfValid(networkResponse))
           .catch(() => null)
 
         if (cachedResponse) {
@@ -76,6 +111,6 @@ self.addEventListener('fetch', (event) => {
 
         return networkFetch.then((response) => response || Response.error())
       })
-    )
+    })
   )
 })
