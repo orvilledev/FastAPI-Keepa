@@ -18,7 +18,7 @@ export interface ThemeOption {
 }
 
 export const THEME_OPTIONS: ThemeOption[] = [
-  { value: 'light', label: 'RCW', description: 'Default light theme', swatch: '#81B81D' },
+  { value: 'light', label: 'MSW', description: 'Default light theme', swatch: '#81B81D' },
   { value: 'dark', label: 'Dark Mode', description: 'Dark slate theme', swatch: '#0f172a' },
   { value: 'sunset', label: 'Sunset', description: 'Warm sunset colors', swatch: '#f97316' },
   { value: 'monochrome', label: 'Monochrome', description: 'Black & white', swatch: '#111111' },
