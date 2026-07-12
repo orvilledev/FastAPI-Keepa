@@ -1,11 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
-export type Theme = 'light' | 'dark' | 'sunset' | 'monochrome'
+export type Theme = 'light' | 'dark' | 'stealth' | 'monochrome'
 
 const STORAGE_KEY = 'msw-theme'
 
 /** Themes that render on a dark background (reuse the existing `.dark` overrides). */
-const DARK_BASED_THEMES: ReadonlySet<Theme> = new Set<Theme>(['dark', 'sunset'])
+const DARK_BASED_THEMES: ReadonlySet<Theme> = new Set<Theme>(['dark'])
 
 export interface ThemeOption {
   value: Theme
@@ -20,7 +20,7 @@ export interface ThemeOption {
 export const THEME_OPTIONS: ThemeOption[] = [
   { value: 'light', label: 'MSW', description: 'Default light theme', swatch: '#81B81D' },
   { value: 'dark', label: 'Dark Mode', description: 'Dark slate theme', swatch: '#0f172a' },
-  { value: 'sunset', label: 'Sunset', description: 'Warm sunset colors', swatch: '#f97316' },
+  { value: 'stealth', label: 'Stealth', description: 'White UI with red destructive actions', swatch: '#B22222' },
   { value: 'monochrome', label: 'Monochrome', description: 'Black & white', swatch: '#111111' },
 ]
 
@@ -30,7 +30,7 @@ const VALID_THEMES: ReadonlySet<string> = new Set<string>(THEME_OPTIONS.map((opt
 const META_THEME_COLOR: Record<Theme, string> = {
   light: '#404040',
   dark: '#0f172a',
-  sunset: '#3b1a2e',
+  stealth: '#ffffff',
   monochrome: '#ffffff',
 }
 
@@ -50,6 +50,7 @@ function readStoredTheme(): Theme {
   if (typeof window === 'undefined') return 'light'
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored === 'sunset') return 'stealth'
     if (stored && VALID_THEMES.has(stored)) return stored as Theme
   } catch {
     // localStorage may be unavailable

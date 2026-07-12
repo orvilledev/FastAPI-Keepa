@@ -36,24 +36,23 @@
 }
 
 /* ==================================================================== *
- * SUNSET THEME — a warm, dark-based palette. The `.dark` class is also
- * present, so every existing dark override keeps working; these rules
- * simply repaint the shared design tokens with sunset tones. Text stays
- * a warm near-white for strong contrast on the plum surfaces.
+ * STEALTH THEME — light-based like Monochrome. White surfaces, black
+ * text, neutral badges. Primary actions use black; destructive actions
+ * keep a deep red accent (see Stealth overrides at end of file).
  * ==================================================================== */
-.dark[data-theme='sunset'] {
-  --color-surface: 59 26 46;
-  --color-surface-elevated: 78 34 58;
-  --color-surface-muted: 43 18 36;
-  --color-surface-hover: 99 45 74;
-  --color-text-primary: 255 245 235;
-  --color-text-secondary: 253 224 200;
-  --color-text-muted: 233 179 151;
-  --color-border: 104 52 78;
-  --color-border-strong: 143 76 106;
-  --color-page-from: 46 16 40;
-  --color-page-via: 120 45 70;
-  --color-page-to: 201 96 51;
+:root[data-theme='stealth'] {
+  --color-surface: 255 255 255;
+  --color-surface-elevated: 255 255 255;
+  --color-surface-muted: 248 248 248;
+  --color-surface-hover: 239 239 239;
+  --color-text-primary: 10 10 10;
+  --color-text-secondary: 38 38 38;
+  --color-text-muted: 136 136 136;
+  --color-border: 212 212 212;
+  --color-border-strong: 156 156 156;
+  --color-page-from: 255 255 255;
+  --color-page-via: 255 255 255;
+  --color-page-to: 242 242 242;
 }
 
 /* ==================================================================== *
@@ -1293,13 +1292,13 @@ code {
 
 /* ==================================================================== *
  * THEME PAGE BACKGROUNDS
- * Explicit gradients so Sunset feels warm and Monochrome stays flat and
- * neutral. Presentation only — no layout or behaviour changes.
+ * Stealth and Monochrome use flat neutral backgrounds; MSW keeps its
+ * soft gradient. Presentation only — no layout or behaviour changes.
  * ==================================================================== */
-[data-theme='sunset'] body,
-[data-theme='sunset'] .app-page-bg,
-[data-theme='sunset'] .app-shell-bg {
-  background: linear-gradient(to bottom right, #2e1028 0%, #7a2d46 48%, #c96033 100%);
+[data-theme='stealth'] body,
+[data-theme='stealth'] .app-page-bg,
+[data-theme='stealth'] .app-shell-bg {
+  background: #ffffff;
 }
 
 [data-theme='monochrome'] body,
@@ -1309,202 +1308,143 @@ code {
 }
 
 /* ==================================================================== *
- * SUNSET ACCENTS — remap the brand green to warm gold and the charcoal
- * brand surfaces (buttons, active nav, hover states) to sunset orange.
+ * MONOCHROME + STEALTH ACCENTS — neutralize brand green/orange and the
+ * purple download button to grayscale. Stealth keeps deep red on
+ * destructive buttons via overrides at the end of this file.
  * ==================================================================== */
-.dark[data-theme='sunset'] .text-\[\#81B81D\] {
-  color: #ffb454 !important;
-}
-
-.dark[data-theme='sunset'] .border-\[\#81B81D\],
-.dark[data-theme='sunset'] .border-\[\#81B81D\]\/30,
-.dark[data-theme='sunset'] .border-\[\#81B81D\]\/40,
-.dark[data-theme='sunset'] .border-\[\#81B81D\]\/55,
-.dark[data-theme='sunset'] .border-\[\#81B81D\]\/80,
-.dark[data-theme='sunset'] .border-\[\#81B81D\]\/85 {
-  border-color: rgb(249 115 22 / 0.55) !important;
-}
-
-.dark[data-theme='sunset'] .ring-\[\#81B81D\]\/80,
-.dark[data-theme='sunset'] .ring-\[\#81B81D\]\/85 {
-  --tw-ring-color: rgb(249 115 22 / 0.55) !important;
-}
-
-.dark[data-theme='sunset'] .bg-\[\#81B81D\]\/10 {
-  background-color: rgb(249 115 22 / 0.16) !important;
-}
-
-.dark[data-theme='sunset'] .bg-\[\#81B81D\]\/20 {
-  background-color: rgb(249 115 22 / 0.24) !important;
-}
-
-.dark[data-theme='sunset'] .bg-\[\#81B81D\]\/30 {
-  background-color: rgb(249 115 22 / 0.3) !important;
-}
-
-.dark[data-theme='sunset'] .bg-\[\#81B81D\] {
-  background-color: #e0592b !important;
-}
-
-.dark[data-theme='sunset'] .btn-primary {
-  background-color: #e0592b !important;
-}
-
-.dark[data-theme='sunset'] .btn-primary:hover {
-  background-color: #c94e22 !important;
-}
-
-.dark[data-theme='sunset'] .sidebar-link-active,
-.dark[data-theme='sunset'] button.sidebar-link.sidebar-link-active,
-.dark[data-theme='sunset'] .sidebar-link:hover,
-.dark[data-theme='sunset'] .sidebar-link-inactive:hover,
-.dark[data-theme='sunset'] .vendor-hub-card:hover {
-  background: #e0592b !important;
-}
-
-.dark[data-theme='sunset'] .bg-\[\#404040\],
-.dark[data-theme='sunset'] .bg-\[\#404040\]\/90 {
-  background-color: #e0592b !important;
-}
-
-/* ==================================================================== *
- * MONOCHROME ACCENTS — neutralize the brand green/orange and the purple
- * download button to grayscale. Light accent text colors are darkened so
- * they stay legible on the now-neutral light surfaces.
- * ==================================================================== */
-[data-theme='monochrome'] .text-\[\#81B81D\],
-[data-theme='monochrome'] .text-\[\#F97316\],
-[data-theme='monochrome'] .text-\[\#3B82F6\],
-[data-theme='monochrome'] .text-\[\#6366F1\],
-[data-theme='monochrome'] .text-\[\#DDF5B0\],
-[data-theme='monochrome'] .text-\[\#E8F8C8\],
-[data-theme='monochrome'] .text-\[\#FFD8B0\],
-[data-theme='monochrome'] .text-\[\#FFE7CC\] {
+[data-theme='monochrome'], [data-theme='stealth'] .text-\[\#81B81D\],
+[data-theme='monochrome'], [data-theme='stealth'] .text-\[\#F97316\],
+[data-theme='monochrome'], [data-theme='stealth'] .text-\[\#3B82F6\],
+[data-theme='monochrome'], [data-theme='stealth'] .text-\[\#6366F1\],
+[data-theme='monochrome'], [data-theme='stealth'] .text-\[\#DDF5B0\],
+[data-theme='monochrome'], [data-theme='stealth'] .text-\[\#E8F8C8\],
+[data-theme='monochrome'], [data-theme='stealth'] .text-\[\#FFD8B0\],
+[data-theme='monochrome'], [data-theme='stealth'] .text-\[\#FFE7CC\] {
   color: #111111 !important;
 }
 
-[data-theme='monochrome'] .hover\:text-\[\#81B81D\]:hover {
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:text-\[\#81B81D\]:hover {
   color: #111111 !important;
 }
 
 /* On dark surfaces (charcoal cards, black/blue panels) the darkened accent
  * text above would be black-on-dark. Keep it white there instead. */
-[data-theme='monochrome'] .bg-\[\#404040\] .text-\[\#81B81D\],
-[data-theme='monochrome'] .bg-\[\#404040\] .text-\[\#F97316\],
-[data-theme='monochrome'] .bg-\[\#404040\] .text-\[\#DDF5B0\],
-[data-theme='monochrome'] .bg-\[\#404040\] .text-\[\#E8F8C8\],
-[data-theme='monochrome'] .bg-\[\#404040\] .text-\[\#FFD8B0\],
-[data-theme='monochrome'] .bg-\[\#404040\] .text-\[\#FFE7CC\],
-[data-theme='monochrome'] .bg-gray-800 .text-\[\#81B81D\],
-[data-theme='monochrome'] .bg-gray-800 .text-\[\#F97316\],
-[data-theme='monochrome'] .bg-gray-900 .text-\[\#81B81D\],
-[data-theme='monochrome'] .bg-gray-900 .text-\[\#F97316\],
-[data-theme='monochrome'] .bg-black .text-\[\#81B81D\],
-[data-theme='monochrome'] .bg-black .text-\[\#F97316\],
-[data-theme='monochrome'] .bg-blue-600 .text-\[\#81B81D\],
-[data-theme='monochrome'] .bg-blue-600 .text-\[\#E8F8C8\] {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .text-\[\#81B81D\],
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .text-\[\#F97316\],
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .text-\[\#DDF5B0\],
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .text-\[\#E8F8C8\],
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .text-\[\#FFD8B0\],
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .text-\[\#FFE7CC\],
+[data-theme='monochrome'], [data-theme='stealth'] .bg-gray-800 .text-\[\#81B81D\],
+[data-theme='monochrome'], [data-theme='stealth'] .bg-gray-800 .text-\[\#F97316\],
+[data-theme='monochrome'], [data-theme='stealth'] .bg-gray-900 .text-\[\#81B81D\],
+[data-theme='monochrome'], [data-theme='stealth'] .bg-gray-900 .text-\[\#F97316\],
+[data-theme='monochrome'], [data-theme='stealth'] .bg-black .text-\[\#81B81D\],
+[data-theme='monochrome'], [data-theme='stealth'] .bg-black .text-\[\#F97316\],
+[data-theme='monochrome'], [data-theme='stealth'] .bg-blue-600 .text-\[\#81B81D\],
+[data-theme='monochrome'], [data-theme='stealth'] .bg-blue-600 .text-\[\#E8F8C8\] {
   color: #ffffff !important;
 }
 
 /* Badge pills inside dark cards: light fill + light ring so the pill and
  * its white text stay visible on the charcoal background. */
-[data-theme='monochrome'] .bg-\[\#404040\] .bg-\[\#81B81D\]\/20,
-[data-theme='monochrome'] .bg-\[\#404040\] .bg-\[\#81B81D\]\/30,
-[data-theme='monochrome'] .bg-\[\#404040\] .bg-\[\#F97316\]\/20,
-[data-theme='monochrome'] .bg-\[\#404040\] .bg-\[\#F97316\]\/30 {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .bg-\[\#81B81D\]\/20,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .bg-\[\#81B81D\]\/30,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .bg-\[\#F97316\]\/20,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .bg-\[\#F97316\]\/30 {
   background-color: rgb(255 255 255 / 0.15) !important;
 }
 
-[data-theme='monochrome'] .bg-\[\#404040\] .ring-\[\#81B81D\]\/80,
-[data-theme='monochrome'] .bg-\[\#404040\] .ring-\[\#81B81D\]\/85,
-[data-theme='monochrome'] .bg-\[\#404040\] .ring-\[\#F97316\]\/80,
-[data-theme='monochrome'] .bg-\[\#404040\] .ring-\[\#F97316\]\/85 {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .ring-\[\#81B81D\]\/80,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .ring-\[\#81B81D\]\/85,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .ring-\[\#F97316\]\/80,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .ring-\[\#F97316\]\/85 {
   --tw-ring-color: rgb(255 255 255 / 0.6) !important;
 }
 
-[data-theme='monochrome'] .hover\:bg-\[\#81B81D\]\/30:hover,
-[data-theme='monochrome'] .hover\:bg-\[\#81B81D\]\/40:hover {
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-\[\#81B81D\]\/30:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-\[\#81B81D\]\/40:hover {
   background-color: rgb(17 17 17 / 0.18) !important;
 }
 
-[data-theme='monochrome'] .bg-\[\#404040\] .hover\:bg-\[\#81B81D\]\/40:hover {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .hover\:bg-\[\#81B81D\]\/40:hover {
   background-color: rgb(255 255 255 / 0.25) !important;
 }
 
-[data-theme='monochrome'] .border-\[\#81B81D\],
-[data-theme='monochrome'] .border-\[\#81B81D\]\/30,
-[data-theme='monochrome'] .border-\[\#81B81D\]\/40,
-[data-theme='monochrome'] .border-\[\#81B81D\]\/55,
-[data-theme='monochrome'] .border-\[\#81B81D\]\/80,
-[data-theme='monochrome'] .border-\[\#81B81D\]\/85,
-[data-theme='monochrome'] .focus\:border-\[\#81B81D\]:focus {
+[data-theme='monochrome'], [data-theme='stealth'] .border-\[\#81B81D\],
+[data-theme='monochrome'], [data-theme='stealth'] .border-\[\#81B81D\]\/30,
+[data-theme='monochrome'], [data-theme='stealth'] .border-\[\#81B81D\]\/40,
+[data-theme='monochrome'], [data-theme='stealth'] .border-\[\#81B81D\]\/55,
+[data-theme='monochrome'], [data-theme='stealth'] .border-\[\#81B81D\]\/80,
+[data-theme='monochrome'], [data-theme='stealth'] .border-\[\#81B81D\]\/85,
+[data-theme='monochrome'], [data-theme='stealth'] .focus\:border-\[\#81B81D\]:focus {
   border-color: rgb(17 17 17 / 0.45) !important;
 }
 
-[data-theme='monochrome'] .ring-\[\#81B81D\]\/80,
-[data-theme='monochrome'] .ring-\[\#81B81D\]\/85,
-[data-theme='monochrome'] .ring-\[\#F97316\]\/80,
-[data-theme='monochrome'] .ring-\[\#F97316\]\/85,
-[data-theme='monochrome'] .focus\:ring-\[\#81B81D\]:focus {
+[data-theme='monochrome'], [data-theme='stealth'] .ring-\[\#81B81D\]\/80,
+[data-theme='monochrome'], [data-theme='stealth'] .ring-\[\#81B81D\]\/85,
+[data-theme='monochrome'], [data-theme='stealth'] .ring-\[\#F97316\]\/80,
+[data-theme='monochrome'], [data-theme='stealth'] .ring-\[\#F97316\]\/85,
+[data-theme='monochrome'], [data-theme='stealth'] .focus\:ring-\[\#81B81D\]:focus {
   --tw-ring-color: rgb(17 17 17 / 0.4) !important;
 }
 
-[data-theme='monochrome'] .bg-\[\#81B81D\]\/10 {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#81B81D\]\/10 {
   background-color: rgb(17 17 17 / 0.06) !important;
 }
 
-[data-theme='monochrome'] .bg-\[\#81B81D\]\/20 {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#81B81D\]\/20 {
   background-color: rgb(17 17 17 / 0.1) !important;
 }
 
-[data-theme='monochrome'] .bg-\[\#81B81D\]\/30 {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#81B81D\]\/30 {
   background-color: rgb(17 17 17 / 0.14) !important;
 }
 
-[data-theme='monochrome'] .bg-\[\#F97316\]\/20 {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#F97316\]\/20 {
   background-color: rgb(17 17 17 / 0.1) !important;
 }
 
-[data-theme='monochrome'] .bg-\[\#F97316\]\/30 {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#F97316\]\/30 {
   background-color: rgb(17 17 17 / 0.14) !important;
 }
 
-[data-theme='monochrome'] .bg-\[\#81B81D\] {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#81B81D\] {
   background-color: #111111 !important;
 }
 
-[data-theme='monochrome'] .bg-\[\#F97316\] {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#F97316\] {
   background-color: #111111 !important;
 }
 
-[data-theme='monochrome'] .hover\:bg-\[\#EA580C\]:hover {
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-\[\#EA580C\]:hover {
   background-color: #000000 !important;
 }
 
-[data-theme='monochrome'] .from-\[\#81B81D\] {
+[data-theme='monochrome'], [data-theme='stealth'] .from-\[\#81B81D\] {
   --tw-gradient-from: #111111 var(--tw-gradient-from-position) !important;
   --tw-gradient-to: rgb(17 17 17 / 0) var(--tw-gradient-to-position) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
-[data-theme='monochrome'] .to-\[\#81B81D\] {
+[data-theme='monochrome'], [data-theme='stealth'] .to-\[\#81B81D\] {
   --tw-gradient-to: #111111 var(--tw-gradient-to-position) !important;
 }
 
 /* Neutralize the prominent purple "Download app" button */
-[data-theme='monochrome'] .bg-purple-600 {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-purple-600 {
   background-color: #1f1f1f !important;
 }
 
-[data-theme='monochrome'] .hover\:bg-purple-700:hover {
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-purple-700:hover {
   background-color: #000000 !important;
 }
 
-[data-theme='monochrome'] .border-purple-600 {
+[data-theme='monochrome'], [data-theme='stealth'] .border-purple-600 {
   border-color: #1f1f1f !important;
 }
 
-[data-theme='monochrome'] .hover\:border-purple-700:hover {
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:border-purple-700:hover {
   border-color: #000000 !important;
 }
 
@@ -1516,241 +1456,320 @@ code {
  * ==================================================================== */
 
 /* --- Text --- */
-[data-theme='monochrome'] .text-green-200,
-[data-theme='monochrome'] .text-green-300,
-[data-theme='monochrome'] .text-green-400,
-[data-theme='monochrome'] .text-green-500,
-[data-theme='monochrome'] .text-green-600,
-[data-theme='monochrome'] .text-green-700,
-[data-theme='monochrome'] .text-green-800,
-[data-theme='monochrome'] .text-green-900,
-[data-theme='monochrome'] .text-red-300,
-[data-theme='monochrome'] .text-red-400,
-[data-theme='monochrome'] .text-red-600,
-[data-theme='monochrome'] .text-red-700,
-[data-theme='monochrome'] .text-red-800,
-[data-theme='monochrome'] .text-red-900,
-[data-theme='monochrome'] .text-blue-300,
-[data-theme='monochrome'] .text-blue-400,
-[data-theme='monochrome'] .text-blue-900,
-[data-theme='monochrome'] .text-amber-200,
-[data-theme='monochrome'] .text-amber-700,
-[data-theme='monochrome'] .text-amber-800,
-[data-theme='monochrome'] .text-amber-900,
-[data-theme='monochrome'] .text-orange-700,
-[data-theme='monochrome'] .text-purple-600,
-[data-theme='monochrome'] .text-indigo-600,
-[data-theme='monochrome'] .text-emerald-700,
-[data-theme='monochrome'] .text-emerald-800,
-[data-theme='monochrome'] .text-accent-bright,
-[data-theme='monochrome'] .text-\[\#2F6F0F\],
-[data-theme='monochrome'] .text-\[\#0B3D91\],
-[data-theme='monochrome'] .text-\[\#111827\] {
+[data-theme='monochrome'], [data-theme='stealth'] .text-green-200,
+[data-theme='monochrome'], [data-theme='stealth'] .text-green-300,
+[data-theme='monochrome'], [data-theme='stealth'] .text-green-400,
+[data-theme='monochrome'], [data-theme='stealth'] .text-green-500,
+[data-theme='monochrome'], [data-theme='stealth'] .text-green-600,
+[data-theme='monochrome'], [data-theme='stealth'] .text-green-700,
+[data-theme='monochrome'], [data-theme='stealth'] .text-green-800,
+[data-theme='monochrome'], [data-theme='stealth'] .text-green-900,
+[data-theme='monochrome'], [data-theme='stealth'] .text-red-300,
+[data-theme='monochrome'], [data-theme='stealth'] .text-red-400,
+[data-theme='monochrome'], [data-theme='stealth'] .text-red-600,
+[data-theme='monochrome'], [data-theme='stealth'] .text-red-700,
+[data-theme='monochrome'], [data-theme='stealth'] .text-red-800,
+[data-theme='monochrome'], [data-theme='stealth'] .text-red-900,
+[data-theme='monochrome'], [data-theme='stealth'] .text-blue-300,
+[data-theme='monochrome'], [data-theme='stealth'] .text-blue-400,
+[data-theme='monochrome'], [data-theme='stealth'] .text-blue-900,
+[data-theme='monochrome'], [data-theme='stealth'] .text-amber-200,
+[data-theme='monochrome'], [data-theme='stealth'] .text-amber-700,
+[data-theme='monochrome'], [data-theme='stealth'] .text-amber-800,
+[data-theme='monochrome'], [data-theme='stealth'] .text-amber-900,
+[data-theme='monochrome'], [data-theme='stealth'] .text-orange-700,
+[data-theme='monochrome'], [data-theme='stealth'] .text-purple-600,
+[data-theme='monochrome'], [data-theme='stealth'] .text-purple-900,
+[data-theme='monochrome'], [data-theme='stealth'] .text-indigo-600,
+[data-theme='monochrome'], [data-theme='stealth'] .text-emerald-700,
+[data-theme='monochrome'], [data-theme='stealth'] .text-emerald-800,
+[data-theme='monochrome'], [data-theme='stealth'] .text-accent-bright,
+[data-theme='monochrome'], [data-theme='stealth'] .text-\[\#2F6F0F\],
+[data-theme='monochrome'], [data-theme='stealth'] .text-\[\#0B3D91\],
+[data-theme='monochrome'], [data-theme='stealth'] .text-\[\#111827\] {
   color: #111111 !important;
 }
 
-[data-theme='monochrome'] .hover\:text-red-300:hover,
-[data-theme='monochrome'] .hover\:text-red-600:hover,
-[data-theme='monochrome'] .hover\:text-red-700:hover,
-[data-theme='monochrome'] .hover\:text-red-800:hover,
-[data-theme='monochrome'] .hover\:text-red-900:hover,
-[data-theme='monochrome'] .hover\:text-green-700:hover,
-[data-theme='monochrome'] .hover\:text-green-800:hover {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\]\/10 {
+  background-color: #efefef !important;
+}
+
+[data-theme='monochrome'], [data-theme='stealth'] .text-\[\#404040\] {
+  color: #111111 !important;
+}
+
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#81B81D\]\/20.text-\[\#111827\] {
+  background-color: #efefef !important;
+  color: #111111 !important;
+}
+
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:text-red-300:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:text-red-600:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:text-red-700:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:text-red-800:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:text-red-900:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:text-green-700:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:text-green-800:hover {
   color: #000000 !important;
 }
 
 /* --- Light tinted backgrounds --- */
-[data-theme='monochrome'] .bg-green-50,
-[data-theme='monochrome'] .bg-green-100,
-[data-theme='monochrome'] .bg-red-50,
-[data-theme='monochrome'] .bg-red-100,
-[data-theme='monochrome'] .bg-blue-50,
-[data-theme='monochrome'] .bg-blue-100,
-[data-theme='monochrome'] .bg-amber-50,
-[data-theme='monochrome'] .bg-amber-50\/30,
-[data-theme='monochrome'] .bg-amber-50\/40,
-[data-theme='monochrome'] .bg-amber-50\/60,
-[data-theme='monochrome'] .bg-amber-50\/80,
-[data-theme='monochrome'] .bg-amber-100,
-[data-theme='monochrome'] .bg-indigo-50,
-[data-theme='monochrome'] .bg-indigo-50\/40,
-[data-theme='monochrome'] .bg-indigo-100,
-[data-theme='monochrome'] .bg-emerald-50,
-[data-theme='monochrome'] .bg-emerald-100,
-[data-theme='monochrome'] .bg-orange-50,
-[data-theme='monochrome'] .bg-blue-500\/20,
-[data-theme='monochrome'] .bg-green-500\/20,
-[data-theme='monochrome'] .bg-red-500\/20,
-[data-theme='monochrome'] .bg-amber-500\/10,
-[data-theme='monochrome'] .bg-amber-500\/15,
-[data-theme='monochrome'] .bg-amber-500\/20 {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-green-50,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-green-100,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-red-50,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-red-100,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-blue-50,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-blue-100,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-amber-50,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-amber-50\/30,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-amber-50\/40,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-amber-50\/60,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-amber-50\/80,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-amber-100,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-indigo-50,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-indigo-50\/40,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-indigo-100,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-purple-100,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-emerald-50,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-emerald-100,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-orange-50,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-blue-500\/20,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-green-500\/20,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-red-500\/20,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-amber-500\/10,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-amber-500\/15,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-amber-500\/20 {
   background-color: #f5f5f5 !important;
 }
 
-[data-theme='monochrome'] .hover\:bg-red-50:hover,
-[data-theme='monochrome'] .hover\:bg-red-50\/10:hover,
-[data-theme='monochrome'] .hover\:bg-red-100:hover,
-[data-theme='monochrome'] .hover\:bg-red-200:hover,
-[data-theme='monochrome'] .hover\:bg-amber-50\/40:hover,
-[data-theme='monochrome'] .hover\:bg-amber-500\/15:hover,
-[data-theme='monochrome'] .hover\:bg-indigo-50:hover,
-[data-theme='monochrome'] .hover\:bg-orange-50:hover,
-[data-theme='monochrome'] .hover\:bg-emerald-100:hover {
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-red-50:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-red-50\/10:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-red-100:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-red-200:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-amber-50\/40:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-amber-500\/15:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-indigo-50:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-orange-50:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-emerald-100:hover {
   background-color: #e5e5e5 !important;
 }
 
 /* --- Solid action / status fills --- */
-[data-theme='monochrome'] .bg-green-600,
-[data-theme='monochrome'] .bg-green-500,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-green-600,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-green-500,
 [data-theme='monochrome'] .bg-red-600,
-[data-theme='monochrome'] .bg-blue-500,
-[data-theme='monochrome'] .bg-emerald-600,
-[data-theme='monochrome'] .bg-emerald-700,
-[data-theme='monochrome'] .bg-indigo-600,
-[data-theme='monochrome'] .bg-blue-600 {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-blue-500,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-emerald-600,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-emerald-700,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-indigo-600,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-blue-600 {
   background-color: #111111 !important;
 }
 
-[data-theme='monochrome'] .hover\:bg-green-700:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-green-700:hover,
 [data-theme='monochrome'] .hover\:bg-red-700:hover,
-[data-theme='monochrome'] .hover\:bg-emerald-700:hover,
-[data-theme='monochrome'] .hover\:bg-emerald-800:hover,
-[data-theme='monochrome'] .hover\:bg-indigo-700:hover,
-[data-theme='monochrome'] .hover\:bg-gray-800:hover {
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-emerald-700:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-emerald-800:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-indigo-700:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-gray-800:hover {
   background-color: #000000 !important;
 }
 
 /* Work-sheet cards: blue panel → charcoal to match the rest of the app */
-[data-theme='monochrome'] .border-blue-400\/40.bg-blue-600 {
+[data-theme='monochrome'], [data-theme='stealth'] .border-blue-400\/40.bg-blue-600 {
   background-color: #404040 !important;
   border-color: rgb(255 255 255 / 0.2) !important;
 }
 
 /* --- Borders --- */
-[data-theme='monochrome'] .border-green-100,
-[data-theme='monochrome'] .border-green-200,
-[data-theme='monochrome'] .border-green-200\/50,
-[data-theme='monochrome'] .border-green-500,
-[data-theme='monochrome'] .border-red-100,
-[data-theme='monochrome'] .border-red-200,
-[data-theme='monochrome'] .border-red-200\/50,
-[data-theme='monochrome'] .border-red-200\/90,
-[data-theme='monochrome'] .border-red-300,
-[data-theme='monochrome'] .border-red-500\/40,
-[data-theme='monochrome'] .border-blue-200,
-[data-theme='monochrome'] .border-blue-200\/50,
-[data-theme='monochrome'] .border-blue-400\/40,
-[data-theme='monochrome'] .border-blue-500\/30,
-[data-theme='monochrome'] .border-blue-500,
-[data-theme='monochrome'] .border-l-blue-500,
-[data-theme='monochrome'] .border-amber-200,
-[data-theme='monochrome'] .border-amber-200\/80,
-[data-theme='monochrome'] .border-indigo-100,
-[data-theme='monochrome'] .border-indigo-300,
-[data-theme='monochrome'] .border-indigo-500,
-[data-theme='monochrome'] .border-emerald-200,
-[data-theme='monochrome'] .border-emerald-300,
-[data-theme='monochrome'] .border-orange-200,
-[data-theme='monochrome'] .border-\[\#F97316\],
-[data-theme='monochrome'] .border-\[\#F97316\]\/80,
-[data-theme='monochrome'] .border-\[\#F97316\]\/85 {
+[data-theme='monochrome'], [data-theme='stealth'] .border-green-100,
+[data-theme='monochrome'], [data-theme='stealth'] .border-green-200,
+[data-theme='monochrome'], [data-theme='stealth'] .border-green-200\/50,
+[data-theme='monochrome'], [data-theme='stealth'] .border-green-500,
+[data-theme='monochrome'], [data-theme='stealth'] .border-red-100,
+[data-theme='monochrome'], [data-theme='stealth'] .border-red-200,
+[data-theme='monochrome'], [data-theme='stealth'] .border-red-200\/50,
+[data-theme='monochrome'], [data-theme='stealth'] .border-red-200\/90,
+[data-theme='monochrome'], [data-theme='stealth'] .border-red-300,
+[data-theme='monochrome'], [data-theme='stealth'] .border-red-500\/40,
+[data-theme='monochrome'], [data-theme='stealth'] .border-blue-200,
+[data-theme='monochrome'], [data-theme='stealth'] .border-blue-200\/50,
+[data-theme='monochrome'], [data-theme='stealth'] .border-blue-400\/40,
+[data-theme='monochrome'], [data-theme='stealth'] .border-blue-500\/30,
+[data-theme='monochrome'], [data-theme='stealth'] .border-blue-500,
+[data-theme='monochrome'], [data-theme='stealth'] .border-l-blue-500,
+[data-theme='monochrome'], [data-theme='stealth'] .border-amber-200,
+[data-theme='monochrome'], [data-theme='stealth'] .border-amber-200\/80,
+[data-theme='monochrome'], [data-theme='stealth'] .border-indigo-100,
+[data-theme='monochrome'], [data-theme='stealth'] .border-indigo-300,
+[data-theme='monochrome'], [data-theme='stealth'] .border-indigo-500,
+[data-theme='monochrome'], [data-theme='stealth'] .border-emerald-200,
+[data-theme='monochrome'], [data-theme='stealth'] .border-emerald-300,
+[data-theme='monochrome'], [data-theme='stealth'] .border-orange-200,
+[data-theme='monochrome'], [data-theme='stealth'] .border-\[\#F97316\],
+[data-theme='monochrome'], [data-theme='stealth'] .border-\[\#F97316\]\/80,
+[data-theme='monochrome'], [data-theme='stealth'] .border-\[\#F97316\]\/85 {
   border-color: #d4d4d4 !important;
 }
 
-[data-theme='monochrome'] .hover\:border-indigo-200:hover,
-[data-theme='monochrome'] .hover\:border-orange-200:hover {
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:border-indigo-200:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:border-orange-200:hover {
   border-color: #a3a3a3 !important;
 }
 
 /* --- Rings --- */
-[data-theme='monochrome'] .ring-amber-200,
-[data-theme='monochrome'] .ring-amber-500\/40,
-[data-theme='monochrome'] .ring-\[\#F97316\]\/80,
-[data-theme='monochrome'] .ring-\[\#F97316\]\/85,
-[data-theme='monochrome'] .focus-visible\:ring-red-400:focus-visible {
+[data-theme='monochrome'], [data-theme='stealth'] .ring-amber-200,
+[data-theme='monochrome'], [data-theme='stealth'] .ring-amber-500\/40,
+[data-theme='monochrome'], [data-theme='stealth'] .ring-\[\#F97316\]\/80,
+[data-theme='monochrome'], [data-theme='stealth'] .ring-\[\#F97316\]\/85,
+[data-theme='monochrome'], [data-theme='stealth'] .focus-visible\:ring-red-400:focus-visible {
   --tw-ring-color: rgb(17 17 17 / 0.35) !important;
 }
 
 /* --- Stat-card and panel gradients --- */
-[data-theme='monochrome'] .from-blue-50\/50,
-[data-theme='monochrome'] .from-green-50\/50,
-[data-theme='monochrome'] .from-red-50\/50,
-[data-theme='monochrome'] .from-blue-500\/15,
-[data-theme='monochrome'] .from-green-500\/15,
-[data-theme='monochrome'] .from-red-500\/15 {
+[data-theme='monochrome'], [data-theme='stealth'] .from-blue-50\/50,
+[data-theme='monochrome'], [data-theme='stealth'] .from-green-50\/50,
+[data-theme='monochrome'], [data-theme='stealth'] .from-red-50\/50,
+[data-theme='monochrome'], [data-theme='stealth'] .from-blue-500\/15,
+[data-theme='monochrome'], [data-theme='stealth'] .from-green-500\/15,
+[data-theme='monochrome'], [data-theme='stealth'] .from-red-500\/15 {
   --tw-gradient-from: rgb(245 245 245 / 0.8) var(--tw-gradient-from-position) !important;
   --tw-gradient-to: rgb(245 245 245 / 0) var(--tw-gradient-to-position) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
 /* Action-button gradients → charcoal/black */
-[data-theme='monochrome'] .from-emerald-500,
-[data-theme='monochrome'] .from-green-500,
-[data-theme='monochrome'] .hover\:from-green-600:hover {
+[data-theme='monochrome'], [data-theme='stealth'] .from-emerald-500,
+[data-theme='monochrome'], [data-theme='stealth'] .from-green-500,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:from-green-600:hover {
   --tw-gradient-from: #404040 var(--tw-gradient-from-position) !important;
   --tw-gradient-to: rgb(64 64 64 / 0) var(--tw-gradient-to-position) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
-[data-theme='monochrome'] .to-emerald-600,
-[data-theme='monochrome'] .to-green-600,
-[data-theme='monochrome'] .hover\:to-green-700:hover {
+[data-theme='monochrome'], [data-theme='stealth'] .to-emerald-600,
+[data-theme='monochrome'], [data-theme='stealth'] .to-green-600,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:to-green-700:hover {
   --tw-gradient-to: #111111 var(--tw-gradient-to-position) !important;
 }
 
 /* --- Sky / cyan utility colors --- */
-[data-theme='monochrome'] .text-sky-800,
-[data-theme='monochrome'] .bg-sky-50,
-[data-theme='monochrome'] .border-sky-200,
-[data-theme='monochrome'] .hover\:bg-sky-100:hover {
+[data-theme='monochrome'], [data-theme='stealth'] .text-sky-800,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-sky-50,
+[data-theme='monochrome'], [data-theme='stealth'] .border-sky-200,
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-sky-100:hover {
   color: #111111 !important;
   background-color: #f5f5f5 !important;
   border-color: #d4d4d4 !important;
 }
 
-[data-theme='monochrome'] .bg-sky-50.text-sky-800 {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-sky-50.text-sky-800 {
   color: #111111 !important;
   background-color: #f5f5f5 !important;
 }
 
-[data-theme='monochrome'] .hover\:bg-sky-100:hover {
+[data-theme='monochrome'], [data-theme='stealth'] .hover\:bg-sky-100:hover {
   background-color: #e5e5e5 !important;
 }
 
-/* Notification badge and other small red dots */
+/* Notification badge — monochrome only; Stealth keeps default red badge */
 [data-theme='monochrome'] .bg-red-600 {
   background-color: #111111 !important;
 }
 
 /* Preserve white text on dark fills after recoloring buttons/panels */
-[data-theme='monochrome'] .bg-green-600.text-white,
-[data-theme='monochrome'] .bg-green-500.text-white,
-[data-theme='monochrome'] .bg-red-600.text-white,
-[data-theme='monochrome'] .bg-emerald-600.text-white,
-[data-theme='monochrome'] .bg-emerald-700.text-white,
-[data-theme='monochrome'] .bg-indigo-600.text-white,
-[data-theme='monochrome'] .bg-blue-600.text-white,
-[data-theme='monochrome'] .bg-\[\#81B81D\].text-white,
-[data-theme='monochrome'] .bg-purple-600.text-white {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-green-600.text-white,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-green-500.text-white,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-red-600.text-white,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-emerald-600.text-white,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-emerald-700.text-white,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-indigo-600.text-white,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-blue-600.text-white,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#81B81D\].text-white,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-purple-600.text-white {
   color: #ffffff !important;
 }
 
 /* Semantic text on dark panels must stay light (Micro Tools delete, etc.) */
-[data-theme='monochrome'] .bg-\[\#404040\] .text-red-300,
-[data-theme='monochrome'] .bg-\[\#404040\] .text-red-400,
-[data-theme='monochrome'] .bg-\[\#404040\] .text-red-600,
-[data-theme='monochrome'] .bg-\[\#404040\] .text-red-700,
-[data-theme='monochrome'] .bg-\[\#404040\] .text-green-400,
-[data-theme='monochrome'] .bg-gray-800 .text-red-400,
-[data-theme='monochrome'] .bg-gray-800 .text-red-600,
-[data-theme='monochrome'] .bg-black .text-red-400,
-[data-theme='monochrome'] .bg-black .text-red-600 {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .text-red-300,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .text-red-400,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .text-red-600,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .text-red-700,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .text-green-400,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-gray-800 .text-red-400,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-gray-800 .text-red-600,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-black .text-red-400,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-black .text-red-600 {
   color: #e5e5e5 !important;
 }
 
-[data-theme='monochrome'] .bg-\[\#404040\] .hover\:text-red-300:hover,
-[data-theme='monochrome'] .bg-\[\#404040\] .hover\:text-red-600:hover,
-[data-theme='monochrome'] .bg-\[\#404040\] .hover\:text-red-700:hover {
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .hover\:text-red-300:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .hover\:text-red-600:hover,
+[data-theme='monochrome'], [data-theme='stealth'] .bg-\[\#404040\] .hover\:text-red-700:hover {
   color: #ffffff !important;
+}
+
+/* ==================================================================== *
+ * STEALTH PRIMARY + DESTRUCTIVE ACTIONS
+ * Black for standard actions; deep red reserved for destructive buttons.
+ * ==================================================================== */
+[data-theme='stealth'] .btn-primary {
+  background-color: #000000 !important;
+}
+
+[data-theme='stealth'] .btn-primary:hover {
+  background-color: #1a1a1a !important;
+}
+
+[data-theme='stealth'] .sidebar-link-active,
+[data-theme='stealth'] button.sidebar-link.sidebar-link-active,
+[data-theme='stealth'] .sidebar-link:hover,
+[data-theme='stealth'] .sidebar-link-inactive:hover,
+[data-theme='stealth'] .vendor-hub-card:hover {
+  background: #000000 !important;
+}
+
+[data-theme='stealth'] .bg-\[\#404040\],
+[data-theme='stealth'] .bg-\[\#81B81D\],
+[data-theme='stealth'] .bg-blue-600,
+[data-theme='stealth'] .bg-green-600,
+[data-theme='stealth'] .bg-green-500,
+[data-theme='stealth'] .bg-emerald-600,
+[data-theme='stealth'] .bg-emerald-700,
+[data-theme='stealth'] .bg-indigo-600,
+[data-theme='stealth'] .bg-purple-600 {
+  background-color: #000000 !important;
+}
+
+[data-theme='stealth'] .hover\:bg-\[\#3B3B3B\]:hover,
+[data-theme='stealth'] .hover\:bg-gray-800:hover,
+[data-theme='stealth'] .hover\:bg-blue-700:hover,
+[data-theme='stealth'] .hover\:bg-green-700:hover,
+[data-theme='stealth'] .hover\:bg-emerald-700:hover,
+[data-theme='stealth'] .hover\:bg-emerald-800:hover,
+[data-theme='stealth'] .hover\:bg-indigo-700:hover,
+[data-theme='stealth'] .hover\:bg-purple-700:hover {
+  background-color: #1a1a1a !important;
+}
+
+[data-theme='stealth'] .bg-red-600,
+[data-theme='stealth'] .bg-red-700,
+[data-theme='stealth'] .bg-red-800 {
+  background-color: #b22222 !important;
+}
+
+[data-theme='stealth'] .hover\:bg-red-700:hover,
+[data-theme='stealth'] .hover\:bg-red-800:hover {
+  background-color: #8b1a1a !important;
+}
+
+[data-theme='stealth'] .bg-red-600.text-white,
+[data-theme='stealth'] .bg-red-700.text-white,
+[data-theme='stealth'] .bg-red-800.text-white {
+  color: #ffffff !important;
+}
+
+[data-theme='stealth'] .border-purple-600 {
+  border-color: #000000 !important;
 }
 

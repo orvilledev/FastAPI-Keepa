@@ -10,14 +10,15 @@
       (function () {
         try {
           var stored = localStorage.getItem('msw-theme');
-          var valid = ['light', 'dark', 'sunset', 'monochrome'];
+          if (stored === 'sunset') stored = 'stealth';
+          var valid = ['light', 'dark', 'stealth', 'monochrome'];
           var theme =
             valid.indexOf(stored) !== -1
               ? stored
               : window.matchMedia('(prefers-color-scheme: dark)').matches
                 ? 'dark'
                 : 'light';
-          var darkBased = theme === 'dark' || theme === 'sunset';
+          var darkBased = theme === 'dark';
           var root = document.documentElement;
           root.setAttribute('data-theme', theme);
           root.style.colorScheme = darkBased ? 'dark' : 'light';
@@ -25,7 +26,7 @@
           var colors = {
             light: '#404040',
             dark: '#0f172a',
-            sunset: '#3b1a2e',
+            stealth: '#ffffff',
             monochrome: '#ffffff',
           };
           var meta = document.querySelector('meta[name="theme-color"]');
