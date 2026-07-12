@@ -6,7 +6,7 @@ import { notificationsApi } from '../../services/api'
 import { resetTotpEnrollment } from '../../lib/mfa'
 import { DESKTOP_APP_DOWNLOAD_URL } from '../../constants/app'
 import NavbarSearch from './NavbarSearch'
-import ThemeToggle from '../common/ThemeToggle'
+import ThemeSelector from '../common/ThemeSelector'
 
 const VITE_DESKTOP_URL = DESKTOP_APP_DOWNLOAD_URL
 
@@ -132,7 +132,7 @@ export default function Navbar({ onMenuClick }: NavbarProps = {}) {
             </div>
           ) : null}
           <div className="flex shrink-0 items-center space-x-1.5 sm:space-x-2 ml-auto">
-            <ThemeToggle />
+            <ThemeSelector />
             {!isElectron && desktopDownloadUrl ? (
               <a
                 href={desktopDownloadUrl}

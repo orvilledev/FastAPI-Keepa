@@ -35,6 +35,47 @@
   --color-page-to: 30 27 75;
 }
 
+/* ==================================================================== *
+ * SUNSET THEME — a warm, dark-based palette. The `.dark` class is also
+ * present, so every existing dark override keeps working; these rules
+ * simply repaint the shared design tokens with sunset tones. Text stays
+ * a warm near-white for strong contrast on the plum surfaces.
+ * ==================================================================== */
+.dark[data-theme='sunset'] {
+  --color-surface: 59 26 46;
+  --color-surface-elevated: 78 34 58;
+  --color-surface-muted: 43 18 36;
+  --color-surface-hover: 99 45 74;
+  --color-text-primary: 255 245 235;
+  --color-text-secondary: 253 224 200;
+  --color-text-muted: 233 179 151;
+  --color-border: 104 52 78;
+  --color-border-strong: 143 76 106;
+  --color-page-from: 46 16 40;
+  --color-page-via: 120 45 70;
+  --color-page-to: 201 96 51;
+}
+
+/* ==================================================================== *
+ * MONOCHROME THEME — light-based grayscale. White surfaces, black text,
+ * neutral borders. Brand accents are neutralized to grays further below
+ * so the whole UI reads as black & white while keeping high contrast.
+ * ==================================================================== */
+:root[data-theme='monochrome'] {
+  --color-surface: 255 255 255;
+  --color-surface-elevated: 255 255 255;
+  --color-surface-muted: 245 245 245;
+  --color-surface-hover: 229 229 229;
+  --color-text-primary: 10 10 10;
+  --color-text-secondary: 38 38 38;
+  --color-text-muted: 82 82 82;
+  --color-border: 212 212 212;
+  --color-border-strong: 156 156 156;
+  --color-page-from: 255 255 255;
+  --color-page-via: 245 245 245;
+  --color-page-to: 235 235 235;
+}
+
 @layer base {
   html {
     font-size: 16px;
@@ -1248,5 +1289,158 @@ code {
   .app-table-scroll > table.table-fixed {
     table-layout: auto;
   }
+}
+
+/* ==================================================================== *
+ * THEME PAGE BACKGROUNDS
+ * Explicit gradients so Sunset feels warm and Monochrome stays flat and
+ * neutral. Presentation only — no layout or behaviour changes.
+ * ==================================================================== */
+[data-theme='sunset'] body,
+[data-theme='sunset'] .app-page-bg,
+[data-theme='sunset'] .app-shell-bg {
+  background: linear-gradient(to bottom right, #2e1028 0%, #7a2d46 48%, #c96033 100%);
+}
+
+[data-theme='monochrome'] body,
+[data-theme='monochrome'] .app-page-bg,
+[data-theme='monochrome'] .app-shell-bg {
+  background: #f2f2f2;
+}
+
+/* ==================================================================== *
+ * SUNSET ACCENTS — remap the brand green to warm gold and the charcoal
+ * brand surfaces (buttons, active nav, hover states) to sunset orange.
+ * ==================================================================== */
+.dark[data-theme='sunset'] .text-\[\#81B81D\] {
+  color: #ffb454 !important;
+}
+
+.dark[data-theme='sunset'] .border-\[\#81B81D\],
+.dark[data-theme='sunset'] .border-\[\#81B81D\]\/30,
+.dark[data-theme='sunset'] .border-\[\#81B81D\]\/40,
+.dark[data-theme='sunset'] .border-\[\#81B81D\]\/55,
+.dark[data-theme='sunset'] .border-\[\#81B81D\]\/80,
+.dark[data-theme='sunset'] .border-\[\#81B81D\]\/85 {
+  border-color: rgb(249 115 22 / 0.55) !important;
+}
+
+.dark[data-theme='sunset'] .ring-\[\#81B81D\]\/80,
+.dark[data-theme='sunset'] .ring-\[\#81B81D\]\/85 {
+  --tw-ring-color: rgb(249 115 22 / 0.55) !important;
+}
+
+.dark[data-theme='sunset'] .bg-\[\#81B81D\]\/10 {
+  background-color: rgb(249 115 22 / 0.16) !important;
+}
+
+.dark[data-theme='sunset'] .bg-\[\#81B81D\]\/20 {
+  background-color: rgb(249 115 22 / 0.24) !important;
+}
+
+.dark[data-theme='sunset'] .bg-\[\#81B81D\]\/30 {
+  background-color: rgb(249 115 22 / 0.3) !important;
+}
+
+.dark[data-theme='sunset'] .bg-\[\#81B81D\] {
+  background-color: #e0592b !important;
+}
+
+.dark[data-theme='sunset'] .btn-primary {
+  background-color: #e0592b !important;
+}
+
+.dark[data-theme='sunset'] .btn-primary:hover {
+  background-color: #c94e22 !important;
+}
+
+.dark[data-theme='sunset'] .sidebar-link-active,
+.dark[data-theme='sunset'] button.sidebar-link.sidebar-link-active,
+.dark[data-theme='sunset'] .sidebar-link:hover,
+.dark[data-theme='sunset'] .sidebar-link-inactive:hover,
+.dark[data-theme='sunset'] .vendor-hub-card:hover {
+  background: #e0592b !important;
+}
+
+.dark[data-theme='sunset'] .bg-\[\#404040\],
+.dark[data-theme='sunset'] .bg-\[\#404040\]\/90 {
+  background-color: #e0592b !important;
+}
+
+/* ==================================================================== *
+ * MONOCHROME ACCENTS — neutralize the brand green/orange and the purple
+ * download button to grayscale. Light accent text colors are darkened so
+ * they stay legible on the now-neutral light surfaces.
+ * ==================================================================== */
+[data-theme='monochrome'] .text-\[\#81B81D\],
+[data-theme='monochrome'] .text-\[\#F97316\],
+[data-theme='monochrome'] .text-\[\#DDF5B0\],
+[data-theme='monochrome'] .text-\[\#E8F8C8\],
+[data-theme='monochrome'] .text-\[\#FFD8B0\],
+[data-theme='monochrome'] .text-\[\#FFE7CC\] {
+  color: #111111 !important;
+}
+
+[data-theme='monochrome'] .hover\:text-\[\#81B81D\]:hover {
+  color: #111111 !important;
+}
+
+[data-theme='monochrome'] .border-\[\#81B81D\],
+[data-theme='monochrome'] .border-\[\#81B81D\]\/30,
+[data-theme='monochrome'] .border-\[\#81B81D\]\/40,
+[data-theme='monochrome'] .border-\[\#81B81D\]\/55,
+[data-theme='monochrome'] .border-\[\#81B81D\]\/80,
+[data-theme='monochrome'] .border-\[\#81B81D\]\/85,
+[data-theme='monochrome'] .focus\:border-\[\#81B81D\]:focus {
+  border-color: rgb(17 17 17 / 0.45) !important;
+}
+
+[data-theme='monochrome'] .ring-\[\#81B81D\]\/80,
+[data-theme='monochrome'] .ring-\[\#81B81D\]\/85,
+[data-theme='monochrome'] .focus\:ring-\[\#81B81D\]:focus {
+  --tw-ring-color: rgb(17 17 17 / 0.4) !important;
+}
+
+[data-theme='monochrome'] .bg-\[\#81B81D\]\/10 {
+  background-color: rgb(17 17 17 / 0.06) !important;
+}
+
+[data-theme='monochrome'] .bg-\[\#81B81D\]\/20 {
+  background-color: rgb(17 17 17 / 0.1) !important;
+}
+
+[data-theme='monochrome'] .bg-\[\#81B81D\]\/30 {
+  background-color: rgb(17 17 17 / 0.14) !important;
+}
+
+[data-theme='monochrome'] .bg-\[\#81B81D\] {
+  background-color: #111111 !important;
+}
+
+[data-theme='monochrome'] .from-\[\#81B81D\] {
+  --tw-gradient-from: #111111 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(17 17 17 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+[data-theme='monochrome'] .to-\[\#81B81D\] {
+  --tw-gradient-to: #111111 var(--tw-gradient-to-position) !important;
+}
+
+/* Neutralize the prominent purple "Download app" button */
+[data-theme='monochrome'] .bg-purple-600 {
+  background-color: #1f1f1f !important;
+}
+
+[data-theme='monochrome'] .hover\:bg-purple-700:hover {
+  background-color: #000000 !important;
+}
+
+[data-theme='monochrome'] .border-purple-600 {
+  border-color: #1f1f1f !important;
+}
+
+[data-theme='monochrome'] .hover\:border-purple-700:hover {
+  border-color: #000000 !important;
 }
 

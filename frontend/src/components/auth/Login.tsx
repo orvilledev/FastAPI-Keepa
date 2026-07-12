@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { fetchMfaStatus, shouldSkipMfaForEmail, shouldShowMfaSetup, shouldShowMfaVerify } from '../../lib/mfa'
 import { APP_ICON_URL } from '../../constants/app'
-import ThemeToggle from '../common/ThemeToggle'
+import ThemeSelector from '../common/ThemeSelector'
 import { WAREHOUSE_HOME_PATH } from '../../constants/warehouseAccess'
 
 export default function Login() {
@@ -111,7 +111,7 @@ export default function Login() {
   return (
     <div className="relative min-h-app-screen flex items-center justify-center app-page-bg py-12 px-4 sm:px-6 lg:px-8">
       <div className="absolute right-4 top-4 sm:right-6 sm:top-6">
-        <ThemeToggle />
+        <ThemeSelector />
       </div>
       <div className="max-w-md w-full">
         <div className="card p-8 shadow-xl">

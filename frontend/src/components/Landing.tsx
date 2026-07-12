@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { APP_COPYRIGHT_OWNER, APP_ICON_URL, APP_NAME, APP_VERSION_LABEL } from '../constants/app'
-import ThemeToggle from './common/ThemeToggle'
+import ThemeSelector from './common/ThemeSelector'
 
 export default function Landing() {
   const features = [
@@ -48,7 +48,7 @@ export default function Landing() {
             <span className="text-sm font-semibold text-gray-500">{APP_VERSION_LABEL}</span>
           </div>
           <div className="flex items-center space-x-2">
-            <ThemeToggle />
+            <ThemeSelector />
             <Link
               to="/login"
               className="text-gray-700 hover:text-[#404040] dark:text-slate-300 dark:hover:text-slate-100 font-medium transition-colors"

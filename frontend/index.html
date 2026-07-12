@@ -10,15 +10,26 @@
       (function () {
         try {
           var stored = localStorage.getItem('msw-theme');
-          var dark =
-            stored === 'dark' ||
-            (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-          if (dark) {
-            document.documentElement.classList.add('dark');
-            document.documentElement.style.colorScheme = 'dark';
-            var meta = document.querySelector('meta[name="theme-color"]');
-            if (meta) meta.setAttribute('content', '#0f172a');
-          }
+          var valid = ['light', 'dark', 'sunset', 'monochrome'];
+          var theme =
+            valid.indexOf(stored) !== -1
+              ? stored
+              : window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light';
+          var darkBased = theme === 'dark' || theme === 'sunset';
+          var root = document.documentElement;
+          root.setAttribute('data-theme', theme);
+          root.style.colorScheme = darkBased ? 'dark' : 'light';
+          if (darkBased) root.classList.add('dark');
+          var colors = {
+            light: '#404040',
+            dark: '#0f172a',
+            sunset: '#3b1a2e',
+            monochrome: '#ffffff',
+          };
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', colors[theme]);
         } catch (e) {}
       })();
     </script>
