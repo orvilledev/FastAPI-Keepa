@@ -112,3 +112,47 @@ export function clearReminderFiredForVendor(userId: string, vendor: ReminderVend
   delete map[vendor]
   saveFiredMap(userId, map)
 }
+
+/** Pending modal after OS notify while the PWA was minimized. */
+export type PendingCapybaraReminder = {
+  vendor: ReminderVendorCode
+  label: string
+  nextRunIso: string
+  scheduledTime: string
+  /** Seconds remaining when the reminder first fired */
+  secondsUntilAtFire: number
+  firedAtMs: number
+}
+
+const pendingKey = (userId: string) => `daily-run-reminder-pending-v1-${userId}`
+
+export function savePendingCapybaraReminder(
+  userId: string,
+  pending: PendingCapybaraReminder,
+): void {
+  try {
+    sessionStorage.setItem(pendingKey(userId), JSON.stringify(pending))
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadPendingCapybaraReminder(userId: string): PendingCapybaraReminder | null {
+  try {
+    const raw = sessionStorage.getItem(pendingKey(userId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as PendingCapybaraReminder
+    if (!parsed?.vendor || !parsed?.nextRunIso || !isVendorCode(parsed.vendor)) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+export function clearPendingCapybaraReminder(userId: string): void {
+  try {
+    sessionStorage.removeItem(pendingKey(userId))
+  } catch {
+    /* ignore */
+  }
+}

@@ -1,13 +1,21 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import DancingCapybara from './DancingCapybara'
 import {
   DAILY_RUN_REMINDER_LEAD_SECONDS,
+  clearPendingCapybaraReminder,
   clearReminderFiredForVendor,
   hasReminderFiredForRun,
+  loadPendingCapybaraReminder,
   markReminderFiredForRun,
+  savePendingCapybaraReminder,
   type ReminderVendorCode,
 } from '../../lib/dailyRunReminderPrefs'
+import {
+  isDocumentHidden,
+  showCapybaraOsNotification,
+  type CapybaraNotifyPayload,
+} from '../../lib/dailyRunReminderNotify'
 
 export type ReminderAlert = {
   vendor: ReminderVendorCode
@@ -27,6 +35,24 @@ function formatCountdown(seconds: number): string {
   const m = Math.floor(Math.max(0, seconds) / 60)
   const s = Math.max(0, seconds) % 60
   return `${m}:${String(s).padStart(2, '0')}`
+}
+
+function alertFromPayload(
+  payload: CapybaraNotifyPayload | ReminderAlert,
+  nowMs: number = Date.now(),
+): ReminderAlert | null {
+  const vendor = String(payload.vendor || '').toLowerCase() as ReminderVendorCode
+  const nextRunIso = payload.nextRunIso
+  if (!vendor || !nextRunIso) return null
+  const nextRunMs = new Date(nextRunIso).getTime()
+  if (!Number.isFinite(nextRunMs) || nextRunMs <= nowMs) return null
+  return {
+    vendor,
+    label: payload.label || vendor.toUpperCase(),
+    nextRunIso,
+    scheduledTime: payload.scheduledTime || '',
+    secondsUntil: Math.floor((nextRunMs - nowMs) / 1000),
+  }
 }
 
 export default function DancingCapybaraReminderModal({ alert, onDismiss, onSnooze }: Props) {
@@ -106,6 +132,8 @@ type VendorSnapshot = {
 
 /**
  * Watches calendar countdown data and opens the capybara modal at T-30.
+ * When the PWA is minimized/hidden, also sends an OS notification; clicking it
+ * (or restoring the window) shows the dancing capybara.
  * Read-only on vendor schedules — never mutates scheduler state.
  */
 export function useDailyRunCapybaraReminder(options: {
@@ -116,10 +144,94 @@ export function useDailyRunCapybaraReminder(options: {
 }) {
   const { userId, enabledVendors, vendorData, nowMs } = options
   const [alert, setAlert] = useState<ReminderAlert | null>(null)
-  const [snoozeUntilByVendor, setSnoozeUntilByVendor] = useState<Partial<Record<ReminderVendorCode, number>>>(
-    {},
+  const [snoozeUntilByVendor, setSnoozeUntilByVendor] = useState<
+    Partial<Record<ReminderVendorCode, number>>
+  >({})
+  const alertRef = useRef<ReminderAlert | null>(null)
+  alertRef.current = alert
+
+  const openAlert = useCallback(
+    (next: ReminderAlert) => {
+      savePendingCapybaraReminder(userId, {
+        vendor: next.vendor,
+        label: next.label,
+        nextRunIso: next.nextRunIso,
+        scheduledTime: next.scheduledTime,
+        secondsUntilAtFire: next.secondsUntil,
+        firedAtMs: Date.now(),
+      })
+      setAlert(next)
+    },
+    [userId],
   )
 
+  const tryOpenPending = useCallback(() => {
+    if (alertRef.current) return
+    const pending = loadPendingCapybaraReminder(userId)
+    if (!pending) return
+    const next = alertFromPayload(
+      {
+        vendor: pending.vendor,
+        label: pending.label,
+        nextRunIso: pending.nextRunIso,
+        scheduledTime: pending.scheduledTime,
+        secondsUntil: pending.secondsUntilAtFire,
+      },
+      Date.now(),
+    )
+    if (!next) {
+      clearPendingCapybaraReminder(userId)
+      return
+    }
+    setAlert(next)
+  }, [userId])
+
+  // Restore pending modal when returning to the PWA (minimized → focused).
+  useEffect(() => {
+    const onVisible = () => {
+      if (!isDocumentHidden()) tryOpenPending()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    onVisible()
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [tryOpenPending])
+
+  // Notification click (page Notification API or SW postMessage).
+  useEffect(() => {
+    const openFromPayload = (payload: CapybaraNotifyPayload) => {
+      const next = alertFromPayload(payload, Date.now())
+      if (next) openAlert(next)
+    }
+
+    const onCustom = (event: Event) => {
+      const detail = (event as CustomEvent<CapybaraNotifyPayload>).detail
+      if (detail) openFromPayload(detail)
+    }
+
+    const onSwMessage = (event: MessageEvent) => {
+      if (event.data?.type !== 'DAILY_RUN_REMINDER_CLICK') return
+      const payload = event.data.payload as CapybaraNotifyPayload | undefined
+      if (payload) openFromPayload(payload)
+      else tryOpenPending()
+    }
+
+    window.addEventListener('daily-run-reminder-click', onCustom)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', onSwMessage)
+    }
+    return () => {
+      window.removeEventListener('daily-run-reminder-click', onCustom)
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', onSwMessage)
+      }
+    }
+  }, [openAlert, tryOpenPending])
+
+  // T-30 detector — works while Dashboard is mounted (including minimized PWA).
   useEffect(() => {
     if (!userId || alert) return
 
@@ -136,21 +248,48 @@ export function useDailyRunCapybaraReminder(options: {
       const snoozeUntil = snoozeUntilByVendor[vendor] ?? 0
       if (nowMs < snoozeUntil) continue
 
-      if (hasReminderFiredForRun(userId, vendor, data.next_run_time)) continue
+      if (hasReminderFiredForRun(userId, vendor, data.next_run_time)) {
+        // Already notified this run — still open modal if pending and visible.
+        if (!isDocumentHidden()) tryOpenPending()
+        continue
+      }
 
-      markReminderFiredForRun(userId, vendor, data.next_run_time)
-      setAlert({
+      const next: ReminderAlert = {
         vendor,
         label: vendor.toUpperCase(),
         nextRunIso: data.next_run_time,
         scheduledTime: data.scheduled_time || '',
         secondsUntil,
+      }
+
+      markReminderFiredForRun(userId, vendor, data.next_run_time)
+      savePendingCapybaraReminder(userId, {
+        vendor: next.vendor,
+        label: next.label,
+        nextRunIso: next.nextRunIso,
+        scheduledTime: next.scheduledTime,
+        secondsUntilAtFire: next.secondsUntil,
+        firedAtMs: Date.now(),
       })
+
+      const hidden = isDocumentHidden()
+      if (hidden) {
+        void showCapybaraOsNotification(next, (payload) => {
+          const opened = alertFromPayload(payload, Date.now())
+          if (opened) setAlert(opened)
+        })
+        // Modal waits until focus / notification click so it appears in front.
+      } else {
+        setAlert(next)
+      }
       break
     }
-  }, [userId, enabledVendors, vendorData, nowMs, alert, snoozeUntilByVendor])
+  }, [userId, enabledVendors, vendorData, nowMs, alert, snoozeUntilByVendor, tryOpenPending])
 
-  const dismiss = useCallback(() => setAlert(null), [])
+  const dismiss = useCallback(() => {
+    clearPendingCapybaraReminder(userId)
+    setAlert(null)
+  }, [userId])
 
   const snooze = useCallback(
     (minutes: number) => {
@@ -160,8 +299,8 @@ export function useDailyRunCapybaraReminder(options: {
         ...prev,
         [vendor]: Date.now() + minutes * 60_000,
       }))
-      // Allow re-show after snooze for the same scheduled run
       clearReminderFiredForVendor(userId, vendor)
+      clearPendingCapybaraReminder(userId)
       setAlert(null)
     },
     [alert, userId],

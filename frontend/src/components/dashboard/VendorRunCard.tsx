@@ -177,7 +177,7 @@ export default function VendorRunCard({
                 />
               </button>
               <span className="text-xs text-white/80">
-                {reminderEnabled ? 'Capybara at 30 min' : 'Remind at 30 min'}
+                {reminderEnabled ? 'Capybara + OS alert' : 'Remind at 30 min'}
               </span>
             </div>
           )}

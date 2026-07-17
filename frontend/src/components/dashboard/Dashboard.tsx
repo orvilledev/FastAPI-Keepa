@@ -12,6 +12,7 @@ import {
   setReminderVendorEnabled,
   type ReminderVendorCode,
 } from '../../lib/dailyRunReminderPrefs'
+import { ensureReminderNotificationPermission } from '../../lib/dailyRunReminderNotify'
 
 type VendorCategory = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
 const VENDOR_ORDER: VendorCategory[] = ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha']
@@ -56,6 +57,10 @@ export default function Dashboard() {
   const handleReminderToggle = (category: VendorCategory, enabled: boolean) => {
     const next = setReminderVendorEnabled(userId, category, enabled)
     setReminderVendors(new Set(next))
+    // Permission must be requested from a user gesture so minimized PWAs can get OS toasts.
+    if (enabled) {
+      void ensureReminderNotificationPermission()
+    }
   }
 
   const { alert, dismiss, snooze } = useDailyRunCapybaraReminder({
@@ -82,7 +87,14 @@ export default function Dashboard() {
 
   useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 1000)
-    return () => clearInterval(timer)
+    const bump = () => setNowMs(Date.now())
+    document.addEventListener('visibilitychange', bump)
+    window.addEventListener('focus', bump)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', bump)
+      window.removeEventListener('focus', bump)
+    }
   }, [])
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-const SW_VERSION = 'v13'
+const SW_VERSION = 'v14'
 const STATIC_CACHE = `msw-overwatch-static-${SW_VERSION}`
 const RUNTIME_CACHE = `msw-overwatch-runtime-${SW_VERSION}`
 // Do NOT precache index.html / "/" — hashed asset URLs change every deploy.
@@ -142,6 +142,29 @@ self.addEventListener('fetch', (event) => {
 
         return networkFetch.then((response) => response || Response.error())
       })
+    })
+  )
+})
+
+// Daily Run T-30 capybara reminders: focus open PWA and tell the page to show the modal.
+self.addEventListener('notificationclick', (event) => {
+  const data = event.notification?.data || {}
+  event.notification?.close()
+  if (data.type !== 'daily-run-reminder') return
+
+  const targetUrl = data.url || '/'
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ('focus' in client) {
+          client.postMessage({ type: 'DAILY_RUN_REMINDER_CLICK', payload: data })
+          return client.focus()
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl)
+      }
+      return undefined
     })
   )
 })
