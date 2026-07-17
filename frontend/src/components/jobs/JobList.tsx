@@ -246,7 +246,7 @@ export default function JobList() {
     const noun = stats.completed === 1 ? 'job' : 'jobs'
     if (
       !window.confirm(
-        `Remove all ${stats.completed} completed ${noun}? This cannot be undone and deletes related batches, items, and alerts.`
+        `Remove all ${stats.completed} completed ${noun}? This cannot be undone and deletes related batches, items, and alerts. Off-Price Analytics archives are kept.`,
       )
     ) {
       return

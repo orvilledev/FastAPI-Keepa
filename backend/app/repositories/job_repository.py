@@ -391,11 +391,13 @@ class JobRepository:
 
     def delete_completed_jobs(self) -> int:
         """
-        Delete completed Express Jobs and their related job-scoped data.
+        Delete all completed jobs (Express and Daily Run rows) and related
+        job-scoped data (batches, items, alerts).
 
-        Daily Run jobs and ``off_price_analytics_snapshots`` are never deleted.
+        Never touches ``off_price_analytics_snapshots`` — archives stay intact
+        after Daily Run job rows are cleaned up from the Express Jobs list.
         """
-        job_ids = self.list_completed_express_job_ids()
+        job_ids = self.list_completed_job_ids()
         for job_id in job_ids:
             self.delete_job(job_id)
         return len(job_ids)

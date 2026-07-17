@@ -115,17 +115,18 @@ def delete_completed_jobs(
     db: Client = Depends(get_supabase),
 ):
     """
-    Delete all completed Express Jobs and related job-scoped data.
+    Delete all completed jobs shown on Express Jobs (including Daily Run rows)
+    and related job-scoped data.
 
-    Daily Run jobs and analytics archives (``off_price_analytics_snapshots``)
-    are never deleted or modified by this endpoint.
+    Analytics archives (``off_price_analytics_snapshots``) are never deleted
+    or modified by this endpoint.
     """
     job_repo = JobRepository(db)
     deleted_count = job_repo.delete_completed_jobs()
     return {
         "message": (
-            f"Deleted {deleted_count} completed Express job(s). "
-            "Daily Runs and analytics archives were not affected."
+            f"Deleted {deleted_count} completed job(s). "
+            "Analytics archives were not affected."
         ),
         "deleted_count": deleted_count,
     }
