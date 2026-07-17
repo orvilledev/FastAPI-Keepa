@@ -253,6 +253,17 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
     }
   }
 
+  const reminderOn = reminderVendors.has(vendor as ReminderVendorCode)
+
+  const handleToggleRemindMe = () => {
+    const turningOn = !reminderOn
+    const next = setReminderVendorEnabled(userId, vendor as ReminderVendorCode, turningOn)
+    setReminderVendors(new Set(next))
+    if (turningOn) {
+      void ensureReminderNotificationPermission()
+    }
+  }
+
   const loadSchedulerSettings = async () => {
     try {
       const settings = await schedulerApi.getSettings(vendor)
@@ -669,6 +680,26 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
             </button>
           </div>
           <button
+            type="button"
+            onClick={handleToggleRemindMe}
+            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
+              reminderOn
+                ? 'bg-amber-600 text-white hover:bg-amber-700'
+                : 'bg-white text-amber-900 border border-amber-300 hover:bg-amber-50'
+            }`}
+            title={
+              reminderOn
+                ? `Capybara reminder is on for ${VENDOR_UPPER} (30 min before run)`
+                : `Remind me 30 minutes before ${VENDOR_UPPER} Daily Run / Same Day Run`
+            }
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6z" />
+              <path d="M10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+            </svg>
+            {reminderOn ? 'Remind me on' : 'Remind me'}
+          </button>
+          <button
             onClick={handleToggleEnabled}
             disabled={togglingEnabled || !schedulerSettings}
             className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50 ${
@@ -758,6 +789,24 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                 <p className="text-sm text-[#111827]">{nextRun.message}</p>
               </div>
             )}
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
+              <p className="text-sm text-gray-600">
+                {reminderOn
+                  ? 'Capybara will appear ~30 minutes before this run (and Same Day Runs).'
+                  : 'Turn on Remind me for a dancing capybara ~30 minutes before the run.'}
+              </p>
+              <button
+                type="button"
+                onClick={handleToggleRemindMe}
+                className={`shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  reminderOn
+                    ? 'bg-amber-600 text-white hover:bg-amber-700'
+                    : 'bg-amber-50 text-amber-900 ring-1 ring-amber-300 hover:bg-amber-100'
+                }`}
+              >
+                {reminderOn ? 'Remind me on' : 'Remind me'}
+              </button>
+            </div>
           </div>
         </div>
       )}
