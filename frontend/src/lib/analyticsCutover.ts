@@ -2,7 +2,7 @@
  * Off-Price Analytics demo → live cutover (Central US).
  *
  * Default: fabricated demo until 2026-08-01 00:00 America/Chicago (CDT = UTC−5).
- * Preview live early:  /analytics?source=live
+ * Preview live early:  /analytics?source=live  (or use the Live preview toggle in the UI)
  * Force demo (pre-cutover only): /analytics?source=demo
  */
 

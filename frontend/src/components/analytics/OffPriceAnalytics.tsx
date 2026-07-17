@@ -23,6 +23,7 @@ import {
 } from '../../lib/demoOffPriceAnalytics'
 import {
   analyticsSourceBadgeLabel,
+  hasAnalyticsDemoEnded,
   resolveAnalyticsDataSource,
   type AnalyticsDataSource,
 } from '../../lib/analyticsCutover'
@@ -261,6 +262,7 @@ export default function OffPriceAnalytics() {
       : 'weekly'
   const yearParam = searchParams.get('year')
   const dataSource: AnalyticsDataSource = resolveAnalyticsDataSource(searchParams)
+  const showLivePreviewToggle = !hasAnalyticsDemoEnded()
 
   const [data, setData] = useState<DemoOffPriceAnalytics | null>(
     dataSource === 'demo' ? () => buildDemoOffPriceAnalytics() : null,
@@ -451,6 +453,37 @@ export default function OffPriceAnalytics() {
     nextParams.set('year', String(year))
     setSearchParams(nextParams, { replace: true })
   }
+
+  const setDataSourcePreference = (next: AnalyticsDataSource) => {
+    if (!showLivePreviewToggle) return
+    const nextParams = new URLSearchParams(searchParams)
+    if (next === 'live') {
+      nextParams.set('source', 'live')
+    } else {
+      nextParams.set('source', 'demo')
+    }
+    setSearchParams(nextParams, { replace: true })
+  }
+
+  const livePreviewToggle = showLivePreviewToggle ? (
+    <div className="flex items-center gap-2.5">
+      <TrackingSwitch
+        enabled={dataSource === 'live'}
+        onChange={(on) => setDataSourcePreference(on ? 'live' : 'demo')}
+        label={dataSource === 'live' ? 'Switch to demo analytics' : 'Preview live analytics'}
+      />
+      <div className="min-w-0 text-left">
+        <p className="text-sm font-medium text-gray-800 dark:text-content-primary">
+          {dataSource === 'live' ? 'Live preview on' : 'Live preview off'}
+        </p>
+        <p className="text-xs text-gray-500 dark:text-content-muted">
+          {dataSource === 'live'
+            ? 'Showing Daily Run data · until Aug 1, 2026 Central'
+            : 'Showing fabricated demo · toggle to preview live'}
+        </p>
+      </div>
+    </div>
+  ) : null
 
   const handleToggleTracking = async (vendorCode: string, enabled: boolean) => {
     const optimistic = { ...tracking, [vendorCode]: enabled }
@@ -764,8 +797,9 @@ export default function OffPriceAnalytics() {
 
   if (dataLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center p-8">
+      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-4 p-8">
         <p className="text-sm text-gray-500 dark:text-content-muted">Loading live analytics…</p>
+        {livePreviewToggle}
       </div>
     )
   }
@@ -779,11 +813,15 @@ export default function OffPriceAnalytics() {
         <p className="max-w-md text-sm text-gray-500 dark:text-content-muted">
           {dataError || 'Unknown error'}
         </p>
-        {dataSource === 'live' && (
-          <p className="text-xs text-gray-400 dark:text-content-muted">
-            Tip: before Aug 1, 2026 Central you can still open demo with{' '}
-            <code className="rounded bg-gray-100 px-1 dark:bg-surface-muted">?source=demo</code>
-          </p>
+        {livePreviewToggle ? (
+          <div className="mt-2">{livePreviewToggle}</div>
+        ) : (
+          dataSource === 'live' && (
+            <p className="text-xs text-gray-400 dark:text-content-muted">
+              Tip: before Aug 1, 2026 Central you can still open demo with{' '}
+              <code className="rounded bg-gray-100 px-1 dark:bg-surface-muted">?source=demo</code>
+            </p>
+          )
         )}
       </div>
     )
@@ -840,9 +878,13 @@ export default function OffPriceAnalytics() {
           <p className="mt-3 hidden text-[11px] font-medium uppercase tracking-wide text-amber-700/80 dark:text-amber-400/80 lg:block">
             Fabricated · until Aug 1, 2026 Central
           </p>
+        ) : showLivePreviewToggle ? (
+          <p className="mt-3 hidden text-[11px] font-medium uppercase tracking-wide text-emerald-700/80 dark:text-emerald-400/80 lg:block">
+            Live preview · use header toggle
+          </p>
         ) : (
           <p className="mt-3 hidden text-[11px] font-medium uppercase tracking-wide text-emerald-700/80 dark:text-emerald-400/80 lg:block">
-            Live · preview with ?source=live
+            Live Daily Run data
           </p>
         )}
       </aside>
@@ -872,6 +914,7 @@ export default function OffPriceAnalytics() {
             )}
           </div>
           <div className="flex flex-col items-stretch gap-3 sm:items-end">
+            {livePreviewToggle}
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <button
                 type="button"
