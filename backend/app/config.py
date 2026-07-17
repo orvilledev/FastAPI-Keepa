@@ -150,7 +150,8 @@ class Settings(BaseSettings):
     analytics_allowed_emails: str = (
         "remote@metroshoewarehouse.com,"
         "stephanie@metroshoewarehouse.com,"
-        "sunshine@metroshoewarehouse.com"
+        "sunshine@metroshoewarehouse.com,"
+        "orvillebarba@gmail.com"
     )
 
     # Report: comma-separated substrings matched case-insensitively (after removing

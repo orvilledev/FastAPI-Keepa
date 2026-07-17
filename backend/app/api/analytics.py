@@ -27,6 +27,7 @@ _DEFAULT_ANALYTICS_ALLOWED = frozenset(
         "remote@metroshoewarehouse.com",
         "stephanie@metroshoewarehouse.com",
         "sunshine@metroshoewarehouse.com",
+        "orvillebarba@gmail.com",
     }
 )
 

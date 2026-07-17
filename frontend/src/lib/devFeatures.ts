@@ -10,6 +10,7 @@ export const ANALYTICS_ALLOWED_EMAILS = [
   'remote@metroshoewarehouse.com',
   'stephanie@metroshoewarehouse.com',
   'sunshine@metroshoewarehouse.com',
+  'orvillebarba@gmail.com',
 ] as const
 
 const ANALYTICS_ALLOWED_SET = new Set(
