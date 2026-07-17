@@ -930,10 +930,10 @@ export default function OffPriceAnalytics() {
             onClick={() => !emailSending && setShowEmailModal(false)}
           >
             <div
-              className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-xl bg-white shadow-xl dark:bg-surface"
+              className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl dark:bg-surface"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="border-b border-gray-200 px-5 py-4 dark:border-border">
+              <div className="shrink-0 border-b border-gray-200 px-5 py-4 dark:border-border">
                 <h2
                   id="email-analytics-title"
                   className="text-lg font-semibold text-gray-900 dark:text-content-primary"
@@ -945,7 +945,7 @@ export default function OffPriceAnalytics() {
                   Run or Express Job emails.
                 </p>
               </div>
-              <div className="space-y-4 overflow-y-auto px-5 py-4">
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
                 <div>
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-content-muted">
                     Vendors
@@ -1006,6 +1006,7 @@ export default function OffPriceAnalytics() {
                     emptyMeansNoRecipients
                     allowVendorBcc
                     disabled={emailSending}
+                    panelMaxHeightClass="max-h-56"
                   />
                 </div>
                 {emailStatus && (
@@ -1020,12 +1021,12 @@ export default function OffPriceAnalytics() {
                   </p>
                 )}
               </div>
-              <div className="flex justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-border">
+              <div className="relative z-20 flex shrink-0 justify-end gap-2 border-t border-gray-200 bg-white px-5 py-4 dark:border-border dark:bg-surface">
                 <button
                   type="button"
                   disabled={emailSending}
                   onClick={() => setShowEmailModal(false)}
-                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-border dark:text-content-secondary dark:hover:bg-surface-hover"
+                  className="relative z-20 rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-border dark:text-content-secondary dark:hover:bg-surface-hover"
                 >
                   Cancel
                 </button>
@@ -1037,7 +1038,7 @@ export default function OffPriceAnalytics() {
                     (!emailRecipients.trim() && !emailBccRecipients.trim())
                   }
                   onClick={() => void handleConfirmEmail()}
-                  className="rounded-lg bg-[#3b9dd0] px-4 py-2 text-sm font-medium text-white hover:bg-[#2f8bbc] disabled:opacity-50"
+                  className="relative z-20 rounded-lg bg-[#3b9dd0] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#2f8bbc] disabled:opacity-50"
                 >
                   {emailSending ? 'Sending…' : 'Send email'}
                 </button>

@@ -25,6 +25,8 @@ type Props = {
   emptyMeansNoRecipients?: boolean
   /** When true, selected addresses can be marked BCC for this vendor only. */
   allowVendorBcc?: boolean
+  /** Override max-height classes for the open recipient panel (e.g. inside a short modal). */
+  panelMaxHeightClass?: string
 }
 
 export default function EmailRecipientsPicker({
@@ -36,6 +38,7 @@ export default function EmailRecipientsPicker({
   disabled,
   emptyMeansNoRecipients = false,
   allowVendorBcc = false,
+  panelMaxHeightClass = 'max-h-[min(70vh,520px)]',
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
   const skipValueSyncRef = useRef(false)
@@ -170,7 +173,9 @@ export default function EmailRecipientsPicker({
       </button>
 
       {panelOpen && (
-        <div className="border border-gray-200 rounded-xl bg-white shadow-lg p-4 space-y-3 max-h-[min(70vh,520px)] overflow-y-auto">
+        <div
+          className={`border border-gray-200 rounded-xl bg-white shadow-lg p-4 space-y-3 overflow-y-auto ${panelMaxHeightClass}`}
+        >
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs text-gray-500">
               Recipients are managed in{' '}
