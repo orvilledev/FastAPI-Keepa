@@ -657,6 +657,16 @@ export default function OffPriceAnalytics() {
     [data.historical_years],
   )
 
+  const monthlyTrendData = useMemo(
+    () =>
+      [...(data.historical_months ?? [])].map((m) => ({
+        month: m.period_label,
+        hits: m.total_off_price_count,
+        runs: m.total_run_count,
+      })),
+    [data.historical_months],
+  )
+
   const archiveVendorChartData = useMemo(() => {
     if (!selectedYearArchive) return []
     return [...selectedYearArchive.vendors]
@@ -1536,6 +1546,43 @@ export default function OffPriceAnalytics() {
                     <LineChart data={historicalTrendData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
                       <XAxis dataKey="year" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                      <YAxis tick={{ fontSize: 11 }} width={48} />
+                      <Tooltip
+                        contentStyle={chartTooltipStyle}
+                        formatter={(value: number) => [value.toLocaleString(), 'Hits']}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="hits"
+                        stroke={CHART_BLUE}
+                        strokeWidth={2.5}
+                        dot={{ r: 2.5, fill: CHART_BLUE }}
+                        activeDot={{ r: 5, fill: CHART_YELLOW, stroke: CHART_BLUE }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {period === 'monthly' && monthlyTrendData.length > 1 && (
+              <div className="card p-4 sm:p-5">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-content-primary">
+                  Monthly trend
+                </h3>
+                <p className="mb-3 text-xs text-gray-500 dark:text-content-muted">
+                  Last {monthlyTrendData.length} months of total off-price hits
+                </p>
+                <div className="h-72 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={monthlyTrendData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                      <XAxis
+                        dataKey="month"
+                        tick={{ fontSize: 10 }}
+                        interval="preserveStartEnd"
+                        minTickGap={28}
+                      />
                       <YAxis tick={{ fontSize: 11 }} width={48} />
                       <Tooltip
                         contentStyle={chartTooltipStyle}

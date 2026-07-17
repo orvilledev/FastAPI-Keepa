@@ -81,6 +81,17 @@ export interface DemoOffPriceAnalytics {
   }>
   /** Past + current year archives — durable history for download. */
   historical_years: DemoYearArchive[]
+  /** Month-by-month totals for the Monthly trend chart. */
+  historical_months: DemoMonthPoint[]
+}
+
+export interface DemoMonthPoint {
+  year: number
+  month: number
+  period_key: string
+  period_label: string
+  total_off_price_count: number
+  total_run_count: number
 }
 
 function pct(part: number, whole: number): number {
@@ -267,6 +278,64 @@ function historicalHitsForYear(year: number): Record<string, number> {
     hits[code] = Math.max(40, Math.round(base * factor + wobble * 8))
   }
   return hits
+}
+
+/** Demo month span ending at the current demo month (Jul 2026). */
+export const DEMO_ANALYTICS_CURRENT_MONTH = 7
+export const DEMO_HISTORICAL_MONTH_COUNT = 24
+
+const MONTH_SHORT = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
+
+function historicalHitsForMonth(year: number, month: number): number {
+  // Seasonal-ish demo curve: summer higher, winter lower, mild year-over-year growth.
+  const yearsBack = DEMO_ANALYTICS_CURRENT_YEAR - year
+  const season = 0.82 + 0.28 * Math.sin(((month - 3) / 12) * Math.PI * 2)
+  const growth = 1 + Math.max(0, 1.5 - yearsBack) * 0.06
+  const base = 2680
+  const wobble = ((year * 31 + month * 17) % 19) - 9
+  return Math.max(400, Math.round(base * season * growth + wobble * 22))
+}
+
+function buildHistoricalMonths(currentMonthTotal: number, currentMonthRuns: number): DemoMonthPoint[] {
+  const points: DemoMonthPoint[] = []
+  let year = DEMO_ANALYTICS_CURRENT_YEAR
+  let month = DEMO_ANALYTICS_CURRENT_MONTH
+
+  for (let i = 0; i < DEMO_HISTORICAL_MONTH_COUNT; i++) {
+    const isCurrent = i === 0
+    const hits = isCurrent ? currentMonthTotal : historicalHitsForMonth(year, month)
+    const runs = isCurrent
+      ? currentMonthRuns
+      : 140 + ((year * 5 + month * 11) % 80)
+    points.push({
+      year,
+      month,
+      period_key: `${year}-${String(month).padStart(2, '0')}`,
+      period_label: `${MONTH_SHORT[month - 1]} ${year}`,
+      total_off_price_count: hits,
+      total_run_count: runs,
+    })
+    month -= 1
+    if (month < 1) {
+      month = 12
+      year -= 1
+    }
+  }
+
+  return points.reverse()
 }
 
 function buildHistoricalYears(currentYearVendors: DemoVendorAnalytics[]): DemoYearArchive[] {
@@ -512,5 +581,9 @@ export function buildDemoOffPriceAnalytics(): DemoOffPriceAnalytics {
     vendors,
     top_sellers_overall,
     historical_years: buildHistoricalYears(vendors),
+    historical_months: buildHistoricalMonths(
+      grand.monthly,
+      RAW.reduce((s, v) => s + v.runs.m, 0),
+    ),
   }
 }
