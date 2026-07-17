@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
@@ -17,15 +18,44 @@ from app.utils.email_recipient_utils import parse_recipient_csv
 logger = logging.getLogger(__name__)
 
 _category_daily_run_locks: dict[str, asyncio.Lock] = {}
+_JOB_DATE_RE = re.compile(r"(20\d{2}-\d{2}-\d{2})\s*$")
 
 
 def _uploaded_daily_job_name_prefix(category: str) -> str:
     return f"Daily {category.strip().upper()} Uploaded Report"
 
 
+def _normalize_vendor(category: Optional[str]) -> str:
+    return (category or "").strip().lower()
+
+
+def daily_run_kind_from_job_name(job_name: Optional[str]) -> str:
+    name = (job_name or "").strip()
+    if "Uploaded Report" in name:
+        return "uploaded"
+    return "api"
+
+
+def resolve_daily_run_date(job_data: dict) -> Optional[str]:
+    """YYYY-MM-DD for the daily run, from job_name or completed_at/created_at."""
+    name = str(job_data.get("job_name") or "")
+    match = _JOB_DATE_RE.search(name)
+    if match:
+        return match.group(1)
+    for key in ("completed_at", "created_at"):
+        raw = job_data.get(key)
+        if not raw:
+            continue
+        try:
+            return str(raw)[:10]
+        except Exception:
+            continue
+    return None
+
+
 async def try_acquire_category_daily_run_lock(category: str) -> bool:
     """Return False when another daily run for this vendor is already executing."""
-    normalized = (category or "").strip().lower()
+    normalized = _normalize_vendor(category)
     lock = _category_daily_run_locks.setdefault(normalized, asyncio.Lock())
     if lock.locked():
         return False
@@ -34,7 +64,7 @@ async def try_acquire_category_daily_run_lock(category: str) -> bool:
 
 
 def release_category_daily_run_lock(category: str) -> None:
-    normalized = (category or "").strip().lower()
+    normalized = _normalize_vendor(category)
     lock = _category_daily_run_locks.get(normalized)
     if lock and lock.locked():
         lock.release()
@@ -76,8 +106,69 @@ def uploaded_daily_run_in_progress(db: Client, category: str) -> bool:
         return False
 
 
+def daily_run_email_already_claimed(
+    db: Client,
+    category: str,
+    run_date: str,
+    *,
+    run_kind: str = "uploaded",
+) -> bool:
+    """True when a completion email claim already exists for this vendor/day/kind."""
+    vendor = _normalize_vendor(category)
+    kind = (run_kind or "uploaded").strip().lower()
+    if kind not in {"uploaded", "api"}:
+        kind = "uploaded"
+    try:
+        resp = (
+            db.table("daily_run_email_claims")
+            .select("vendor_code")
+            .eq("vendor_code", vendor)
+            .eq("run_date", run_date)
+            .eq("run_kind", kind)
+            .limit(1)
+            .execute()
+        )
+        return bool(resp.data)
+    except Exception as exc:
+        logger.warning(
+            "Could not check daily_run_email_claims for %s %s %s: %s",
+            vendor,
+            run_date,
+            kind,
+            exc,
+        )
+        # Fallback: any sibling job already marked emailed
+        return _sibling_completion_email_sent(db, vendor, run_date, kind)
+
+
+def _sibling_completion_email_sent(
+    db: Client,
+    vendor: str,
+    run_date: str,
+    run_kind: str,
+) -> bool:
+    """Best-effort fallback when the claims table is missing."""
+    if run_kind == "uploaded":
+        prefix = f"Daily {vendor.upper()} Uploaded Report - {run_date}"
+    else:
+        prefix = f"Daily {vendor.upper()} Off Price Report - {run_date}"
+    try:
+        resp = (
+            db.table("batch_jobs")
+            .select("id")
+            .ilike("job_name", f"{prefix}%")
+            .not_.is_("completion_email_sent_at", "null")
+            .limit(1)
+            .execute()
+        )
+        return bool(resp.data)
+    except Exception as exc:
+        logger.warning("Sibling email check failed for %s: %s", vendor, exc)
+        return False
+
+
 def claim_completion_email_send(db: Client, job_id: str) -> bool:
-    """Atomically mark a job so only one completion email is ever sent."""
+    """Atomically mark a job so only one completion email is ever sent for that job."""
     now = datetime.utcnow().isoformat()
     try:
         resp = (
@@ -93,6 +184,62 @@ def claim_completion_email_send(db: Client, job_id: str) -> bool:
         return False
 
 
+def claim_daily_run_email_for_vendor_day(
+    db: Client,
+    *,
+    vendor: str,
+    run_date: str,
+    run_kind: str,
+    job_id: str,
+) -> bool:
+    """
+    Atomically claim the single completion email slot for vendor + day + kind.
+
+    Returns True only for the first successful claim (across jobs/workers).
+    """
+    vendor_code = _normalize_vendor(vendor)
+    kind = (run_kind or "uploaded").strip().lower()
+    if kind not in {"uploaded", "api"}:
+        kind = "uploaded"
+    if not vendor_code or not run_date:
+        return True  # cannot enforce; allow per-job claim to govern
+
+    payload = {
+        "vendor_code": vendor_code,
+        "run_date": run_date,
+        "run_kind": kind,
+        "job_id": job_id,
+        "claimed_at": datetime.utcnow().isoformat(),
+    }
+    try:
+        resp = db.table("daily_run_email_claims").insert(payload).execute()
+        return bool(resp.data)
+    except Exception as exc:
+        # Unique violation / already claimed → skip duplicate send
+        msg = str(exc).lower()
+        if "duplicate" in msg or "unique" in msg or "23505" in msg:
+            logger.info(
+                "Daily run email already claimed for %s %s (%s); skipping job %s",
+                vendor_code.upper(),
+                run_date,
+                kind,
+                job_id,
+            )
+            return False
+        logger.warning(
+            "daily_run_email_claims insert failed for %s %s: %s — using sibling fallback",
+            vendor_code,
+            run_date,
+            exc,
+        )
+        if _sibling_completion_email_sent(db, vendor_code, run_date, kind):
+            # Another job already emailed; this job claimed its own completion_email_sent_at
+            # but must not send a second message.
+            return False
+        # Table missing / other errors: allow send once per job only
+        return True
+
+
 def send_daily_run_completion_email_for_job(
     db: Client,
     job_id: UUID,
@@ -101,7 +248,7 @@ def send_daily_run_completion_email_for_job(
     email_body_template: Optional[str] = None,
 ) -> bool:
     """
-    Generate the off-price CSV and email it once per job.
+    Generate the off-price CSV and email it once per job and once per vendor/day.
 
     Returns True when an email was sent, False when skipped or already sent.
     """
@@ -130,6 +277,26 @@ def send_daily_run_completion_email_for_job(
     recipient_csv = job_data.get("email_recipients")
     bcc_csv = job_data.get("email_bcc_recipients")
     is_daily_run = JobRepository._is_daily_run_job(job_name)
+
+    if is_daily_run:
+        run_kind = daily_run_kind_from_job_name(job_name)
+        run_date = resolve_daily_run_date(job_data)
+        claim_vendor = vendor or _vendor_from_daily_job_name(job_name)
+        if claim_vendor and run_date:
+            if not claim_daily_run_email_for_vendor_day(
+                db,
+                vendor=claim_vendor,
+                run_date=run_date,
+                run_kind=run_kind,
+                job_id=job_id_str,
+            ):
+                logger.info(
+                    "Skipping duplicate daily completion email for %s on %s (job %s)",
+                    claim_vendor.upper(),
+                    run_date,
+                    job_id_str,
+                )
+                return False
 
     recipient_csv = recipient_csv if recipient_csv and str(recipient_csv).strip() else None
     bcc_list = parse_recipient_csv(
@@ -167,3 +334,11 @@ def send_daily_run_completion_email_for_job(
     else:
         logger.error("Failed to send completion email for job %s", job_id_str)
     return sent
+
+
+def _vendor_from_daily_job_name(job_name: str) -> Optional[str]:
+    # "Daily CLK Uploaded Report - 2026-07-02" / "Daily BOR Off Price Report - ..."
+    parts = (job_name or "").split()
+    if len(parts) >= 2 and parts[0].lower() == "daily":
+        return parts[1].strip().lower() or None
+    return None

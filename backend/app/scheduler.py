@@ -12,10 +12,12 @@ from app.repositories.upc_repository import UPCRepository
 from app.repositories.map_repository import MAPRepository
 from app.services.batch_processor import BatchProcessor
 from app.services.daily_run_completion import (
+    daily_run_email_already_claimed,
     release_category_daily_run_lock,
     scheduled_uploaded_run_completed_today,
     send_daily_run_completion_email_for_job,
     try_acquire_category_daily_run_lock,
+    uploaded_daily_run_in_progress,
 )
 from app.utils.notifications import create_notification, create_completion_notifications_for_all_profiles
 from typing import Any, List, Optional
@@ -477,7 +479,24 @@ async def _run_daily_job_for_category_impl(category: str = 'dnk', forced_input_m
                     run_date,
                 )
                 return
-        
+            if await _run_sync(lambda: uploaded_daily_run_in_progress(db, category)):
+                logger.info(
+                    "Skipping scheduled %s import run — an uploaded daily job is already in progress",
+                    category.upper(),
+                )
+                return
+            if await _run_sync(
+                lambda: daily_run_email_already_claimed(
+                    db, category, run_date, run_kind="uploaded"
+                )
+            ):
+                logger.info(
+                    "Skipping scheduled %s import run — completion email already claimed for %s",
+                    category.upper(),
+                    run_date,
+                )
+                return
+
         # Get admin user ID (or system user)
         profiles_response = await _run_sync(
             lambda: db.table("profiles").select("id").eq("role", "admin").limit(1).execute()
