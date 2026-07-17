@@ -1,4 +1,4 @@
-"""Off-price listing analytics from daily-run jobs (dev feature).
+"""Off-price listing analytics from daily-run jobs (web feature).
 
 Aggregates ``price_alerts`` produced by completed Daily Runs for all vendors
 (active and inactive). Express Jobs are never included.

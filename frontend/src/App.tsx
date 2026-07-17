@@ -27,7 +27,7 @@ import { isUserHiddenFromFeedbackPage } from './constants/feedbackAccess'
 import { getLastPrivatePath, getCurrentRememberedPath, setLastPrivatePath } from './lib/privatePath'
 import { WAREHOUSE_HOME_PATH, isWarehouseAllowedPath } from './constants/warehouseAccess'
 import { isDevAuthBypass } from './lib/devAuth'
-import { isDevAnalyticsEnabled } from './lib/devFeatures'
+import { isWebAnalyticsEnabled } from './lib/devFeatures'
 
 // Lazy load page components for code splitting (About is eager so its chunk cannot 404 behind stale CDN/cache)
 const Landing = lazy(() => import('./components/Landing'))
@@ -444,7 +444,7 @@ function AppRoutes() {
           <Route path="tools/job-aids" element={<Navigate to="/faq" replace />} />
           <Route path="tools/my-toolbox" element={<Navigate to="/dashboard" replace />} />
           <Route path="admin/users" element={<UserManagement />} />
-          {isDevAnalyticsEnabled() && (
+          {isWebAnalyticsEnabled() && (
             <Route
               path="analytics"
               element={

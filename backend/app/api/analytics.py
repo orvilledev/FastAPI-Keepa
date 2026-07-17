@@ -1,4 +1,4 @@
-"""Dev-only off-price analytics API (independent of dashboard/reports)."""
+"""Off-price analytics API (web app; independent of dashboard/reports)."""
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from typing import List, Literal, Optional
@@ -23,13 +23,13 @@ router = APIRouter()
 PeriodParam = Literal["daily", "weekly", "monthly", "yearly"]
 
 
-def _require_dev_analytics() -> None:
-    """Gate this feature to local/development environments only."""
+def _require_dev_seed() -> None:
+    """Demo history seeding stays local/development-only."""
     env = (settings.environment or "").strip().lower()
     if env not in {"development", "dev", "local"}:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Analytics is only available in development",
+            detail="Demo history seeding is only available in development",
         )
 
 
@@ -85,7 +85,6 @@ def get_off_price_analytics(
     db: Client = Depends(get_supabase),
 ):
     """Period counts using the current user's personal tracking preferences."""
-    _require_dev_analytics()
     service = OffPriceAnalyticsService(db)
     return service.get_off_price_summary(
         period,
@@ -103,7 +102,6 @@ def list_off_price_analytics_archives(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
-    _require_dev_analytics()
     service = OffPriceAnalyticsService(db)
     return service.list_archives(period_type=period_type, limit=limit)
 
@@ -116,7 +114,6 @@ def get_off_price_analytics_archive(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
-    _require_dev_analytics()
     service = OffPriceAnalyticsService(db)
     row = service.get_archive(period_type, period_key)
     if not row:
@@ -133,7 +130,7 @@ def seed_demo_off_price_history(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
-    _require_dev_analytics()
+    _require_dev_seed()
     service = OffPriceAnalyticsService(db)
     return service.seed_demo_history()
 
@@ -145,7 +142,6 @@ def list_analytics_tracking(
     db: Client = Depends(get_supabase),
 ):
     """List this user's personal per-vendor analytics tracking toggles."""
-    _require_dev_analytics()
     repo = OffPriceAnalyticsUserTrackingRepository(db)
     return {"vendors": repo.list_settings(_user_id(current_user))}
 
@@ -164,7 +160,6 @@ def update_analytics_tracking(
     Does not change other users' preferences, Daily Run scheduler, Express Jobs,
     or historical shared archives.
     """
-    _require_dev_analytics()
     repo = OffPriceAnalyticsUserTrackingRepository(db)
     try:
         return repo.set_tracking(_user_id(current_user), vendor_code, enabled)
@@ -189,7 +184,6 @@ def list_analytics_download_logs(
     db: Client = Depends(get_supabase),
 ):
     """Shared audit trail of who downloaded which vendor analytics and when."""
-    _require_dev_analytics()
     repo = OffPriceAnalyticsDownloadLogRepository(db)
     try:
         return {"logs": repo.list_logs(limit=limit), "available": True}
@@ -205,7 +199,6 @@ def record_analytics_download_log(
     db: Client = Depends(get_supabase),
 ):
     """Record that the current user downloaded an analytics Excel report."""
-    _require_dev_analytics()
     codes = [c.strip().lower() for c in body.vendor_codes if c.strip().lower() in VENDOR_CODES]
     repo = OffPriceAnalyticsDownloadLogRepository(db)
     try:

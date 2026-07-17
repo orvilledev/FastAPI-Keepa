@@ -279,6 +279,6 @@ app.include_router(feedback.router, prefix=settings.api_v1_str, tags=["feedback"
 app.include_router(tracking_scanner.router, prefix=settings.api_v1_str, tags=["tracking-scanner"], dependencies=[Depends(require_app_access)])
 app.include_router(warehouse_products.router, prefix=settings.api_v1_str, tags=["warehouse-products"], dependencies=[Depends(require_app_access)])
 app.include_router(keepa_import_export.router, prefix=settings.api_v1_str, tags=["keepa-import-export"], dependencies=[Depends(require_app_access)])
-# Dev-only off-price analytics (router itself 404s outside development)
+# Off-price analytics (web). Electron hides the UI; API remains auth-gated.
 app.include_router(analytics.router, prefix=settings.api_v1_str, tags=["analytics"], dependencies=[Depends(require_app_access)])
 
