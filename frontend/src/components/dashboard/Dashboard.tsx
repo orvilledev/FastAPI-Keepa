@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import VendorRunCard from './VendorRunCard'
+import DancingCapybaraReminderModal, {
+  useDailyRunCapybaraReminder,
+} from './DancingCapybaraReminderModal'
 import { schedulerApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
 import { getDevBypassCalendarVendors, isDevAuthBypass } from '../../lib/devAuth'
+import {
+  loadReminderVendors,
+  setReminderVendorEnabled,
+  type ReminderVendorCode,
+} from '../../lib/dailyRunReminderPrefs'
 
 type VendorCategory = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
 const VENDOR_ORDER: VendorCategory[] = ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha']
@@ -29,13 +37,33 @@ function FallbackVendorCard({ category }: { category: VendorCategory }) {
 }
 
 export default function Dashboard() {
-  const { hasKeepaAccess, displayName, userInfoLoading, userInfo, refetchUserInfo } = useUser()
+  const { hasKeepaAccess, displayName, userInfoLoading, userInfo, authUser, refetchUserInfo } = useUser()
+  const userId = userInfo?.id || authUser?.id || 'anonymous'
   const [greeting, setGreeting] = useState('')
   const [statusLoading, setStatusLoading] = useState(true)
   const [statusError, setStatusError] = useState<string | null>(null)
   const [activeCategories, setActiveCategories] = useState<Set<VendorCategory>>(new Set())
   const [vendorData, setVendorData] = useState<Record<string, CalendarVendor>>({})
   const [nowMs, setNowMs] = useState(Date.now())
+  const [reminderVendors, setReminderVendors] = useState<Set<ReminderVendorCode>>(() =>
+    loadReminderVendors(userId),
+  )
+
+  useEffect(() => {
+    setReminderVendors(loadReminderVendors(userId))
+  }, [userId])
+
+  const handleReminderToggle = (category: VendorCategory, enabled: boolean) => {
+    const next = setReminderVendorEnabled(userId, category, enabled)
+    setReminderVendors(new Set(next))
+  }
+
+  const { alert, dismiss, snooze } = useDailyRunCapybaraReminder({
+    userId,
+    enabledVendors: reminderVendors,
+    vendorData,
+    nowMs,
+  })
 
   // Load profile if MFA completed but context missed the API response
   useEffect(() => {
@@ -139,16 +167,88 @@ export default function Dashboard() {
 
   const vendorWidgetsByCategory = useMemo<Record<VendorCategory, React.ReactNode>>(
     () => ({
-      dnk: vendorData.dnk ? <VendorRunCard vendor={vendorData.dnk} nowMs={nowMs} /> : <FallbackVendorCard category="dnk" />,
-      clk: vendorData.clk ? <VendorRunCard vendor={vendorData.clk} nowMs={nowMs} /> : <FallbackVendorCard category="clk" />,
-      obz: vendorData.obz ? <VendorRunCard vendor={vendorData.obz} nowMs={nowMs} /> : <FallbackVendorCard category="obz" />,
-      ref: vendorData.ref ? <VendorRunCard vendor={vendorData.ref} nowMs={nowMs} /> : <FallbackVendorCard category="ref" />,
-      bor: vendorData.bor ? <VendorRunCard vendor={vendorData.bor} nowMs={nowMs} /> : <FallbackVendorCard category="bor" />,
-      sff: vendorData.sff ? <VendorRunCard vendor={vendorData.sff} nowMs={nowMs} /> : <FallbackVendorCard category="sff" />,
-      tev: vendorData.tev ? <VendorRunCard vendor={vendorData.tev} nowMs={nowMs} /> : <FallbackVendorCard category="tev" />,
-      cha: vendorData.cha ? <VendorRunCard vendor={vendorData.cha} nowMs={nowMs} /> : <FallbackVendorCard category="cha" />,
+      dnk: vendorData.dnk ? (
+        <VendorRunCard
+          vendor={vendorData.dnk}
+          nowMs={nowMs}
+          reminderEnabled={reminderVendors.has('dnk')}
+          onReminderToggle={(on) => handleReminderToggle('dnk', on)}
+        />
+      ) : (
+        <FallbackVendorCard category="dnk" />
+      ),
+      clk: vendorData.clk ? (
+        <VendorRunCard
+          vendor={vendorData.clk}
+          nowMs={nowMs}
+          reminderEnabled={reminderVendors.has('clk')}
+          onReminderToggle={(on) => handleReminderToggle('clk', on)}
+        />
+      ) : (
+        <FallbackVendorCard category="clk" />
+      ),
+      obz: vendorData.obz ? (
+        <VendorRunCard
+          vendor={vendorData.obz}
+          nowMs={nowMs}
+          reminderEnabled={reminderVendors.has('obz')}
+          onReminderToggle={(on) => handleReminderToggle('obz', on)}
+        />
+      ) : (
+        <FallbackVendorCard category="obz" />
+      ),
+      ref: vendorData.ref ? (
+        <VendorRunCard
+          vendor={vendorData.ref}
+          nowMs={nowMs}
+          reminderEnabled={reminderVendors.has('ref')}
+          onReminderToggle={(on) => handleReminderToggle('ref', on)}
+        />
+      ) : (
+        <FallbackVendorCard category="ref" />
+      ),
+      bor: vendorData.bor ? (
+        <VendorRunCard
+          vendor={vendorData.bor}
+          nowMs={nowMs}
+          reminderEnabled={reminderVendors.has('bor')}
+          onReminderToggle={(on) => handleReminderToggle('bor', on)}
+        />
+      ) : (
+        <FallbackVendorCard category="bor" />
+      ),
+      sff: vendorData.sff ? (
+        <VendorRunCard
+          vendor={vendorData.sff}
+          nowMs={nowMs}
+          reminderEnabled={reminderVendors.has('sff')}
+          onReminderToggle={(on) => handleReminderToggle('sff', on)}
+        />
+      ) : (
+        <FallbackVendorCard category="sff" />
+      ),
+      tev: vendorData.tev ? (
+        <VendorRunCard
+          vendor={vendorData.tev}
+          nowMs={nowMs}
+          reminderEnabled={reminderVendors.has('tev')}
+          onReminderToggle={(on) => handleReminderToggle('tev', on)}
+        />
+      ) : (
+        <FallbackVendorCard category="tev" />
+      ),
+      cha: vendorData.cha ? (
+        <VendorRunCard
+          vendor={vendorData.cha}
+          nowMs={nowMs}
+          reminderEnabled={reminderVendors.has('cha')}
+          onReminderToggle={(on) => handleReminderToggle('cha', on)}
+        />
+      ) : (
+        <FallbackVendorCard category="cha" />
+      ),
     }),
-    [vendorData, nowMs]
+    [vendorData, nowMs, reminderVendors, userId],
   )
 
   const activeVendorOrder = VENDOR_ORDER.filter((category) => activeCategories.has(category))
@@ -156,6 +256,8 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <DancingCapybaraReminderModal alert={alert} onDismiss={dismiss} onSnooze={snooze} />
+
       {userInfoLoading && (
         <p className="text-sm text-gray-500">Loading your profile…</p>
       )}
@@ -225,4 +327,3 @@ export default function Dashboard() {
     </div>
   )
 }
-

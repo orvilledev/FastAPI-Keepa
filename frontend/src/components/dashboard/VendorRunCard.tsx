@@ -34,7 +34,18 @@ const LABELS: Record<VendorCategory, string> = {
   cha: 'CHA',
 }
 
-export default function VendorRunCard({ vendor, nowMs }: { vendor: CalendarVendor; nowMs: number }) {
+export default function VendorRunCard({
+  vendor,
+  nowMs,
+  reminderEnabled = false,
+  onReminderToggle,
+}: {
+  vendor: CalendarVendor
+  nowMs: number
+  /** Opt-in T-30 dancing-capybara reminder for this vendor only */
+  reminderEnabled?: boolean
+  onReminderToggle?: (enabled: boolean) => void
+}) {
   const category = (vendor.category || '').toLowerCase() as VendorCategory
   const code = LABELS[category] || String(vendor.category || '').toUpperCase()
   const inputMode = (vendor.input_mode || 'api') === 'uploaded' ? 'uploaded' : 'api'
@@ -147,6 +158,29 @@ export default function VendorRunCard({ vendor, nowMs }: { vendor: CalendarVendo
               {hasActiveCountdown ? '● Active' : '○ Inactive'}
             </span>
           </div>
+          {onReminderToggle && (
+            <div className="mt-3 flex items-center gap-2 sm:justify-end">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={reminderEnabled}
+                aria-label={`Remind me 30 minutes before ${code} Daily Run`}
+                onClick={() => onReminderToggle(!reminderEnabled)}
+                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 ${
+                  reminderEnabled ? 'bg-[#81B81D]' : 'bg-white/25'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    reminderEnabled ? 'translate-x-4' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+              <span className="text-xs text-white/80">
+                {reminderEnabled ? 'Capybara at 30 min' : 'Remind at 30 min'}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>
