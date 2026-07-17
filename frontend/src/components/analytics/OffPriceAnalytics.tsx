@@ -26,6 +26,7 @@ import {
   buildOffPriceAnalyticsExcelBlob,
   offPriceAnalyticsExcelFilename,
 } from '../../utils/exportOffPriceAnalyticsExcel'
+import EmailRecipientsPicker from '../jobs/EmailRecipientsPicker'
 
 const CHART_BLUE = '#3b9dd0'
 const CHART_PINK = '#FA6781'
@@ -264,6 +265,12 @@ export default function OffPriceAnalytics() {
   const [showTrackingPanel, setShowTrackingPanel] = useState(false)
   const [showDownloadModal, setShowDownloadModal] = useState(false)
   const [downloadSelection, setDownloadSelection] = useState<Record<string, boolean>>({})
+  const [showEmailModal, setShowEmailModal] = useState(false)
+  const [emailSelection, setEmailSelection] = useState<Record<string, boolean>>({})
+  const [emailRecipients, setEmailRecipients] = useState('')
+  const [emailBccRecipients, setEmailBccRecipients] = useState('')
+  const [emailSending, setEmailSending] = useState(false)
+  const [emailStatus, setEmailStatus] = useState<string | null>(null)
   const [showDownloadLogs, setShowDownloadLogs] = useState(false)
   const [downloadLogs, setDownloadLogs] = useState<DownloadLogEntry[]>(() => loadLocalDownloadLogs())
 
@@ -394,9 +401,28 @@ export default function OffPriceAnalytics() {
     setShowDownloadModal(true)
   }
 
+  const openEmailModal = () => {
+    const initial = Object.fromEntries(
+      vendorCodes.map((c) => [c, tracking[c] !== false]),
+    )
+    if (!Object.values(initial).some(Boolean)) {
+      for (const c of vendorCodes) initial[c] = true
+    }
+    setEmailSelection(initial)
+    setEmailRecipients('')
+    setEmailBccRecipients('')
+    setEmailStatus(null)
+    setShowEmailModal(true)
+  }
+
   const selectedDownloadCodes = useMemo(
     () => vendorCodes.filter((c) => downloadSelection[c]),
     [vendorCodes, downloadSelection],
+  )
+
+  const selectedEmailCodes = useMemo(
+    () => vendorCodes.filter((c) => emailSelection[c]),
+    [vendorCodes, emailSelection],
   )
 
   const handleConfirmDownload = async () => {
@@ -442,6 +468,64 @@ export default function OffPriceAnalytics() {
       setShowDownloadModal(false)
     } finally {
       setDownloading(false)
+    }
+  }
+
+  const handleConfirmEmail = async () => {
+    if (selectedEmailCodes.length === 0) return
+    const to = emailRecipients.trim()
+    const bcc = emailBccRecipients.trim()
+    if (!to && !bcc) {
+      setEmailStatus('Select at least one To or BCC recipient.')
+      return
+    }
+    setEmailSending(true)
+    setEmailStatus(null)
+    try {
+      const codes =
+        selectedEmailCodes.length >= vendorCodes.length ? vendorCodes : selectedEmailCodes
+      const blob = buildOffPriceAnalyticsExcelBlob(data, { vendorCodes: codes })
+      const filename = offPriceAnalyticsExcelFilename(data.as_of, codes)
+      const result = await analyticsApi.emailReport({
+        file: blob,
+        filename,
+        email_recipients: to,
+        email_bcc_recipients: bcc || undefined,
+        vendor_codes: codes,
+        period,
+      })
+
+      const scope: 'all' | 'selected' = codes.length >= vendorCodes.length ? 'all' : 'selected'
+      const entry: DownloadLogEntry = {
+        user_display_name: userLabel,
+        user_email: userInfo?.email || authUser?.email || null,
+        vendor_codes: codes,
+        vendor_scope: scope,
+        vendor_label: formatVendorScopeLabel(codes, vendorNames),
+        filename: `emailed:${result.filename || filename}`,
+        period,
+        downloaded_at: new Date().toISOString(),
+      }
+      saveLocalDownloadLog(entry)
+      setDownloadLogs((prev) => [entry, ...prev].slice(0, 100))
+
+      setEmailStatus(
+        `Sent to ${result.to_count} To` +
+          (result.bcc_count ? ` and ${result.bcc_count} BCC` : '') +
+          ' recipient(s).',
+      )
+      setTimeout(() => {
+        setShowEmailModal(false)
+        setEmailStatus(null)
+      }, 1200)
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        (err as Error)?.message ||
+        'Failed to send email'
+      setEmailStatus(String(detail))
+    } finally {
+      setEmailSending(false)
     }
   }
 
@@ -594,22 +678,40 @@ export default function OffPriceAnalytics() {
             )}
           </div>
           <div className="flex flex-col items-stretch gap-3 sm:items-end">
-            <button
-              type="button"
-              onClick={openDownloadModal}
-              disabled={downloading}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#404040] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2e2e2e] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white"
-            >
-              <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"
-                />
-              </svg>
-              {downloading ? 'Preparing…' : 'Download Excel'}
-            </button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <button
+                type="button"
+                onClick={openDownloadModal}
+                disabled={downloading || emailSending}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#404040] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2e2e2e] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white"
+              >
+                <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"
+                  />
+                </svg>
+                {downloading ? 'Preparing…' : 'Download Excel'}
+              </button>
+              <button
+                type="button"
+                onClick={openEmailModal}
+                disabled={downloading || emailSending}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#3b9dd0] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2f8bbc] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-[#3b9dd0] dark:hover:bg-[#4aadde]"
+              >
+                <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                  />
+                </svg>
+                {emailSending ? 'Sending…' : 'Email Report'}
+              </button>
+            </div>
             <div className="text-left sm:text-right">
               <p className="text-sm font-medium text-gray-900 dark:text-content-primary">
                 {showingHistoricalYear
@@ -813,6 +915,131 @@ export default function OffPriceAnalytics() {
                       : selectedDownloadCodes.length === 1
                         ? `Download ${selectedDownloadCodes[0].toUpperCase()}`
                         : `Download ${selectedDownloadCodes.length} vendors`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showEmailModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="email-analytics-title"
+            onClick={() => !emailSending && setShowEmailModal(false)}
+          >
+            <div
+              className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-xl bg-white shadow-xl dark:bg-surface"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="border-b border-gray-200 px-5 py-4 dark:border-border">
+                <h2
+                  id="email-analytics-title"
+                  className="text-lg font-semibold text-gray-900 dark:text-content-primary"
+                >
+                  Email Report
+                </h2>
+                <p className="mt-1 text-xs text-gray-500 dark:text-content-muted">
+                  Choose vendors and recipients. Uses Analytics email only — does not affect Daily
+                  Run or Express Job emails.
+                </p>
+              </div>
+              <div className="space-y-4 overflow-y-auto px-5 py-4">
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-content-muted">
+                    Vendors
+                  </p>
+                  <div className="mb-2 flex gap-2">
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-gray-600 underline dark:text-content-secondary"
+                      onClick={() =>
+                        setEmailSelection(Object.fromEntries(vendorCodes.map((c) => [c, true])))
+                      }
+                    >
+                      Select all
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-gray-600 underline dark:text-content-secondary"
+                      onClick={() =>
+                        setEmailSelection(Object.fromEntries(vendorCodes.map((c) => [c, false])))
+                      }
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-gray-100 p-2 dark:border-border">
+                    {data.vendors.map((vendor) => (
+                      <label
+                        key={vendor.code}
+                        className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-surface-hover"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={Boolean(emailSelection[vendor.code])}
+                          onChange={(e) =>
+                            setEmailSelection((prev) => ({
+                              ...prev,
+                              [vendor.code]: e.target.checked,
+                            }))
+                          }
+                          className="h-4 w-4 rounded border-gray-300 text-[#3b9dd0] focus:ring-[#3b9dd0]"
+                        />
+                        <span className="text-sm text-gray-900 dark:text-content-primary">
+                          {vendor.name}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-content-muted">
+                    Recipients
+                  </p>
+                  <EmailRecipientsPicker
+                    value={emailRecipients}
+                    bccValue={emailBccRecipients}
+                    onChange={setEmailRecipients}
+                    onBccChange={setEmailBccRecipients}
+                    emptyMeansNoRecipients
+                    allowVendorBcc
+                    disabled={emailSending}
+                  />
+                </div>
+                {emailStatus && (
+                  <p
+                    className={`text-sm ${
+                      emailStatus.startsWith('Sent')
+                        ? 'text-emerald-700 dark:text-emerald-400'
+                        : 'text-amber-800 dark:text-amber-300'
+                    }`}
+                  >
+                    {emailStatus}
+                  </p>
+                )}
+              </div>
+              <div className="flex justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-border">
+                <button
+                  type="button"
+                  disabled={emailSending}
+                  onClick={() => setShowEmailModal(false)}
+                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-border dark:text-content-secondary dark:hover:bg-surface-hover"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    emailSending ||
+                    selectedEmailCodes.length === 0 ||
+                    (!emailRecipients.trim() && !emailBccRecipients.trim())
+                  }
+                  onClick={() => void handleConfirmEmail()}
+                  className="rounded-lg bg-[#3b9dd0] px-4 py-2 text-sm font-medium text-white hover:bg-[#2f8bbc] disabled:opacity-50"
+                >
+                  {emailSending ? 'Sending…' : 'Send email'}
                 </button>
               </div>
             </div>

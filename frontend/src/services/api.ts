@@ -1308,6 +1308,31 @@ export const analyticsApi = {
     const response = await api.post('/api/v1/analytics/off-price/download-logs', body)
     return response.data
   },
+
+  emailReport: async (body: {
+    file: Blob
+    filename: string
+    email_recipients: string
+    email_bcc_recipients?: string
+    vendor_codes: string[]
+    period?: string
+  }) => {
+    const form = new FormData()
+    form.append('file', body.file, body.filename)
+    form.append('filename', body.filename)
+    form.append('email_recipients', body.email_recipients || '')
+    form.append('email_bcc_recipients', body.email_bcc_recipients || '')
+    form.append('vendor_codes', body.vendor_codes.join(','))
+    form.append('period', body.period || '')
+    const response = await api.post<{
+      sent: boolean
+      filename: string
+      to_count: number
+      bcc_count: number
+      vendor_codes: string[]
+    }>('/api/v1/analytics/off-price/email-report', form)
+    return response.data
+  },
 }
 
 export interface FeedbackItem {
