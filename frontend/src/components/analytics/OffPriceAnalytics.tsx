@@ -25,7 +25,9 @@ import { analyticsApi } from '../../services/api'
 import { downloadBlob } from '../../utils/downloadLinkedFile'
 import {
   buildOffPriceAnalyticsExcelBlob,
+  formatEmailReportRangesLabel,
   offPriceAnalyticsExcelFilename,
+  parseHistoricalYearsInput,
 } from '../../utils/exportOffPriceAnalyticsExcel'
 import EmailRecipientsPicker from '../jobs/EmailRecipientsPicker'
 
@@ -268,6 +270,14 @@ export default function OffPriceAnalytics() {
   const [downloadSelection, setDownloadSelection] = useState<Record<string, boolean>>({})
   const [showEmailModal, setShowEmailModal] = useState(false)
   const [emailSelection, setEmailSelection] = useState<Record<string, boolean>>({})
+  const [emailPeriods, setEmailPeriods] = useState<Record<AnalyticsPeriod, boolean>>({
+    daily: true,
+    weekly: true,
+    monthly: true,
+    yearly: true,
+  })
+  const [emailIncludeHistorical, setEmailIncludeHistorical] = useState(false)
+  const [emailHistoricalYearsInput, setEmailHistoricalYearsInput] = useState('')
   const [emailRecipients, setEmailRecipients] = useState('')
   const [emailBccRecipients, setEmailBccRecipients] = useState('')
   const [emailSending, setEmailSending] = useState(false)
@@ -410,6 +420,18 @@ export default function OffPriceAnalytics() {
       for (const c of vendorCodes) initial[c] = true
     }
     setEmailSelection(initial)
+    const nextPeriods: Record<AnalyticsPeriod, boolean> = {
+      daily: period === 'daily',
+      weekly: period === 'weekly',
+      monthly: period === 'monthly',
+      yearly: period === 'yearly',
+    }
+    if (!Object.values(nextPeriods).some(Boolean)) {
+      nextPeriods.daily = true
+    }
+    setEmailPeriods(nextPeriods)
+    setEmailIncludeHistorical(false)
+    setEmailHistoricalYearsInput('')
     setEmailRecipients('')
     setEmailBccRecipients('')
     setEmailStatus(null)
@@ -425,6 +447,25 @@ export default function OffPriceAnalytics() {
     () => vendorCodes.filter((c) => emailSelection[c]),
     [vendorCodes, emailSelection],
   )
+
+  const selectedEmailPeriodList = useMemo(
+    () =>
+      (['daily', 'weekly', 'monthly', 'yearly'] as AnalyticsPeriod[]).filter(
+        (p) => emailPeriods[p],
+      ),
+    [emailPeriods],
+  )
+
+  const parsedEmailHistoricalYears = useMemo(() => {
+    if (!emailIncludeHistorical) return { years: [] as number[], unknown: [] as number[] }
+    return parseHistoricalYearsInput(
+      emailHistoricalYearsInput,
+      data.historical_years.map((y) => y.year),
+    )
+  }, [emailIncludeHistorical, emailHistoricalYearsInput, data.historical_years])
+
+  const emailHasReportRanges =
+    selectedEmailPeriodList.length > 0 || parsedEmailHistoricalYears.years.length > 0
 
   const handleConfirmDownload = async () => {
     if (selectedDownloadCodes.length === 0) return
@@ -480,12 +521,37 @@ export default function OffPriceAnalytics() {
       setEmailStatus('Select at least one To or BCC recipient.')
       return
     }
+    if (!emailHasReportRanges) {
+      setEmailStatus('Select at least one report range (period and/or historical years).')
+      return
+    }
+    if (emailIncludeHistorical && parsedEmailHistoricalYears.unknown.length > 0) {
+      setEmailStatus(
+        `Unknown year(s): ${parsedEmailHistoricalYears.unknown.join(', ')}. Available: ${data.historical_years
+          .map((y) => y.year)
+          .slice(0, 8)
+          .join(', ')}${data.historical_years.length > 8 ? '…' : ''}`,
+      )
+      return
+    }
+    if (emailIncludeHistorical && parsedEmailHistoricalYears.years.length === 0) {
+      setEmailStatus('Enter historical years separated by commas (e.g. 2024, 2025).')
+      return
+    }
     setEmailSending(true)
     setEmailStatus(null)
     try {
       const codes =
         selectedEmailCodes.length >= vendorCodes.length ? vendorCodes : selectedEmailCodes
-      const blob = buildOffPriceAnalyticsExcelBlob(data, { vendorCodes: codes })
+      const rangesLabel = formatEmailReportRangesLabel(
+        selectedEmailPeriodList,
+        parsedEmailHistoricalYears.years,
+      )
+      const blob = buildOffPriceAnalyticsExcelBlob(data, {
+        vendorCodes: codes,
+        periods: selectedEmailPeriodList,
+        historicalYears: parsedEmailHistoricalYears.years,
+      })
       const filename = offPriceAnalyticsExcelFilename(data.as_of, codes)
       const result = await analyticsApi.emailReport({
         file: blob,
@@ -493,7 +559,7 @@ export default function OffPriceAnalytics() {
         email_recipients: to,
         email_bcc_recipients: bcc || undefined,
         vendor_codes: codes,
-        period,
+        period: rangesLabel,
       })
 
       const scope: 'all' | 'selected' = codes.length >= vendorCodes.length ? 'all' : 'selected'
@@ -504,7 +570,7 @@ export default function OffPriceAnalytics() {
         vendor_scope: scope,
         vendor_label: formatVendorScopeLabel(codes, vendorNames),
         filename: `emailed:${result.filename || filename}`,
-        period,
+        period: rangesLabel,
         downloaded_at: new Date().toISOString(),
       }
       saveLocalDownloadLog(entry)
@@ -934,7 +1000,7 @@ export default function OffPriceAnalytics() {
             onClick={() => !emailSending && setShowEmailModal(false)}
           >
             <div
-              className="flex h-[min(90vh,40rem)] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl dark:bg-surface"
+              className="flex h-[min(90vh,44rem)] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl dark:bg-surface"
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
             >
@@ -946,8 +1012,8 @@ export default function OffPriceAnalytics() {
                   Email Report
                 </h2>
                 <p className="mt-1 text-xs text-gray-500 dark:text-content-muted">
-                  Choose vendors and recipients. Uses Analytics email only — does not affect Daily
-                  Run or Express Job emails.
+                  Choose vendors, report ranges, and recipients. Uses Analytics email only — does not
+                  affect Daily Run or Express Job emails.
                 </p>
               </div>
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
@@ -1001,6 +1067,83 @@ export default function OffPriceAnalytics() {
                 </div>
                 <div>
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-content-muted">
+                    Report ranges
+                  </p>
+                  <div className="space-y-2 rounded-lg border border-gray-100 p-3 dark:border-border">
+                    {(
+                      [
+                        ['daily', 'Daily'],
+                        ['weekly', 'Weekly'],
+                        ['monthly', 'Monthly'],
+                        ['yearly', 'Yearly'],
+                      ] as const
+                    ).map(([id, label]) => (
+                      <label
+                        key={id}
+                        className="flex cursor-pointer items-center gap-3 rounded-lg px-1 py-1 hover:bg-gray-50 dark:hover:bg-surface-hover"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={emailPeriods[id]}
+                          onChange={(e) =>
+                            setEmailPeriods((prev) => ({
+                              ...prev,
+                              [id]: e.target.checked,
+                            }))
+                          }
+                          className="h-4 w-4 rounded border-gray-300 text-[#3b9dd0] focus:ring-[#3b9dd0]"
+                        />
+                        <span className="min-w-0 flex-1 text-sm text-gray-900 dark:text-content-primary">
+                          {label}
+                        </span>
+                        <span className="truncate text-xs text-gray-500 dark:text-content-muted">
+                          {data.period_ranges[id]}
+                        </span>
+                      </label>
+                    ))}
+                    <label className="flex cursor-pointer items-start gap-3 rounded-lg px-1 py-1 hover:bg-gray-50 dark:hover:bg-surface-hover">
+                      <input
+                        type="checkbox"
+                        checked={emailIncludeHistorical}
+                        onChange={(e) => setEmailIncludeHistorical(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#3b9dd0] focus:ring-[#3b9dd0]"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm text-gray-900 dark:text-content-primary">
+                          Historical years
+                        </span>
+                        <span className="mt-0.5 block text-xs text-gray-500 dark:text-content-muted">
+                          Enter years separated by commas
+                          {data.historical_years.length
+                            ? ` (e.g. ${data.historical_years
+                                .slice(0, 3)
+                                .map((y) => y.year)
+                                .join(', ')})`
+                            : ''}
+                        </span>
+                      </span>
+                    </label>
+                    {emailIncludeHistorical && (
+                      <div className="pl-7">
+                        <input
+                          type="text"
+                          value={emailHistoricalYearsInput}
+                          onChange={(e) => setEmailHistoricalYearsInput(e.target.value)}
+                          placeholder="2024, 2025, 2026"
+                          disabled={emailSending}
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[#3b9dd0] focus:outline-none focus:ring-2 focus:ring-[#3b9dd0]/30 disabled:opacity-50 dark:border-border dark:bg-surface dark:text-content-primary"
+                        />
+                        {parsedEmailHistoricalYears.years.length > 0 && (
+                          <p className="mt-1.5 text-xs text-emerald-700 dark:text-emerald-400">
+                            Including {parsedEmailHistoricalYears.years.join(', ')}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-content-muted">
                     Recipients
                   </p>
                   <EmailRecipientsPicker
@@ -1040,6 +1183,7 @@ export default function OffPriceAnalytics() {
                   disabled={
                     emailSending ||
                     selectedEmailCodes.length === 0 ||
+                    !emailHasReportRanges ||
                     (!emailRecipients.trim() && !emailBccRecipients.trim())
                   }
                   onMouseDown={(e) => e.stopPropagation()}
