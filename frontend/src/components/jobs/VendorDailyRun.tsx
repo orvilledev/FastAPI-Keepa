@@ -1,7 +1,17 @@
-import { useEffect, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { authApi, schedulerApi } from '../../services/api'
 import type { SchedulerSettings } from '../../types'
 import EmailRecipientsPicker from './EmailRecipientsPicker'
+import DancingCapybaraReminderModal, {
+  useDailyRunCapybaraReminder,
+} from '../dashboard/DancingCapybaraReminderModal'
+import { useUser } from '../../contexts/UserContext'
+import {
+  loadReminderVendors,
+  setReminderVendorEnabled,
+  type ReminderVendorCode,
+} from '../../lib/dailyRunReminderPrefs'
+import { ensureReminderNotificationPermission } from '../../lib/dailyRunReminderNotify'
 
 type VendorCode = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
 
@@ -45,6 +55,10 @@ const EXCEL_EXTENSIONS = ['.xlsx', '.xls', '.xlsm', '.xlsb']
  */
 export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
   const VENDOR_UPPER = vendor.toUpperCase()
+  const { userInfo, authUser } = useUser()
+  const userId = userInfo?.id || authUser?.id || 'anonymous'
+  const [nowMs, setNowMs] = useState(Date.now())
+  const [reminderVendors, setReminderVendors] = useState(() => loadReminderVendors(userId))
 
   const [loading, setLoading] = useState(true)
   const [hasKeepaAccess, setHasKeepaAccess] = useState(false)
@@ -80,6 +94,19 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
   const [queueing, setQueueing] = useState(false)
   const [deletingUpload, setDeletingUpload] = useState(false)
 
+  // Same Day Run — one-off delay; does not change recurring schedule
+  const [sameDayHours, setSameDayHours] = useState(0)
+  const [sameDayMinutes, setSameDayMinutes] = useState(30)
+  const [sameDayPending, setSameDayPending] = useState<{
+    run_at: string
+    run_at_local: string
+    timezone: string
+    seconds_until: number
+  } | null>(null)
+  const [sameDayBusy, setSameDayBusy] = useState(false)
+  const [sameDayError, setSameDayError] = useState('')
+  const [sameDaySuccess, setSameDaySuccess] = useState('')
+
   const inputMode = schedulerSettings?.input_mode === 'uploaded' ? 'uploaded' : 'api'
   const isUploadMode = inputMode === 'uploaded'
   const normalizeRecipientString = (raw?: string | null) =>
@@ -96,10 +123,28 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
       normalizeRecipientString(schedulerSettings?.email_bcc_recipients)
 
   useEffect(() => {
+    setReminderVendors(loadReminderVendors(userId))
+  }, [userId])
+
+  useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  useEffect(() => {
     checkKeepaAccess()
     loadNextRun()
     loadSchedulerSettings()
+    void loadSameDayRun()
   }, [vendor])
+
+  useEffect(() => {
+    if (!sameDayPending) return
+    const id = setInterval(() => {
+      void loadSameDayRun()
+    }, 15_000)
+    return () => clearInterval(id)
+  }, [sameDayPending?.run_at, vendor])
 
   useEffect(() => {
     if (hasKeepaAccess) {
@@ -135,6 +180,76 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
       setNextRun(data)
     } catch (err: any) {
       console.error('Failed to load next run:', err)
+    }
+  }
+
+  const loadSameDayRun = async () => {
+    try {
+      const data = await schedulerApi.getSameDayRun(vendor)
+      setSameDayPending(data.pending)
+    } catch {
+      /* optional feature — ignore if backend not redeployed yet */
+    }
+  }
+
+  const applySameDayPreset = (hours: number, minutes: number) => {
+    setSameDayHours(hours)
+    setSameDayMinutes(minutes)
+    setSameDayError('')
+  }
+
+  const handleScheduleSameDayRun = async () => {
+    setSameDayError('')
+    setSameDaySuccess('')
+    const hours = Math.max(0, Math.min(23, Number(sameDayHours) || 0))
+    const minutes = Math.max(0, Math.min(59, Number(sameDayMinutes) || 0))
+    if (hours === 0 && minutes === 0) {
+      setSameDayError('Set at least 1 minute.')
+      return
+    }
+    setSameDayBusy(true)
+    try {
+      const result = await schedulerApi.scheduleSameDayRun(vendor, {
+        delay_hours: hours,
+        delay_minutes: minutes,
+      })
+      setSameDayPending({
+        run_at: result.run_at,
+        run_at_local: result.run_at_local,
+        timezone: result.timezone,
+        seconds_until: result.seconds_until,
+      })
+      setSameDaySuccess(
+        `${result.message} A dancing capybara will remind you within 30 minutes of that time.`,
+      )
+      // Opt this user into T-30 capybara for this vendor (local only).
+      const nextReminders = setReminderVendorEnabled(userId, vendor as ReminderVendorCode, true)
+      setReminderVendors(new Set(nextReminders))
+      void ensureReminderNotificationPermission()
+      setSuccess('')
+    } catch (err: any) {
+      setSameDayError(
+        err?.response?.data?.detail || err?.message || 'Failed to schedule Same Day Run',
+      )
+    } finally {
+      setSameDayBusy(false)
+    }
+  }
+
+  const handleCancelSameDayRun = async () => {
+    setSameDayError('')
+    setSameDaySuccess('')
+    setSameDayBusy(true)
+    try {
+      const result = await schedulerApi.cancelSameDayRun(vendor)
+      setSameDayPending(null)
+      setSameDaySuccess(result.message)
+    } catch (err: any) {
+      setSameDayError(
+        err?.response?.data?.detail || err?.message || 'Failed to cancel Same Day Run',
+      )
+    } finally {
+      setSameDayBusy(false)
     }
   }
 
@@ -453,6 +568,34 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
     }
   }
 
+  const reminderEnabledVendors = useMemo(() => {
+    const next = new Set(reminderVendors)
+    // Always watch this vendor for Same Day Run capybara while a one-off is pending
+    if (sameDayPending) next.add(vendor as ReminderVendorCode)
+    return next
+  }, [reminderVendors, sameDayPending, vendor])
+
+  const capybaraVendorData = useMemo(
+    () => ({
+      [vendor]: {
+        category: vendor,
+        enabled: schedulerSettings?.enabled !== false,
+        next_run_time: nextRun?.next_run_time ?? null,
+        scheduled_time: nextRun?.scheduled_time || '',
+        same_day_run_at: sameDayPending?.run_at ?? null,
+        same_day_run_at_local: sameDayPending?.run_at_local ?? null,
+      },
+    }),
+    [vendor, schedulerSettings?.enabled, nextRun, sameDayPending],
+  )
+
+  const { alert: capyAlert, dismiss: dismissCapy, snooze: snoozeCapy } = useDailyRunCapybaraReminder({
+    userId,
+    enabledVendors: reminderEnabledVendors,
+    vendorData: capybaraVendorData,
+    nowMs,
+  })
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -475,6 +618,8 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
 
   return (
     <div className="space-y-6">
+      <DancingCapybaraReminderModal alert={capyAlert} onDismiss={dismissCapy} onSnooze={snoozeCapy} />
+
       <div className="app-page-header flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">{VENDOR_UPPER} Daily Run</h1>
@@ -616,6 +761,121 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
           </div>
         </div>
       )}
+
+      {/* Same Day Run — isolated one-off; does not change recurring schedule */}
+      <div className="card p-6 border border-sky-200/80 bg-sky-50/40">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Same Day Run</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Schedule a one-off {VENDOR_UPPER} run after a delay you choose. Does not change your
+              recurring Daily Run time, days, or enable/disable setting.
+            </p>
+          </div>
+        </div>
+
+        {sameDayError && (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            {sameDayError}
+          </div>
+        )}
+        {sameDaySuccess && (
+          <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+            {sameDaySuccess}
+          </div>
+        )}
+
+        {sameDayPending ? (
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-gray-600">Queued for:</span>
+              <span className="font-medium text-gray-900">{sameDayPending.run_at_local}</span>
+            </div>
+            {sameDayPending.seconds_until > 0 && (
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-gray-600">Starts in:</span>
+                <span className="font-medium text-sky-800">
+                  {Math.floor(sameDayPending.seconds_until / 3600)}h{' '}
+                  {Math.floor((sameDayPending.seconds_until % 3600) / 60)}m
+                </span>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => void handleCancelSameDayRun()}
+              disabled={sameDayBusy}
+              className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50"
+            >
+              {sameDayBusy ? 'Cancelling…' : 'Cancel Same Day Run'}
+            </button>
+          </div>
+        ) : (
+          <div className="mt-4 space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: '15 min', h: 0, m: 15 },
+                { label: '30 min', h: 0, m: 30 },
+                { label: '1 hour', h: 1, m: 0 },
+                { label: '2 hours', h: 2, m: 0 },
+              ].map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => applySameDayPreset(p.h, p.m)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                    sameDayHours === p.h && sameDayMinutes === p.m
+                      ? 'bg-sky-700 text-white'
+                      : 'bg-white text-sky-900 ring-1 ring-sky-200 hover:bg-sky-100'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-gray-600">Hours</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={sameDayHours}
+                  onChange={(e) => setSameDayHours(Math.max(0, Math.min(23, Number(e.target.value) || 0)))}
+                  className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-gray-600">Minutes</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={59}
+                  value={sameDayMinutes}
+                  onChange={(e) =>
+                    setSameDayMinutes(Math.max(0, Math.min(59, Number(e.target.value) || 0)))
+                  }
+                  className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void handleScheduleSameDayRun()}
+                disabled={sameDayBusy}
+                className="rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-800 disabled:opacity-50"
+              >
+                {sameDayBusy
+                  ? 'Scheduling…'
+                  : `Schedule in ${sameDayHours}h ${sameDayMinutes}m`}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">
+              Must fire before midnight in the vendor timezone. Uses current API or Import mode when
+              it runs. A dancing capybara reminds you within 30 minutes of the Same Day start (OS
+              alert if the PWA is minimized).
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Upload Configuration card -- only when input mode is set to "uploaded".
           Switching to API mode automatically hides this and the scheduler reverts

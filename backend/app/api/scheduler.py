@@ -8,6 +8,9 @@ from app.scheduler import (
     pause_scheduler,
     run_daily_job_for_category,
     remember_input_mode,
+    schedule_same_day_run,
+    get_same_day_run,
+    cancel_same_day_run,
 )
 from app.database import get_supabase
 from app.services.daily_run_completion import uploaded_daily_run_in_progress
@@ -65,6 +68,12 @@ class SchedulerSettingsUpdate(BaseModel):
     # override and reverts that field to the built-in default at send time.
     email_subject_template: Optional[str] = None
     email_body_template: Optional[str] = None
+
+
+class SameDayRunRequest(BaseModel):
+    """One-off delay before a Same Day Run. Does not change recurring schedule."""
+    delay_hours: int = 0
+    delay_minutes: int = 0
 
 
 VALID_RUN_MODES = {"daily", "every_other_day", "custom_days"}
@@ -697,6 +706,12 @@ def get_scheduler_calendar(
                 pass
 
         latest_job = latest_by_category.get(category)
+        same_day = None
+        try:
+            same_day = get_same_day_run(category)
+        except Exception:
+            same_day = None
+
         vendors.append({
             "category": category,
             "enabled": enabled,
@@ -709,6 +724,9 @@ def get_scheduler_calendar(
             "input_mode": input_mode,
             "scheduled_time": scheduled_time,
             "next_run_time": next_run_time,
+            "same_day_run_at": same_day.get("run_at") if same_day else None,
+            "same_day_run_at_local": same_day.get("run_at_local") if same_day else None,
+            "same_day_seconds_until": same_day.get("seconds_until") if same_day else None,
             "scheduler_job_present": scheduler_job_present,
             "latest_job": latest_job,
             "is_ongoing": any(run.get("category") == category for run in ongoing_runs),
@@ -1053,4 +1071,67 @@ async def rerun_uploaded_report(
 
     asyncio.create_task(run_daily_job_for_category(category, forced_input_mode="uploaded"))
     return {"message": f"{category.upper()} import run queued"}
+
+
+@router.get("/scheduler/same-day-run")
+@handle_api_errors("get same-day run")
+def get_pending_same_day_run(
+    category: str = Query(default="dnk", regex="^(dnk|clk|obz|ref|bor|sff|tev|cha)$"),
+    current_user: dict = Depends(get_current_user),
+):
+    """Return the pending Same Day Run for a vendor, if any. Recurring schedule unchanged."""
+    pending = get_same_day_run(category)
+    return {"category": category, "pending": pending}
+
+
+@router.post("/scheduler/same-day-run")
+@handle_api_errors("schedule same-day run")
+async def create_same_day_run(
+    body: SameDayRunRequest,
+    category: str = Query(default="dnk", regex="^(dnk|clk|obz|ref|bor|sff|tev|cha)$"),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Schedule a one-off Daily Run after delay_hours + delay_minutes (same calendar day).
+
+    Does not mutate scheduler_settings hour/minute/run_mode/enabled or the recurring job.
+    Uses the vendor's current input_mode (API or uploaded) when it fires.
+    """
+    db = get_supabase()
+    if await asyncio.to_thread(uploaded_daily_run_in_progress, db, category):
+        raise HTTPException(
+            status_code=409,
+            detail=f"A {category.upper()} run is already in progress. Wait until it finishes.",
+        )
+
+    try:
+        result = schedule_same_day_run(
+            category,
+            int(body.delay_hours or 0),
+            int(body.delay_minutes or 0),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed to schedule same-day run for %s", category)
+        raise HTTPException(status_code=500, detail=f"Failed to schedule Same Day Run: {exc}") from exc
+
+    return result
+
+
+@router.delete("/scheduler/same-day-run")
+@handle_api_errors("cancel same-day run")
+def delete_same_day_run(
+    category: str = Query(default="dnk", regex="^(dnk|clk|obz|ref|bor|sff|tev|cha)$"),
+    current_user: dict = Depends(get_current_user),
+):
+    """Cancel a pending Same Day Run. Recurring Daily Run schedule is untouched."""
+    removed = cancel_same_day_run(category)
+    if not removed:
+        raise HTTPException(status_code=404, detail="No pending Same Day Run for this vendor")
+    return {
+        "message": f"{category.upper()} Same Day Run cancelled",
+        "category": category,
+        "cancelled": True,
+    }
 

@@ -3,6 +3,7 @@ import asyncio
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 import logging
 from pytz import timezone
@@ -20,9 +21,9 @@ from app.services.daily_run_completion import (
     uploaded_daily_run_in_progress,
 )
 from app.utils.notifications import create_notification, create_completion_notifications_for_all_profiles
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 import hashlib
 
 logger = logging.getLogger(__name__)
@@ -953,6 +954,136 @@ def pause_scheduler(category: str = 'dnk'):
         logger.info(f"{category.upper()} scheduler paused (job removed)")
     except Exception:
         pass
+
+
+def same_day_job_id(category: str) -> str:
+    return f"same_day_{category}_job"
+
+
+def _resolve_category_timezone(category: str):
+    """Vendor timezone from in-memory config, else America/Chicago."""
+    config = _scheduler_configs.get(category)
+    if config and getattr(config, "timezone", None) is not None:
+        return config.timezone
+    try:
+        db = get_supabase()
+        row = (
+            db.table("scheduler_settings")
+            .select("timezone")
+            .eq("category", category)
+            .limit(1)
+            .execute()
+        )
+        tz_name = (row.data[0].get("timezone") if row.data else None) or "America/Chicago"
+        return timezone(tz_name)
+    except Exception:
+        return timezone("America/Chicago")
+
+
+def get_same_day_run(category: str) -> Optional[Dict[str, Any]]:
+    """Return pending same-day one-off job info, or None. Does not touch recurring jobs."""
+    job_id = same_day_job_id(category)
+    try:
+        job = scheduler.get_job(job_id)
+    except Exception:
+        job = None
+    if not job or not job.next_run_time:
+        return None
+    tz = _resolve_category_timezone(category)
+    run_at = job.next_run_time
+    if run_at.tzinfo is None:
+        run_at = tz.localize(run_at)
+    else:
+        run_at = run_at.astimezone(tz)
+    now = datetime.now(tz)
+    seconds_until = max(0, int((run_at - now).total_seconds()))
+    return {
+        "category": category,
+        "job_id": job_id,
+        "run_at": run_at.isoformat(),
+        "run_at_local": run_at.strftime("%Y-%m-%d %H:%M:%S %Z"),
+        "timezone": str(tz),
+        "seconds_until": seconds_until,
+    }
+
+
+def cancel_same_day_run(category: str) -> bool:
+    """Cancel a pending same-day one-off. Returns True if a job was removed."""
+    job_id = same_day_job_id(category)
+    try:
+        scheduler.remove_job(job_id)
+        logger.info("%s same-day run cancelled", category.upper())
+        return True
+    except Exception:
+        return False
+
+
+def schedule_same_day_run(
+    category: str,
+    delay_hours: int = 0,
+    delay_minutes: int = 0,
+) -> Dict[str, Any]:
+    """
+    Schedule a one-off Daily Run after a user-chosen delay (same calendar day).
+
+    Isolated from recurring schedule: does NOT change hour/minute/run_mode/enabled
+    or the daily_{category}_job cron/interval job.
+    """
+    if delay_hours < 0 or delay_minutes < 0:
+        raise ValueError("Delay hours and minutes must be non-negative")
+    if delay_hours == 0 and delay_minutes == 0:
+        raise ValueError("Set at least 1 minute of delay")
+    if delay_minutes > 59:
+        raise ValueError("Minutes must be between 0 and 59")
+    if delay_hours > 23:
+        raise ValueError("Hours must be between 0 and 23")
+
+    total_minutes = delay_hours * 60 + delay_minutes
+    if total_minutes < 1:
+        raise ValueError("Set at least 1 minute of delay")
+    if total_minutes > 23 * 60 + 59:
+        raise ValueError("Delay is too long")
+
+    tz = _resolve_category_timezone(category)
+    now = datetime.now(tz)
+    run_at = now + timedelta(hours=delay_hours, minutes=delay_minutes)
+
+    if run_at.date() != now.date():
+        raise ValueError(
+            "Same Day Run must stay on today's calendar date in the vendor timezone. "
+            "Shorten the delay so it fires before midnight."
+        )
+
+    job_id = same_day_job_id(category)
+    scheduler.add_job(
+        run_daily_job_for_category,
+        trigger=DateTrigger(run_date=run_at, timezone=tz),
+        args=[category],
+        id=job_id,
+        name=f"{category.upper()} Same Day Run at {run_at.strftime('%H:%M %Z')}",
+        replace_existing=True,
+        max_instances=1,
+        misfire_grace_time=_scheduler_misfire_grace_seconds,
+    )
+    logger.info(
+        "%s same-day run scheduled for %s (delay %sh %sm); recurring schedule unchanged",
+        category.upper(),
+        run_at.isoformat(),
+        delay_hours,
+        delay_minutes,
+    )
+    info = get_same_day_run(category)
+    if not info:
+        raise RuntimeError("Same-day job was scheduled but could not be read back")
+    return {
+        **info,
+        "delay_hours": delay_hours,
+        "delay_minutes": delay_minutes,
+        "message": (
+            f"{category.upper()} Same Day Run scheduled for {info['run_at_local']}. "
+            "Recurring Daily Run schedule was not changed."
+        ),
+    }
 
 
 def update_scheduler_settings(

@@ -876,6 +876,9 @@ export const schedulerApi = {
         anchor_date?: string | null
         scheduled_time: string
         next_run_time: string | null
+        same_day_run_at?: string | null
+        same_day_run_at_local?: string | null
+        same_day_seconds_until?: number | null
         scheduler_job_present: boolean
         latest_job?: {
           id: string
@@ -953,6 +956,43 @@ export const schedulerApi = {
   rerunUploadedReport: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
     const response = await api.post(`/api/v1/scheduler/uploaded-report/rerun?category=${category}`)
     return response.data as { message: string }
+  },
+  getSameDayRun: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
+    const response = await api.get<{
+      category: string
+      pending: null | {
+        category: string
+        job_id: string
+        run_at: string
+        run_at_local: string
+        timezone: string
+        seconds_until: number
+      }
+    }>(`/api/v1/scheduler/same-day-run?category=${category}`)
+    return response.data
+  },
+  scheduleSameDayRun: async (
+    category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha',
+    delay: { delay_hours: number; delay_minutes: number },
+  ) => {
+    const response = await api.post<{
+      category: string
+      job_id: string
+      run_at: string
+      run_at_local: string
+      timezone: string
+      seconds_until: number
+      delay_hours: number
+      delay_minutes: number
+      message: string
+    }>(`/api/v1/scheduler/same-day-run?category=${category}`, delay)
+    return response.data
+  },
+  cancelSameDayRun: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
+    const response = await api.delete<{ message: string; category: string; cancelled: boolean }>(
+      `/api/v1/scheduler/same-day-run?category=${category}`,
+    )
+    return response.data
   },
 }
 

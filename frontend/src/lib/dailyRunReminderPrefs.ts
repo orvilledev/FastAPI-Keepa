@@ -66,14 +66,24 @@ export function setReminderVendorEnabled(
   return next
 }
 
-type FiredMap = Record<string, string>
+type FiredMap = Record<string, string[]>
 
 function loadFiredMap(userId: string): FiredMap {
   try {
     const raw = localStorage.getItem(firedKey(userId))
     if (!raw) return {}
     const parsed = JSON.parse(raw)
-    return parsed && typeof parsed === 'object' ? (parsed as FiredMap) : {}
+    if (!parsed || typeof parsed !== 'object') return {}
+    const out: FiredMap = {}
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (Array.isArray(v)) {
+        out[k] = v.filter((x): x is string => typeof x === 'string')
+      } else if (typeof v === 'string') {
+        // migrate legacy single-iso shape
+        out[k] = [v]
+      }
+    }
+    return out
   } catch {
     return {}
   }
@@ -87,14 +97,14 @@ function saveFiredMap(userId: string, map: FiredMap): void {
   }
 }
 
-/** One reminder per user + vendor + scheduled next_run_time. */
+/** One reminder per user + vendor + scheduled run timestamp (recurring or same-day). */
 export function hasReminderFiredForRun(
   userId: string,
   vendor: ReminderVendorCode,
   nextRunIso: string,
 ): boolean {
   const map = loadFiredMap(userId)
-  return map[vendor] === nextRunIso
+  return (map[vendor] || []).includes(nextRunIso)
 }
 
 export function markReminderFiredForRun(
@@ -103,7 +113,10 @@ export function markReminderFiredForRun(
   nextRunIso: string,
 ): void {
   const map = loadFiredMap(userId)
-  map[vendor] = nextRunIso
+  const existing = map[vendor] || []
+  if (!existing.includes(nextRunIso)) {
+    map[vendor] = [...existing, nextRunIso].slice(-8)
+  }
   saveFiredMap(userId, map)
 }
 

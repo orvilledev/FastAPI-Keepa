@@ -128,12 +128,16 @@ type VendorSnapshot = {
   enabled: boolean
   next_run_time: string | null
   scheduled_time?: string
+  /** One-off Same Day Run (ISO). Watched separately from recurring next_run_time. */
+  same_day_run_at?: string | null
+  same_day_run_at_local?: string | null
 }
 
 /**
  * Watches calendar countdown data and opens the capybara modal at T-30.
  * When the PWA is minimized/hidden, also sends an OS notification; clicking it
  * (or restoring the window) shows the dancing capybara.
+ * Also watches Same Day Run one-offs (same_day_run_at).
  * Read-only on vendor schedules — never mutates scheduler state.
  */
 export function useDailyRunCapybaraReminder(options: {
@@ -231,38 +235,9 @@ export function useDailyRunCapybaraReminder(options: {
     }
   }, [openAlert, tryOpenPending])
 
-  // T-30 detector — works while Dashboard is mounted (including minimized PWA).
-  useEffect(() => {
-    if (!userId || alert) return
-
-    for (const vendor of enabledVendors) {
-      const data = vendorData[vendor]
-      if (!data?.enabled || !data.next_run_time) continue
-
-      const nextRunMs = new Date(data.next_run_time).getTime()
-      if (!Number.isFinite(nextRunMs) || nextRunMs <= nowMs) continue
-
-      const secondsUntil = Math.floor((nextRunMs - nowMs) / 1000)
-      if (secondsUntil <= 0 || secondsUntil > DAILY_RUN_REMINDER_LEAD_SECONDS) continue
-
-      const snoozeUntil = snoozeUntilByVendor[vendor] ?? 0
-      if (nowMs < snoozeUntil) continue
-
-      if (hasReminderFiredForRun(userId, vendor, data.next_run_time)) {
-        // Already notified this run — still open modal if pending and visible.
-        if (!isDocumentHidden()) tryOpenPending()
-        continue
-      }
-
-      const next: ReminderAlert = {
-        vendor,
-        label: vendor.toUpperCase(),
-        nextRunIso: data.next_run_time,
-        scheduledTime: data.scheduled_time || '',
-        secondsUntil,
-      }
-
-      markReminderFiredForRun(userId, vendor, data.next_run_time)
+  const fireAlert = useCallback(
+    (next: ReminderAlert) => {
+      markReminderFiredForRun(userId, next.vendor, next.nextRunIso)
       savePendingCapybaraReminder(userId, {
         vendor: next.vendor,
         label: next.label,
@@ -272,19 +247,84 @@ export function useDailyRunCapybaraReminder(options: {
         firedAtMs: Date.now(),
       })
 
-      const hidden = isDocumentHidden()
-      if (hidden) {
+      if (isDocumentHidden()) {
         void showCapybaraOsNotification(next, (payload) => {
           const opened = alertFromPayload(payload, Date.now())
           if (opened) setAlert(opened)
         })
-        // Modal waits until focus / notification click so it appears in front.
       } else {
         setAlert(next)
       }
-      break
+    },
+    [userId],
+  )
+
+  // T-30 detector — recurring + Same Day Run (Dashboard or Daily Run page mounted).
+  useEffect(() => {
+    if (!userId || alert) return
+
+    type Candidate = {
+      vendor: ReminderVendorCode
+      runIso: string
+      label: string
+      scheduledTime: string
+      secondsUntil: number
     }
-  }, [userId, enabledVendors, vendorData, nowMs, alert, snoozeUntilByVendor, tryOpenPending])
+    const candidates: Candidate[] = []
+
+    for (const vendor of enabledVendors) {
+      const data = vendorData[vendor]
+      if (!data) continue
+
+      const snoozeUntil = snoozeUntilByVendor[vendor] ?? 0
+      if (nowMs < snoozeUntil) continue
+
+      const pushIfDue = (
+        runIso: string | null | undefined,
+        label: string,
+        scheduledTime: string,
+        requireEnabled: boolean,
+      ) => {
+        if (!runIso) return
+        if (requireEnabled && !data.enabled) return
+        const nextRunMs = new Date(runIso).getTime()
+        if (!Number.isFinite(nextRunMs) || nextRunMs <= nowMs) return
+        const secondsUntil = Math.floor((nextRunMs - nowMs) / 1000)
+        if (secondsUntil <= 0 || secondsUntil > DAILY_RUN_REMINDER_LEAD_SECONDS) return
+        if (hasReminderFiredForRun(userId, vendor, runIso)) {
+          if (!isDocumentHidden()) tryOpenPending()
+          return
+        }
+        candidates.push({ vendor, runIso, label, scheduledTime, secondsUntil })
+      }
+
+      // Recurring Daily Run
+      pushIfDue(
+        data.next_run_time,
+        vendor.toUpperCase(),
+        data.scheduled_time || 'Recurring Daily Run',
+        true,
+      )
+      // Same Day one-off — still remind even if recurring schedule is stopped
+      pushIfDue(
+        data.same_day_run_at,
+        `${vendor.toUpperCase()} Same Day`,
+        data.same_day_run_at_local || 'Same Day Run',
+        false,
+      )
+    }
+
+    if (!candidates.length) return
+    candidates.sort((a, b) => a.secondsUntil - b.secondsUntil)
+    const soonest = candidates[0]
+    fireAlert({
+      vendor: soonest.vendor,
+      label: soonest.label,
+      nextRunIso: soonest.runIso,
+      scheduledTime: soonest.scheduledTime,
+      secondsUntil: soonest.secondsUntil,
+    })
+  }, [userId, enabledVendors, vendorData, nowMs, alert, snoozeUntilByVendor, tryOpenPending, fireAlert])
 
   const dismiss = useCallback(() => {
     clearPendingCapybaraReminder(userId)
@@ -306,5 +346,25 @@ export function useDailyRunCapybaraReminder(options: {
     [alert, userId],
   )
 
-  return { alert, dismiss, snooze }
+  /** Instant demo — does not mark a real run as fired. */
+  const preview = useCallback((vendor: ReminderVendorCode = 'clk') => {
+    setAlert(buildCapybaraPreviewAlert(vendor))
+  }, [])
+
+  return { alert, dismiss, snooze, preview }
+}
+
+/** Demo alert so users can see the dancing capybara without waiting for T-30. */
+export function buildCapybaraPreviewAlert(
+  vendor: ReminderVendorCode = 'clk',
+): ReminderAlert {
+  const secondsUntil = DAILY_RUN_REMINDER_LEAD_SECONDS
+  const nextRunIso = new Date(Date.now() + secondsUntil * 1000).toISOString()
+  return {
+    vendor,
+    label: vendor.toUpperCase(),
+    nextRunIso,
+    scheduledTime: 'Preview · not a real Daily Run',
+    secondsUntil,
+  }
 }
