@@ -1,7 +1,9 @@
-const SW_VERSION = 'v12'
+const SW_VERSION = 'v13'
 const STATIC_CACHE = `msw-overwatch-static-${SW_VERSION}`
 const RUNTIME_CACHE = `msw-overwatch-runtime-${SW_VERSION}`
-const APP_SHELL_FILES = ['/', '/index.html', '/manifest.webmanifest', '/app-icon.svg', '/favicon.svg', '/orbit-logo.svg']
+// Do NOT precache index.html / "/" — hashed asset URLs change every deploy.
+// Serving a stale shell is the main cause of blank white screens after updates.
+const APP_SHELL_FILES = ['/manifest.webmanifest', '/app-icon.svg', '/favicon.svg', '/orbit-logo.svg']
 
 function expectedContentType(pathname) {
   if (pathname.endsWith('.css')) return 'text/css'
@@ -41,6 +43,12 @@ self.addEventListener('activate', (event) => {
             .map((key) => caches.delete(key))
         )
       )
+      .then(() =>
+        // Drop any previously cached HTML shells that may point at deleted chunks.
+        caches.open(STATIC_CACHE).then((cache) =>
+          Promise.all([cache.delete('/'), cache.delete('/index.html')])
+        )
+      )
       .then(() => self.registration.clearAppBadge?.())
       .then(() => self.clients.claim())
       .then(() => self.clients.matchAll({ type: 'window' }))
@@ -59,10 +67,27 @@ self.addEventListener('fetch', (event) => {
   // Never cache API responses; always hit the network for fresh data.
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/')) return
 
-  // App navigation: network first with cached shell fallback.
+  // App navigation: always prefer network. Offline fallback is a tiny HTML page,
+  // not a cached index that may reference deleted /assets/*.js chunks.
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => caches.match('/index.html').then((response) => response || caches.match('/')))
+      fetch(request)
+        .then((response) => response)
+        .catch(
+          () =>
+            new Response(
+              `<!doctype html><html><head><meta charset="utf-8"><title>MSW Overwatch</title>
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <style>body{font-family:system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;background:#fff;color:#111}
+              button{margin-top:12px;padding:10px 16px;font-size:14px;cursor:pointer}</style></head>
+              <body><div style="text-align:center;max-width:28rem;padding:1.5rem">
+              <h1 style="font-size:1.25rem">You're offline</h1>
+              <p>Reconnect, then reload. If the app stays blank after an update, clear site data for this origin.</p>
+              <button type="button" onclick="location.reload()">Reload</button>
+              </div></body></html>`,
+              { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+            )
+        )
     )
     return
   }
@@ -85,10 +110,16 @@ self.addEventListener('fetch', (event) => {
         return response
       }
 
-      // CSS/JS: network-first so edge challenges or deploys cannot leave a stale shell.
+      // CSS/JS: network-first so deploys cannot leave a stale shell.
       if (isScriptOrStyle) {
         return fetch(request)
-          .then((networkResponse) => putIfValid(networkResponse))
+          .then((networkResponse) => {
+            // Never treat SPA HTML fallback as a JS/CSS asset.
+            if (!isCacheableAssetResponse(networkResponse, url.pathname)) {
+              return Response.error()
+            }
+            return putIfValid(networkResponse)
+          })
           .catch(() =>
             cache.match(request).then((cachedResponse) => {
               if (cachedResponse && isCacheableAssetResponse(cachedResponse, url.pathname)) {

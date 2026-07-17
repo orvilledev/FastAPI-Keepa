@@ -35,6 +35,75 @@
         } catch (e) {}
       })();
     </script>
+    <script>
+      // Recover from blank screens caused by stale PWAs / missing hashed chunks after deploy.
+      (function () {
+        var recovered = false;
+        function showBootRecovery(reason) {
+          if (recovered) return;
+          recovered = true;
+          var root = document.getElementById('root');
+          if (!root) return;
+          root.innerHTML =
+            '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;font-family:system-ui,sans-serif;background:#fff;color:#111;text-align:center">' +
+            '<div style="max-width:28rem">' +
+            '<h1 style="font-size:1.25rem;margin:0 0 8px">MSW Overwatch failed to load</h1>' +
+            '<p style="margin:0 0 16px;color:#555;font-size:14px;line-height:1.45">' +
+            (reason || 'A cached app update may be broken. Clear site data and reload.') +
+            '</p>' +
+            '<button id="msw-boot-reload" type="button" style="padding:10px 16px;font-size:14px;cursor:pointer;border-radius:8px;border:1px solid #ccc;background:#111;color:#fff">' +
+            'Clear cache &amp; reload</button></div></div>';
+          var btn = document.getElementById('msw-boot-reload');
+          if (btn) {
+            btn.onclick = function () {
+              var done = function () {
+                location.reload();
+              };
+              if (!('serviceWorker' in navigator)) {
+                done();
+                return;
+              }
+              navigator.serviceWorker
+                .getRegistrations()
+                .then(function (regs) {
+                  return Promise.all(
+                    regs.map(function (r) {
+                      return r.unregister();
+                    })
+                  );
+                })
+                .then(function () {
+                  if (!window.caches || !caches.keys) return;
+                  return caches.keys().then(function (keys) {
+                    return Promise.all(
+                      keys.map(function (k) {
+                        return caches.delete(k);
+                      })
+                    );
+                  });
+                })
+                .then(done, done);
+            };
+          }
+        }
+        window.addEventListener(
+          'error',
+          function (event) {
+            var t = event && event.target;
+            if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
+              showBootRecovery('A required script or stylesheet failed to load after an update.');
+            }
+          },
+          true
+        );
+        window.setTimeout(function () {
+          var root = document.getElementById('root');
+          if (root && !root.dataset.mswBooted && root.childElementCount === 0) {
+            showBootRecovery('The app stayed blank. This is often a stale installed site (PWA) cache.');
+          }
+        }, 12000);
+      })();
+    </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MSW Overwatch" />
@@ -45,4 +114,3 @@
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

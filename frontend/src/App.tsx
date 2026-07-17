@@ -4,7 +4,6 @@ import {
   Routes,
   Route,
   Navigate,
-  Outlet,
   useParams,
   useLocation,
   useNavigate,
@@ -78,10 +77,24 @@ function AppRouter({ children }: { children: ReactNode }) {
 // Loading spinner component
 function LoadingSpinner() {
   return (
-    <div className="min-h-screen flex items-center justify-center app-page-bg">
-      <div className="flex flex-col items-center space-y-4">
-        <div className="w-12 h-12 border-4 border-[#404040] dark:border-slate-400 border-t-transparent rounded-full animate-spin"></div>
-        <div className="text-gray-600 dark:text-slate-400">Loading...</div>
+    <div
+      className="min-h-screen flex items-center justify-center app-page-bg"
+      style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+    >
+      <div className="flex flex-col items-center space-y-4" style={{ textAlign: 'center' }}>
+        <div
+          className="w-12 h-12 border-4 border-[#404040] dark:border-slate-400 border-t-transparent rounded-full animate-spin"
+          style={{
+            width: 48,
+            height: 48,
+            border: '4px solid #404040',
+            borderTopColor: 'transparent',
+            borderRadius: '9999px',
+          }}
+        />
+        <div className="text-gray-600 dark:text-slate-400" style={{ color: '#4b5563', fontSize: 14 }}>
+          Loading...
+        </div>
       </div>
     </div>
   )
@@ -248,9 +261,7 @@ function PrivateLayout() {
       <TrackingScanProvider>
         <KeepaImportBuildProvider>
           <WarehouseRouteGuard>
-            <Layout>
-              <Outlet />
-            </Layout>
+            <Layout />
           </WarehouseRouteGuard>
         </KeepaImportBuildProvider>
       </TrackingScanProvider>
@@ -464,6 +475,11 @@ function AppRoutes() {
 
 // Main App component wrapped with providers
 function App() {
+  useEffect(() => {
+    const root = document.getElementById('root')
+    if (root) root.dataset.mswBooted = '1'
+  }, [])
+
   return (
     <ThemeProvider>
       <AppRouter>
