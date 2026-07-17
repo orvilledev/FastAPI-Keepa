@@ -1,4 +1,4 @@
-const SW_VERSION = 'v14'
+const SW_VERSION = 'v15'
 const STATIC_CACHE = `msw-overwatch-static-${SW_VERSION}`
 const RUNTIME_CACHE = `msw-overwatch-runtime-${SW_VERSION}`
 // Do NOT precache index.html / "/" — hashed asset URLs change every deploy.
@@ -39,7 +39,8 @@ self.addEventListener('activate', (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => ![STATIC_CACHE, RUNTIME_CACHE].includes(key))
+            // Drop every previous cache (including prior runtime hashed chunks).
+            .filter((key) => key !== STATIC_CACHE)
             .map((key) => caches.delete(key))
         )
       )
@@ -53,7 +54,9 @@ self.addEventListener('activate', (event) => {
       .then(() => self.clients.claim())
       .then(() => self.clients.matchAll({ type: 'window' }))
       .then((clients) => {
-        clients.forEach((client) => client.postMessage({ type: 'SW_ACTIVATED', version: SW_VERSION }))
+        clients.forEach((client) =>
+          client.postMessage({ type: 'SW_ACTIVATED', version: SW_VERSION })
+        )
       })
   )
 })

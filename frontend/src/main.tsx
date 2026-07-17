@@ -42,14 +42,39 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     if (isElectron) return
 
+    // Successful boot — allow a future auto-recover if a later deploy breaks.
+    try {
+      sessionStorage.removeItem('msw-boot-auto-recover-v2')
+    } catch {
+      /* ignore */
+    }
+
+    let refreshing = false
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return
+      refreshing = true
+      window.location.reload()
+    })
+
     navigator.serviceWorker
       .register('/sw.js')
       .then((registration) => {
         clearAppBadge()
 
         navigator.serviceWorker.addEventListener('message', (event) => {
-          if (event.data?.type === 'SW_ACTIVATED') {
-            window.location.reload()
+          // Prefer controllerchange for reload; only force if version jumped while
+          // this tab still has an old controller that did not swap yet.
+          if (event.data?.type !== 'SW_ACTIVATED') return
+          const ver = String(event.data.version || '')
+          try {
+            const prev = sessionStorage.getItem('msw-sw-version')
+            if (ver) sessionStorage.setItem('msw-sw-version', ver)
+            if (prev && ver && prev !== ver && !refreshing) {
+              refreshing = true
+              window.location.reload()
+            }
+          } catch {
+            /* ignore */
           }
         })
 

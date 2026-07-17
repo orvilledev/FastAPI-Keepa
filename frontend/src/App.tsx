@@ -478,6 +478,11 @@ function App() {
   useEffect(() => {
     const root = document.getElementById('root')
     if (root) root.dataset.mswBooted = '1'
+    try {
+      sessionStorage.removeItem('msw-boot-auto-recover-v2')
+    } catch {
+      /* ignore */
+    }
   }, [])
 
   return (

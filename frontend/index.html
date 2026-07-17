@@ -6,6 +6,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#404040" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <script>
       (function () {
         try {
@@ -38,10 +39,59 @@
     <script>
       // Recover from blank screens caused by stale PWAs / missing hashed chunks after deploy.
       (function () {
-        var recovered = false;
+        var AUTO_KEY = 'msw-boot-auto-recover-v2';
+        var recoveredUi = false;
+
+        function bustReload() {
+          var url = new URL(location.href);
+          url.searchParams.set('_msw_boot', String(Date.now()));
+          location.replace(url.pathname + url.search + url.hash);
+        }
+
+        function purgeCachesAndReload(done) {
+          var finish = typeof done === 'function' ? done : bustReload;
+          if (!('serviceWorker' in navigator)) {
+            if (window.caches && caches.keys) {
+              caches
+                .keys()
+                .then(function (keys) {
+                  return Promise.all(
+                    keys.map(function (k) {
+                      return caches.delete(k);
+                    })
+                  );
+                })
+                .then(finish, finish);
+            } else {
+              finish();
+            }
+            return;
+          }
+          navigator.serviceWorker
+            .getRegistrations()
+            .then(function (regs) {
+              return Promise.all(
+                regs.map(function (r) {
+                  return r.unregister();
+                })
+              );
+            })
+            .then(function () {
+              if (!window.caches || !caches.keys) return;
+              return caches.keys().then(function (keys) {
+                return Promise.all(
+                  keys.map(function (k) {
+                    return caches.delete(k);
+                  })
+                );
+              });
+            })
+            .then(finish, finish);
+        }
+
         function showBootRecovery(reason) {
-          if (recovered) return;
-          recovered = true;
+          if (recoveredUi) return;
+          recoveredUi = true;
           var root = document.getElementById('root');
           if (!root) return;
           root.innerHTML =
@@ -56,42 +106,52 @@
           var btn = document.getElementById('msw-boot-reload');
           if (btn) {
             btn.onclick = function () {
-              var done = function () {
-                location.reload();
-              };
-              if (!('serviceWorker' in navigator)) {
-                done();
-                return;
-              }
-              navigator.serviceWorker
-                .getRegistrations()
-                .then(function (regs) {
-                  return Promise.all(
-                    regs.map(function (r) {
-                      return r.unregister();
-                    })
-                  );
-                })
-                .then(function () {
-                  if (!window.caches || !caches.keys) return;
-                  return caches.keys().then(function (keys) {
-                    return Promise.all(
-                      keys.map(function (k) {
-                        return caches.delete(k);
-                      })
-                    );
-                  });
-                })
-                .then(done, done);
+              try {
+                sessionStorage.removeItem(AUTO_KEY);
+              } catch (e) {}
+              purgeCachesAndReload(bustReload);
             };
           }
         }
+
+        function autoRecoverOrShow(reason) {
+          var alreadyTried = false;
+          try {
+            alreadyTried = sessionStorage.getItem(AUTO_KEY) === '1';
+          } catch (e) {}
+          if (alreadyTried) {
+            showBootRecovery(reason);
+            return;
+          }
+          try {
+            sessionStorage.setItem(AUTO_KEY, '1');
+          } catch (e) {}
+          // Silent one-shot recovery — most users never see the error screen.
+          purgeCachesAndReload(bustReload);
+        }
+
+        function isAppAssetFailure(target) {
+          if (!target) return false;
+          if (target.tagName !== 'SCRIPT' && target.tagName !== 'LINK') return false;
+          var src = target.src || target.href || '';
+          if (!src) return false;
+          try {
+            var u = new URL(src, location.href);
+            if (u.origin !== location.origin) return false;
+            return (
+              u.pathname.indexOf('/assets/') === 0 ||
+              /\.(js|mjs|css)$/.test(u.pathname)
+            );
+          } catch (e) {
+            return false;
+          }
+        }
+
         window.addEventListener(
           'error',
           function (event) {
-            var t = event && event.target;
-            if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
-              showBootRecovery('A required script or stylesheet failed to load after an update.');
+            if (isAppAssetFailure(event && event.target)) {
+              autoRecoverOrShow('A required script or stylesheet failed to load after an update.');
             }
           },
           true
@@ -99,9 +159,9 @@
         window.setTimeout(function () {
           var root = document.getElementById('root');
           if (root && !root.dataset.mswBooted && root.childElementCount === 0) {
-            showBootRecovery('The app stayed blank. This is often a stale installed site (PWA) cache.');
+            autoRecoverOrShow('The app stayed blank. This is often a stale installed site (PWA) cache.');
           }
-        }, 12000);
+        }, 8000);
       })();
     </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
