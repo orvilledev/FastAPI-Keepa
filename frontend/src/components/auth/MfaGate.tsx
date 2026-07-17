@@ -10,6 +10,7 @@ import {
   shouldSkipMfaForEmail,
   type MfaStatus,
 } from '../../lib/mfa'
+import { isDevAuthBypass } from '../../lib/devAuth'
 
 type MfaGateProps = {
   children: ReactNode
@@ -26,6 +27,10 @@ export default function MfaGate({ children, requireFullAuth = true }: MfaGatePro
   const [status, setStatus] = useState<MfaStatus | null>(null)
   const [skipMfa, setSkipMfa] = useState<boolean | null>(null)
   const [checking, setChecking] = useState(true)
+
+  if (isDevAuthBypass()) {
+    return <>{children}</>
+  }
 
   useEffect(() => {
     let cancelled = false

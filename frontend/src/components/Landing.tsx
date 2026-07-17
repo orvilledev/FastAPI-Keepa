@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
-import { APP_COPYRIGHT_OWNER, APP_ICON_URL, APP_NAME, APP_VERSION_LABEL } from '../constants/app'
+import { APP_COPYRIGHT_OWNER, APP_NAME, APP_VERSION_LABEL } from '../constants/app'
 import ThemeSelector from './common/ThemeSelector'
+import AppLogo from './common/AppLogo'
 
 export default function Landing() {
   const features = [
@@ -41,7 +42,7 @@ export default function Landing() {
       <nav className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <img src={APP_ICON_URL} alt="MSW Overwatch" className="w-10 h-10" />
+            <AppLogo alt="MSW Overwatch" className="w-10 h-10" />
             <span className="text-2xl font-bold text-[#404040] dark:text-slate-100">
               {APP_NAME}
             </span>

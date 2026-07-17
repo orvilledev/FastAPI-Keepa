@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import {
   APP_GIT_COMMIT_SHORT,
-  APP_ICON_URL,
   APP_NAME,
   APP_VERSION_LABEL,
 } from '../constants/app'
+import AppLogo from './common/AppLogo'
 
 export default function About() {
   const isElectron = Boolean(window.desktop?.isElectron)
@@ -38,7 +38,7 @@ export default function About() {
     <div className="space-y-6">
       <div className="card p-8">
         <div className="mb-4">
-          <img src={APP_ICON_URL} alt={`${APP_NAME} logo`} className="w-14 h-14" />
+          <AppLogo alt={`${APP_NAME} logo`} className="w-14 h-14" />
         </div>
         <h1 className="text-3xl font-bold text-gray-900">About This Project</h1>
         <p className="mt-2 text-sm font-medium text-[#81B81D]">

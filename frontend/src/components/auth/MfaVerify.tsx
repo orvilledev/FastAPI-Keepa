@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { APP_ICON_URL } from '../../constants/app'
+import AppLogo from '../common/AppLogo'
 import { authApi, invalidateAuthTokenCache } from '../../services/api'
 import {
   createMfaChallenge,
@@ -134,7 +134,7 @@ export default function MfaVerify() {
       <div className="max-w-md w-full">
         <div className="card p-8 shadow-xl">
           <div className="text-center mb-6">
-            <img src={APP_ICON_URL} alt="MSW Overwatch" className="w-16 h-16 mx-auto mb-4" />
+            <AppLogo alt="MSW Overwatch" className="w-16 h-16 mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-[#404040] dark:text-slate-100">Two-factor verification</h1>
             <p className="mt-2 text-sm text-gray-600">
               {isIdleReverify

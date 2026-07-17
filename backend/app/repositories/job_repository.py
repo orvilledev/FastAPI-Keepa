@@ -60,6 +60,11 @@ class JobRepository:
             )
         )
 
+    @classmethod
+    def _is_express_job(cls, job_name: Optional[str]) -> bool:
+        """Return True for Express Jobs (anything that is not a Daily Run)."""
+        return not cls._is_daily_run_job(job_name)
+
     @staticmethod
     def _format_initiator_name(display_name: Optional[str], email: Optional[str], created_by: Optional[str]) -> str:
         """
@@ -301,7 +306,13 @@ class JobRepository:
 
     def delete_job(self, job_id: UUID) -> None:
         """
-        Delete a job and all related data.
+        Delete a job and related job-scoped rows only.
+
+        Scope (Express or Daily):
+        - ``price_alerts``, ``upc_batch_items``, ``upc_batches``, ``batch_jobs``
+
+        Never touches analytics archives (``off_price_analytics_snapshots``).
+        Express job deletes must not alter Daily Run analytics history.
 
         Prefer the Postgres function ``delete_batch_job_cascade`` (one round trip,
         higher local statement_timeout). If it is not deployed or errors, fall
@@ -312,7 +323,11 @@ class JobRepository:
 
         try:
             self.db.rpc("delete_batch_job_cascade", {"p_job_id": jid}).execute()
-            logger.info("Deleted job %s via delete_batch_job_cascade RPC", jid)
+            logger.info(
+                "Deleted job %s via delete_batch_job_cascade RPC "
+                "(analytics snapshots untouched)",
+                jid,
+            )
             return
         except Exception as e:
             logger.warning(
@@ -344,6 +359,7 @@ class JobRepository:
             logger.info("Deleted %s upc_batches rows for job %s", n_batches, jid)
 
         self.db.table(self.table).delete().eq("id", jid).execute()
+        # Do NOT delete from off_price_analytics_snapshots — permanent archive.
 
     def list_completed_job_ids(self) -> List[UUID]:
         """Return IDs of all jobs with status completed."""
@@ -357,9 +373,29 @@ class JobRepository:
         )
         return [UUID(row["id"]) for row in rows]
 
+    def list_completed_express_job_ids(self) -> List[UUID]:
+        """Return IDs of completed Express Jobs only (excludes Daily Runs)."""
+        rows = read_all_paginated(
+            lambda start, end: self.db.table(self.table)
+            .select("id, job_name")
+            .eq("status", "completed")
+            .order("created_at", desc=True)
+            .range(start, end)
+            .execute()
+        )
+        return [
+            UUID(row["id"])
+            for row in rows
+            if self._is_express_job(row.get("job_name"))
+        ]
+
     def delete_completed_jobs(self) -> int:
-        """Delete every completed job and related data. Returns count removed."""
-        job_ids = self.list_completed_job_ids()
+        """
+        Delete completed Express Jobs and their related job-scoped data.
+
+        Daily Run jobs and ``off_price_analytics_snapshots`` are never deleted.
+        """
+        job_ids = self.list_completed_express_job_ids()
         for job_id in job_ids:
             self.delete_job(job_id)
         return len(job_ids)

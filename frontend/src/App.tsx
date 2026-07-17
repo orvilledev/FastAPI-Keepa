@@ -26,6 +26,8 @@ import { fetchMfaStatus, isMfaIdleReverifyDue, recordMfaActivity, shouldShowMfaS
 import { isUserHiddenFromFeedbackPage } from './constants/feedbackAccess'
 import { getLastPrivatePath, getCurrentRememberedPath, setLastPrivatePath } from './lib/privatePath'
 import { WAREHOUSE_HOME_PATH, isWarehouseAllowedPath } from './constants/warehouseAccess'
+import { isDevAuthBypass } from './lib/devAuth'
+import { isDevAnalyticsEnabled } from './lib/devFeatures'
 
 // Lazy load page components for code splitting (About is eager so its chunk cannot 404 behind stale CDN/cache)
 const Landing = lazy(() => import('./components/Landing'))
@@ -62,6 +64,7 @@ const LabelStation = lazy(() => import('./components/scanner/LabelStation'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
 const Feedback = lazy(() => import('./components/feedback/Feedback'))
+const OffPriceAnalytics = lazy(() => import('./components/analytics/OffPriceAnalytics'))
 
 /** Packaged Electron loads `index.html` over `file:`; BrowserRouter cannot match routes there. */
 function AppRouter({ children }: { children: ReactNode }) {
@@ -184,6 +187,7 @@ function IdleMfaGuard() {
   const { authUser, userInfo } = useUser()
 
   useEffect(() => {
+    if (isDevAuthBypass()) return
     let cancelled = false
     let cleanup: (() => void) | undefined
 
@@ -440,6 +444,16 @@ function AppRoutes() {
           <Route path="tools/job-aids" element={<Navigate to="/faq" replace />} />
           <Route path="tools/my-toolbox" element={<Navigate to="/dashboard" replace />} />
           <Route path="admin/users" element={<UserManagement />} />
+          {isDevAnalyticsEnabled() && (
+            <Route
+              path="analytics"
+              element={
+                <ProtectedRoute requireKeepaAccess={true}>
+                  <OffPriceAnalytics />
+                </ProtectedRoute>
+              }
+            />
+          )}
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

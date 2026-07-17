@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { APP_ICON_URL } from '../../constants/app'
+import AppLogo from '../common/AppLogo'
 import { authApi, invalidateAuthTokenCache } from '../../services/api'
 import {
   buildTotpUri,
@@ -114,7 +114,7 @@ export default function MfaSetup() {
       <div className="max-w-lg w-full">
         <div className="card p-8 shadow-xl">
           <div className="text-center mb-6">
-            <img src={APP_ICON_URL} alt="MSW Overwatch" className="w-16 h-16 mx-auto mb-4" />
+            <AppLogo alt="MSW Overwatch" className="w-16 h-16 mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-[#404040]">Set up two-factor authentication</h1>
             <p className="mt-2 text-sm text-gray-600">
               Scan the QR code with an authenticator app (Google Authenticator, Authy, 1Password, etc.),

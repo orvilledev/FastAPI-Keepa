@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, Re
 import { supabase } from '../lib/supabase'
 import { authApi, invalidateAuthTokenCache } from '../services/api'
 import { clearMfaActivity, getMfaExemptEmails, isMfaAuthRoute, isMfaExemptEmail, redirectForIncompleteMfa } from '../lib/mfa'
+import { DEV_BYPASS_AUTH_USER, DEV_BYPASS_USER_INFO, isDevAuthBypass } from '../lib/devAuth'
 
 // Extended user info from API
 export interface UserInfo {
@@ -47,6 +48,31 @@ interface UserProviderProps {
 }
 
 export function UserProvider({ children }: UserProviderProps) {
+  if (isDevAuthBypass()) {
+    const value: UserContextType = {
+      authUser: DEV_BYPASS_AUTH_USER,
+      userInfo: DEV_BYPASS_USER_INFO,
+      authLoading: false,
+      userInfoLoading: false,
+      isAuthenticated: true,
+      hasKeepaAccess: true,
+      isWarehouseOnly: false,
+      hasLabelStationAccess: true,
+      canManageTools: true,
+      isSuperadmin: true,
+      displayName: DEV_BYPASS_USER_INFO.display_name,
+      refetchUserInfo: async () => {},
+      signOut: async () => {
+        console.info('[dev-auth] Sign-out is disabled while VITE_DEV_BYPASS_AUTH is on.')
+      },
+    }
+    return <UserContext.Provider value={value}>{children}</UserContext.Provider>
+  }
+
+  return <UserProviderAuthenticated>{children}</UserProviderAuthenticated>
+}
+
+function UserProviderAuthenticated({ children }: UserProviderProps) {
   const [authUser, setAuthUser] = useState<any | null>(null)
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
   const [authLoading, setAuthLoading] = useState(true)

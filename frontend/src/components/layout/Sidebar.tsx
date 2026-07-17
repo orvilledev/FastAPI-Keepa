@@ -1,8 +1,10 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useState, useEffect, type MouseEvent } from 'react'
 import { useUser } from '../../contexts/UserContext'
-import { APP_ICON_URL, APP_NAME } from '../../constants/app'
+import { APP_NAME } from '../../constants/app'
+import AppLogo from '../common/AppLogo'
 import { isUserHiddenFromFeedbackPage } from '../../constants/feedbackAccess'
+import { isDevAnalyticsEnabled } from '../../lib/devFeatures'
 
 // SVG Icon components that inherit text color via currentColor
 const Icons = {
@@ -93,6 +95,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
     </svg>
   ),
+  chart: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+    </svg>
+  ),
 }
 
 interface SidebarProps {
@@ -158,6 +165,9 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
     { path: '/map',          label: 'Manage MAP',   icon: 'dollar'   as const },
     { path: '/seller-list',  label: 'Seller List',  icon: 'users'    as const },
     { path: '/email-list',   label: 'Email List',   icon: 'mail'     as const },
+    ...(isDevAnalyticsEnabled()
+      ? [{ path: '/analytics', label: 'Analytics', icon: 'chart' as const }]
+      : []),
   ]
 
   /** Blocklist hides nav item entirely once user profile / session is resolved. */
@@ -209,7 +219,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
     >
       <div className="flex h-20 shrink-0 items-center px-4">
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <img src={APP_ICON_URL} alt="MSW Overwatch" className="h-11 w-11 shrink-0" />
+          <AppLogo alt="MSW Overwatch" className="h-11 w-11 shrink-0" />
           <h2 className="min-w-0 truncate text-lg font-bold tracking-tight text-[#404040] dark:text-slate-100">
             {APP_NAME}
           </h2>
@@ -321,6 +331,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
                 item.path === '/seller-list'  ? 'seller-list' :
                 item.path === '/email-list'   ? 'email-list'  :
                 item.path === '/daily-run'    ? 'daily-runs'  :
+                item.path === '/analytics'    ? 'analytics'   :
                 'keepa-other'
 
               return (

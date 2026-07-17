@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { fetchMfaStatus, shouldSkipMfaForEmail, shouldShowMfaSetup, shouldShowMfaVerify } from '../../lib/mfa'
-import { APP_ICON_URL } from '../../constants/app'
 import ThemeSelector from '../common/ThemeSelector'
+import AppLogo from '../common/AppLogo'
 import { WAREHOUSE_HOME_PATH } from '../../constants/warehouseAccess'
 
 export default function Login() {
@@ -116,7 +116,7 @@ export default function Login() {
       <div className="max-w-md w-full">
         <div className="card p-8 shadow-xl">
           <div className="text-center mb-8">
-            <img src={APP_ICON_URL} alt="MSW Overwatch" className="w-16 h-16 mx-auto mb-4" />
+            <AppLogo alt="MSW Overwatch" className="w-16 h-16 mx-auto mb-4" />
             <h2 className="text-3xl font-bold text-[#404040] dark:text-slate-100">
               Welcome to MSW Overwatch
             </h2>

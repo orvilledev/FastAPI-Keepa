@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { APP_ICON_URL } from '../../constants/app'
+import AppLogo from '../common/AppLogo'
 
 export default function ResetPassword() {
   const [password, setPassword] = useState('')
@@ -133,7 +133,7 @@ export default function ResetPassword() {
       <div className="max-w-md w-full">
         <div className="card p-8 shadow-xl">
           <div className="text-center mb-8">
-            <img src={APP_ICON_URL} alt="MSW Overwatch" className="w-16 h-16 mx-auto mb-4" />
+            <AppLogo alt="MSW Overwatch" className="w-16 h-16 mx-auto mb-4" />
             <h2 className="text-3xl font-bold text-[#404040]">
               Reset Password
             </h2>

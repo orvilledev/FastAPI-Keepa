@@ -1172,6 +1172,144 @@ export const dashboardApi = {
   },
 }
 
+/** Dev-only weekly/monthly/yearly off-price counts from daily runs (all vendors). */
+export interface OffPriceAnalyticsVendor {
+  code: string
+  name: string
+  off_price_count: number
+  run_count: number
+  scheduler_enabled: boolean
+  sellers?: Array<{ seller_name: string; hits: number }>
+}
+
+export interface OffPriceAnalyticsResponse {
+  period: 'daily' | 'weekly' | 'monthly' | 'yearly'
+  period_key: string
+  period_label: string
+  offset?: number
+  start: string
+  end: string
+  total_off_price_count: number
+  total_run_count: number
+  distinct_sellers?: number
+  vendors_with_hits?: number
+  vendors: OffPriceAnalyticsVendor[]
+  archived?: boolean
+  source?: string
+}
+
+export interface OffPriceAnalyticsArchiveMeta {
+  id: string
+  period_type: 'daily' | 'weekly' | 'monthly' | 'yearly'
+  period_key: string
+  period_label: string
+  period_start: string
+  period_end: string
+  total_off_price_count: number
+  total_run_count: number
+  distinct_sellers: number
+  vendors_with_hits: number
+  source: string
+  created_at: string
+  updated_at: string
+}
+
+export const analyticsApi = {
+  getOffPrice: async (params: {
+    period: 'daily' | 'weekly' | 'monthly' | 'yearly'
+    offset?: number
+    persist?: boolean
+  }) => {
+    const response = await api.get<OffPriceAnalyticsResponse>('/api/v1/analytics/off-price', {
+      params: {
+        period: params.period,
+        offset: params.offset ?? 0,
+        persist: params.persist ?? true,
+      },
+    })
+    return response.data
+  },
+
+  listArchives: async (params?: {
+    period_type?: 'daily' | 'weekly' | 'monthly' | 'yearly'
+    limit?: number
+  }) => {
+    const response = await api.get<{ archives: OffPriceAnalyticsArchiveMeta[]; available: boolean }>(
+      '/api/v1/analytics/off-price/archives',
+      { params },
+    )
+    return response.data
+  },
+
+  getArchive: async (periodType: string, periodKey: string) => {
+    const response = await api.get<OffPriceAnalyticsResponse>(
+      `/api/v1/analytics/off-price/archives/${periodType}/${periodKey}`,
+    )
+    return response.data
+  },
+
+  seedDemoHistory: async () => {
+    const response = await api.post<{ seeded: string[]; count: number }>(
+      '/api/v1/analytics/off-price/seed-demo-history',
+    )
+    return response.data
+  },
+
+  listTracking: async () => {
+    const response = await api.get<{
+      vendors: Array<{
+        vendor_code: string
+        vendor_name: string
+        tracking_enabled: boolean
+        updated_at?: string | null
+        updated_by?: string | null
+      }>
+    }>('/api/v1/analytics/off-price/tracking')
+    return response.data
+  },
+
+  setTracking: async (vendorCode: string, enabled: boolean) => {
+    const response = await api.put<{
+      vendor_code: string
+      vendor_name: string
+      tracking_enabled: boolean
+      updated_at?: string | null
+      user_id?: string
+    }>(`/api/v1/analytics/off-price/tracking/${vendorCode}`, null, {
+      params: { enabled },
+    })
+    return response.data
+  },
+
+  listDownloadLogs: async (limit = 50) => {
+    const response = await api.get<{
+      logs: Array<{
+        id: string | null
+        user_id: string | null
+        user_display_name: string | null
+        user_email: string | null
+        vendor_codes: string[]
+        vendor_scope: 'all' | 'selected'
+        vendor_label: string
+        filename: string | null
+        period: string | null
+        downloaded_at: string
+      }>
+      available: boolean
+    }>('/api/v1/analytics/off-price/download-logs', { params: { limit } })
+    return response.data
+  },
+
+  recordDownloadLog: async (body: {
+    vendor_codes: string[]
+    filename?: string
+    period?: string
+  }) => {
+    const response = await api.post('/api/v1/analytics/off-price/download-logs', body)
+    return response.data
+  },
+}
+
 export interface FeedbackItem {
   user_id: string
   id: string

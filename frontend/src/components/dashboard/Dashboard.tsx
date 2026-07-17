@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import VendorRunCard from './VendorRunCard'
 import { schedulerApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
+import { getDevBypassCalendarVendors, isDevAuthBypass } from '../../lib/devAuth'
 
 type VendorCategory = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
 const VENDOR_ORDER: VendorCategory[] = ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha']
@@ -63,32 +64,60 @@ export default function Dashboard() {
     }
 
     let cancelled = false
-    const loadRunStatus = async () => {
-      try {
-        const calendar = await schedulerApi.getCalendar()
-        if (cancelled) return
-        const active = new Set<VendorCategory>()
-        for (const vendor of calendar.vendors || []) {
-          const category = String(vendor.category || '').toLowerCase() as VendorCategory
-          const nextRunMs = vendor.next_run_time ? new Date(vendor.next_run_time).getTime() : null
-          const hasActiveCountdown = Boolean(
-            vendor.enabled &&
+    const applyCalendar = (calendar: CalendarResponse) => {
+      const active = new Set<VendorCategory>()
+      for (const vendor of calendar.vendors || []) {
+        const category = String(vendor.category || '').toLowerCase() as VendorCategory
+        const nextRunMs = vendor.next_run_time ? new Date(vendor.next_run_time).getTime() : null
+        const hasActiveCountdown = Boolean(
+          vendor.enabled &&
             vendor.next_run_time &&
             nextRunMs !== null &&
             nextRunMs > Date.now()
-          )
-          if (VENDOR_ORDER.includes(category) && hasActiveCountdown) {
-            active.add(category)
+        )
+        if (VENDOR_ORDER.includes(category) && hasActiveCountdown) {
+          active.add(category)
+        }
+      }
+      setActiveCategories(active)
+      const byCategory: Record<string, CalendarVendor> = {}
+      for (const vendor of calendar.vendors || []) {
+        const category = String(vendor.category || '').toLowerCase()
+        if (category) byCategory[category] = vendor
+      }
+      setVendorData(byCategory)
+      setStatusError(null)
+    }
+
+    const loadRunStatus = async () => {
+      try {
+        if (isDevAuthBypass()) {
+          try {
+            const calendar = await schedulerApi.getCalendar()
+            if (cancelled) return
+            const hasFuture = (calendar.vendors || []).some((vendor) => {
+              const nextRunMs = vendor.next_run_time ? new Date(vendor.next_run_time).getTime() : null
+              return Boolean(vendor.enabled && nextRunMs !== null && nextRunMs > Date.now())
+            })
+            if (hasFuture) {
+              applyCalendar(calendar)
+              return
+            }
+          } catch {
+            // Fall through to local fixtures when the API is unreachable.
           }
+          if (cancelled) return
+          applyCalendar({
+            generated_at: new Date().toISOString(),
+            vendors: getDevBypassCalendarVendors(),
+            ongoing_runs: [],
+          })
+          return
         }
-        setActiveCategories(active)
-        const byCategory: Record<string, CalendarVendor> = {}
-        for (const vendor of calendar.vendors || []) {
-          const category = String(vendor.category || '').toLowerCase()
-          if (category) byCategory[category] = vendor
-        }
-        setVendorData(byCategory)
-        setStatusError(null)
+
+        const calendar = await schedulerApi.getCalendar()
+        if (cancelled) return
+        applyCalendar(calendar)
       } catch (err: any) {
         if (cancelled) return
         console.error('Failed to load scheduler calendar:', err)

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
-export type Theme = 'light' | 'dark' | 'stealth' | 'monochrome'
+export type Theme = 'light' | 'dark' | 'stealth' | 'monochrome' | 'dopamine'
 
 const STORAGE_KEY = 'msw-theme'
 
@@ -22,6 +22,7 @@ export const THEME_OPTIONS: ThemeOption[] = [
   { value: 'dark', label: 'Dark Mode', description: 'Dark slate theme', swatch: '#0f172a' },
   { value: 'stealth', label: 'Stealth', description: 'White UI with red action buttons', swatch: '#9d0208' },
   { value: 'monochrome', label: 'Monochrome', description: 'Black & white', swatch: '#111111' },
+  { value: 'dopamine', label: 'Dopamine', description: 'Pink, blue, and green accents', swatch: '#FFA5C8' },
 ]
 
 const VALID_THEMES: ReadonlySet<string> = new Set<string>(THEME_OPTIONS.map((option) => option.value))
@@ -32,6 +33,7 @@ const META_THEME_COLOR: Record<Theme, string> = {
   dark: '#0f172a',
   stealth: '#ffffff',
   monochrome: '#ffffff',
+  dopamine: '#FFA5C8',
 }
 
 interface ThemeContextValue {

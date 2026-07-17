@@ -77,6 +77,32 @@
   --color-page-to: 235 235 235;
 }
 
+/* ==================================================================== *
+ * DOPAMINE THEME — light surfaces with pink #FFA5C8 actions/panels,
+ * blue #8CCBEE hub icons & soft helper panels, green #81B81D run accents
+ * retained, destructive red shifted to palette #FF220F.
+ * ==================================================================== */
+:root[data-theme='dopamine'] {
+  --color-surface: 255 255 255;
+  --color-surface-elevated: 255 255 255;
+  --color-surface-muted: 255 245 250;
+  --color-surface-hover: 255 229 240;
+  --color-text-primary: 17 24 39;
+  --color-text-secondary: 55 65 81;
+  --color-text-muted: 107 114 128;
+  --color-border: 251 207 232;
+  --color-border-strong: 244 114 182;
+  --color-page-from: 255 251 252;
+  --color-page-via: 255 241 247;
+  --color-page-to: 236 247 253;
+  --color-dopamine-pink: 255 165 200;
+  --color-dopamine-pink-hover: 255 143 183;
+  --color-dopamine-blue: 140 203 238;
+  --color-dopamine-blue-soft: 236 247 253;
+  --color-dopamine-red: 255 34 15;
+  --color-dopamine-green: 30 123 37;
+}
+
 @layer base {
   html {
     font-size: 16px;
@@ -1309,6 +1335,12 @@ code {
   background: #f2f2f2;
 }
 
+[data-theme='dopamine'] body,
+[data-theme='dopamine'] .app-page-bg,
+[data-theme='dopamine'] .app-shell-bg {
+  background: linear-gradient(to bottom right, #fffbfd 0%, #fff1f7 45%, #ecf7fd 100%);
+}
+
 /* ==================================================================== *
  * MONOCHROME + STEALTH ACCENTS — neutralize brand green/orange and the
  * purple download button to grayscale. Stealth keeps deep red on
@@ -1800,5 +1832,197 @@ code {
 [data-theme='stealth'] .border-purple-600,
 [data-theme='stealth'] .hover\:border-purple-700:hover {
   border-color: #9d0208 !important;
+}
+
+/* ==================================================================== *
+ * DOPAMINE — pink actions/panels, blue hubs & soft helpers; Active Runs
+ * use white countdown + white/blue Import Mode badge; Active status stays green.
+ * ==================================================================== */
+
+/* Soft helper panels (MAP Delete box, UPC helpers, daily-run info cards) */
+[data-theme='dopamine'] .bg-\[\#81B81D\]\/10,
+[data-theme='dopamine'] .bg-green-50 {
+  background-color: #ecf7fd !important;
+}
+
+[data-theme='dopamine'] .border-\[\#81B81D\]\/30,
+[data-theme='dopamine'] .border-\[\#81B81D\]\/40,
+[data-theme='dopamine'] .border-\[\#81B81D\]\/55,
+[data-theme='dopamine'] .border-green-200 {
+  border-color: rgb(140 203 238 / 0.7) !important;
+}
+
+[data-theme='dopamine'] .bg-green-50 .text-green-800,
+[data-theme='dopamine'] .bg-green-50 .text-green-900,
+[data-theme='dopamine'] .bg-\[\#81B81D\]\/10 .text-\[\#111827\] {
+  color: #0f4c75 !important;
+}
+
+/* Hub icon tiles → blue (Daily Runs, Manage UPCs, etc.) */
+[data-theme='dopamine'] .vendor-hub-card-icon {
+  background-color: #8ccbee !important;
+  color: #ffffff !important;
+}
+
+[data-theme='dopamine'] .vendor-hub-card:hover {
+  background: #ffa5c8 !important;
+  color: #111827 !important;
+}
+
+[data-theme='dopamine'] .vendor-hub-card:hover .vendor-hub-card-title,
+[data-theme='dopamine'] .vendor-hub-card:hover .vendor-hub-card-subtitle {
+  color: #111827 !important;
+}
+
+[data-theme='dopamine'] .vendor-hub-card:hover .vendor-hub-card-icon {
+  background-color: rgb(255 255 255 / 0.55) !important;
+  color: #0f4c75 !important;
+}
+
+/* Pink primary chrome: buttons, sidebar, Active Runs cards, purple download */
+[data-theme='dopamine'] .btn-primary,
+[data-theme='dopamine'] .sidebar-link-active,
+[data-theme='dopamine'] button.sidebar-link.sidebar-link-active,
+[data-theme='dopamine'] .sidebar-link:hover,
+[data-theme='dopamine'] .sidebar-link-inactive:hover,
+[data-theme='dopamine'] button.bg-\[\#404040\],
+[data-theme='dopamine'] a.bg-\[\#404040\],
+[data-theme='dopamine'] .bg-\[\#404040\]:not(.rounded-full):not(.vendor-hub-card-icon),
+[data-theme='dopamine'] .bg-\[\#3B3B3B\],
+[data-theme='dopamine'] .bg-\[\#81B81D\],
+[data-theme='dopamine'] .bg-purple-600,
+[data-theme='dopamine'] .bg-black:not(.fixed) {
+  background-color: #ffa5c8 !important;
+  border-color: #ffa5c8 !important;
+}
+
+[data-theme='dopamine'] .btn-primary:hover,
+[data-theme='dopamine'] .hover\:bg-\[\#3B3B3B\]:hover,
+[data-theme='dopamine'] .hover\:bg-\[\#2d2d2d\]:hover,
+[data-theme='dopamine'] .hover\:bg-gray-800:hover,
+[data-theme='dopamine'] .hover\:bg-purple-700:hover,
+[data-theme='dopamine'] .hover\:bg-black:hover {
+  background-color: #ff8fb7 !important;
+  border-color: #ff8fb7 !important;
+}
+
+[data-theme='dopamine'] .border-purple-600,
+[data-theme='dopamine'] .hover\:border-purple-700:hover {
+  border-color: #ffa5c8 !important;
+}
+
+/* Dark copy on pink fills (pink is too light for white text) */
+[data-theme='dopamine'] .btn-primary,
+[data-theme='dopamine'] .sidebar-link-active,
+[data-theme='dopamine'] .sidebar-link-active span,
+[data-theme='dopamine'] button.sidebar-link.sidebar-link-active,
+[data-theme='dopamine'] button.sidebar-link.sidebar-link-active span,
+[data-theme='dopamine'] .sidebar-link:hover,
+[data-theme='dopamine'] .sidebar-link:hover span,
+[data-theme='dopamine'] .sidebar-link-inactive:hover,
+[data-theme='dopamine'] button.bg-\[\#404040\],
+[data-theme='dopamine'] a.bg-\[\#404040\],
+[data-theme='dopamine'] .bg-\[\#404040\]:not(.rounded-full):not(.vendor-hub-card-icon),
+[data-theme='dopamine'] .bg-\[\#81B81D\].text-white,
+[data-theme='dopamine'] .bg-purple-600.text-white,
+[data-theme='dopamine'] .bg-purple-600 {
+  color: #111827 !important;
+}
+
+/* Active Runs / countdown cards: pink panel, keep inherited green accents */
+[data-theme='dopamine'] .bg-\[\#404040\].text-white,
+[data-theme='dopamine'] .bg-\[\#404040\].border-white\/20 {
+  background-color: #ffa5c8 !important;
+  border-color: rgb(255 255 255 / 0.45) !important;
+  color: #111827 !important;
+}
+
+[data-theme='dopamine'] .bg-\[\#404040\] .text-white\/70 {
+  color: rgb(17 24 39 / 0.7) !important;
+}
+
+/* Pink Active Runs cards: white Import Mode badge + blue label; white countdown */
+[data-theme='dopamine'] .bg-\[\#404040\] .text-\[\#81B81D\],
+[data-theme='dopamine'] .bg-\[\#404040\] .text-\[\#F97316\] {
+  color: #ffffff !important;
+}
+
+[data-theme='dopamine'] .bg-\[\#404040\] .bg-\[\#81B81D\]\/20,
+[data-theme='dopamine'] .bg-\[\#404040\] .bg-\[\#81B81D\]\/30,
+[data-theme='dopamine'] .bg-\[\#404040\] .bg-\[\#F97316\]\/20,
+[data-theme='dopamine'] .bg-\[\#404040\] .bg-\[\#F97316\]\/30 {
+  background-color: #ffffff !important;
+}
+
+[data-theme='dopamine'] .bg-\[\#404040\] .text-\[\#E8F8C8\],
+[data-theme='dopamine'] .bg-\[\#404040\] .text-\[\#DDF5B0\],
+[data-theme='dopamine'] .bg-\[\#404040\] .text-\[\#FFE7CC\],
+[data-theme='dopamine'] .bg-\[\#404040\] .text-\[\#FFD8B0\] {
+  color: #3b9dd0 !important;
+}
+
+[data-theme='dopamine'] .bg-\[\#404040\] .ring-\[\#81B81D\]\/80,
+[data-theme='dopamine'] .bg-\[\#404040\] .ring-\[\#81B81D\]\/85,
+[data-theme='dopamine'] .bg-\[\#404040\] .ring-\[\#F97316\]\/80,
+[data-theme='dopamine'] .bg-\[\#404040\] .ring-\[\#F97316\]\/85 {
+  --tw-ring-color: rgb(59 157 208 / 0.85) !important;
+}
+
+/* Status pills that are already green stay green */
+[data-theme='dopamine'] .bg-green-100 {
+  background-color: rgb(220 252 231) !important;
+}
+
+[data-theme='dopamine'] .text-green-700,
+[data-theme='dopamine'] .text-green-800 {
+  color: #1e7b25 !important;
+}
+
+/* Destructive / alert red → palette red */
+[data-theme='dopamine'] .bg-red-600,
+[data-theme='dopamine'] .bg-red-700,
+[data-theme='dopamine'] .bg-red-800 {
+  background-color: #ff220f !important;
+  border-color: #ff220f !important;
+  color: #ffffff !important;
+}
+
+[data-theme='dopamine'] .hover\:bg-red-700:hover,
+[data-theme='dopamine'] .hover\:bg-red-800:hover {
+  background-color: #d61c0c !important;
+  border-color: #d61c0c !important;
+}
+
+[data-theme='dopamine'] .text-red-600,
+[data-theme='dopamine'] .text-red-700,
+[data-theme='dopamine'] .text-red-800 {
+  color: #ff220f !important;
+}
+
+[data-theme='dopamine'] .border-red-300,
+[data-theme='dopamine'] .border-red-200 {
+  border-color: rgb(255 34 15 / 0.45) !important;
+}
+
+/* Focus rings on brand green → soft pink */
+[data-theme='dopamine'] .focus\:border-\[\#81B81D\]:focus,
+[data-theme='dopamine'] .focus\:ring-\[\#81B81D\]:focus {
+  border-color: #ffa5c8 !important;
+  --tw-ring-color: rgb(255 165 200 / 0.55) !important;
+}
+
+/* Gradient action buttons → pink */
+[data-theme='dopamine'] .from-green-500,
+[data-theme='dopamine'] .from-emerald-500,
+[data-theme='dopamine'] .hover\:from-green-600:hover {
+  --tw-gradient-from: #ffa5c8 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(255 165 200 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+[data-theme='dopamine'] .to-green-600,
+[data-theme='dopamine'] .to-emerald-600,
+[data-theme='dopamine'] .hover\:to-green-700:hover {
+  --tw-gradient-to: #ff8fb7 var(--tw-gradient-to-position) !important;
 }
 

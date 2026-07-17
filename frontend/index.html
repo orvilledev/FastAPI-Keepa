@@ -11,7 +11,7 @@
         try {
           var stored = localStorage.getItem('msw-theme');
           if (stored === 'sunset') stored = 'stealth';
-          var valid = ['light', 'dark', 'stealth', 'monochrome'];
+          var valid = ['light', 'dark', 'stealth', 'monochrome', 'dopamine'];
           var theme =
             valid.indexOf(stored) !== -1
               ? stored
@@ -28,6 +28,7 @@
             dark: '#0f172a',
             stealth: '#ffffff',
             monochrome: '#ffffff',
+            dopamine: '#FFA5C8',
           };
           var meta = document.querySelector('meta[name="theme-color"]');
           if (meta) meta.setAttribute('content', colors[theme]);
