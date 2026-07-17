@@ -40,6 +40,7 @@ class OffPriceAnalyticsSnapshotRepository:
         *,
         period_type: Optional[str] = None,
         limit: int = 200,
+        exclude_demo: bool = False,
     ) -> List[Dict[str, Any]]:
         query = (
             self.db.table(self.table)
@@ -53,8 +54,20 @@ class OffPriceAnalyticsSnapshotRepository:
         )
         if period_type:
             query = query.eq("period_type", period_type)
+        if exclude_demo:
+            query = query.neq("source", "demo")
         response = query.execute()
         return response.data or []
+
+    def delete_demo_snapshots(self) -> int:
+        """Remove fabricated demo archives so live history is not polluted."""
+        response = (
+            self.db.table(self.table)
+            .delete()
+            .eq("source", "demo")
+            .execute()
+        )
+        return len(response.data or [])
 
     def get_snapshot(self, period_type: str, period_key: str) -> Optional[Dict[str, Any]]:
         response = (

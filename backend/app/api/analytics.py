@@ -14,6 +14,7 @@ from app.repositories.off_price_analytics_download_log_repository import (
 from app.repositories.off_price_analytics_user_tracking_repository import (
     OffPriceAnalyticsUserTrackingRepository,
 )
+from app.services.analytics_cutover import has_analytics_demo_ended
 from app.services.email_service import EmailService
 from app.services.off_price_analytics_service import OffPriceAnalyticsService
 from app.services.off_price_analytics_vendors import VENDOR_CODES
@@ -129,11 +130,19 @@ def get_off_price_analytics(
 def list_off_price_analytics_archives(
     period_type: Optional[PeriodParam] = Query(None),
     limit: int = Query(200, ge=1, le=500),
+    exclude_demo: bool = Query(
+        True,
+        description="When true, omit fabricated source=demo archives (default).",
+    ),
     current_user: dict = Depends(require_analytics_access),
     db: Client = Depends(get_supabase),
 ):
     service = OffPriceAnalyticsService(db)
-    return service.list_archives(period_type=period_type, limit=limit)
+    return service.list_archives(
+        period_type=period_type,
+        limit=limit,
+        exclude_demo=exclude_demo,
+    )
 
 
 @router.get("/analytics/off-price/archives/{period_type}/{period_key}")
@@ -151,6 +160,11 @@ def get_off_price_analytics_archive(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No archived analytics for {period_type}/{period_key}",
         )
+    if (row.get("source") or "").strip().lower() == "demo" and has_analytics_demo_ended():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No archived analytics for {period_type}/{period_key}",
+        )
     return row
 
 
@@ -161,9 +175,31 @@ def seed_demo_off_price_history(
     db: Client = Depends(get_supabase),
 ):
     _require_dev_seed()
+    if has_analytics_demo_ended():
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail=(
+                "Demo history seeding ended on 2026-08-01 America/Chicago. "
+                "Use live Daily Run archives instead."
+            ),
+        )
     service = OffPriceAnalyticsService(db)
     return service.seed_demo_history()
 
+
+@router.delete("/analytics/off-price/demo-snapshots")
+@handle_api_errors("delete demo off-price analytics snapshots")
+def delete_demo_off_price_snapshots(
+    current_user: dict = Depends(require_analytics_access),
+    db: Client = Depends(get_supabase),
+):
+    """
+    Remove fabricated ``source=demo`` snapshot rows.
+
+    Safe to call from the live Analytics preview; live/manual archives are kept.
+    """
+    service = OffPriceAnalyticsService(db)
+    return service.delete_demo_snapshots()
 
 @router.get("/analytics/off-price/tracking")
 @handle_api_errors("list personal analytics tracking settings")

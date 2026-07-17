@@ -389,13 +389,27 @@ class OffPriceAnalyticsService:
         *,
         period_type: Optional[str] = None,
         limit: int = 200,
+        exclude_demo: bool = False,
     ) -> Dict[str, Any]:
         try:
-            rows = self.snapshots.list_snapshots(period_type=period_type, limit=limit)
+            rows = self.snapshots.list_snapshots(
+                period_type=period_type,
+                limit=limit,
+                exclude_demo=exclude_demo,
+            )
             return {"archives": rows, "available": True}
         except Exception as exc:
             logger.warning("Could not list analytics archives: %s", exc)
             return {"archives": [], "available": False, "detail": str(exc)}
+
+    def delete_demo_snapshots(self) -> Dict[str, Any]:
+        """Purge fabricated ``source=demo`` archives. Live/manual rows are kept."""
+        try:
+            deleted = self.snapshots.delete_demo_snapshots()
+            return {"deleted": deleted, "available": True}
+        except Exception as exc:
+            logger.warning("Could not delete demo analytics snapshots: %s", exc)
+            return {"deleted": 0, "available": False, "detail": str(exc)}
 
     def get_archive(self, period_type: str, period_key: str) -> Optional[Dict[str, Any]]:
         try:

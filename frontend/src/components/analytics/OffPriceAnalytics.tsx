@@ -17,9 +17,19 @@ import {
   buildDemoOffPriceAnalytics,
   DEMO_ANALYTICS_CURRENT_YEAR,
   type AnalyticsPeriod,
+  type DemoOffPriceAnalytics,
   type DemoVendorAnalytics,
   type DemoYearArchive,
 } from '../../lib/demoOffPriceAnalytics'
+import {
+  analyticsSourceBadgeLabel,
+  resolveAnalyticsDataSource,
+  type AnalyticsDataSource,
+} from '../../lib/analyticsCutover'
+import {
+  buildLiveOffPriceAnalytics,
+  purgeDemoAnalyticsSnapshots,
+} from '../../lib/buildLiveOffPriceAnalytics'
 import { useUser } from '../../contexts/UserContext'
 import { analyticsApi } from '../../services/api'
 import { downloadBlob } from '../../utils/downloadLinkedFile'
@@ -250,18 +260,90 @@ export default function OffPriceAnalytics() {
       ? periodParam
       : 'weekly'
   const yearParam = searchParams.get('year')
+  const dataSource: AnalyticsDataSource = resolveAnalyticsDataSource(searchParams)
 
-  const data = useMemo(() => buildDemoOffPriceAnalytics(), [])
-  const vendorCodes = useMemo(() => data.vendors.map((v) => v.code), [data.vendors])
-  const vendorNames = useMemo(
-    () => Object.fromEntries(data.vendors.map((v) => [v.code, v.name])),
-    [data.vendors],
+  const [data, setData] = useState<DemoOffPriceAnalytics | null>(
+    dataSource === 'demo' ? () => buildDemoOffPriceAnalytics() : null,
   )
-  const [expandedVendor, setExpandedVendor] = useState<string | null>(data.vendors[0]?.code ?? null)
-  const [downloading, setDownloading] = useState(false)
+  const [dataLoading, setDataLoading] = useState(dataSource === 'live')
+  const [dataError, setDataError] = useState<string | null>(null)
   const [archiveStatus, setArchiveStatus] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    if (dataSource === 'demo') {
+      setData(buildDemoOffPriceAnalytics())
+      setDataLoading(false)
+      setDataError(null)
+      analyticsApi
+        .seedDemoHistory()
+        .then((res) => {
+          if (!cancelled) {
+            setArchiveStatus(
+              res.count > 0
+                ? `Archived ${res.count} period snapshot(s) to the database for historical download.`
+                : 'Archive table available — snapshots upserted when empty.',
+            )
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setArchiveStatus(
+              'Demo archives shown locally. Apply migration create_off_price_analytics_snapshots.sql to persist them in the DB.',
+            )
+          }
+        })
+      return () => {
+        cancelled = true
+      }
+    }
+
+    setDataLoading(true)
+    setDataError(null)
+    setArchiveStatus(null)
+    ;(async () => {
+      const purged = await purgeDemoAnalyticsSnapshots()
+      try {
+        const live = await buildLiveOffPriceAnalytics()
+        if (cancelled) return
+        setData(live)
+        setArchiveStatus(
+          purged > 0
+            ? `Live data · removed ${purged} demo snapshot(s). Preview via ?source=live until Aug 1, 2026 Central.`
+            : 'Live Daily Run data · demo snapshots excluded. Cutover Aug 1, 2026 Central.',
+        )
+      } catch (err: unknown) {
+        if (cancelled) return
+        const message =
+          (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+          (err as Error)?.message ||
+          'Failed to load live analytics'
+        setDataError(String(message))
+        setData(null)
+      } finally {
+        if (!cancelled) setDataLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [dataSource])
+
+  const vendorCodes = useMemo(() => data?.vendors.map((v) => v.code) ?? [], [data])
+  const vendorNames = useMemo(
+    () => Object.fromEntries((data?.vendors ?? []).map((v) => [v.code, v.name])),
+    [data],
+  )
+  const [expandedVendor, setExpandedVendor] = useState<string | null>(null)
+  useEffect(() => {
+    if (!expandedVendor && data?.vendors[0]?.code) {
+      setExpandedVendor(data.vendors[0].code)
+    }
+  }, [data, expandedVendor])
+  const [downloading, setDownloading] = useState(false)
   const [tracking, setTracking] = useState<Record<string, boolean>>(() =>
-    loadLocalTracking(userId, vendorCodes),
+    loadLocalTracking(userId, ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha']),
   )
   const [trackingBusy, setTrackingBusy] = useState<string | null>(null)
   const [trackingSource, setTrackingSource] = useState<'local' | 'db'>('local')
@@ -290,46 +372,32 @@ export default function OffPriceAnalytics() {
     setTracking(loadLocalTracking(userId, vendorCodes))
   }, [userId, vendorCodes])
 
+  const currentAnalyticsYear = useMemo(() => {
+    if (!data) return DEMO_ANALYTICS_CURRENT_YEAR
+    const fromYears = data.historical_years[0]?.year
+    if (fromYears) return fromYears
+    const y = Number.parseInt(data.period_labels.yearly || '', 10)
+    return Number.isFinite(y) ? y : DEMO_ANALYTICS_CURRENT_YEAR
+  }, [data])
+
   const selectedYear = useMemo(() => {
-    if (period !== 'yearly') return null
+    if (!data || period !== 'yearly') return null
     const years = data.historical_years.map((y) => y.year)
     const parsed = yearParam ? Number.parseInt(yearParam, 10) : NaN
     if (years.includes(parsed)) return parsed
-    return years[0] ?? DEMO_ANALYTICS_CURRENT_YEAR
-  }, [period, yearParam, data.historical_years])
+    return years[0] ?? currentAnalyticsYear
+  }, [period, yearParam, data, currentAnalyticsYear])
 
   const selectedYearArchive: DemoYearArchive | null = useMemo(() => {
-    if (selectedYear == null) return null
+    if (!data || selectedYear == null) return null
     return data.historical_years.find((y) => y.year === selectedYear) ?? null
-  }, [data.historical_years, selectedYear])
+  }, [data, selectedYear])
 
   useEffect(() => {
     let cancelled = false
-    analyticsApi
-      .seedDemoHistory()
-      .then((res) => {
-        if (!cancelled) {
-          setArchiveStatus(
-            res.count > 0
-              ? `Archived ${res.count} period snapshot(s) to the database for historical download.`
-              : 'Archive table available — snapshots upserted when empty.',
-          )
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setArchiveStatus(
-            'Demo archives shown locally. Apply migration create_off_price_analytics_snapshots.sql to persist them in the DB.',
-          )
-        }
-      })
-    return () => {
+    if (!data) return () => {
       cancelled = true
     }
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
     analyticsApi
       .listTracking()
       .then((res) => {
@@ -359,7 +427,7 @@ export default function OffPriceAnalytics() {
     return () => {
       cancelled = true
     }
-  }, [vendorCodes, userId])
+  }, [vendorCodes, userId, data])
 
   const setPeriod = (next: AnalyticsPeriod) => {
     const nextParams = new URLSearchParams(searchParams)
@@ -368,7 +436,7 @@ export default function OffPriceAnalytics() {
       if (!nextParams.get('year')) {
         nextParams.set(
           'year',
-          String(data.historical_years[0]?.year ?? DEMO_ANALYTICS_CURRENT_YEAR),
+          String(data?.historical_years[0]?.year ?? currentAnalyticsYear),
         )
       }
     } else {
@@ -457,18 +525,18 @@ export default function OffPriceAnalytics() {
   )
 
   const parsedEmailHistoricalYears = useMemo(() => {
-    if (!emailIncludeHistorical) return { years: [] as number[], unknown: [] as number[] }
+    if (!emailIncludeHistorical || !data) return { years: [] as number[], unknown: [] as number[] }
     return parseHistoricalYearsInput(
       emailHistoricalYearsInput,
       data.historical_years.map((y) => y.year),
     )
-  }, [emailIncludeHistorical, emailHistoricalYearsInput, data.historical_years])
+  }, [emailIncludeHistorical, emailHistoricalYearsInput, data])
 
   const emailHasReportRanges =
     selectedEmailPeriodList.length > 0 || parsedEmailHistoricalYears.years.length > 0
 
   const handleConfirmDownload = async () => {
-    if (selectedDownloadCodes.length === 0) return
+    if (!data || selectedDownloadCodes.length === 0) return
     setDownloading(true)
     try {
       const codes =
@@ -514,7 +582,7 @@ export default function OffPriceAnalytics() {
   }
 
   const handleConfirmEmail = async () => {
-    if (selectedEmailCodes.length === 0) return
+    if (!data || selectedEmailCodes.length === 0) return
     const to = emailRecipients.trim()
     const bcc = emailBccRecipients.trim()
     if (!to && !bcc) {
@@ -598,10 +666,15 @@ export default function OffPriceAnalytics() {
 
   const trackedVendorCount = vendorCodes.filter((c) => tracking[c] !== false).length
 
-  const totals = data.totals[period]
+  const totals = data?.totals[period] ?? {
+    off_price_count: 0,
+    distinct_sellers: 0,
+    vendors_with_hits: 0,
+    run_count: 0,
+  }
   const sortedVendors = useMemo(
     () =>
-      [...data.vendors].sort((a, b) => {
+      [...(data?.vendors ?? [])].sort((a, b) => {
         const aOn = tracking[a.code] !== false ? 1 : 0
         const bOn = tracking[b.code] !== false ? 1 : 0
         if (aOn !== bOn) return bOn - aOn
@@ -610,14 +683,14 @@ export default function OffPriceAnalytics() {
           vendorStatsForPeriod(a, period).off_price_count
         )
       }),
-    [data.vendors, period, tracking],
+    [data?.vendors, period, tracking],
   )
 
-  const topSellerForPeriod = useMemo(() => {
-    return [...data.top_sellers_overall].sort(
+  const topSellersForPeriod = useMemo(() => {
+    return [...(data?.top_sellers_overall ?? [])].sort(
       (a, b) => sellerHitsOverall(b, period) - sellerHitsOverall(a, period),
-    )[0]
-  }, [data.top_sellers_overall, period])
+    )
+  }, [data?.top_sellers_overall, period])
 
   const vendorChartData = useMemo(
     () =>
@@ -632,7 +705,7 @@ export default function OffPriceAnalytics() {
 
   const topSellersChartData = useMemo(
     () =>
-      [...data.top_sellers_overall]
+      [...(data?.top_sellers_overall ?? [])]
         .map((s) => ({
           name:
             s.seller_name.length > 18 ? `${s.seller_name.slice(0, 16)}…` : s.seller_name,
@@ -641,12 +714,12 @@ export default function OffPriceAnalytics() {
         }))
         .sort((a, b) => b.hits - a.hits)
         .slice(0, 8),
-    [data.top_sellers_overall, period],
+    [data?.top_sellers_overall, period],
   )
 
   const historicalTrendData = useMemo(
     () =>
-      [...data.historical_years]
+      [...(data?.historical_years ?? [])]
         .sort((a, b) => a.year - b.year)
         .slice(-20)
         .map((y) => ({
@@ -654,17 +727,17 @@ export default function OffPriceAnalytics() {
           hits: y.total_off_price_count,
           runs: y.total_run_count,
         })),
-    [data.historical_years],
+    [data?.historical_years],
   )
 
   const monthlyTrendData = useMemo(
     () =>
-      [...(data.historical_months ?? [])].map((m) => ({
+      [...(data?.historical_months ?? [])].map((m) => ({
         month: m.period_label,
         hits: m.total_off_price_count,
         runs: m.total_run_count,
       })),
-    [data.historical_months],
+    [data?.historical_months],
   )
 
   const archiveVendorChartData = useMemo(() => {
@@ -679,13 +752,45 @@ export default function OffPriceAnalytics() {
   }, [selectedYearArchive])
 
   const showingHistoricalYear =
-    period === 'yearly' && selectedYearArchive && selectedYear !== DEMO_ANALYTICS_CURRENT_YEAR
+    period === 'yearly' &&
+    Boolean(selectedYearArchive) &&
+    selectedYear !== currentAnalyticsYear
 
   const chartTooltipStyle = {
     borderRadius: 8,
     border: '1px solid #e5e7eb',
     fontSize: 12,
   }
+
+  if (dataLoading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center p-8">
+        <p className="text-sm text-gray-500 dark:text-content-muted">Loading live analytics…</p>
+      </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 p-8 text-center">
+        <p className="text-sm font-medium text-gray-900 dark:text-content-primary">
+          Could not load analytics
+        </p>
+        <p className="max-w-md text-sm text-gray-500 dark:text-content-muted">
+          {dataError || 'Unknown error'}
+        </p>
+        {dataSource === 'live' && (
+          <p className="text-xs text-gray-400 dark:text-content-muted">
+            Tip: before Aug 1, 2026 Central you can still open demo with{' '}
+            <code className="rounded bg-gray-100 px-1 dark:bg-surface-muted">?source=demo</code>
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  const topSellerForPeriod = topSellersForPeriod[0]
+
   return (
     <div className="flex min-h-0 flex-col gap-6 lg:flex-row lg:gap-8">
       <aside className="w-full shrink-0 lg:w-52">
@@ -731,9 +836,15 @@ export default function OffPriceAnalytics() {
         <p className="mt-4 hidden text-xs text-gray-500 dark:text-content-muted lg:block">
           Archives come from Daily Runs only. Deleting Express Jobs never removes or changes this analytics history.
         </p>
-        <p className="mt-3 hidden text-[11px] font-medium uppercase tracking-wide text-amber-700/80 dark:text-amber-400/80 lg:block">
-          Fabricated · Dev only
-        </p>
+        {dataSource === 'demo' ? (
+          <p className="mt-3 hidden text-[11px] font-medium uppercase tracking-wide text-amber-700/80 dark:text-amber-400/80 lg:block">
+            Fabricated · until Aug 1, 2026 Central
+          </p>
+        ) : (
+          <p className="mt-3 hidden text-[11px] font-medium uppercase tracking-wide text-emerald-700/80 dark:text-emerald-400/80 lg:block">
+            Live · preview with ?source=live
+          </p>
+        )}
       </aside>
 
       <div className="min-w-0 flex-1 space-y-6">
@@ -743,8 +854,14 @@ export default function OffPriceAnalytics() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-content-primary sm:text-3xl">
                 Off-Price Analytics
               </h1>
-              <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-                Demo data
+              <span
+                className={`rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
+                  dataSource === 'live'
+                    ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+                    : 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
+                }`}
+              >
+                {analyticsSourceBadgeLabel(dataSource)}
               </span>
             </div>
             <p className="mt-1 text-sm text-gray-500 dark:text-content-muted">
@@ -791,12 +908,12 @@ export default function OffPriceAnalytics() {
             </div>
             <div className="text-left sm:text-right">
               <p className="text-sm font-medium text-gray-900 dark:text-content-primary">
-                {showingHistoricalYear
+                {showingHistoricalYear && selectedYearArchive
                   ? selectedYearArchive.period_label
                   : data.period_labels[period]}
               </p>
               <p className="text-xs text-gray-500 dark:text-content-muted">
-                {showingHistoricalYear
+                {showingHistoricalYear && selectedYearArchive
                   ? selectedYearArchive.period_range
                   : data.period_ranges[period]}
               </p>

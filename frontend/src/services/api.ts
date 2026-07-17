@@ -1233,10 +1233,17 @@ export const analyticsApi = {
   listArchives: async (params?: {
     period_type?: 'daily' | 'weekly' | 'monthly' | 'yearly'
     limit?: number
+    exclude_demo?: boolean
   }) => {
     const response = await api.get<{ archives: OffPriceAnalyticsArchiveMeta[]; available: boolean }>(
       '/api/v1/analytics/off-price/archives',
-      { params },
+      {
+        params: {
+          period_type: params?.period_type,
+          limit: params?.limit,
+          exclude_demo: params?.exclude_demo ?? true,
+        },
+      },
     )
     return response.data
   },
@@ -1251,6 +1258,13 @@ export const analyticsApi = {
   seedDemoHistory: async () => {
     const response = await api.post<{ seeded: string[]; count: number }>(
       '/api/v1/analytics/off-price/seed-demo-history',
+    )
+    return response.data
+  },
+
+  deleteDemoSnapshots: async () => {
+    const response = await api.delete<{ deleted: number; available: boolean; detail?: string }>(
+      '/api/v1/analytics/off-price/demo-snapshots',
     )
     return response.data
   },

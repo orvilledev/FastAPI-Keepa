@@ -55,7 +55,7 @@ export interface DemoYearArchive {
 }
 
 export interface DemoOffPriceAnalytics {
-  demo: true
+  demo: boolean
   demo_label: string
   as_of: string
   period_labels: Record<AnalyticsPeriod, string>
