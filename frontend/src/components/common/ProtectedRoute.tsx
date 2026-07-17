@@ -1,18 +1,28 @@
 import { Navigate } from 'react-router-dom'
 import { useUser } from '../../contexts/UserContext'
+import { canAccessWebAnalytics } from '../../lib/devFeatures'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
   requireKeepaAccess?: boolean
   requireLabelStationAccess?: boolean
+  requireAnalyticsAccess?: boolean
 }
 
 export default function ProtectedRoute({
   children,
   requireKeepaAccess = false,
   requireLabelStationAccess = false,
+  requireAnalyticsAccess = false,
 }: ProtectedRouteProps) {
-  const { hasKeepaAccess, hasLabelStationAccess, isWarehouseOnly, userInfoLoading, userInfo } = useUser()
+  const {
+    hasKeepaAccess,
+    hasLabelStationAccess,
+    isWarehouseOnly,
+    userInfoLoading,
+    userInfo,
+    authUser,
+  } = useUser()
 
   // Wait for profile bootstrap before enforcing access checks on refresh.
   // Without this guard, Keepa-protected routes can briefly redirect to
@@ -31,6 +41,13 @@ export default function ProtectedRoute({
 
   if (requireLabelStationAccess && !hasLabelStationAccess) {
     return <Navigate to="/dashboard" replace />
+  }
+
+  if (requireAnalyticsAccess) {
+    const email = userInfo.email || authUser?.email || null
+    if (!canAccessWebAnalytics(email)) {
+      return <Navigate to="/dashboard" replace />
+    }
   }
 
   return <>{children}</>

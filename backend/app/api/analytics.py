@@ -22,6 +22,30 @@ router = APIRouter()
 
 PeriodParam = Literal["daily", "weekly", "monthly", "yearly"]
 
+_DEFAULT_ANALYTICS_ALLOWED = frozenset(
+    {
+        "remote@metroshoewarehouse.com",
+        "stephanie@metroshoewarehouse.com",
+        "sunshine@metroshoewarehouse.com",
+    }
+)
+
+
+def _analytics_allowed_emails() -> set[str]:
+    configured = set(settings.analytics_allowed_emails_list)
+    return configured or set(_DEFAULT_ANALYTICS_ALLOWED)
+
+
+def require_analytics_access(current_user: dict = Depends(get_current_user)) -> dict:
+    """Restrict Analytics API to the approved email allowlist."""
+    email = (current_user.get("email") or "").strip().lower()
+    if email not in _analytics_allowed_emails():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Off-Price Analytics is restricted to authorized users",
+        )
+    return current_user
+
 
 def _require_dev_seed() -> None:
     """Demo history seeding stays local/development-only."""
@@ -81,7 +105,7 @@ def get_off_price_analytics(
     period: PeriodParam = Query("weekly"),
     offset: int = Query(0, ge=0, le=120),
     persist: bool = Query(True),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_analytics_access),
     db: Client = Depends(get_supabase),
 ):
     """Period counts using the current user's personal tracking preferences."""
@@ -99,7 +123,7 @@ def get_off_price_analytics(
 def list_off_price_analytics_archives(
     period_type: Optional[PeriodParam] = Query(None),
     limit: int = Query(200, ge=1, le=500),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_analytics_access),
     db: Client = Depends(get_supabase),
 ):
     service = OffPriceAnalyticsService(db)
@@ -111,7 +135,7 @@ def list_off_price_analytics_archives(
 def get_off_price_analytics_archive(
     period_type: PeriodParam,
     period_key: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_analytics_access),
     db: Client = Depends(get_supabase),
 ):
     service = OffPriceAnalyticsService(db)
@@ -127,7 +151,7 @@ def get_off_price_analytics_archive(
 @router.post("/analytics/off-price/seed-demo-history")
 @handle_api_errors("seed demo off-price analytics history")
 def seed_demo_off_price_history(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_analytics_access),
     db: Client = Depends(get_supabase),
 ):
     _require_dev_seed()
@@ -138,7 +162,7 @@ def seed_demo_off_price_history(
 @router.get("/analytics/off-price/tracking")
 @handle_api_errors("list personal analytics tracking settings")
 def list_analytics_tracking(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_analytics_access),
     db: Client = Depends(get_supabase),
 ):
     """List this user's personal per-vendor analytics tracking toggles."""
@@ -151,7 +175,7 @@ def list_analytics_tracking(
 def update_analytics_tracking(
     vendor_code: str,
     enabled: bool = Query(..., description="true = start tracking, false = stop tracking"),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_analytics_access),
     db: Client = Depends(get_supabase),
 ):
     """
@@ -180,7 +204,7 @@ def update_analytics_tracking(
 @handle_api_errors("list analytics download logs")
 def list_analytics_download_logs(
     limit: int = Query(50, ge=1, le=200),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_analytics_access),
     db: Client = Depends(get_supabase),
 ):
     """Shared audit trail of who downloaded which vendor analytics and when."""
@@ -195,7 +219,7 @@ def list_analytics_download_logs(
 @handle_api_errors("record analytics download log")
 def record_analytics_download_log(
     body: DownloadLogCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_analytics_access),
     db: Client = Depends(get_supabase),
 ):
     """Record that the current user downloaded an analytics Excel report."""

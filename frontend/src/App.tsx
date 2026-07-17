@@ -448,7 +448,7 @@ function AppRoutes() {
             <Route
               path="analytics"
               element={
-                <ProtectedRoute requireKeepaAccess={true}>
+                <ProtectedRoute requireKeepaAccess={true} requireAnalyticsAccess={true}>
                   <OffPriceAnalytics />
                 </ProtectedRoute>
               }

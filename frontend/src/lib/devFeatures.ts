@@ -5,9 +5,19 @@
 
 import { isElectronDesktop } from './privatePath'
 
+/** Emails allowed to open Off-Price Analytics on the web app. */
+export const ANALYTICS_ALLOWED_EMAILS = [
+  'remote@metroshoewarehouse.com',
+  'stephanie@metroshoewarehouse.com',
+  'sunshine@metroshoewarehouse.com',
+] as const
+
+const ANALYTICS_ALLOWED_SET = new Set(
+  ANALYTICS_ALLOWED_EMAILS.map((email) => email.toLowerCase()),
+)
+
 /**
- * Off-price Analytics is available on the web app (dev + production)
- * and hidden from the Electron desktop client.
+ * Off-price Analytics shell is web-only (hidden from Electron).
  */
 export function isWebAnalyticsEnabled(): boolean {
   if (import.meta.env.MODE === 'electron') return false
@@ -15,7 +25,14 @@ export function isWebAnalyticsEnabled(): boolean {
   return true
 }
 
-/** @deprecated Prefer isWebAnalyticsEnabled — kept for any leftover imports. */
+/** True when this email may use Analytics on the web app. */
+export function canAccessWebAnalytics(email?: string | null): boolean {
+  if (!isWebAnalyticsEnabled()) return false
+  const normalized = (email || '').trim().toLowerCase()
+  return Boolean(normalized) && ANALYTICS_ALLOWED_SET.has(normalized)
+}
+
+/** @deprecated Prefer isWebAnalyticsEnabled / canAccessWebAnalytics. */
 export function isDevAnalyticsEnabled(): boolean {
   return isWebAnalyticsEnabled()
 }

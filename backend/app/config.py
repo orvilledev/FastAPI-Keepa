@@ -146,6 +146,13 @@ class Settings(BaseSettings):
     # Comma-separated emails that skip TOTP MFA (password-only sign-in for shared stations).
     mfa_exempt_emails: str = "warehouse1@metroshoewarehouse.com,hello@warehouserepublic.com"
 
+    # Comma-separated emails allowed to use Off-Price Analytics (web API).
+    analytics_allowed_emails: str = (
+        "remote@metroshoewarehouse.com,"
+        "stephanie@metroshoewarehouse.com,"
+        "sunshine@metroshoewarehouse.com"
+    )
+
     # Report: comma-separated substrings matched case-insensitively (after removing
     # spaces/punctuation) against resolved seller display text. Rows for matching
     # sellers are omitted from off-price Excel/CSV. Default drops MetroShoe variants.
@@ -202,6 +209,14 @@ class Settings(BaseSettings):
     def mfa_exempt_emails_list(self) -> List[str]:
         """Normalized emails that skip TOTP MFA enrollment and verification."""
         raw = (self.mfa_exempt_emails or "").strip()
+        if not raw:
+            return []
+        return [email.strip().lower() for email in raw.split(",") if email.strip()]
+
+    @property
+    def analytics_allowed_emails_list(self) -> List[str]:
+        """Normalized emails allowed to use Off-Price Analytics endpoints."""
+        raw = (self.analytics_allowed_emails or "").strip()
         if not raw:
             return []
         return [email.strip().lower() for email in raw.split(",") if email.strip()]

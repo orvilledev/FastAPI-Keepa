@@ -4,7 +4,7 @@ import { useUser } from '../../contexts/UserContext'
 import { APP_NAME } from '../../constants/app'
 import AppLogo from '../common/AppLogo'
 import { isUserHiddenFromFeedbackPage } from '../../constants/feedbackAccess'
-import { isWebAnalyticsEnabled } from '../../lib/devFeatures'
+import { canAccessWebAnalytics } from '../../lib/devFeatures'
 
 // SVG Icon components that inherit text color via currentColor
 const Icons = {
@@ -165,7 +165,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
     { path: '/map',          label: 'Manage MAP',   icon: 'dollar'   as const },
     { path: '/seller-list',  label: 'Seller List',  icon: 'users'    as const },
     { path: '/email-list',   label: 'Email List',   icon: 'mail'     as const },
-    ...(isWebAnalyticsEnabled()
+    ...(canAccessWebAnalytics(userInfo?.email || authUser?.email)
       ? [{ path: '/analytics', label: 'Analytics', icon: 'chart' as const }]
       : []),
   ]
