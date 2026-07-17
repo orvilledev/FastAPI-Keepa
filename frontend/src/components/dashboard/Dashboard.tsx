@@ -63,27 +63,12 @@ export default function Dashboard() {
     }
   }
 
-  const { alert, dismiss, snooze, preview } = useDailyRunCapybaraReminder({
+  const { alert, dismiss, snooze } = useDailyRunCapybaraReminder({
     userId,
     enabledVendors: reminderVendors,
     vendorData,
     nowMs,
   })
-
-  // Instant demo via /dashboard?capybara=1 (or ?capybara=clk)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const raw = (params.get('capybara') || '').trim().toLowerCase()
-    if (!raw) return
-    const vendor = (
-      ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha'].includes(raw) ? raw : 'clk'
-    ) as ReminderVendorCode
-    preview(vendor)
-    params.delete('capybara')
-    const next = params.toString()
-    const path = `${window.location.pathname}${next ? `?${next}` : ''}${window.location.hash}`
-    window.history.replaceState({}, '', path)
-  }, [preview])
 
   // Load profile if MFA completed but context missed the API response
   useEffect(() => {
@@ -306,21 +291,11 @@ export default function Dashboard() {
 
           {/* Active Runs Container */}
           <div className="card p-5 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-gray-900">Active Runs</h2>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => preview('clk')}
-                  className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-100"
-                  title="Show the dancing capybara reminder (demo only)"
-                >
-                  Preview capybara
-                </button>
-                <span className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded-full font-medium">
-                  {activeVendorOrder.length} Running
-                </span>
-              </div>
+              <span className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded-full font-medium">
+                {activeVendorOrder.length} Running
+              </span>
             </div>
             {statusLoading ? (
               <div className="text-sm text-gray-500">Refreshing run status...</div>
