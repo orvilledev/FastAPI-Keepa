@@ -18,6 +18,8 @@ if (isDev) {
 }
 
 let mainWindow = null
+let capybaraWindow = null
+let capybaraPayload = null
 let autoUpdater = null
 let updaterEventsWired = false
 let userRequestedUpdateCheck = false
@@ -336,7 +338,123 @@ function createWindow() {
   })
 }
 
+function closeCapybaraOverlay() {
+  if (capybaraWindow && !capybaraWindow.isDestroyed()) {
+    capybaraWindow.close()
+  }
+  capybaraWindow = null
+  capybaraPayload = null
+}
+
+/**
+ * Always-on-top reminder window so the dancing capybara appears above Excel/Word/etc.
+ * Web/PWA cannot do this — desktop Electron only.
+ */
+function showCapybaraOverlay(payload) {
+  capybaraPayload = payload && typeof payload === 'object' ? payload : {}
+
+  if (capybaraWindow && !capybaraWindow.isDestroyed()) {
+    try {
+      capybaraWindow.setAlwaysOnTop(true, 'screen-saver')
+      capybaraWindow.show()
+      capybaraWindow.focus()
+      capybaraWindow.moveTop()
+      capybaraWindow.webContents.send('capybara:update', capybaraPayload)
+    } catch (err) {
+      console.error('[capybara] failed to focus overlay', err)
+    }
+    return { ok: true, reused: true }
+  }
+
+  const iconPath = path.join(__dirname, 'icon.ico')
+  const win = new BrowserWindow({
+    width: 420,
+    height: 480,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: false,
+    focusable: true,
+    show: false,
+    title: 'MSW Overwatch reminder',
+    icon: iconPath,
+    webPreferences: {
+      preload: path.join(__dirname, 'capybara-preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+
+  capybaraWindow = win
+
+  try {
+    // Highest practical always-on-top level on Windows.
+    win.setAlwaysOnTop(true, 'screen-saver')
+    if (typeof win.setVisibleOnAllWorkspaces === 'function') {
+      win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    }
+  } catch (err) {
+    console.warn('[capybara] alwaysOnTop level fallback', err)
+  }
+
+  win.once('ready-to-show', () => {
+    win.show()
+    win.focus()
+    try {
+      win.moveTop()
+    } catch {
+      /* ignore */
+    }
+  })
+
+  win.on('closed', () => {
+    if (capybaraWindow === win) {
+      capybaraWindow = null
+      capybaraPayload = null
+    }
+  })
+
+  void win.loadFile(path.join(__dirname, 'capybara-overlay.html'))
+  return { ok: true, reused: false }
+}
+
 ipcMain.handle('app:getVersion', () => app.getVersion())
+
+ipcMain.handle('capybara:show', (_event, payload) => {
+  try {
+    return showCapybaraOverlay(payload)
+  } catch (err) {
+    console.error('[capybara] show failed', err)
+    return { ok: false, message: err?.message || 'Failed to show reminder overlay' }
+  }
+})
+
+ipcMain.handle('capybara:getPayload', () => capybaraPayload)
+
+ipcMain.on('capybara:dismiss', () => {
+  closeCapybaraOverlay()
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('capybara:dismissed')
+    try {
+      mainWindow.focus()
+    } catch {
+      /* ignore */
+    }
+  }
+})
+
+ipcMain.on('capybara:snooze', (_event, minutes) => {
+  const mins = Number(minutes) || 5
+  closeCapybaraOverlay()
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('capybara:snoozed', mins)
+  }
+})
 
 ipcMain.handle('app:getUpdateStatus', () => lastUpdateStatus)
 

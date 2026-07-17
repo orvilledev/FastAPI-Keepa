@@ -14,4 +14,15 @@ contextBridge.exposeInMainWorld('desktop', {
   },
   listPrinters: () => ipcRenderer.invoke('printer:list'),
   printZpl: (payload) => ipcRenderer.invoke('printer:printZpl', payload),
+  showCapybaraReminder: (payload) => ipcRenderer.invoke('capybara:show', payload),
+  onCapybaraDismissed: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('capybara:dismissed', handler)
+    return () => ipcRenderer.removeListener('capybara:dismissed', handler)
+  },
+  onCapybaraSnoozed: (callback) => {
+    const handler = (_event, minutes) => callback(minutes)
+    ipcRenderer.on('capybara:snoozed', handler)
+    return () => ipcRenderer.removeListener('capybara:snoozed', handler)
+  },
 })

@@ -148,6 +148,7 @@ export function useDailyRunCapybaraReminder(options: {
 }) {
   const { userId, enabledVendors, vendorData, nowMs } = options
   const [alert, setAlert] = useState<ReminderAlert | null>(null)
+  const [desktopOverlay, setDesktopOverlay] = useState(false)
   const [snoozeUntilByVendor, setSnoozeUntilByVendor] = useState<
     Partial<Record<ReminderVendorCode, number>>
   >({})
@@ -247,6 +248,21 @@ export function useDailyRunCapybaraReminder(options: {
         firedAtMs: Date.now(),
       })
 
+      // Desktop: always-on-top window above Excel/Word/etc. (impossible in browser/PWA alone).
+      if (window.desktop?.isElectron && window.desktop.showCapybaraReminder) {
+        setDesktopOverlay(true)
+        setAlert(next)
+        void window.desktop.showCapybaraReminder({
+          vendor: next.vendor,
+          label: next.label,
+          nextRunIso: next.nextRunIso,
+          scheduledTime: next.scheduledTime,
+          secondsUntil: next.secondsUntil,
+        })
+        return
+      }
+
+      setDesktopOverlay(false)
       if (isDocumentHidden()) {
         void showCapybaraOsNotification(next, (payload) => {
           const opened = alertFromPayload(payload, Date.now())
@@ -258,6 +274,33 @@ export function useDailyRunCapybaraReminder(options: {
     },
     [userId],
   )
+
+  // Sync Got it / Snooze from the always-on-top Electron overlay.
+  useEffect(() => {
+    if (!window.desktop?.isElectron) return
+    const unsubDismiss = window.desktop.onCapybaraDismissed?.(() => {
+      clearPendingCapybaraReminder(userId)
+      setDesktopOverlay(false)
+      setAlert(null)
+    })
+    const unsubSnooze = window.desktop.onCapybaraSnoozed?.((minutes) => {
+      const current = alertRef.current
+      if (current) {
+        setSnoozeUntilByVendor((prev) => ({
+          ...prev,
+          [current.vendor]: Date.now() + (Number(minutes) || 5) * 60_000,
+        }))
+        clearReminderFiredForVendor(userId, current.vendor)
+      }
+      clearPendingCapybaraReminder(userId)
+      setDesktopOverlay(false)
+      setAlert(null)
+    })
+    return () => {
+      unsubDismiss?.()
+      unsubSnooze?.()
+    }
+  }, [userId])
 
   // T-30 detector — recurring + Same Day Run (Dashboard or Daily Run page mounted).
   useEffect(() => {
@@ -328,6 +371,7 @@ export function useDailyRunCapybaraReminder(options: {
 
   const dismiss = useCallback(() => {
     clearPendingCapybaraReminder(userId)
+    setDesktopOverlay(false)
     setAlert(null)
   }, [userId])
 
@@ -341,6 +385,7 @@ export function useDailyRunCapybaraReminder(options: {
       }))
       clearReminderFiredForVendor(userId, vendor)
       clearPendingCapybaraReminder(userId)
+      setDesktopOverlay(false)
       setAlert(null)
     },
     [alert, userId],
@@ -348,10 +393,24 @@ export function useDailyRunCapybaraReminder(options: {
 
   /** Instant demo — does not mark a real run as fired. */
   const preview = useCallback((vendor: ReminderVendorCode = 'clk') => {
-    setAlert(buildCapybaraPreviewAlert(vendor))
+    const next = buildCapybaraPreviewAlert(vendor)
+    if (window.desktop?.isElectron && window.desktop.showCapybaraReminder) {
+      setDesktopOverlay(true)
+      setAlert(next)
+      void window.desktop.showCapybaraReminder({
+        vendor: next.vendor,
+        label: next.label,
+        nextRunIso: next.nextRunIso,
+        scheduledTime: next.scheduledTime,
+        secondsUntil: next.secondsUntil,
+      })
+      return
+    }
+    setDesktopOverlay(false)
+    setAlert(next)
   }, [])
 
-  return { alert, dismiss, snooze, preview }
+  return { alert: desktopOverlay ? null : alert, dismiss, snooze, preview }
 }
 
 /** Demo alert so users can see the dancing capybara without waiting for T-30. */

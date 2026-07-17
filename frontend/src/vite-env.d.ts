@@ -46,6 +46,16 @@ interface DesktopBridge {
     printerName: string
     zpl: string
   }) => Promise<{ ok: boolean; message: string }>
+  /** Always-on-top dancing capybara overlay (desktop only). */
+  showCapybaraReminder?: (payload: {
+    vendor: string
+    label: string
+    nextRunIso: string
+    scheduledTime: string
+    secondsUntil: number
+  }) => Promise<{ ok: boolean; reused?: boolean; message?: string }>
+  onCapybaraDismissed?: (callback: () => void) => () => void
+  onCapybaraSnoozed?: (callback: (minutes: number) => void) => () => void
 }
 
 interface DesktopPrinter {
