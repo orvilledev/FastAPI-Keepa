@@ -1,6 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import {
   buildDemoOffPriceAnalytics,
   DEMO_ANALYTICS_CURRENT_YEAR,
   type AnalyticsPeriod,
@@ -14,6 +26,20 @@ import {
   buildOffPriceAnalyticsExcelBlob,
   offPriceAnalyticsExcelFilename,
 } from '../../utils/exportOffPriceAnalyticsExcel'
+
+const CHART_BLUE = '#3b9dd0'
+const CHART_PINK = '#FA6781'
+const CHART_YELLOW = '#F7E58C'
+const VENDOR_BAR_COLORS = [
+  '#3b9dd0',
+  '#FA6781',
+  '#81B81D',
+  '#F97316',
+  '#8ccbee',
+  '#ffa5c8',
+  '#404040',
+  '#F7E58C',
+]
 
 const PERIODS: { id: AnalyticsPeriod; label: string; description: string }[] = [
   {
@@ -442,9 +468,63 @@ export default function OffPriceAnalytics() {
     )[0]
   }, [data.top_sellers_overall, period])
 
+  const vendorChartData = useMemo(
+    () =>
+      sortedVendors.map((v) => ({
+        code: v.code.toUpperCase(),
+        name: v.name,
+        hits: vendorStatsForPeriod(v, period).off_price_count,
+        tracking: tracking[v.code] !== false,
+      })),
+    [sortedVendors, period, tracking],
+  )
+
+  const topSellersChartData = useMemo(
+    () =>
+      [...data.top_sellers_overall]
+        .map((s) => ({
+          name:
+            s.seller_name.length > 18 ? `${s.seller_name.slice(0, 16)}…` : s.seller_name,
+          fullName: s.seller_name,
+          hits: sellerHitsOverall(s, period),
+        }))
+        .sort((a, b) => b.hits - a.hits)
+        .slice(0, 8),
+    [data.top_sellers_overall, period],
+  )
+
+  const historicalTrendData = useMemo(
+    () =>
+      [...data.historical_years]
+        .sort((a, b) => a.year - b.year)
+        .slice(-20)
+        .map((y) => ({
+          year: String(y.year),
+          hits: y.total_off_price_count,
+          runs: y.total_run_count,
+        })),
+    [data.historical_years],
+  )
+
+  const archiveVendorChartData = useMemo(() => {
+    if (!selectedYearArchive) return []
+    return [...selectedYearArchive.vendors]
+      .sort((a, b) => b.off_price_count - a.off_price_count)
+      .map((v) => ({
+        code: v.code.toUpperCase(),
+        name: v.name,
+        hits: v.off_price_count,
+      }))
+  }, [selectedYearArchive])
+
   const showingHistoricalYear =
     period === 'yearly' && selectedYearArchive && selectedYear !== DEMO_ANALYTICS_CURRENT_YEAR
 
+  const chartTooltipStyle = {
+    borderRadius: 8,
+    border: '1px solid #e5e7eb',
+    fontSize: 12,
+  }
   return (
     <div className="flex min-h-0 flex-col gap-6 lg:flex-row lg:gap-8">
       <aside className="w-full shrink-0 lg:w-52">
@@ -777,6 +857,74 @@ export default function OffPriceAnalytics() {
               </div>
             </div>
 
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="card p-4 sm:p-5">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-content-primary">
+                  Hits by vendor — {selectedYearArchive.year}
+                </h3>
+                <p className="mb-3 text-xs text-gray-500 dark:text-content-muted">
+                  Archived yearly off-price volume
+                </p>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={archiveVendorChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                      <XAxis dataKey="code" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} width={48} />
+                      <Tooltip
+                        contentStyle={chartTooltipStyle}
+                        formatter={(value: number) => [value.toLocaleString(), 'Hits']}
+                        labelFormatter={(_, payload) =>
+                          String(payload?.[0]?.payload?.name || '')
+                        }
+                      />
+                      <Bar dataKey="hits" radius={[6, 6, 0, 0]}>
+                        {archiveVendorChartData.map((_, idx) => (
+                          <Cell
+                            key={`archive-bar-${idx}`}
+                            fill={VENDOR_BAR_COLORS[idx % VENDOR_BAR_COLORS.length]}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="card p-4 sm:p-5">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-content-primary">
+                  Historical trend
+                </h3>
+                <p className="mb-3 text-xs text-gray-500 dark:text-content-muted">
+                  Last {historicalTrendData.length} years of total off-price hits
+                </p>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={historicalTrendData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                      <XAxis dataKey="year" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                      <YAxis tick={{ fontSize: 11 }} width={48} />
+                      <Tooltip
+                        contentStyle={chartTooltipStyle}
+                        formatter={(value: number, name: string) => [
+                          value.toLocaleString(),
+                          name === 'hits' ? 'Hits' : 'Runs',
+                        ]}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="hits"
+                        stroke={CHART_BLUE}
+                        strokeWidth={2.5}
+                        dot={{ r: 2, fill: CHART_BLUE }}
+                        activeDot={{ r: 5 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
             <div className="card overflow-hidden">
               <div className="border-b border-gray-200 px-5 py-3 dark:border-border">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-content-primary">
@@ -912,6 +1060,115 @@ export default function OffPriceAnalytics() {
                       %
                     </p>
                   </div>
+                </div>
+              </div>
+            )}
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="card p-4 sm:p-5">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-content-primary">
+                  Hits by vendor — {period}
+                </h3>
+                <p className="mb-3 text-xs text-gray-500 dark:text-content-muted">
+                  Off-price volume for the selected period
+                </p>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={vendorChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                      <XAxis dataKey="code" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} width={48} />
+                      <Tooltip
+                        contentStyle={chartTooltipStyle}
+                        formatter={(value: number, _name, item) => [
+                          value.toLocaleString(),
+                          item?.payload?.tracking === false ? 'Hits (tracking off)' : 'Hits',
+                        ]}
+                        labelFormatter={(_, payload) =>
+                          String(payload?.[0]?.payload?.name || '')
+                        }
+                      />
+                      <Bar dataKey="hits" radius={[6, 6, 0, 0]}>
+                        {vendorChartData.map((row, idx) => (
+                          <Cell
+                            key={`vendor-bar-${row.code}`}
+                            fill={
+                              row.tracking === false
+                                ? '#d1d5db'
+                                : VENDOR_BAR_COLORS[idx % VENDOR_BAR_COLORS.length]
+                            }
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="card p-4 sm:p-5">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-content-primary">
+                  Top sellers — {period}
+                </h3>
+                <p className="mb-3 text-xs text-gray-500 dark:text-content-muted">
+                  Highest hit counts across all vendors
+                </p>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      layout="vertical"
+                      data={topSellersChartData}
+                      margin={{ top: 8, right: 16, left: 8, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 11 }} />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={110}
+                        tick={{ fontSize: 10 }}
+                      />
+                      <Tooltip
+                        contentStyle={chartTooltipStyle}
+                        formatter={(value: number) => [value.toLocaleString(), 'Hits']}
+                        labelFormatter={(_, payload) =>
+                          String(payload?.[0]?.payload?.fullName || '')
+                        }
+                      />
+                      <Bar dataKey="hits" fill={CHART_PINK} radius={[0, 6, 6, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            {period === 'yearly' && historicalTrendData.length > 1 && (
+              <div className="card p-4 sm:p-5">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-content-primary">
+                  Historical trend
+                </h3>
+                <p className="mb-3 text-xs text-gray-500 dark:text-content-muted">
+                  Last {historicalTrendData.length} years of total off-price hits
+                </p>
+                <div className="h-72 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={historicalTrendData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                      <XAxis dataKey="year" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                      <YAxis tick={{ fontSize: 11 }} width={48} />
+                      <Tooltip
+                        contentStyle={chartTooltipStyle}
+                        formatter={(value: number) => [value.toLocaleString(), 'Hits']}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="hits"
+                        stroke={CHART_BLUE}
+                        strokeWidth={2.5}
+                        dot={{ r: 2.5, fill: CHART_BLUE }}
+                        activeDot={{ r: 5, fill: CHART_YELLOW, stroke: CHART_BLUE }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             )}
