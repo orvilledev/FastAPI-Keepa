@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   Bar,
@@ -827,9 +828,10 @@ export default function OffPriceAnalytics() {
           )}
         </div>
 
-        {showDownloadModal && (
+        {showDownloadModal &&
+          createPortal(
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
             role="dialog"
             aria-modal="true"
             aria-labelledby="download-analytics-title"
@@ -918,20 +920,23 @@ export default function OffPriceAnalytics() {
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body,
         )}
 
-        {showEmailModal && (
+        {showEmailModal &&
+          createPortal(
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
             role="dialog"
             aria-modal="true"
             aria-labelledby="email-analytics-title"
             onClick={() => !emailSending && setShowEmailModal(false)}
           >
             <div
-              className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl dark:bg-surface"
+              className="flex h-[min(90vh,40rem)] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl dark:bg-surface"
               onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
             >
               <div className="shrink-0 border-b border-gray-200 px-5 py-4 dark:border-border">
                 <h2
@@ -1037,14 +1042,19 @@ export default function OffPriceAnalytics() {
                     selectedEmailCodes.length === 0 ||
                     (!emailRecipients.trim() && !emailBccRecipients.trim())
                   }
-                  onClick={() => void handleConfirmEmail()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void handleConfirmEmail()
+                  }}
                   className="relative z-20 rounded-lg bg-[#3b9dd0] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#2f8bbc] disabled:opacity-50"
                 >
                   {emailSending ? 'Sending…' : 'Send email'}
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body,
         )}
 
         {showingHistoricalYear && selectedYearArchive ? (

@@ -77,13 +77,15 @@ export default function EmailRecipientsPicker({
 
   useEffect(() => {
     if (!panelOpen) return
+    // Use `click` (not `mousedown`) so outside controls — e.g. a modal "Send"
+    // button — still receive their click before the panel collapses and shifts layout.
     const onDoc = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
         setPanelOpen(false)
       }
     }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
+    document.addEventListener('click', onDoc)
+    return () => document.removeEventListener('click', onDoc)
   }, [panelOpen])
 
   const labelByEmail = useMemo(() => {
