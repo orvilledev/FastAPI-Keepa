@@ -12,6 +12,7 @@ export type ReminderVendorCode =
   | 'sff'
   | 'tev'
   | 'cha'
+  | 'jfs'
 
 export const REMINDER_VENDOR_CODES: ReminderVendorCode[] = [
   'dnk',
@@ -22,6 +23,7 @@ export const REMINDER_VENDOR_CODES: ReminderVendorCode[] = [
   'sff',
   'tev',
   'cha',
+  'jfs',
 ]
 
 /** Fire when countdown is at or under this many seconds (30 minutes). */

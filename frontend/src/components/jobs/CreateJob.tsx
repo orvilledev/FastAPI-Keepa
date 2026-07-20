@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { jobsApi, mapApi } from '../../services/api'
 import EmailRecipientsPicker from './EmailRecipientsPicker'
 
-const SYSTEM_VENDOR_CODES = ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha'] as const
+const SYSTEM_VENDOR_CODES = ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha', 'jfs'] as const
 
 export default function CreateJob() {
   const [jobName, setJobName] = useState('')
@@ -121,7 +121,8 @@ export default function CreateJob() {
             Use <span className="font-mono">obz</span> for OBZ MAP uploads, <span className="font-mono">dnk</span> or{' '}
             <span className="font-mono">clk</span> for those vendors, <span className="font-mono">ref</span> for REF, and{' '}
             <span className="font-mono">bor</span> for BOR, <span className="font-mono">sff</span> for SFF, and{' '}
-            <span className="font-mono">tev</span> for TEV, and <span className="font-mono">cha</span> for CHA.
+            <span className="font-mono">tev</span> for TEV, <span className="font-mono">cha</span> for CHA, and{' '}
+            <span className="font-mono">jfs</span> for JFS.
           </p>
         </div>
 

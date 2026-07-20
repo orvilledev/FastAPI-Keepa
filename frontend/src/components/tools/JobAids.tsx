@@ -55,7 +55,7 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     q: 'What are Daily Runs?',
     a: (
       <>
-        Daily Runs are scheduled monitoring per vendor category (DNK, CLK, OBZ, REF, BOR, SFF, TEV, CHA). Open{' '}
+        Daily Runs are scheduled monitoring per vendor category (DNK, CLK, OBZ, REF, BOR, SFF, TEV, CHA, JFS). Open{' '}
         <strong>Daily Runs</strong> in the sidebar to pick a vendor hub, then configure schedule, mode, recipients, and
         reporting for that vendor.
       </>

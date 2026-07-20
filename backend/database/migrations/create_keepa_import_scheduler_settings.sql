@@ -27,7 +27,8 @@ VALUES
   ('bor', FALSE),
   ('sff', FALSE),
   ('tev', FALSE),
-  ('cha', FALSE)
+  ('cha', FALSE),
+  ('jfs', FALSE)
 ON CONFLICT (category) DO NOTHING;
 
 CREATE INDEX IF NOT EXISTS idx_keepa_import_scheduler_settings_category

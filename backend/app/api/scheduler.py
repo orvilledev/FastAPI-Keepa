@@ -453,7 +453,7 @@ def _process_uploaded_report_in_background(report_id: str, filename: str, raw: b
 
 @router.get("/scheduler/next-run")
 def get_next_scheduled_run(
-    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
+    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha|jfs)$'),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -559,7 +559,7 @@ def get_next_scheduled_run(
 @router.get("/scheduler/settings")
 @handle_api_errors("get scheduler settings")
 def get_scheduler_settings(
-    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
+    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha|jfs)$'),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -628,7 +628,7 @@ def get_scheduler_calendar(
     db: Client = Depends(get_supabase)
 ):
     """Return an overview of scheduled/ongoing daily runs across vendors."""
-    default_categories = ["dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha"]
+    default_categories = ["dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha", "jfs"]
     categories = set(default_categories)
     settings_by_category = {}
 
@@ -743,7 +743,7 @@ def get_scheduler_calendar(
 @handle_api_errors("update scheduler settings")
 def update_scheduler_settings_endpoint(
     settings_data: SchedulerSettingsUpdate,
-    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
+    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha|jfs)$'),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)
 ):
@@ -904,7 +904,7 @@ async def upload_scheduler_report(
     request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
+    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha|jfs)$'),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
@@ -979,7 +979,7 @@ async def upload_scheduler_report(
 @router.get("/scheduler/uploaded-report/latest")
 @handle_api_errors("get latest uploaded scheduler report")
 def get_latest_uploaded_report(
-    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
+    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha|jfs)$'),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
@@ -999,7 +999,7 @@ def get_latest_uploaded_report(
 @router.get("/scheduler/uploaded-report/status")
 @handle_api_errors("get uploaded scheduler report status")
 def get_uploaded_report_status(
-    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
+    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha|jfs)$'),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
@@ -1020,7 +1020,7 @@ def get_uploaded_report_status(
 @handle_api_errors("delete uploaded scheduler report")
 def delete_uploaded_report(
     report_id: str,
-    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
+    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha|jfs)$'),
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
@@ -1043,7 +1043,7 @@ def delete_uploaded_report(
 @router.post("/scheduler/uploaded-report/rerun")
 @handle_api_errors("rerun uploaded scheduler report")
 async def rerun_uploaded_report(
-    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha)$'),
+    category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha|jfs)$'),
     current_user: dict = Depends(get_current_user),
 ):
     """Trigger an immediate uploaded-mode run for a category."""
@@ -1076,7 +1076,7 @@ async def rerun_uploaded_report(
 @router.get("/scheduler/same-day-run")
 @handle_api_errors("get same-day run")
 def get_pending_same_day_run(
-    category: str = Query(default="dnk", regex="^(dnk|clk|obz|ref|bor|sff|tev|cha)$"),
+    category: str = Query(default="dnk", regex="^(dnk|clk|obz|ref|bor|sff|tev|cha|jfs)$"),
     current_user: dict = Depends(get_current_user),
 ):
     """Return the pending Same Day Run for a vendor, if any. Recurring schedule unchanged."""
@@ -1088,7 +1088,7 @@ def get_pending_same_day_run(
 @handle_api_errors("schedule same-day run")
 async def create_same_day_run(
     body: SameDayRunRequest,
-    category: str = Query(default="dnk", regex="^(dnk|clk|obz|ref|bor|sff|tev|cha)$"),
+    category: str = Query(default="dnk", regex="^(dnk|clk|obz|ref|bor|sff|tev|cha|jfs)$"),
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -1122,7 +1122,7 @@ async def create_same_day_run(
 @router.delete("/scheduler/same-day-run")
 @handle_api_errors("cancel same-day run")
 def delete_same_day_run(
-    category: str = Query(default="dnk", regex="^(dnk|clk|obz|ref|bor|sff|tev|cha)$"),
+    category: str = Query(default="dnk", regex="^(dnk|clk|obz|ref|bor|sff|tev|cha|jfs)$"),
     current_user: dict = Depends(get_current_user),
 ):
     """Cancel a pending Same Day Run. Recurring Daily Run schedule is untouched."""

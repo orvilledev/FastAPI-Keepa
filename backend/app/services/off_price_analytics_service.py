@@ -494,6 +494,7 @@ class OffPriceAnalyticsService:
             "sff": 720,
             "tev": 1100,
             "cha": 410,
+            "jfs": 560,
         }
 
         def hits_for_year(year: int) -> Dict[str, int]:

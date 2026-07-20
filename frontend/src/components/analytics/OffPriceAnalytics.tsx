@@ -345,7 +345,7 @@ export default function OffPriceAnalytics() {
   }, [data, expandedVendor])
   const [downloading, setDownloading] = useState(false)
   const [tracking, setTracking] = useState<Record<string, boolean>>(() =>
-    loadLocalTracking(userId, ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha']),
+    loadLocalTracking(userId, ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha', 'jfs']),
   )
   const [trackingBusy, setTrackingBusy] = useState<string | null>(null)
   const [trackingSource, setTrackingSource] = useState<'local' | 'db'>('local')

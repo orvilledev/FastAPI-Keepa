@@ -24,6 +24,7 @@ const VENDORS = [
   { code: 'sff', label: 'SFF (Sofft)' },
   { code: 'tev', label: 'TEV (Teva)' },
   { code: 'cha', label: 'CHA (Chaco)' },
+  { code: 'jfs', label: 'JFS (Josef Siebel)' },
 ] as const
 
 function vendorLabel(code: string) {

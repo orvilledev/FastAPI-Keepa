@@ -160,12 +160,12 @@ async def startup_event():
     logger.info("Initializing database connection...")
     init_db()
     logger.info("Setting up scheduler...")
-    # Try to load scheduler settings from database for DNK, CLK, OBZ, REF, BOR, SFF, TEV, and CHA
+    # Try to load scheduler settings from database for DNK, CLK, OBZ, REF, BOR, SFF, TEV, CHA, and JFS
     try:
         from app.database import get_supabase
         db = get_supabase()
 
-        for category in ("dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha"):
+        for category in ("dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha", "jfs"):
             settings_response = (
                 db.table("scheduler_settings").select("*").eq("category", category).execute()
             )
@@ -195,6 +195,7 @@ async def startup_event():
         setup_scheduler(category='sff')  # Use SFF defaults
         setup_scheduler(category='tev')  # Use TEV defaults
         setup_scheduler(category='cha')  # Use CHA defaults
+        setup_scheduler(category='jfs')  # Use JFS defaults
     start_scheduler()
     try:
         from app.services.keepa_import_build_runner import (

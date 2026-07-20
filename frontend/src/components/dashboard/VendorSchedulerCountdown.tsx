@@ -12,6 +12,7 @@ export type VendorSchedulerCode =
   | 'sff'
   | 'tev'
   | 'cha'
+  | 'jfs'
 
 export interface VendorSchedulerCountdownProps {
   vendor: VendorSchedulerCode

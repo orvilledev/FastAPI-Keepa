@@ -832,11 +832,11 @@ export const sellersApi = {
 
 // Scheduler API
 export const schedulerApi = {
-  getNextRun: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
+  getNextRun: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' | 'jfs') => {
     const response = await api.get<SchedulerStatus>(`/api/v1/scheduler/next-run?category=${category}`)
     return response.data
   },
-  getSettings: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
+  getSettings: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' | 'jfs') => {
     const response = await api.get<SchedulerSettings>(`/api/v1/scheduler/settings?category=${category}`)
     return response.data
   },
@@ -856,7 +856,7 @@ export const schedulerApi = {
       email_subject_template?: string | null
       email_body_template?: string | null
     },
-    category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
+    category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' | 'jfs'
   ) => {
     const response = await api.put<SchedulerSettings & { message: string }>(`/api/v1/scheduler/settings?category=${category}`, settings)
     return response.data
@@ -900,7 +900,7 @@ export const schedulerApi = {
     }>('/api/v1/scheduler/calendar')
     return response.data
   },
-  uploadReport: async (file: File, category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
+  uploadReport: async (file: File, category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' | 'jfs') => {
     const formData = new FormData()
     formData.append('file', file)
     // Let browser/axios set multipart boundary automatically.
@@ -915,7 +915,7 @@ export const schedulerApi = {
       parse_status: 'pending' | 'processing' | 'completed' | 'failed'
     }
   },
-  getLatestUploadedReport: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
+  getLatestUploadedReport: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' | 'jfs') => {
     const response = await api.get(`/api/v1/scheduler/uploaded-report/latest?category=${category}`)
     return response.data as {
       report: null | {
@@ -932,7 +932,7 @@ export const schedulerApi = {
       }
     }
   },
-  getLatestUploadedReportStatus: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
+  getLatestUploadedReportStatus: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' | 'jfs') => {
     const response = await api.get(`/api/v1/scheduler/uploaded-report/status?category=${category}`)
     return response.data as {
       report: null | {
@@ -948,16 +948,16 @@ export const schedulerApi = {
   },
   deleteUploadedReport: async (
     reportId: string,
-    category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
+    category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' | 'jfs'
   ) => {
     const response = await api.delete(`/api/v1/scheduler/uploaded-report/${reportId}?category=${category}`)
     return response.data as { message: string; id: string; category: string }
   },
-  rerunUploadedReport: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
+  rerunUploadedReport: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' | 'jfs') => {
     const response = await api.post(`/api/v1/scheduler/uploaded-report/rerun?category=${category}`)
     return response.data as { message: string }
   },
-  getSameDayRun: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
+  getSameDayRun: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' | 'jfs') => {
     const response = await api.get<{
       category: string
       pending: null | {
@@ -972,7 +972,7 @@ export const schedulerApi = {
     return response.data
   },
   scheduleSameDayRun: async (
-    category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha',
+    category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' | 'jfs',
     delay: { delay_hours: number; delay_minutes: number },
   ) => {
     const response = await api.post<{
@@ -988,7 +988,7 @@ export const schedulerApi = {
     }>(`/api/v1/scheduler/same-day-run?category=${category}`, delay)
     return response.data
   },
-  cancelSameDayRun: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha') => {
+  cancelSameDayRun: async (category: 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' | 'jfs') => {
     const response = await api.delete<{ message: string; category: string; cancelled: boolean }>(
       `/api/v1/scheduler/same-day-run?category=${category}`,
     )

@@ -229,6 +229,20 @@ const RAW: RawVendor[] = [
       { name: 'Rapids Edge Shoes', d: 0, w: 6, m: 25, discount: 8.3, lastSeen: '2026-07-07' },
     ],
   },
+  {
+    code: 'jfs',
+    name: 'JFS (Josef Siebel)',
+    enabled: true,
+    runs: { d: 1, w: 5, m: 18, y: 96 },
+    prior: { d: 14, w: 72, m: 280, y: 890 },
+    sellers: [
+      { name: 'Siebel Street Finds', d: 7, w: 29, m: 118, discount: 15.4, lastSeen: '2026-07-15' },
+      { name: 'Heritage Sole Outlet', d: 5, w: 22, m: 91, discount: 11.8, lastSeen: '2026-07-15' },
+      { name: 'Craft Walk Deals', d: 3, w: 15, m: 64, discount: 18.2, lastSeen: '2026-07-14' },
+      { name: 'Euro Step Market', d: 2, w: 11, m: 47, discount: 9.6, lastSeen: '2026-07-12' },
+      { name: 'Josef Clearance Co', d: 1, w: 8, m: 33, discount: 13.1, lastSeen: '2026-07-10' },
+    ],
+  },
 ]
 
 /** Yearly hit ≈ YTD scale from monthly rhythm (demo only). */

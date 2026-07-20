@@ -222,7 +222,7 @@ async def test_transient_settings_read_failure_uses_last_known_mode():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("category", ["dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha"])
+@pytest.mark.parametrize("category", ["dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha", "jfs"])
 async def test_transient_settings_read_failure_uses_last_known_mode_for_all_vendors(category: str):
     """All vendor schedulers should preserve last-known input mode on read failure."""
     uploaded_db = _FakeDB(input_mode="uploaded")
@@ -261,7 +261,7 @@ async def test_transient_settings_read_failure_uses_last_known_mode_for_all_vend
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("category", ["dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha"])
+@pytest.mark.parametrize("category", ["dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha", "jfs"])
 async def test_last_toggled_mode_is_used_when_settings_read_fails(category: str):
     """When latest toggle says uploaded, fallback should honor it on run-time read failure."""
     failing_db = _FakeDB(input_mode="api", fail_scheduler_settings=True)

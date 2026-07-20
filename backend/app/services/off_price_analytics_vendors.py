@@ -10,6 +10,7 @@ VENDOR_DEFS: List[Tuple[str, str]] = [
     ("sff", "SFF (Sofft)"),
     ("tev", "TEV (Teva)"),
     ("cha", "CHA (Chaco)"),
+    ("jfs", "JFS (Josef Siebel)"),
 ]
 
 VENDOR_CODES = {code for code, _ in VENDOR_DEFS}

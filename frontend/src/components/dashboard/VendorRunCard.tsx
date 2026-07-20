@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 
-type VendorCategory = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
+type VendorCategory = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' | 'jfs'
 
 type CalendarVendor = {
   category: string
@@ -34,9 +34,10 @@ const LABELS: Record<VendorCategory, string> = {
   sff: 'SFF',
   tev: 'TEV',
   cha: 'CHA',
+  jfs: 'JFS',
 }
 
-const VENDOR_PATHS = new Set<string>(['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha'])
+const VENDOR_PATHS = new Set<string>(['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha', 'jfs'])
 
 export default function VendorRunCard({
   vendor,

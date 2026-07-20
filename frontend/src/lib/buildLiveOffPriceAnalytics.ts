@@ -393,7 +393,7 @@ export async function buildLiveOffPriceAnalytics(): Promise<DemoOffPriceAnalytic
   const finalVendors =
     vendors.length > 0
       ? vendors
-      : (['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha'] as const).map((code) => ({
+      : (['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha', 'jfs'] as const).map((code) => ({
           code,
           name: code.toUpperCase(),
           scheduler_enabled: false,

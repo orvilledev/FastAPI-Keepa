@@ -13,7 +13,7 @@ import {
 } from '../../lib/dailyRunReminderPrefs'
 import { ensureReminderNotificationPermission } from '../../lib/dailyRunReminderNotify'
 
-type VendorCode = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
+type VendorCode = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' | 'jfs'
 
 interface VendorDailyRunProps {
   vendor: VendorCode

@@ -121,7 +121,7 @@ export default function About() {
           </li>
           <li>
             <span className="font-semibold">Daily Runs:</span> Scheduled monitoring per vendor category (DNK, CLK, OBZ,
-            REF, BOR, SFF, TEV, CHA). Each vendor can run in API Mode (live Keepa data) or Import Mode (uploaded Keepa
+            REF, BOR, SFF, TEV, CHA, JFS). Each vendor can run in API Mode (live Keepa data) or Import Mode (uploaded Keepa
             report files).
           </li>
           <li>

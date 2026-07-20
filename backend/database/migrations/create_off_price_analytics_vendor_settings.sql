@@ -22,7 +22,8 @@ VALUES
   ('bor', TRUE),
   ('sff', TRUE),
   ('tev', TRUE),
-  ('cha', TRUE)
+  ('cha', TRUE),
+  ('jfs', TRUE)
 ON CONFLICT (vendor_code) DO NOTHING;
 
 ALTER TABLE off_price_analytics_vendor_settings ENABLE ROW LEVEL SECURITY;

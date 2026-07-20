@@ -7,8 +7,8 @@ import EmailRecipientsPicker from './EmailRecipientsPicker'
 import { getStatusColor } from '../../utils/statusColors'
 import { formatRunDuration } from '../../utils/timeUtils'
 
-type SchedulerCategory = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
-const SCHEDULER_CATEGORIES: SchedulerCategory[] = ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha']
+type SchedulerCategory = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' | 'jfs'
+const SCHEDULER_CATEGORIES: SchedulerCategory[] = ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha', 'jfs']
 
 const resolveSchedulerCategory = (jobData: BatchJob): SchedulerCategory => {
   const fromMapVendor = (jobData.map_vendor_type || '').toLowerCase()

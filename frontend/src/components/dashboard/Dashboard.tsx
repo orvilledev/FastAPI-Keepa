@@ -14,8 +14,8 @@ import {
 } from '../../lib/dailyRunReminderPrefs'
 import { ensureReminderNotificationPermission } from '../../lib/dailyRunReminderNotify'
 
-type VendorCategory = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha'
-const VENDOR_ORDER: VendorCategory[] = ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha']
+type VendorCategory = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' | 'jfs'
+const VENDOR_ORDER: VendorCategory[] = ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha', 'jfs']
 const VENDOR_LABELS: Record<VendorCategory, string> = {
   dnk: 'DNK',
   clk: 'CLK',
@@ -258,6 +258,16 @@ export default function Dashboard() {
         />
       ) : (
         <FallbackVendorCard category="cha" />
+      ),
+      jfs: vendorData.jfs ? (
+        <VendorRunCard
+          vendor={vendorData.jfs}
+          nowMs={nowMs}
+          reminderEnabled={reminderVendors.has('jfs')}
+          onReminderToggle={(on) => handleReminderToggle('jfs', on)}
+        />
+      ) : (
+        <FallbackVendorCard category="jfs" />
       ),
     }),
     [vendorData, nowMs, reminderVendors, userId],

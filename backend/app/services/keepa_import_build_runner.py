@@ -31,7 +31,7 @@ from app.utils.user_display_name import format_stored_creator_name
 
 logger = logging.getLogger(__name__)
 
-VALID_CATEGORIES = frozenset({"dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha"})
+VALID_CATEGORIES = frozenset({"dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha", "jfs"})
 
 # Orphaned DB rows with no heartbeat for this long are failed by the sweeper.
 _STALE_HEARTBEAT_MINUTES = 5

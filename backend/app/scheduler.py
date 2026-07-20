@@ -288,7 +288,7 @@ class SchedulerConfig:
     custom_days: Optional[List[str]] = None
     anchor_date: Optional[str] = None
 
-# Default configurations for DNK, CLK, OBZ, REF, BOR, SFF, TEV, and CHA
+# Default configurations for DNK, CLK, OBZ, REF, BOR, SFF, TEV, CHA, and JFS
 _scheduler_configs = {
     'dnk': SchedulerConfig(
         timezone=timezone('America/Chicago'),
@@ -358,6 +358,15 @@ _scheduler_configs = {
         hour=6,
         minute=0,
         category='cha',
+        run_mode='daily',
+        custom_days=None,
+        anchor_date=None
+    ),
+    'jfs': SchedulerConfig(
+        timezone=timezone('America/Chicago'),
+        hour=6,
+        minute=0,
+        category='jfs',
         run_mode='daily',
         custom_days=None,
         anchor_date=None

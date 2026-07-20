@@ -16,7 +16,7 @@ from app.services.keepa_import_off_price_report import send_off_price_for_latest
 logger = logging.getLogger(__name__)
 
 _TABLE = "keepa_import_scheduler_settings"
-_VALID_CATEGORIES = ("dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha")
+_VALID_CATEGORIES = ("dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha", "jfs")
 _MISFIRE_GRACE_SECONDS = 3600
 
 

@@ -65,7 +65,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-_VALID_CATEGORIES = {"dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha"}
+_VALID_CATEGORIES = {"dnk", "clk", "obz", "ref", "bor", "sff", "tev", "cha", "jfs"}
 _EXCEL_MEDIA_TYPE = (
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
@@ -300,7 +300,7 @@ def _status_from_history(row: dict) -> dict:
 @router.get("/keepa-import-export/scheduler/settings")
 @handle_api_errors("get keepa import scheduler settings")
 def get_keepa_import_scheduler_settings(
-    category: str = Query(default="dnk", pattern="^(dnk|clk|obz|ref|bor|sff|tev|cha)$"),
+    category: str = Query(default="dnk", pattern="^(dnk|clk|obz|ref|bor|sff|tev|cha|jfs)$"),
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase),
 ):
@@ -312,7 +312,7 @@ def get_keepa_import_scheduler_settings(
 @router.get("/keepa-import-export/scheduler/next-run")
 @handle_api_errors("get keepa import scheduler next run")
 def get_keepa_import_scheduler_next_run(
-    category: str = Query(default="dnk", pattern="^(dnk|clk|obz|ref|bor|sff|tev|cha)$"),
+    category: str = Query(default="dnk", pattern="^(dnk|clk|obz|ref|bor|sff|tev|cha|jfs)$"),
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase),
 ):
@@ -463,7 +463,7 @@ def _scheduler_next_run_payload(
 @router.get("/keepa-import-export/scheduler/off-price/next-run")
 @handle_api_errors("get keepa import off-price scheduler next run")
 def get_keepa_import_off_price_scheduler_next_run(
-    category: str = Query(default="dnk", pattern="^(dnk|clk|obz|ref|bor|sff|tev|cha)$"),
+    category: str = Query(default="dnk", pattern="^(dnk|clk|obz|ref|bor|sff|tev|cha|jfs)$"),
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase),
 ):
@@ -487,7 +487,7 @@ def get_keepa_import_off_price_scheduler_next_run(
 @handle_api_errors("update keepa import scheduler settings")
 def update_keepa_import_scheduler_settings(
     settings_data: KeepaImportSchedulerSettingsUpdate,
-    category: str = Query(default="dnk", pattern="^(dnk|clk|obz|ref|bor|sff|tev|cha)$"),
+    category: str = Query(default="dnk", pattern="^(dnk|clk|obz|ref|bor|sff|tev|cha|jfs)$"),
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase),
 ):
