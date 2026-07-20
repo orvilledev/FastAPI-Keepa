@@ -234,6 +234,51 @@ export const authApi = {
     }>('/api/v1/auth/maintenance', { maintenance_mode, message, duration_hours })
     return response.data
   },
+  presenceHeartbeat: async (payload: {
+    session_id: string
+    client_type: 'web' | 'electron'
+    is_active: boolean
+    path?: string
+  }) => {
+    const response = await api.post<{ ok: boolean; session_id: string; status: string }>(
+      '/api/v1/auth/presence/heartbeat',
+      payload,
+    )
+    return response.data
+  },
+  presenceLeave: async (session_id: string) => {
+    const response = await api.post<{ ok: boolean; deleted: boolean }>(
+      '/api/v1/auth/presence/leave',
+      { session_id },
+    )
+    return response.data
+  },
+  getPresenceSessions: async () => {
+    const response = await api.get<{
+      as_of: string
+      online_total: number
+      web_count: number
+      electron_count: number
+      active_count: number
+      idle_count: number
+      online_grace_seconds: number
+      active_seconds: number
+      sessions: Array<{
+        session_id: string
+        user_id: string
+        email: string | null
+        display_name: string | null
+        client_type: 'web' | 'electron' | string
+        ip_address: string | null
+        path: string | null
+        status: 'active' | 'idle' | string
+        last_heartbeat_at: string
+        last_activity_at: string
+        created_at: string
+      }>
+    }>('/api/v1/auth/presence/sessions')
+    return response.data
+  },
   updateProfile: async (profileData: any) => {
     const response = await api.put('/api/v1/auth/profile', profileData)
     return response.data

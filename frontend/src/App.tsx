@@ -20,6 +20,7 @@ import MfaGate from './components/auth/MfaGate'
 import About from './components/About'
 import Maintenance from './components/Maintenance'
 import DesktopUpdateOverlay from './components/desktop/DesktopUpdateOverlay'
+import PresenceHeartbeat from './components/admin/PresenceHeartbeat'
 import { systemApi } from './services/api'
 import { fetchMfaStatus, isMfaIdleReverifyDue, recordMfaActivity, shouldShowMfaSetup, shouldShowMfaVerify, shouldSkipMfaForEmail } from './lib/mfa'
 import { isUserHiddenFromFeedbackPage } from './constants/feedbackAccess'
@@ -491,6 +492,7 @@ function App() {
     <ThemeProvider>
       <AppRouter>
         <UserProvider>
+          <PresenceHeartbeat />
           <AppRoutes />
           <DesktopUpdateOverlay />
         </UserProvider>

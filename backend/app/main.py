@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.database import init_db
-from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, keepa_import_export, analytics
+from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, keepa_import_export, analytics, presence
 from app.scheduler import setup_scheduler, start_scheduler, shutdown_scheduler
 from app.dependencies import require_app_access
 from app.maintenance import get_maintenance_state
@@ -263,6 +263,7 @@ async def maintenance_status():
 # Include API routers
 app.include_router(public.router, prefix=settings.api_v1_str, tags=["public"])
 app.include_router(auth.router, prefix=f"{settings.api_v1_str}/auth", tags=["auth"])
+app.include_router(presence.router, prefix=f"{settings.api_v1_str}/auth", tags=["presence"])
 app.include_router(jobs.router, prefix=settings.api_v1_str, tags=["jobs"], dependencies=[Depends(require_app_access)])
 app.include_router(batches.router, prefix=settings.api_v1_str, tags=["batches"], dependencies=[Depends(require_app_access)])
 app.include_router(reports.router, prefix=settings.api_v1_str, tags=["reports"], dependencies=[Depends(require_app_access)])
