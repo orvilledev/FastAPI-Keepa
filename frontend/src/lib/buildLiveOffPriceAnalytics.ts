@@ -62,6 +62,13 @@ function vendorCodeKey(code: string): string {
   return code.trim().toLowerCase()
 }
 
+/** Own storefront — never show as an off-price seller in Analytics. */
+function isExcludedAnalyticsSeller(sellerName: string | null | undefined): boolean {
+  if (!sellerName) return false
+  const normalized = sellerName.toLowerCase().replace(/[^a-z0-9]/g, '')
+  return normalized.includes('metroshoe')
+}
+
 async function fetchPeriodBundle(period: AnalyticsPeriod): Promise<{
   current: OffPriceAnalyticsResponse
   prior: OffPriceAnalyticsResponse | null
@@ -79,28 +86,40 @@ async function fetchPeriodBundle(period: AnalyticsPeriod): Promise<{
 function mapYearArchive(detail: OffPriceAnalyticsResponse): DemoYearArchive {
   const year = Number.parseInt(String(detail.period_key || '').slice(0, 4), 10)
   const vendorsRaw = detail.vendors || []
-  const total = detail.total_off_price_count || 0
   const vendors = vendorsRaw
     .map((v) => {
-      const off = v.off_price_count || 0
-      const sellers = (v.sellers || [])
+      const sellersIn = v.sellers || []
+      const sellersFiltered = sellersIn
+        .filter((s) => !isExcludedAnalyticsSeller(s.seller_name))
         .map((s) => ({
           seller_name: s.seller_name,
           hits: s.hits || 0,
-          pct_of_vendor: pct(s.hits || 0, off),
+          pct_of_vendor: 0,
         }))
         .filter((s) => s.hits > 0)
+      const excludedHits = sellersIn
+        .filter((s) => isExcludedAnalyticsSeller(s.seller_name))
+        .reduce((sum, s) => sum + (s.hits || 0), 0)
+      const off = Math.max(0, (v.off_price_count || 0) - excludedHits)
       return {
         code: vendorCodeKey(v.code),
         name: v.name,
         scheduler_enabled: Boolean(v.scheduler_enabled),
         off_price_count: off,
         run_count: v.run_count || 0,
-        pct_of_total: pct(off, total),
-        sellers,
+        pct_of_total: 0,
+        sellers: sellersFiltered.map((s) => ({
+          ...s,
+          pct_of_vendor: pct(s.hits, off),
+        })),
       }
     })
     .sort((a, b) => b.off_price_count - a.off_price_count)
+
+  const total = vendors.reduce((sum, v) => sum + v.off_price_count, 0)
+  for (const v of vendors) {
+    v.pct_of_total = pct(v.off_price_count, total)
+  }
 
   return {
     year: Number.isFinite(year) ? year : new Date().getUTCFullYear(),
@@ -109,8 +128,8 @@ function mapYearArchive(detail: OffPriceAnalyticsResponse): DemoYearArchive {
     period_range: formatRange(detail.start, detail.end, detail.period_label || ''),
     total_off_price_count: total,
     total_run_count: detail.total_run_count || 0,
-    distinct_sellers: detail.distinct_sellers || 0,
-    vendors_with_hits: detail.vendors_with_hits || vendors.filter((v) => v.off_price_count > 0).length,
+    distinct_sellers: new Set(vendors.flatMap((v) => v.sellers.map((s) => s.seller_name))).size,
+    vendors_with_hits: vendors.filter((v) => v.off_price_count > 0).length,
     vendors,
   }
 }
@@ -251,6 +270,7 @@ export async function buildLiveOffPriceAnalytics(): Promise<DemoOffPriceAnalytic
       field: 'daily_hits' | 'weekly_hits' | 'monthly_hits' | 'yearly_hits',
     ) => {
       for (const s of pick(period)?.sellers || []) {
+        if (isExcludedAnalyticsSeller(s.seller_name)) continue
         const key = s.seller_name.trim().toLowerCase()
         if (!key) continue
         const existing = sellerMap.get(key) || {

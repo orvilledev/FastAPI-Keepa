@@ -24,7 +24,12 @@ from app.repositories.off_price_analytics_snapshot_repository import (
 from app.repositories.off_price_analytics_user_tracking_repository import (
     OffPriceAnalyticsUserTrackingRepository,
 )
-from app.services.off_price_analytics_vendors import VENDOR_CODES, VENDOR_DEFS, VENDOR_LABELS
+from app.services.off_price_analytics_vendors import (
+    VENDOR_CODES,
+    VENDOR_DEFS,
+    VENDOR_LABELS,
+    is_excluded_analytics_seller,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -177,13 +182,15 @@ class OffPriceAnalyticsService:
             while True:
                 response = (
                     self.db.table("price_alerts")
-                    .select("id, batch_job_id")
+                    .select("id, batch_job_id, seller_name")
                     .in_("batch_job_id", id_chunk)
                     .range(page_offset, page_offset + page_size - 1)
                     .execute()
                 )
                 rows = response.data or []
                 for row in rows:
+                    if is_excluded_analytics_seller(row.get("seller_name")):
+                        continue
                     job_id = str(row.get("batch_job_id") or "")
                     if job_id:
                         counts[job_id] += 1
@@ -216,8 +223,11 @@ class OffPriceAnalyticsService:
                 for row in rows:
                     job_id = str(row.get("batch_job_id") or "")
                     seller = (row.get("seller_name") or "").strip()
-                    if job_id and seller:
-                        by_job[job_id][seller] += 1
+                    if not job_id or not seller:
+                        continue
+                    if is_excluded_analytics_seller(seller):
+                        continue
+                    by_job[job_id][seller] += 1
                 if len(rows) < page_size:
                     break
                 page_offset += page_size
@@ -420,22 +430,50 @@ class OffPriceAnalyticsService:
         if not row:
             return None
         payload = row.get("payload") or {}
+        vendors = self._strip_excluded_sellers_from_vendors(payload.get("vendors") or [])
+        total_off = sum(int(v.get("off_price_count") or 0) for v in vendors)
+        distinct = {
+            str(s.get("seller_name") or "").strip().lower()
+            for v in vendors
+            for s in (v.get("sellers") or [])
+            if str(s.get("seller_name") or "").strip()
+        }
         return {
             "period": row.get("period_type"),
             "period_key": row.get("period_key"),
             "period_label": row.get("period_label"),
             "start": row.get("period_start"),
             "end": row.get("period_end"),
-            "total_off_price_count": row.get("total_off_price_count", 0),
+            "total_off_price_count": total_off,
             "total_run_count": row.get("total_run_count", 0),
-            "distinct_sellers": row.get("distinct_sellers", 0),
-            "vendors_with_hits": row.get("vendors_with_hits", 0),
-            "vendors": payload.get("vendors", []),
+            "distinct_sellers": len(distinct),
+            "vendors_with_hits": sum(1 for v in vendors if int(v.get("off_price_count") or 0) > 0),
+            "vendors": vendors,
             "source": row.get("source"),
             "archived": True,
             "created_at": row.get("created_at"),
             "updated_at": row.get("updated_at"),
         }
+
+    @staticmethod
+    def _strip_excluded_sellers_from_vendors(vendors: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Drop MetroShoe Warehouse from archived payloads (legacy rows may still include it)."""
+        cleaned: List[Dict[str, Any]] = []
+        for vendor in vendors:
+            sellers_in = vendor.get("sellers") or []
+            sellers = [
+                s
+                for s in sellers_in
+                if not is_excluded_analytics_seller(s.get("seller_name") if isinstance(s, dict) else None)
+            ]
+            excluded_hits = sum(
+                int(s.get("hits") or 0)
+                for s in sellers_in
+                if isinstance(s, dict) and is_excluded_analytics_seller(s.get("seller_name"))
+            )
+            off = max(0, int(vendor.get("off_price_count") or 0) - excluded_hits)
+            cleaned.append({**vendor, "sellers": sellers, "off_price_count": off})
+        return cleaned
 
     def seed_demo_history(self) -> Dict[str, Any]:
         """
