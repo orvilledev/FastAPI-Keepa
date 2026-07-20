@@ -1,0 +1,29 @@
+MSW Overwatch 3.1.0 — desktop and web release
+
+This release ships updates since Electron 3.0.0. Installers and auto-update use GitHub Releases; existing desktop users can use **Check for Updates** in the sidebar or About page.
+
+## New vendor: JFS (Josef Siebel)
+- Full peer vendor alongside DNK, CLK, OBZ, REF, BOR, SFF, TEV, and CHA
+- Daily Runs, Express Jobs, Manage UPCs, Manage MAP, Keepa Import, and reminders
+- Dashboard Inactive Runs label fix for JFS
+
+## Daily Run improvements
+- Same Day Run — one-off delayed runs without changing the recurring schedule
+- Per-vendor T-30 dancing-capybara reminders (Dashboard + Daily Run pages)
+- Electron always-on-top capybara overlay when the reminder fires
+- Active Run cards open the matching Daily Run page
+
+## User Management (superadmin)
+- Live web + Electron session presence: online total, active vs idle (open)
+- Email and IP address per open session; shared logins count as separate sessions
+
+## Off-Price Analytics (web only)
+- Analytics remains web-only (not shown in Electron)
+- Vendor expand/collapse fix; MetroShoe Warehouse excluded from seller totals
+- Live preview and related analytics improvements from the 3.0.x web line
+
+## Other
+- Reliability and UX fixes carried from recent web deploys
+
+## Upgrade from 3.0.0
+Windows desktop: open MSW Overwatch → sidebar **Check for Updates**, or About → **Check for Updates**. Web/PWA users get 3.1.0 on the next deploy/refresh.
