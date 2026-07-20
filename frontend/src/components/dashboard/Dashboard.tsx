@@ -25,6 +25,7 @@ const VENDOR_LABELS: Record<VendorCategory, string> = {
   sff: 'SFF',
   tev: 'TEV',
   cha: 'CHA',
+  jfs: 'JFS',
 }
 type CalendarResponse = Awaited<ReturnType<typeof schedulerApi.getCalendar>>
 type CalendarVendor = CalendarResponse['vendors'][number]
