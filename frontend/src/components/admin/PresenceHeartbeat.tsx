@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react'
-import { authApi } from '../services/api'
-import { useUser } from '../contexts/UserContext'
-import { isElectronDesktop, getCurrentAppRoute } from '../lib/privatePath'
-import { getPresenceSessionId } from '../lib/presenceSession'
+import { authApi } from '../../services/api'
+import { useUser } from '../../contexts/UserContext'
+import { isElectronDesktop, getCurrentAppRoute } from '../../lib/privatePath'
+import { getPresenceSessionId } from '../../lib/presenceSession'
 
 /** How often we ping the server while the app is open. */
 const HEARTBEAT_MS = 30_000
