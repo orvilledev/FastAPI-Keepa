@@ -338,11 +338,11 @@ export default function OffPriceAnalytics() {
     [data],
   )
   const [expandedVendor, setExpandedVendor] = useState<string | null>(null)
+  // Default-open the first vendor once data arrives. Do not re-open when the user
+  // collapses (null) — that previously trapped alphabetical vendors[0] (often clk).
   useEffect(() => {
-    if (!expandedVendor && data?.vendors[0]?.code) {
-      setExpandedVendor(data.vendors[0].code)
-    }
-  }, [data, expandedVendor])
+    setExpandedVendor((prev) => prev ?? data?.vendors[0]?.code ?? null)
+  }, [data])
   const [downloading, setDownloading] = useState(false)
   const [tracking, setTracking] = useState<Record<string, boolean>>(() =>
     loadLocalTracking(userId, ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha', 'jfs']),
