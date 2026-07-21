@@ -341,66 +341,95 @@ class OffPriceAnalyticsService:
 
         # If live job/alert rows were cleared but a richer archive exists, serve the archive
         # so Live Analytics does not go to zeros after Express Clear completed.
+        # Never fall back to fabricated source=demo rows during live preview.
         served_from_archive = False
+        archived = None
         try:
             existing_snap = self.snapshots.get_snapshot(period, period_key)
         except Exception:
             existing_snap = None
+        existing_source = str((existing_snap or {}).get("source") or "").lower()
         existing_hits = int((existing_snap or {}).get("total_off_price_count") or 0)
-        if existing_hits > total_off_price:
+        if existing_source != "demo" and existing_hits > total_off_price:
             archived = self.get_archive(period, period_key)
-            if archived and archived.get("vendors"):
-                served_from_archive = True
-                vendors_sorted = []
-                personal_off_price = 0
-                personal_runs = 0
-                personal_sellers = set()
-                for code, name in VENDOR_DEFS:
-                    tracking_enabled = tracking_map.get(code, True)
-                    match = next(
-                        (
-                            v
-                            for v in archived["vendors"]
-                            if str(v.get("code") or "").lower() == code
-                        ),
-                        None,
-                    )
-                    off = int((match or {}).get("off_price_count") or 0)
-                    runs = int((match or {}).get("run_count") or 0)
-                    sellers = list((match or {}).get("sellers") or [])
-                    if tracking_enabled:
-                        personal_off_price += off
-                        personal_runs += runs
-                        for s in sellers:
-                            sn = str((s or {}).get("seller_name") or "").strip().lower()
-                            if sn:
-                                personal_sellers.add(sn)
-                    vendors_sorted.append(
-                        {
-                            "code": code,
-                            "name": name,
-                            "off_price_count": off,
-                            "run_count": runs,
-                            "scheduler_enabled": enabled_map.get(code, False),
-                            "tracking_enabled": tracking_enabled,
-                            "sellers": sellers,
-                        }
-                    )
-                vendors_sorted.sort(
-                    key=lambda v: (-int(v["tracking_enabled"]), -v["off_price_count"], v["code"])
+        elif total_off_price == 0 and period == "daily" and offset == 0:
+            # Today may be empty before Daily Runs finish — use latest non-demo daily archive.
+            try:
+                recent = self.snapshots.list_snapshots(
+                    period_type="daily", limit=14, exclude_demo=True
                 )
-                personal_vendors_with_hits = sum(
-                    1 for v in vendors_sorted if v["tracking_enabled"] and v["off_price_count"] > 0
+            except Exception:
+                recent = []
+            for row in recent:
+                if int(row.get("total_off_price_count") or 0) <= 0:
+                    continue
+                candidate = self.get_archive("daily", str(row.get("period_key") or ""))
+                if candidate and candidate.get("vendors"):
+                    archived = candidate
+                    period_key = str(candidate.get("period_key") or period_key)
+                    label = str(candidate.get("period_label") or label)
+                    break
+
+        start_out = start.isoformat()
+        end_out = end.isoformat()
+        if archived and archived.get("vendors") and (
+            int(archived.get("total_off_price_count") or 0) > total_off_price
+        ):
+            served_from_archive = True
+            vendors_sorted = []
+            personal_off_price = 0
+            personal_runs = 0
+            personal_sellers = set()
+            for code, name in VENDOR_DEFS:
+                tracking_enabled = tracking_map.get(code, True)
+                match = next(
+                    (
+                        v
+                        for v in archived["vendors"]
+                        if str(v.get("code") or "").lower() == code
+                    ),
+                    None,
                 )
-                total_off_price = int(archived.get("total_off_price_count") or existing_hits)
-                total_runs = int(archived.get("total_run_count") or 0)
-                all_sellers = {
-                    str((s or {}).get("seller_name") or "").strip().lower()
-                    for v in archived.get("vendors") or []
-                    for s in (v.get("sellers") or [])
-                    if str((s or {}).get("seller_name") or "").strip()
-                }
-                vendors_with_hits = sum(1 for v in vendors_sorted if v["off_price_count"] > 0)
+                off = int((match or {}).get("off_price_count") or 0)
+                runs = int((match or {}).get("run_count") or 0)
+                sellers = list((match or {}).get("sellers") or [])
+                if tracking_enabled:
+                    personal_off_price += off
+                    personal_runs += runs
+                    for s in sellers:
+                        sn = str((s or {}).get("seller_name") or "").strip().lower()
+                        if sn:
+                            personal_sellers.add(sn)
+                vendors_sorted.append(
+                    {
+                        "code": code,
+                        "name": name,
+                        "off_price_count": off,
+                        "run_count": runs,
+                        "scheduler_enabled": enabled_map.get(code, False),
+                        "tracking_enabled": tracking_enabled,
+                        "sellers": sellers,
+                    }
+                )
+            vendors_sorted.sort(
+                key=lambda v: (-int(v["tracking_enabled"]), -v["off_price_count"], v["code"])
+            )
+            personal_vendors_with_hits = sum(
+                1 for v in vendors_sorted if v["tracking_enabled"] and v["off_price_count"] > 0
+            )
+            total_off_price = int(archived.get("total_off_price_count") or existing_hits)
+            total_runs = int(archived.get("total_run_count") or 0)
+            all_sellers = {
+                str((s or {}).get("seller_name") or "").strip().lower()
+                for v in archived.get("vendors") or []
+                for s in (v.get("sellers") or [])
+                if str((s or {}).get("seller_name") or "").strip()
+            }
+            vendors_with_hits = sum(1 for v in vendors_sorted if v["off_price_count"] > 0)
+            if archived.get("start"):
+                start_out = str(archived["start"])
+            if archived.get("end"):
+                end_out = str(archived["end"])
 
         # Response is personalized for the requesting user.
         return {
@@ -408,8 +437,8 @@ class OffPriceAnalyticsService:
             "period_key": period_key,
             "period_label": label,
             "offset": offset,
-            "start": start.isoformat(),
-            "end": end.isoformat(),
+            "start": start_out,
+            "end": end_out,
             "total_off_price_count": personal_off_price if user_id else total_off_price,
             "total_run_count": personal_runs if user_id else total_runs,
             "distinct_sellers": len(personal_sellers) if user_id else len(all_sellers),
@@ -435,7 +464,14 @@ class OffPriceAnalyticsService:
             new_hits = int(summary.get("total_off_price_count") or 0)
             existing = self.snapshots.get_snapshot(period_type, period_key)
             existing_hits = int((existing or {}).get("total_off_price_count") or 0)
-            if existing and new_hits < existing_hits:
+            existing_source = str((existing or {}).get("source") or "").lower()
+            # Never let empty/weaker live data clobber a richer live archive.
+            # Demo rows may always be replaced by live.
+            if (
+                existing
+                and existing_source != "demo"
+                and new_hits < existing_hits
+            ):
                 logger.info(
                     "Skipping analytics persist for %s/%s: live hits %s < archive hits %s",
                     period_type,

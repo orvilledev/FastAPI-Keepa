@@ -47,7 +47,9 @@ def main() -> None:
         start, end, label, period_key = period_bounds(period, offset=0, reference=REFERENCE)
         existing = snaps.get_snapshot(period, period_key)
         existing_hits = int((existing or {}).get("total_off_price_count") or 0)
-        if existing_hits > hits:
+        existing_source = str((existing or {}).get("source") or "").lower()
+        # Always replace fabricated demo rows; never clobber richer live archives.
+        if existing_source != "demo" and existing_hits > hits:
             skipped.append(f"{period}/{period_key} (existing {existing_hits} > {hits})")
             continue
 

@@ -73,13 +73,18 @@ async function fetchPeriodBundle(period: AnalyticsPeriod): Promise<{
   current: OffPriceAnalyticsResponse
   prior: OffPriceAnalyticsResponse | null
 }> {
+  // Load without persist first so empty live recomputes cannot wipe richer archives
+  // (e.g. after Clear completed deleted Daily job rows). Persist only when hits > 0.
   const [current, priorSettled] = await Promise.all([
-    analyticsApi.getOffPrice({ period, offset: 0, persist: true }),
+    analyticsApi.getOffPrice({ period, offset: 0, persist: false }),
     analyticsApi
       .getOffPrice({ period, offset: 1, persist: false })
       .then((r) => r)
       .catch(() => null),
   ])
+  if ((current.total_off_price_count || 0) > 0) {
+    void analyticsApi.getOffPrice({ period, offset: 0, persist: true }).catch(() => null)
+  }
   return { current, prior: priorSettled }
 }
 
