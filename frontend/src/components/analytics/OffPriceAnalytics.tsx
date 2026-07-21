@@ -188,8 +188,13 @@ function saveLocalDownloadLog(entry: DownloadLogEntry) {
   }
 }
 
-function formatVendorScopeLabel(codes: string[], vendorNames: Record<string, string>): string {
-  if (!codes.length || codes.length >= 8) return 'All vendors'
+function formatVendorScopeLabel(
+  codes: string[],
+  vendorNames: Record<string, string>,
+  totalVendorCount?: number,
+): string {
+  const allCount = totalVendorCount ?? codes.length
+  if (!codes.length || (allCount > 0 && codes.length >= allCount)) return 'All vendors'
   if (codes.length === 1) return vendorNames[codes[0]] || codes[0].toUpperCase()
   if (codes.length <= 3) {
     return codes.map((c) => vendorNames[c] || c.toUpperCase()).join(', ')
@@ -575,7 +580,7 @@ export default function OffPriceAnalytics() {
       const codes =
         selectedDownloadCodes.length >= vendorCodes.length ? vendorCodes : selectedDownloadCodes
       const blob = buildOffPriceAnalyticsExcelBlob(data, { vendorCodes: codes })
-      const filename = offPriceAnalyticsExcelFilename(data.as_of, codes)
+      const filename = offPriceAnalyticsExcelFilename(data.as_of, codes, vendorCodes.length)
       downloadBlob(blob, filename)
 
       const scope: 'all' | 'selected' = codes.length >= vendorCodes.length ? 'all' : 'selected'
@@ -584,7 +589,7 @@ export default function OffPriceAnalytics() {
         user_email: userInfo?.email || authUser?.email || null,
         vendor_codes: codes,
         vendor_scope: scope,
-        vendor_label: formatVendorScopeLabel(codes, vendorNames),
+        vendor_label: formatVendorScopeLabel(codes, vendorNames, vendorCodes.length),
         filename,
         period,
         downloaded_at: new Date().toISOString(),
@@ -653,7 +658,7 @@ export default function OffPriceAnalytics() {
         periods: selectedEmailPeriodList,
         historicalYears: parsedEmailHistoricalYears.years,
       })
-      const filename = offPriceAnalyticsExcelFilename(data.as_of, codes)
+      const filename = offPriceAnalyticsExcelFilename(data.as_of, codes, vendorCodes.length)
       const result = await analyticsApi.emailReport({
         file: blob,
         filename,
@@ -669,7 +674,7 @@ export default function OffPriceAnalytics() {
         user_email: userInfo?.email || authUser?.email || null,
         vendor_codes: codes,
         vendor_scope: scope,
-        vendor_label: formatVendorScopeLabel(codes, vendorNames),
+        vendor_label: formatVendorScopeLabel(codes, vendorNames, vendorCodes.length),
         filename: `emailed:${result.filename || filename}`,
         period: rangesLabel,
         downloaded_at: new Date().toISOString(),
@@ -990,7 +995,7 @@ export default function OffPriceAnalytics() {
                 My analytics tracking
               </h3>
               <p className="mt-0.5 text-xs text-gray-500 dark:text-content-muted">
-                Personal to {userLabel} · {trackedVendorCount}/8 vendors tracking
+                Personal to {userLabel} · {trackedVendorCount}/{vendorCodes.length || trackedVendorCount} vendors tracking
                 {trackingSource === 'local' ? ' · saved on this device' : ' · saved to your account'}
                 {!showTrackingPanel ? ' · open to start or stop per vendor' : ''}
               </p>
@@ -1396,7 +1401,10 @@ export default function OffPriceAnalytics() {
                 </p>
                 <p className="mt-2 text-2xl font-bold tabular-nums text-gray-900 dark:text-content-primary sm:text-3xl">
                   {selectedYearArchive.vendors_with_hits}
-                  <span className="text-base font-normal text-gray-400"> / 8</span>
+                  <span className="text-base font-normal text-gray-400">
+                    {' '}
+                    / {selectedYearArchive.vendors.length || vendorCodes.length}
+                  </span>
                 </p>
               </div>
               <div className="card p-4 sm:p-5">
@@ -1568,7 +1576,10 @@ export default function OffPriceAnalytics() {
                 </p>
                 <p className="mt-2 text-2xl font-bold tabular-nums text-gray-900 dark:text-content-primary sm:text-3xl">
                   {totals.vendors_with_hits}
-                  <span className="text-base font-normal text-gray-400"> / 8</span>
+                  <span className="text-base font-normal text-gray-400">
+                    {' '}
+                    / {vendorCodes.length}
+                  </span>
                 </p>
               </div>
               <div className="card p-4 sm:p-5">

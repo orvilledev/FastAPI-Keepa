@@ -437,12 +437,14 @@ export function formatEmailReportRangesLabel(
 export function offPriceAnalyticsExcelFilename(
   asOfIso: string,
   vendorCodes?: string[],
+  totalVendorCount?: number,
 ): string {
   const day = asOfIso.slice(0, 10) || new Date().toISOString().slice(0, 10)
   if (!vendorCodes?.length) return `off-price-analytics-all-${day}.xlsx`
   if (vendorCodes.length === 1) {
     return `off-price-analytics-${vendorCodes[0].toUpperCase()}-${day}.xlsx`
   }
-  if (vendorCodes.length >= 8) return `off-price-analytics-all-${day}.xlsx`
+  const allCount = totalVendorCount ?? vendorCodes.length
+  if (vendorCodes.length >= allCount) return `off-price-analytics-all-${day}.xlsx`
   return `off-price-analytics-${vendorCodes.length}vendors-${day}.xlsx`
 }
