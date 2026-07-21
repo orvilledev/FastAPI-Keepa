@@ -47,11 +47,45 @@ def classify_status(last_heartbeat_at: Any, last_activity_at: Any, *, now: Optio
     return "idle"
 
 
+def display_label(display_name: Optional[str], email: Optional[str]) -> Optional[str]:
+    """Prefer profiles.display_name; otherwise capitalize the email local-part (User Management style)."""
+    name = (display_name or "").strip()
+    if name:
+        return name
+    local = ((email or "").strip().split("@")[0] or "").strip()
+    if not local:
+        return None
+    return local[0].upper() + local[1:]
+
+
 class UserPresenceRepository:
     table = "user_presence_sessions"
 
     def __init__(self, db: Client):
         self.db = db
+
+    def _profile_display_map(self, user_ids: List[str]) -> Dict[str, Optional[str]]:
+        """Batch-load current display_name from profiles for the given user ids."""
+        out: Dict[str, Optional[str]] = {}
+        ids = [str(u) for u in user_ids if u]
+        if not ids:
+            return out
+        # Supabase .in_ batches reasonably; 500 is our session cap.
+        try:
+            resp = (
+                self.db.table("profiles")
+                .select("id, display_name")
+                .in_("id", ids)
+                .execute()
+            )
+            for row in resp.data or []:
+                uid = str(row.get("id") or "")
+                if not uid:
+                    continue
+                out[uid] = (row.get("display_name") or "").strip() or None
+        except Exception:
+            pass
+        return out
 
     def upsert_heartbeat(
         self,
@@ -141,9 +175,14 @@ class UserPresenceRepository:
             .limit(500)
             .execute()
         )
+        rows = list(response.data or [])
+        profile_names = self._profile_display_map(
+            [str(r.get("user_id") or "") for r in rows if r.get("user_id")]
+        )
+
         sessions: List[Dict[str, Any]] = []
         web = electron = active = idle = 0
-        for row in response.data or []:
+        for row in rows:
             status = classify_status(
                 row.get("last_heartbeat_at"),
                 row.get("last_activity_at"),
@@ -160,12 +199,17 @@ class UserPresenceRepository:
                 active += 1
             else:
                 idle += 1
+            user_id = str(row.get("user_id") or "")
+            email = row.get("email")
+            # Prefer live profiles.display_name over the value stamped at last heartbeat.
+            profile_name = profile_names.get(user_id)
+            stored_name = (row.get("display_name") or "").strip() or None
             sessions.append(
                 {
                     "session_id": row.get("session_id"),
                     "user_id": row.get("user_id"),
-                    "email": row.get("email"),
-                    "display_name": row.get("display_name"),
+                    "email": email,
+                    "display_name": display_label(profile_name or stored_name, email),
                     "client_type": client,
                     "ip_address": row.get("ip_address"),
                     "path": row.get("path"),

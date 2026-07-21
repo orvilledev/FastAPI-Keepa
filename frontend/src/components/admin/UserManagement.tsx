@@ -432,12 +432,17 @@ export default function UserManagement() {
                   </td>
                 </tr>
               ) : (
-                presence!.sessions.map((s) => (
+                presence!.sessions.map((s) => {
+                  const nameLabel = userDisplayLabel({
+                    display_name: s.display_name || undefined,
+                    email: s.email || '',
+                  })
+                  return (
                   <tr key={s.session_id}>
                     <td className="px-3 py-2">
                       <div className="font-medium text-gray-900">{s.email || '—'}</div>
-                      {s.display_name && (
-                        <div className="text-xs text-gray-500">{s.display_name}</div>
+                      {nameLabel !== 'No name' && (
+                        <div className="text-xs text-gray-500">{nameLabel}</div>
                       )}
                     </td>
                     <td className="px-3 py-2">
@@ -463,7 +468,8 @@ export default function UserManagement() {
                       <div>Activity {formatAgo(s.last_activity_at)}</div>
                     </td>
                   </tr>
-                ))
+                  )
+                })
               )}
             </tbody>
           </table>
