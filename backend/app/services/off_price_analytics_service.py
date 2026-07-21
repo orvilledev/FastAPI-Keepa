@@ -339,6 +339,69 @@ class OffPriceAnalyticsService:
         if persist:
             archive_summary["archived"] = self._persist_summary(archive_summary, source=source)
 
+        # If live job/alert rows were cleared but a richer archive exists, serve the archive
+        # so Live Analytics does not go to zeros after Express Clear completed.
+        served_from_archive = False
+        try:
+            existing_snap = self.snapshots.get_snapshot(period, period_key)
+        except Exception:
+            existing_snap = None
+        existing_hits = int((existing_snap or {}).get("total_off_price_count") or 0)
+        if existing_hits > total_off_price:
+            archived = self.get_archive(period, period_key)
+            if archived and archived.get("vendors"):
+                served_from_archive = True
+                vendors_sorted = []
+                personal_off_price = 0
+                personal_runs = 0
+                personal_sellers = set()
+                for code, name in VENDOR_DEFS:
+                    tracking_enabled = tracking_map.get(code, True)
+                    match = next(
+                        (
+                            v
+                            for v in archived["vendors"]
+                            if str(v.get("code") or "").lower() == code
+                        ),
+                        None,
+                    )
+                    off = int((match or {}).get("off_price_count") or 0)
+                    runs = int((match or {}).get("run_count") or 0)
+                    sellers = list((match or {}).get("sellers") or [])
+                    if tracking_enabled:
+                        personal_off_price += off
+                        personal_runs += runs
+                        for s in sellers:
+                            sn = str((s or {}).get("seller_name") or "").strip().lower()
+                            if sn:
+                                personal_sellers.add(sn)
+                    vendors_sorted.append(
+                        {
+                            "code": code,
+                            "name": name,
+                            "off_price_count": off,
+                            "run_count": runs,
+                            "scheduler_enabled": enabled_map.get(code, False),
+                            "tracking_enabled": tracking_enabled,
+                            "sellers": sellers,
+                        }
+                    )
+                vendors_sorted.sort(
+                    key=lambda v: (-int(v["tracking_enabled"]), -v["off_price_count"], v["code"])
+                )
+                personal_vendors_with_hits = sum(
+                    1 for v in vendors_sorted if v["tracking_enabled"] and v["off_price_count"] > 0
+                )
+                total_off_price = int(archived.get("total_off_price_count") or existing_hits)
+                total_runs = int(archived.get("total_run_count") or 0)
+                all_sellers = {
+                    str((s or {}).get("seller_name") or "").strip().lower()
+                    for v in archived.get("vendors") or []
+                    for s in (v.get("sellers") or [])
+                    if str((s or {}).get("seller_name") or "").strip()
+                }
+                vendors_with_hits = sum(1 for v in vendors_sorted if v["off_price_count"] > 0)
+
         # Response is personalized for the requesting user.
         return {
             "period": period,
@@ -360,17 +423,32 @@ class OffPriceAnalyticsService:
                 }
                 for code, name in VENDOR_DEFS
             ],
-            "archived": archive_summary.get("archived", False),
+            "archived": archive_summary.get("archived", False) or served_from_archive,
             "personalized": bool(user_id),
         }
 
     def _persist_summary(self, summary: Dict[str, Any], *, source: str = "live") -> bool:
-        """Upsert a durable snapshot. Failures are logged; callers still get live data."""
+        """Upsert a durable snapshot. Never overwrite a richer archive with weaker live data."""
         try:
+            period_type = summary["period"]
+            period_key = summary["period_key"]
+            new_hits = int(summary.get("total_off_price_count") or 0)
+            existing = self.snapshots.get_snapshot(period_type, period_key)
+            existing_hits = int((existing or {}).get("total_off_price_count") or 0)
+            if existing and new_hits < existing_hits:
+                logger.info(
+                    "Skipping analytics persist for %s/%s: live hits %s < archive hits %s",
+                    period_type,
+                    period_key,
+                    new_hits,
+                    existing_hits,
+                )
+                return True
+
             self.snapshots.upsert_snapshot(
                 {
-                    "period_type": summary["period"],
-                    "period_key": summary["period_key"],
+                    "period_type": period_type,
+                    "period_key": period_key,
                     "period_label": summary["period_label"],
                     "period_start": summary["start"],
                     "period_end": summary["end"],

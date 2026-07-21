@@ -328,6 +328,7 @@ export const jobsApi = {
       total: number
       processing: number
       completed: number
+      express_completed?: number
       failed: number
     }>('/api/v1/jobs/stats')
     return response.data

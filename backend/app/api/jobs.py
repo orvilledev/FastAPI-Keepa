@@ -100,10 +100,12 @@ def get_jobs_stats(
     processing = _count_jobs(db, status="processing")
     completed = _count_jobs(db, status="completed")
     failed = _count_jobs(db, status="failed")
+    express_completed = len(JobRepository(db).list_completed_express_job_ids())
     return {
         "total": total,
         "processing": processing,
         "completed": completed,
+        "express_completed": express_completed,
         "failed": failed,
     }
 
@@ -115,8 +117,7 @@ def delete_completed_jobs(
     db: Client = Depends(get_supabase),
 ):
     """
-    Delete all completed jobs shown on Express Jobs (including Daily Run rows)
-    and related job-scoped data.
+    Delete completed Express Jobs only (Daily Runs are kept for analytics).
 
     Analytics archives (``off_price_analytics_snapshots``) are never deleted
     or modified by this endpoint.
@@ -125,8 +126,8 @@ def delete_completed_jobs(
     deleted_count = job_repo.delete_completed_jobs()
     return {
         "message": (
-            f"Deleted {deleted_count} completed job(s). "
-            "Analytics archives were not affected."
+            f"Deleted {deleted_count} completed Express job(s). "
+            "Daily Runs and analytics archives were not affected."
         ),
         "deleted_count": deleted_count,
     }

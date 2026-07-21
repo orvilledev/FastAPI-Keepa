@@ -96,6 +96,7 @@ export default function JobList() {
     total: 0,
     processing: 0,
     completed: 0,
+    express_completed: 0,
     failed: 0,
   })
   const [clearingCompleted, setClearingCompleted] = useState(false)
@@ -241,12 +242,13 @@ export default function JobList() {
   }
 
   const handleClearCompletedJobs = async () => {
-    if (stats.completed === 0) return
+    const expressCompleted = stats.express_completed ?? 0
+    if (expressCompleted === 0) return
 
-    const noun = stats.completed === 1 ? 'job' : 'jobs'
+    const noun = expressCompleted === 1 ? 'job' : 'jobs'
     if (
       !window.confirm(
-        `Remove all ${stats.completed} completed ${noun}? This cannot be undone and deletes related batches, items, and alerts. Off-Price Analytics archives are kept.`,
+        `Remove all ${expressCompleted} completed Express ${noun}? Daily Runs are kept for Off-Price Analytics. This cannot be undone and deletes related Express batches, items, and alerts.`,
       )
     ) {
       return
@@ -259,7 +261,7 @@ export default function JobList() {
       await loadAllJobsForStats()
       await loadJobs(0, { silent: true })
       if (result.deleted_count === 0) {
-        window.alert('No completed jobs were found to remove.')
+        window.alert('No completed Express jobs were found to remove.')
       }
     } catch (error: any) {
       const errorMessage =
@@ -291,12 +293,12 @@ export default function JobList() {
           <button
             type="button"
             onClick={() => void handleClearCompletedJobs()}
-            disabled={stats.completed === 0 || clearingCompleted || loading}
+            disabled={(stats.express_completed ?? 0) === 0 || clearingCompleted || loading}
             className="inline-flex items-center rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-medium text-red-700 shadow-sm transition-all hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-500/40 dark:bg-surface dark:text-red-400 dark:hover:bg-red-500/10"
             title={
-              stats.completed === 0
-                ? 'No completed jobs to remove'
-                : 'Remove all completed jobs in one click'
+              (stats.express_completed ?? 0) === 0
+                ? 'No completed Express jobs to remove'
+                : 'Remove completed Express jobs (Daily Runs kept for analytics)'
             }
           >
             {clearingCompleted ? 'Removing…' : 'Clear completed'}
