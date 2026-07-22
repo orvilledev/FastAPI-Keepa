@@ -59,6 +59,32 @@ class OffPriceAnalyticsSnapshotRepository:
         response = query.execute()
         return response.data or []
 
+    def list_daily_payloads_in_range(
+        self,
+        *,
+        start_key: str,
+        end_key_exclusive: str,
+        exclude_demo: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """Daily rows with payload for keys in [start_key, end_key_exclusive)."""
+        query = (
+            self.db.table(self.table)
+            .select(
+                "period_key, period_label, total_off_price_count, total_run_count, "
+                "payload, source"
+            )
+            .eq("period_type", "daily")
+            .gte("period_key", start_key)
+            .lt("period_key", end_key_exclusive)
+            .gt("total_off_price_count", 0)
+            .order("period_key", desc=False)
+            .limit(400)
+        )
+        if exclude_demo:
+            query = query.neq("source", "demo")
+        response = query.execute()
+        return response.data or []
+
     def delete_demo_snapshots(self) -> int:
         """Remove fabricated demo archives so live history is not polluted."""
         response = (

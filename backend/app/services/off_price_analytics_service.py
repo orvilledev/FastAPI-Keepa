@@ -635,38 +635,26 @@ class OffPriceAnalyticsService:
         Sum daily analytics building blocks (live deduped jobs or daily archives).
 
         At most one recorded report per vendor per calendar day.
+
+        Performance: one job-window fetch + one daily-archive range fetch (not
+        per-calendar-day queries — yearly otherwise times out Live Preview).
         """
         vendor_off: Dict[str, int] = defaultdict(int)
         vendor_runs: Dict[str, int] = defaultdict(int)
         vendor_sellers: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
         used_archive = False
-        day = start
         identity_tracking = {c: True for c, _ in VENDOR_DEFS}
-        while day < end:
-            day_end = day + timedelta(days=1)
-            day_key = day.strftime("%Y-%m-%d")
-            jobs = self._fetch_daily_jobs(day, day_end)
-            day_vendors: List[Dict[str, Any]]
-            if jobs:
-                day_vendors = self._vendor_stats_from_jobs(
-                    jobs, enabled_map=enabled_map, tracking_map=identity_tracking
-                )[0]
-            else:
-                archived = self.get_archive("daily", day_key)
-                if (
-                    not archived
-                    or not archived.get("vendors")
-                    or int(archived.get("total_off_price_count") or 0) <= 0
-                ):
-                    day += timedelta(days=1)
-                    continue
-                used_archive = True
-                day_vendors = self._vendor_stats_from_archive_vendors(
-                    archived.get("vendors") or [],
-                    enabled_map=enabled_map,
-                    tracking_map=identity_tracking,
-                )[0]
 
+        live_jobs = self._fetch_daily_jobs(start, end)
+        live_day_keys = {
+            d
+            for j in live_jobs
+            if (d := _run_date_for_job(j))
+        }
+        if live_jobs:
+            day_vendors = self._vendor_stats_from_jobs(
+                live_jobs, enabled_map=enabled_map, tracking_map=identity_tracking
+            )[0]
             for v in day_vendors:
                 code = str(v.get("code") or "").lower()
                 if not code:
@@ -679,7 +667,43 @@ class OffPriceAnalyticsService:
                         continue
                     vendor_sellers[code][sn] += int((s or {}).get("hits") or 0)
 
-            day += timedelta(days=1)
+        start_key = start.strftime("%Y-%m-%d")
+        end_key = end.strftime("%Y-%m-%d")
+        try:
+            daily_rows = self.snapshots.list_daily_payloads_in_range(
+                start_key=start_key,
+                end_key_exclusive=end_key,
+                exclude_demo=True,
+            )
+        except Exception as exc:
+            logger.warning("Could not batch-load daily analytics archives: %s", exc)
+            daily_rows = []
+
+        for row in daily_rows:
+            day_key = str(row.get("period_key") or "")
+            if not day_key or day_key in live_day_keys:
+                continue
+            payload = row.get("payload") or {}
+            vendors = payload.get("vendors") or []
+            if not vendors or int(row.get("total_off_price_count") or 0) <= 0:
+                continue
+            used_archive = True
+            day_vendors = self._vendor_stats_from_archive_vendors(
+                vendors,
+                enabled_map=enabled_map,
+                tracking_map=identity_tracking,
+            )[0]
+            for v in day_vendors:
+                code = str(v.get("code") or "").lower()
+                if not code:
+                    continue
+                vendor_off[code] += int(v.get("off_price_count") or 0)
+                vendor_runs[code] += int(v.get("run_count") or 0)
+                for s in v.get("sellers") or []:
+                    sn = str((s or {}).get("seller_name") or "").strip()
+                    if not sn:
+                        continue
+                    vendor_sellers[code][sn] += int((s or {}).get("hits") or 0)
 
         vendors_out: List[Dict[str, Any]] = []
         total_off_price = 0
