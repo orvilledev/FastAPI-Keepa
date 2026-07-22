@@ -74,14 +74,13 @@ def test_uploaded_daily_run_in_progress_true():
 
 @patch("app.services.daily_run_completion.EmailService")
 @patch("app.services.daily_run_completion.ReportService")
-@patch("app.services.daily_run_completion.claim_daily_run_email_for_vendor_day", return_value=False)
 @patch("app.services.daily_run_completion.claim_completion_email_send", return_value=True)
-def test_send_skips_when_vendor_day_already_claimed(
+def test_send_allows_same_day_new_job_email(
     _claim_job,
-    _claim_day,
     report_cls,
-    _email_cls,
+    email_cls,
 ):
+    """A new completed job may email even if another vendor/day claim already exists."""
     job_id = uuid4()
     db = MagicMock()
     db.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value = SimpleNamespace(
@@ -95,6 +94,27 @@ def test_send_skips_when_vendor_day_already_claimed(
             }
         ]
     )
+    report_cls.return_value.generate_csv_for_job.return_value = (b"csv", "report.csv", 3)
+    report_cls.return_value.get_total_upcs_for_job.return_value = 10
+    email_cls.return_value.send_csv_report.return_value = True
+
+    sent = send_daily_run_completion_email_for_job(db, job_id)
+
+    assert sent is True
+    email_cls.return_value.send_csv_report.assert_called_once()
+
+
+@patch("app.services.daily_run_completion.EmailService")
+@patch("app.services.daily_run_completion.ReportService")
+@patch("app.services.daily_run_completion.claim_completion_email_send", return_value=False)
+def test_send_skips_when_job_already_emailed(
+    _claim_job,
+    report_cls,
+    _email_cls,
+):
+    """Older jobs that already claimed completion_email_sent_at are never resent."""
+    job_id = uuid4()
+    db = MagicMock()
 
     sent = send_daily_run_completion_email_for_job(db, job_id)
 

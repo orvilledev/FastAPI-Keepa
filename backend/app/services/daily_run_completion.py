@@ -1,4 +1,4 @@
-"""Helpers to finalize daily/import runs without duplicate completion emails."""
+"""Helpers to finalize daily/import runs without duplicate completion emails per job."""
 from __future__ import annotations
 
 import asyncio
@@ -193,16 +193,18 @@ def claim_daily_run_email_for_vendor_day(
     job_id: str,
 ) -> bool:
     """
-    Atomically claim the single completion email slot for vendor + day + kind.
+    Record that a vendor/day/kind completion email was attempted.
 
-    Returns True only for the first successful claim (across jobs/workers).
+    Historically this gated "one email per vendor per day". Sending is now once
+    per job only (see ``claim_completion_email_send``), so callers should not
+    skip mail based on this return value. Kept for compatibility / optional audit.
     """
     vendor_code = _normalize_vendor(vendor)
     kind = (run_kind or "uploaded").strip().lower()
     if kind not in {"uploaded", "api"}:
         kind = "uploaded"
     if not vendor_code or not run_date:
-        return True  # cannot enforce; allow per-job claim to govern
+        return True
 
     payload = {
         "vendor_code": vendor_code,
@@ -215,11 +217,10 @@ def claim_daily_run_email_for_vendor_day(
         resp = db.table("daily_run_email_claims").insert(payload).execute()
         return bool(resp.data)
     except Exception as exc:
-        # Unique violation / already claimed → skip duplicate send
         msg = str(exc).lower()
         if "duplicate" in msg or "unique" in msg or "23505" in msg:
             logger.info(
-                "Daily run email already claimed for %s %s (%s); skipping job %s",
+                "daily_run_email_claims already has %s %s (%s); newer job %s may still email",
                 vendor_code.upper(),
                 run_date,
                 kind,
@@ -227,16 +228,13 @@ def claim_daily_run_email_for_vendor_day(
             )
             return False
         logger.warning(
-            "daily_run_email_claims insert failed for %s %s: %s — using sibling fallback",
+            "daily_run_email_claims insert failed for %s %s: %s",
             vendor_code,
             run_date,
             exc,
         )
         if _sibling_completion_email_sent(db, vendor_code, run_date, kind):
-            # Another job already emailed; this job claimed its own completion_email_sent_at
-            # but must not send a second message.
             return False
-        # Table missing / other errors: allow send once per job only
         return True
 
 
@@ -248,9 +246,11 @@ def send_daily_run_completion_email_for_job(
     email_body_template: Optional[str] = None,
 ) -> bool:
     """
-    Generate the off-price CSV and email it once per job and once per vendor/day.
+    Generate the off-price CSV and email it once per job.
 
-    Returns True when an email was sent, False when skipped or already sent.
+    A new Import / Trigger run gets its own job id, so it can email again the same
+    calendar day. Jobs that already claimed ``completion_email_sent_at`` are never
+    resent (including older same-day jobs that were skipped or already mailed).
     """
     job_id_str = str(job_id)
     if not claim_completion_email_send(db, job_id_str):
@@ -277,26 +277,6 @@ def send_daily_run_completion_email_for_job(
     recipient_csv = job_data.get("email_recipients")
     bcc_csv = job_data.get("email_bcc_recipients")
     is_daily_run = JobRepository._is_daily_run_job(job_name)
-
-    if is_daily_run:
-        run_kind = daily_run_kind_from_job_name(job_name)
-        run_date = resolve_daily_run_date(job_data)
-        claim_vendor = vendor or _vendor_from_daily_job_name(job_name)
-        if claim_vendor and run_date:
-            if not claim_daily_run_email_for_vendor_day(
-                db,
-                vendor=claim_vendor,
-                run_date=run_date,
-                run_kind=run_kind,
-                job_id=job_id_str,
-            ):
-                logger.info(
-                    "Skipping duplicate daily completion email for %s on %s (job %s)",
-                    claim_vendor.upper(),
-                    run_date,
-                    job_id_str,
-                )
-                return False
 
     recipient_csv = recipient_csv if recipient_csv and str(recipient_csv).strip() else None
     bcc_list = parse_recipient_csv(

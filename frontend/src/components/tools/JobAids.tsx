@@ -132,7 +132,9 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         Yes. Both paths run through the same uploaded-mode scheduler flow and include report generation and email sending
-        when recipients and SMTP settings are configured correctly.
+        when recipients and SMTP settings are configured correctly. Each <strong>new</strong> completed run can send its
+        own email the same day (for example after countdown, then Trigger Import Run Now). The same job is never emailed
+        twice.
       </>
     ),
   },

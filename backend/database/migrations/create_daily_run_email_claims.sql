@@ -1,5 +1,6 @@
--- Cross-job / cross-instance claim so each vendor gets at most one daily-run
--- completion email per calendar day (uploaded or API mode).
+-- Historical idempotency table for daily-run completion emails.
+-- Sending is now once per job (batch_jobs.completion_email_sent_at); same-day
+-- Trigger Import runs may email again. This table may still hold older claims.
 -- Safe to re-run.
 
 CREATE TABLE IF NOT EXISTS daily_run_email_claims (
@@ -14,7 +15,7 @@ CREATE TABLE IF NOT EXISTS daily_run_email_claims (
 );
 
 COMMENT ON TABLE daily_run_email_claims IS
-  'Idempotency lock: one completion CSV email per vendor per calendar day per run kind (uploaded/api). Prevents duplicate emails when multiple workers or overlapping jobs finish the same daily import.';
+  'Legacy claim rows for daily-run emails. Completion mail is gated per job via batch_jobs.completion_email_sent_at so a new same-day import/trigger run can email again.';
 
 CREATE INDEX IF NOT EXISTS idx_daily_run_email_claims_job
   ON daily_run_email_claims (job_id)
