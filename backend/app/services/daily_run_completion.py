@@ -285,6 +285,7 @@ def send_daily_run_completion_email_for_job(
     has_recipients = bool(parse_recipient_csv(recipient_csv)) or bool(bcc_list)
     if is_daily_run and not has_recipients:
         logger.info("Daily run job %s has no recipients configured; skipping email", job_id_str)
+        refresh_live_analytics_snapshots(db)
         return False
 
     report_service = ReportService(db)
