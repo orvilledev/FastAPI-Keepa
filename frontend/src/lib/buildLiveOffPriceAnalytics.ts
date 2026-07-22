@@ -408,7 +408,7 @@ export async function buildLiveOffPriceAnalytics(): Promise<DemoOffPriceAnalytic
 
   return {
     demo: false,
-    demo_label: 'Live Daily Run archives (demo snapshots excluded)',
+    demo_label: 'Live Daily Run data',
     as_of: new Date().toISOString(),
     period_labels,
     period_ranges,

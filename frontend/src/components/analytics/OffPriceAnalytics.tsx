@@ -14,19 +14,13 @@ import {
   YAxis,
 } from 'recharts'
 import {
-  buildDemoOffPriceAnalytics,
   DEMO_ANALYTICS_CURRENT_YEAR,
   type AnalyticsPeriod,
   type DemoOffPriceAnalytics,
   type DemoVendorAnalytics,
   type DemoYearArchive,
 } from '../../lib/demoOffPriceAnalytics'
-import {
-  analyticsSourceBadgeLabel,
-  hasAnalyticsDemoEnded,
-  resolveAnalyticsDataSource,
-  type AnalyticsDataSource,
-} from '../../lib/analyticsCutover'
+import { analyticsSourceBadgeLabel } from '../../lib/analyticsCutover'
 import {
   buildLiveOffPriceAnalytics,
   purgeDemoAnalyticsSnapshots,
@@ -127,7 +121,7 @@ function sellerHitsOverall(
   return seller.yearly_hits
 }
 
-type DemoOffPriceTopSeller = ReturnType<typeof buildDemoOffPriceAnalytics>['top_sellers_overall'][number]
+type DemoOffPriceTopSeller = DemoOffPriceAnalytics['top_sellers_overall'][number]
 
 const TRACKING_STORAGE_PREFIX = 'off-price-analytics-tracking-user-'
 const DOWNLOAD_LOG_STORAGE_KEY = 'off-price-analytics-download-logs-v1'
@@ -266,58 +260,24 @@ export default function OffPriceAnalytics() {
       ? periodParam
       : 'weekly'
   const yearParam = searchParams.get('year')
-  const dataSource: AnalyticsDataSource = resolveAnalyticsDataSource(searchParams)
-  const showLivePreviewToggle = !hasAnalyticsDemoEnded()
 
-  const [data, setData] = useState<DemoOffPriceAnalytics | null>(
-    dataSource === 'demo' ? () => buildDemoOffPriceAnalytics() : null,
-  )
-  const [dataLoading, setDataLoading] = useState(dataSource === 'live')
+  const [data, setData] = useState<DemoOffPriceAnalytics | null>(null)
+  const [dataLoading, setDataLoading] = useState(true)
   const [dataError, setDataError] = useState<string | null>(null)
   const [archiveStatus, setArchiveStatus] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    if (dataSource === 'demo') {
-      setData(buildDemoOffPriceAnalytics())
-      setDataLoading(false)
-      setDataError(null)
-      analyticsApi
-        .seedDemoHistory()
-        .then((res) => {
-          if (!cancelled) {
-            setArchiveStatus(
-              res.count > 0
-                ? `Archived ${res.count} period snapshot(s) to the database for historical download.`
-                : 'Archive table available — snapshots upserted when empty.',
-            )
-          }
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setArchiveStatus(
-              'Demo archives shown locally. Apply migration create_off_price_analytics_snapshots.sql to persist them in the DB.',
-            )
-          }
-        })
-      return () => {
-        cancelled = true
-      }
-    }
-
     setDataLoading(true)
     setDataError(null)
     setArchiveStatus(null)
     ;(async () => {
-      // Don't block first paint on demo purge (can hang on cold API).
       void purgeDemoAnalyticsSnapshots()
       try {
         const live = await buildLiveOffPriceAnalytics()
         if (cancelled) return
         setData(live)
-        setArchiveStatus(
-          'Live Daily Run data · demo snapshots excluded. Cutover Aug 1, 2026 Central.',
-        )
+        setArchiveStatus('Live Daily Run data from July 20, 2026 onward.')
       } catch (err: unknown) {
         if (cancelled) return
         const message =
@@ -334,7 +294,7 @@ export default function OffPriceAnalytics() {
     return () => {
       cancelled = true
     }
-  }, [dataSource])
+  }, [])
 
   const vendorCodes = useMemo(() => data?.vendors.map((v) => v.code) ?? [], [data])
   const vendorNames = useMemo(
@@ -457,37 +417,6 @@ export default function OffPriceAnalytics() {
     nextParams.set('year', String(year))
     setSearchParams(nextParams, { replace: true })
   }
-
-  const setDataSourcePreference = (next: AnalyticsDataSource) => {
-    if (!showLivePreviewToggle) return
-    const nextParams = new URLSearchParams(searchParams)
-    if (next === 'live') {
-      nextParams.set('source', 'live')
-    } else {
-      nextParams.set('source', 'demo')
-    }
-    setSearchParams(nextParams, { replace: true })
-  }
-
-  const livePreviewToggle = showLivePreviewToggle ? (
-    <div className="flex items-center gap-2.5">
-      <TrackingSwitch
-        enabled={dataSource === 'live'}
-        onChange={(on) => setDataSourcePreference(on ? 'live' : 'demo')}
-        label={dataSource === 'live' ? 'Switch to demo analytics' : 'Preview live analytics'}
-      />
-      <div className="min-w-0 text-left">
-        <p className="text-sm font-medium text-gray-800 dark:text-content-primary">
-          {dataSource === 'live' ? 'Live preview on' : 'Live preview off'}
-        </p>
-        <p className="text-xs text-gray-500 dark:text-content-muted">
-          {dataSource === 'live'
-            ? 'Showing Daily Run data · until Aug 1, 2026 Central'
-            : 'Showing fabricated demo · toggle to preview live'}
-        </p>
-      </div>
-    </div>
-  ) : null
 
   const handleToggleTracking = async (vendorCode: string, enabled: boolean) => {
     const optimistic = { ...tracking, [vendorCode]: enabled }
@@ -803,7 +732,6 @@ export default function OffPriceAnalytics() {
     return (
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-4 p-8">
         <p className="text-sm text-gray-500 dark:text-content-muted">Loading live analytics…</p>
-        {livePreviewToggle}
       </div>
     )
   }
@@ -817,16 +745,6 @@ export default function OffPriceAnalytics() {
         <p className="max-w-md text-sm text-gray-500 dark:text-content-muted">
           {dataError || 'Unknown error'}
         </p>
-        {livePreviewToggle ? (
-          <div className="mt-2">{livePreviewToggle}</div>
-        ) : (
-          dataSource === 'live' && (
-            <p className="text-xs text-gray-400 dark:text-content-muted">
-              Tip: before Aug 1, 2026 Central you can still open demo with{' '}
-              <code className="rounded bg-gray-100 px-1 dark:bg-surface-muted">?source=demo</code>
-            </p>
-          )
-        )}
       </div>
     )
   }
@@ -878,19 +796,9 @@ export default function OffPriceAnalytics() {
         <p className="mt-4 hidden text-xs text-gray-500 dark:text-content-muted lg:block">
           Archives come from Daily Runs only. Deleting Express Jobs never removes or changes this analytics history.
         </p>
-        {dataSource === 'demo' ? (
-          <p className="mt-3 hidden text-[11px] font-medium uppercase tracking-wide text-amber-700/80 dark:text-amber-400/80 lg:block">
-            Fabricated · until Aug 1, 2026 Central
-          </p>
-        ) : showLivePreviewToggle ? (
-          <p className="mt-3 hidden text-[11px] font-medium uppercase tracking-wide text-emerald-700/80 dark:text-emerald-400/80 lg:block">
-            Live preview · use header toggle
-          </p>
-        ) : (
-          <p className="mt-3 hidden text-[11px] font-medium uppercase tracking-wide text-emerald-700/80 dark:text-emerald-400/80 lg:block">
-            Live Daily Run data
-          </p>
-        )}
+        <p className="mt-3 hidden text-[11px] font-medium uppercase tracking-wide text-emerald-700/80 dark:text-emerald-400/80 lg:block">
+          Live Daily Run data
+        </p>
       </aside>
 
       <div className="min-w-0 flex-1 space-y-6">
@@ -900,14 +808,8 @@ export default function OffPriceAnalytics() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-content-primary sm:text-3xl">
                 Off-Price Analytics
               </h1>
-              <span
-                className={`rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
-                  dataSource === 'live'
-                    ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
-                    : 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
-                }`}
-              >
-                {analyticsSourceBadgeLabel(dataSource)}
+              <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
+                {analyticsSourceBadgeLabel()}
               </span>
             </div>
             <p className="mt-1 text-sm text-gray-500 dark:text-content-muted">
@@ -918,7 +820,6 @@ export default function OffPriceAnalytics() {
             )}
           </div>
           <div className="flex flex-col items-stretch gap-3 sm:items-end">
-            {livePreviewToggle}
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <button
                 type="button"

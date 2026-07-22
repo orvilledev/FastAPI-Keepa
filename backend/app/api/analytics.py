@@ -14,7 +14,6 @@ from app.repositories.off_price_analytics_download_log_repository import (
 from app.repositories.off_price_analytics_user_tracking_repository import (
     OffPriceAnalyticsUserTrackingRepository,
 )
-from app.services.analytics_cutover import has_analytics_demo_ended
 from app.services.email_service import EmailService
 from app.services.off_price_analytics_service import OffPriceAnalyticsService
 from app.services.off_price_analytics_vendors import VENDOR_CODES
@@ -52,16 +51,6 @@ def require_analytics_access(current_user: dict = Depends(get_current_user)) -> 
             detail="Off-Price Analytics is restricted to authorized users",
         )
     return current_user
-
-
-def _require_dev_seed() -> None:
-    """Demo history seeding stays local/development-only."""
-    env = (settings.environment or "").strip().lower()
-    if env not in {"development", "dev", "local"}:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Demo history seeding is only available in development",
-        )
 
 
 def _user_id(current_user: dict) -> str:
@@ -160,7 +149,7 @@ def get_off_price_analytics_archive(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No archived analytics for {period_type}/{period_key}",
         )
-    if (row.get("source") or "").strip().lower() == "demo" and has_analytics_demo_ended():
+    if (row.get("source") or "").strip().lower() == "demo":
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No archived analytics for {period_type}/{period_key}",
@@ -174,17 +163,11 @@ def seed_demo_off_price_history(
     current_user: dict = Depends(require_analytics_access),
     db: Client = Depends(get_supabase),
 ):
-    _require_dev_seed()
-    if has_analytics_demo_ended():
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail=(
-                "Demo history seeding ended on 2026-08-01 America/Chicago. "
-                "Use live Daily Run archives instead."
-            ),
-        )
-    service = OffPriceAnalyticsService(db)
-    return service.seed_demo_history()
+    """Demo seeding is retired — Analytics is live-only."""
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="Demo analytics history is retired. Use live Daily Run archives.",
+    )
 
 
 @router.delete("/analytics/off-price/demo-snapshots")
@@ -193,11 +176,7 @@ def delete_demo_off_price_snapshots(
     current_user: dict = Depends(require_analytics_access),
     db: Client = Depends(get_supabase),
 ):
-    """
-    Remove fabricated ``source=demo`` snapshot rows.
-
-    Safe to call from the live Analytics preview; live/manual archives are kept.
-    """
+    """Remove fabricated ``source=demo`` snapshot rows. Live archives are kept."""
     service = OffPriceAnalyticsService(db)
     return service.delete_demo_snapshots()
 
