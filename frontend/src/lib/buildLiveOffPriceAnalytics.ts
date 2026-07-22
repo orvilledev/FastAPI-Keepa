@@ -73,16 +73,10 @@ async function fetchPeriodBundle(period: AnalyticsPeriod): Promise<{
   current: OffPriceAnalyticsResponse
   prior: OffPriceAnalyticsResponse | null
 }> {
-  // persist=false for UI load speed. Snapshots are written by Daily Run completion
-  // and explicit rebuilds — avoid a second full yearly/monthly recompute per open.
-  const [current, priorSettled] = await Promise.all([
-    analyticsApi.getOffPrice({ period, offset: 0, persist: false }),
-    analyticsApi
-      .getOffPrice({ period, offset: 1, persist: false })
-      .then((r) => r)
-      .catch(() => null),
-  ])
-  return { current, prior: priorSettled }
+  // Only fetch the current period for initial paint. Prior-period change % is
+  // nice-to-have and doubles cold-start load (often exceeds the 25s axios timeout).
+  const current = await analyticsApi.getOffPrice({ period, offset: 0, persist: false })
+  return { current, prior: null }
 }
 
 function mapYearArchive(detail: OffPriceAnalyticsResponse): DemoYearArchive {
@@ -158,8 +152,8 @@ export async function buildLiveOffPriceAnalytics(): Promise<DemoOffPriceAnalytic
   ) as Record<AnalyticsPeriod, { current: OffPriceAnalyticsResponse; prior: OffPriceAnalyticsResponse | null }>
 
   const [yearlyList, monthlyList] = await Promise.all([
-    analyticsApi.listArchives({ period_type: 'yearly', limit: 60, exclude_demo: true }),
-    analyticsApi.listArchives({ period_type: 'monthly', limit: 36, exclude_demo: true }),
+    analyticsApi.listArchives({ period_type: 'yearly', limit: 12, exclude_demo: true }),
+    analyticsApi.listArchives({ period_type: 'monthly', limit: 24, exclude_demo: true }),
   ])
 
   const yearlyMetas = (yearlyList.archives || []).filter(
@@ -169,15 +163,24 @@ export async function buildLiveOffPriceAnalytics(): Promise<DemoOffPriceAnalytic
     .filter((a) => (a.source || '').toLowerCase() !== 'demo')
     .slice(0, 24)
 
-  // Hydrate year archives (sidebar + historical year view). Cap parallel detail fetches.
+  // Hydrate only the current live year (+ at most a couple of recent archives).
+  // Fetching dozens of year details in parallel was hanging Live Preview.
+  const liveYearly = byPeriod.yearly.current
+  const liveYear = Number.parseInt(String(liveYearly.period_key || '').slice(0, 4), 10)
+  const yearsToHydrate = yearlyMetas
+    .filter((meta) => {
+      const y = Number.parseInt(String(meta.period_key || '').slice(0, 4), 10)
+      return Number.isFinite(y) && Number.isFinite(liveYear) && y >= liveYear - 1
+    })
+    .slice(0, 3)
+
   const yearDetails = await Promise.all(
-    yearlyMetas.slice(0, 50).map(async (meta) => {
+    yearsToHydrate.map(async (meta) => {
       try {
         const detail = await analyticsApi.getArchive('yearly', meta.period_key)
         if ((detail.source || '').toLowerCase() === 'demo') return null
         return mapYearArchive(detail)
       } catch {
-        // Fall back to list meta only (no vendor breakdown until detail exists).
         const year = Number.parseInt(String(meta.period_key || '').slice(0, 4), 10)
         return {
           year: Number.isFinite(year) ? year : 0,
@@ -198,9 +201,6 @@ export async function buildLiveOffPriceAnalytics(): Promise<DemoOffPriceAnalytic
     .filter((y): y is DemoYearArchive => Boolean(y))
     .sort((a, b) => b.year - a.year)
 
-  // Ensure current live yearly summary appears even before first archive hydrate.
-  const liveYearly = byPeriod.yearly.current
-  const liveYear = Number.parseInt(String(liveYearly.period_key || '').slice(0, 4), 10)
   if (Number.isFinite(liveYear) && !historical_years.some((y) => y.year === liveYear)) {
     historical_years.unshift(mapYearArchive(liveYearly))
   }

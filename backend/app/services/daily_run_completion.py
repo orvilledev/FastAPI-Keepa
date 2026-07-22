@@ -313,7 +313,30 @@ def send_daily_run_completion_email_for_job(
         logger.info("Completion email sent for job %s", job_id_str)
     else:
         logger.error("Failed to send completion email for job %s", job_id_str)
+
+    if is_daily_run:
+        refresh_live_analytics_snapshots(db)
+
     return sent
+
+
+def refresh_live_analytics_snapshots(db: Client) -> None:
+    """Recompute and persist daily/week/month/year archives after a Daily Run."""
+    try:
+        from app.services.off_price_analytics_service import OffPriceAnalyticsService
+
+        svc = OffPriceAnalyticsService(db)
+        for period in ("daily", "weekly", "monthly", "yearly"):
+            svc.get_off_price_summary(
+                period,  # type: ignore[arg-type]
+                offset=0,
+                persist=True,
+                force_persist=True,
+                user_id=None,
+            )
+        logger.info("Live analytics snapshots refreshed after Daily Run")
+    except Exception as exc:
+        logger.warning("Live analytics snapshot refresh failed: %s", exc)
 
 
 def _vendor_from_daily_job_name(job_name: str) -> Optional[str]:

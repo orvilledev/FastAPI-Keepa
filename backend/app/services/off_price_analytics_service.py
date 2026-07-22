@@ -319,6 +319,74 @@ class OffPriceAnalyticsService:
         end_out = end.isoformat()
         served_from_archive = False
 
+        # Fast path for Live Preview (persist=false): serve existing week/month/year
+        # snapshots instead of recomputing (avoids 25s browser timeouts).
+        if (
+            period != "daily"
+            and not persist
+            and not force_persist
+            and source == "live"
+        ):
+            try:
+                existing_snap = self.snapshots.get_snapshot(period, period_key)
+            except Exception:
+                existing_snap = None
+            if (
+                existing_snap
+                and str(existing_snap.get("source") or "").lower() != "demo"
+                and int(existing_snap.get("total_off_price_count") or 0) > 0
+            ):
+                archived = self.get_archive(period, period_key)
+                if archived and archived.get("vendors"):
+                    (
+                        vendors_sorted,
+                        total_off_price,
+                        total_runs,
+                        all_sellers,
+                        vendors_with_hits,
+                        personal_off_price,
+                        personal_runs,
+                        personal_sellers,
+                        personal_vendors_with_hits,
+                    ) = self._vendor_stats_from_archive_vendors(
+                        archived.get("vendors") or [],
+                        enabled_map=enabled_map,
+                        tracking_map=tracking_map,
+                    )
+                    if archived.get("start"):
+                        start_out = str(archived["start"])
+                    if archived.get("end"):
+                        end_out = str(archived["end"])
+                    return {
+                        "period": period,
+                        "period_key": period_key,
+                        "period_label": label,
+                        "offset": offset,
+                        "start": start_out,
+                        "end": end_out,
+                        "total_off_price_count": (
+                            personal_off_price if user_id else total_off_price
+                        ),
+                        "total_run_count": personal_runs if user_id else total_runs,
+                        "distinct_sellers": (
+                            len(personal_sellers) if user_id else len(all_sellers)
+                        ),
+                        "vendors_with_hits": (
+                            personal_vendors_with_hits if user_id else vendors_with_hits
+                        ),
+                        "vendors": vendors_sorted,
+                        "tracking_settings": [
+                            {
+                                "vendor_code": code,
+                                "vendor_name": name,
+                                "tracking_enabled": tracking_map.get(code, True),
+                            }
+                            for code, name in VENDOR_DEFS
+                        ],
+                        "archived": True,
+                        "personalized": bool(user_id),
+                    }
+
         if period == "daily":
             jobs = self._fetch_daily_jobs(start, end)
             (

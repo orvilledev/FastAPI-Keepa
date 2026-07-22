@@ -1312,6 +1312,7 @@ export const analyticsApi = {
         offset: params.offset ?? 0,
         persist: params.persist ?? true,
       },
+      timeout: 60_000,
     })
     return response.data
   },

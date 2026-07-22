@@ -309,15 +309,14 @@ export default function OffPriceAnalytics() {
     setDataError(null)
     setArchiveStatus(null)
     ;(async () => {
-      const purged = await purgeDemoAnalyticsSnapshots()
+      // Don't block first paint on demo purge (can hang on cold API).
+      void purgeDemoAnalyticsSnapshots()
       try {
         const live = await buildLiveOffPriceAnalytics()
         if (cancelled) return
         setData(live)
         setArchiveStatus(
-          purged > 0
-            ? `Live data · removed ${purged} demo snapshot(s). Preview via ?source=live until Aug 1, 2026 Central.`
-            : 'Live Daily Run data · demo snapshots excluded. Cutover Aug 1, 2026 Central.',
+          'Live Daily Run data · demo snapshots excluded. Cutover Aug 1, 2026 Central.',
         )
       } catch (err: unknown) {
         if (cancelled) return
