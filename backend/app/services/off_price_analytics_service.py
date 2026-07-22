@@ -3,6 +3,10 @@
 Aggregates ``price_alerts`` produced by completed Daily Runs for all vendors
 (active and inactive). Express Jobs are never included.
 
+At most one Daily Run is counted per vendor per calendar day (earliest
+completed job wins). Later same-day Trigger Import runs may still email, but
+do not double-count in Live Analytics.
+
 Persists period snapshots in ``off_price_analytics_snapshots`` so historical
 years remain downloadable even when Express (or individual job) records and
 their ``price_alerts`` are deleted. Job delete paths must not touch snapshots.
@@ -106,6 +110,61 @@ def _vendor_from_job(job: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+def _run_date_for_job(job: Dict[str, Any]) -> Optional[str]:
+    """Calendar day (YYYY-MM-DD) for analytics: job_name date, else completed/created UTC."""
+    name = str(job.get("job_name") or "")
+    # "Daily CLK Uploaded Report - 2026-07-22"
+    if len(name) >= 10:
+        tail = name[-10:]
+        if tail[4:5] == "-" and tail[7:8] == "-":
+            try:
+                datetime.strptime(tail, "%Y-%m-%d")
+                return tail
+            except ValueError:
+                pass
+    for key in ("completed_at", "created_at"):
+        raw = job.get(key)
+        if not raw:
+            continue
+        try:
+            text = str(raw).replace("Z", "+00:00")
+            dt = datetime.fromisoformat(text)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc).strftime("%Y-%m-%d")
+        except Exception:
+            continue
+    return None
+
+
+def _job_sort_key(job: Dict[str, Any]) -> Tuple[str, str, str]:
+    return (
+        str(job.get("completed_at") or ""),
+        str(job.get("created_at") or ""),
+        str(job.get("id") or ""),
+    )
+
+
+def dedupe_one_job_per_vendor_day(jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Keep a single Daily Run per vendor per calendar day.
+
+    The earliest completed job wins (scheduled countdown before Trigger Import Now).
+    Later same-day triggers still email, but must not double-count in Analytics.
+    """
+    chosen: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    for job in jobs:
+        vendor = _vendor_from_job(job)
+        run_date = _run_date_for_job(job)
+        if not vendor or not run_date:
+            continue
+        key = (vendor, run_date)
+        prev = chosen.get(key)
+        if prev is None or _job_sort_key(job) < _job_sort_key(prev):
+            chosen[key] = job
+    return sorted(chosen.values(), key=_job_sort_key)
+
+
 class OffPriceAnalyticsService:
     """Build period off-price counts per vendor and archive them permanently."""
 
@@ -167,7 +226,7 @@ class OffPriceAnalyticsService:
                 break
             offset += page_size
 
-        return jobs
+        return dedupe_one_job_per_vendor_day(jobs)
 
     def _count_alerts_by_job(self, job_ids: List[str]) -> Dict[str, int]:
         counts: Dict[str, int] = defaultdict(int)
@@ -242,8 +301,12 @@ class OffPriceAnalyticsService:
         persist: bool = True,
         source: str = "live",
         user_id: Optional[str] = None,
+        force_persist: bool = False,
+        reference: Optional[datetime] = None,
     ) -> Dict[str, Any]:
-        start, end, label, period_key = period_bounds(period, offset=offset)
+        start, end, label, period_key = period_bounds(
+            period, offset=offset, reference=reference
+        )
         enabled_map = self._fetch_scheduler_enabled()
         # Personal tracking: when user_id is set, only that user's toggles apply.
         # Without user_id (system seed), all vendors remain tracked.
@@ -251,8 +314,154 @@ class OffPriceAnalyticsService:
             tracking_map = self.user_tracking.get_tracking_map(user_id)
         else:
             tracking_map = {code: True for code, _ in VENDOR_DEFS}
-        jobs = self._fetch_daily_jobs(start, end)
 
+        start_out = start.isoformat()
+        end_out = end.isoformat()
+        served_from_archive = False
+
+        if period == "daily":
+            jobs = self._fetch_daily_jobs(start, end)
+            (
+                vendors_sorted,
+                total_off_price,
+                total_runs,
+                all_sellers,
+                vendors_with_hits,
+                personal_off_price,
+                personal_runs,
+                personal_sellers,
+                personal_vendors_with_hits,
+            ) = self._vendor_stats_from_jobs(
+                jobs, enabled_map=enabled_map, tracking_map=tracking_map
+            )
+            if total_runs == 0:
+                archived = None
+                try:
+                    existing_snap = self.snapshots.get_snapshot(period, period_key)
+                except Exception:
+                    existing_snap = None
+                if existing_snap and str(existing_snap.get("source") or "").lower() != "demo":
+                    archived = self.get_archive(period, period_key)
+                if (not archived or not archived.get("vendors")) and offset == 0:
+                    try:
+                        recent = self.snapshots.list_snapshots(
+                            period_type="daily", limit=14, exclude_demo=True
+                        )
+                    except Exception:
+                        recent = []
+                    for row in recent:
+                        if int(row.get("total_off_price_count") or 0) <= 0:
+                            continue
+                        candidate = self.get_archive(
+                            "daily", str(row.get("period_key") or "")
+                        )
+                        if candidate and candidate.get("vendors"):
+                            archived = candidate
+                            period_key = str(candidate.get("period_key") or period_key)
+                            label = str(candidate.get("period_label") or label)
+                            if candidate.get("start"):
+                                start_out = str(candidate["start"])
+                            if candidate.get("end"):
+                                end_out = str(candidate["end"])
+                            break
+                if archived and archived.get("vendors"):
+                    served_from_archive = True
+                    (
+                        vendors_sorted,
+                        total_off_price,
+                        total_runs,
+                        all_sellers,
+                        vendors_with_hits,
+                        personal_off_price,
+                        personal_runs,
+                        personal_sellers,
+                        personal_vendors_with_hits,
+                    ) = self._vendor_stats_from_archive_vendors(
+                        archived.get("vendors") or [],
+                        enabled_map=enabled_map,
+                        tracking_map=tracking_map,
+                    )
+        else:
+            # Week / month / year: sum one-record-per-vendor-day building blocks.
+            (
+                vendors_sorted,
+                total_off_price,
+                total_runs,
+                all_sellers,
+                vendors_with_hits,
+                personal_off_price,
+                personal_runs,
+                personal_sellers,
+                personal_vendors_with_hits,
+                served_from_archive,
+            ) = self._aggregate_period_from_daily_sources(
+                start,
+                end,
+                enabled_map=enabled_map,
+                tracking_map=tracking_map,
+            )
+
+        archive_summary = {
+            "period": period,
+            "period_key": period_key,
+            "period_label": label,
+            "offset": offset,
+            "start": start_out,
+            "end": end_out,
+            "total_off_price_count": total_off_price,
+            "total_run_count": total_runs,
+            "distinct_sellers": len(all_sellers),
+            "vendors_with_hits": vendors_with_hits,
+            "vendors": [{**v, "tracking_enabled": True} for v in vendors_sorted],
+            "archived": False,
+        }
+
+        if persist:
+            archive_summary["archived"] = self._persist_summary(
+                archive_summary, source=source, force=force_persist
+            )
+
+        return {
+            "period": period,
+            "period_key": period_key,
+            "period_label": label,
+            "offset": offset,
+            "start": start_out,
+            "end": end_out,
+            "total_off_price_count": personal_off_price if user_id else total_off_price,
+            "total_run_count": personal_runs if user_id else total_runs,
+            "distinct_sellers": len(personal_sellers) if user_id else len(all_sellers),
+            "vendors_with_hits": personal_vendors_with_hits if user_id else vendors_with_hits,
+            "vendors": vendors_sorted,
+            "tracking_settings": [
+                {
+                    "vendor_code": code,
+                    "vendor_name": name,
+                    "tracking_enabled": tracking_map.get(code, True),
+                }
+                for code, name in VENDOR_DEFS
+            ],
+            "archived": archive_summary.get("archived", False) or served_from_archive,
+            "personalized": bool(user_id),
+        }
+
+    def _vendor_stats_from_jobs(
+        self,
+        jobs: List[Dict[str, Any]],
+        *,
+        enabled_map: Dict[str, bool],
+        tracking_map: Dict[str, bool],
+    ) -> Tuple[
+        List[Dict[str, Any]],
+        int,
+        int,
+        set[str],
+        int,
+        int,
+        int,
+        set[str],
+        int,
+    ]:
         jobs_by_vendor: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
         for job in jobs:
             vendor = _vendor_from_job(job)
@@ -267,7 +476,6 @@ class OffPriceAnalyticsService:
         total_off_price = 0
         total_runs = 0
         all_sellers: set[str] = set()
-        # Personal view totals (may exclude vendors the user paused)
         personal_off_price = 0
         personal_runs = 0
         personal_sellers: set[str] = set()
@@ -290,13 +498,11 @@ class OffPriceAnalyticsService:
                 key=lambda item: item["hits"],
                 reverse=True,
             )
-
             total_off_price += off_price_count
             total_runs += run_count
             if tracking_enabled:
                 personal_off_price += off_price_count
                 personal_runs += run_count
-
             vendors_out.append(
                 {
                     "code": code,
@@ -317,243 +523,62 @@ class OffPriceAnalyticsService:
         personal_vendors_with_hits = sum(
             1 for v in vendors_sorted if v["tracking_enabled"] and v["off_price_count"] > 0
         )
+        return (
+            vendors_sorted,
+            total_off_price,
+            total_runs,
+            all_sellers,
+            vendors_with_hits,
+            personal_off_price,
+            personal_runs,
+            personal_sellers,
+            personal_vendors_with_hits,
+        )
 
-        start_out = start.isoformat()
-        end_out = end.isoformat()
-        served_from_archive = False
-
-        # Merge non-demo archives so recovered history stays visible while new Daily Runs
-        # still appear. Live vendor rows win when that vendor has runs in the window;
-        # archive fills vendors whose jobs were deleted. Full archive only when live is empty.
-        archived = None
-        try:
-            existing_snap = self.snapshots.get_snapshot(period, period_key)
-        except Exception:
-            existing_snap = None
-        existing_source = str((existing_snap or {}).get("source") or "").lower()
-        if existing_source != "demo" and existing_snap:
-            archived = self.get_archive(period, period_key)
-        elif total_runs == 0 and period == "daily" and offset == 0:
-            try:
-                recent = self.snapshots.list_snapshots(
-                    period_type="daily", limit=14, exclude_demo=True
-                )
-            except Exception:
-                recent = []
-            for row in recent:
-                if int(row.get("total_off_price_count") or 0) <= 0:
-                    continue
-                candidate = self.get_archive("daily", str(row.get("period_key") or ""))
-                if candidate and candidate.get("vendors"):
-                    archived = candidate
-                    period_key = str(candidate.get("period_key") or period_key)
-                    label = str(candidate.get("period_label") or label)
-                    if candidate.get("start"):
-                        start_out = str(candidate["start"])
-                    if candidate.get("end"):
-                        end_out = str(candidate["end"])
-                    break
-
-        if archived and archived.get("vendors"):
-            merged = self._merge_live_vendors_with_archive(
-                live_vendors=vendors_sorted,
-                archived_vendors=archived.get("vendors") or [],
-                enabled_map=enabled_map,
-                tracking_map=tracking_map,
-                live_runs=total_runs,
-            )
-            if merged is not None:
-                (
-                    vendors_sorted,
-                    total_off_price,
-                    total_runs,
-                    all_sellers,
-                    vendors_with_hits,
-                    personal_off_price,
-                    personal_runs,
-                    personal_sellers,
-                    personal_vendors_with_hits,
-                    used_archive,
-                ) = merged
-                served_from_archive = used_archive
-
-        # Shared archives always store the full all-vendor snapshot (not personalized).
-        archive_summary = {
-            "period": period,
-            "period_key": period_key,
-            "period_label": label,
-            "offset": offset,
-            "start": start_out if isinstance(start_out, str) else start.isoformat(),
-            "end": end_out if isinstance(end_out, str) else end.isoformat(),
-            "total_off_price_count": total_off_price,
-            "total_run_count": total_runs,
-            "distinct_sellers": len(all_sellers),
-            "vendors_with_hits": vendors_with_hits,
-            "vendors": [
-                {**v, "tracking_enabled": True} for v in vendors_sorted
-            ],
-            "archived": False,
-        }
-
-        if persist:
-            archive_summary["archived"] = self._persist_summary(archive_summary, source=source)
-
-        # Response is personalized for the requesting user.
-        return {
-            "period": period,
-            "period_key": period_key,
-            "period_label": label,
-            "offset": offset,
-            "start": start_out if isinstance(start_out, str) else start.isoformat(),
-            "end": end_out if isinstance(end_out, str) else end.isoformat(),
-            "total_off_price_count": personal_off_price if user_id else total_off_price,
-            "total_run_count": personal_runs if user_id else total_runs,
-            "distinct_sellers": len(personal_sellers) if user_id else len(all_sellers),
-            "vendors_with_hits": personal_vendors_with_hits if user_id else vendors_with_hits,
-            "vendors": vendors_sorted,
-            "tracking_settings": [
-                {
-                    "vendor_code": code,
-                    "vendor_name": name,
-                    "tracking_enabled": tracking_map.get(code, True),
-                }
-                for code, name in VENDOR_DEFS
-            ],
-            "archived": archive_summary.get("archived", False) or served_from_archive,
-            "personalized": bool(user_id),
-        }
-
-    def _merge_live_vendors_with_archive(
+    def _vendor_stats_from_archive_vendors(
         self,
-        *,
-        live_vendors: List[Dict[str, Any]],
         archived_vendors: List[Dict[str, Any]],
+        *,
         enabled_map: Dict[str, bool],
         tracking_map: Dict[str, bool],
-        live_runs: int,
-    ) -> Optional[
-        Tuple[
-            List[Dict[str, Any]],
-            int,
-            int,
-            set[str],
-            int,
-            int,
-            int,
-            set[str],
-            int,
-            bool,
-        ]
+    ) -> Tuple[
+        List[Dict[str, Any]],
+        int,
+        int,
+        set[str],
+        int,
+        int,
+        int,
+        set[str],
+        int,
     ]:
-        """
-        Combine live Daily Run counts with a non-demo archive.
-
-        - If live has no runs, serve the archive wholesale (post-wipe recovery).
-        - If live has runs, keep live rows for vendors that ran and fill other vendors
-          from the archive so recovered history and new runs both show.
-        """
         archive_by_code = {
             str(v.get("code") or "").lower(): v
             for v in archived_vendors
             if str(v.get("code") or "").strip()
         }
-        live_by_code = {
-            str(v.get("code") or "").lower(): v
-            for v in live_vendors
-            if str(v.get("code") or "").strip()
-        }
-        if not archive_by_code:
-            return None
-
-        # Empty live window → full archive fallback.
-        if live_runs <= 0:
-            vendors_sorted: List[Dict[str, Any]] = []
-            personal_off_price = 0
-            personal_runs = 0
-            personal_sellers: set[str] = set()
-            all_sellers: set[str] = set()
-            total_off_price = 0
-            total_runs = 0
-            for code, name in VENDOR_DEFS:
-                tracking_enabled = tracking_map.get(code, True)
-                match = archive_by_code.get(code) or {}
-                off = int(match.get("off_price_count") or 0)
-                runs = int(match.get("run_count") or 0)
-                sellers = list(match.get("sellers") or [])
-                total_off_price += off
-                total_runs += runs
-                for s in sellers:
-                    sn = str((s or {}).get("seller_name") or "").strip().lower()
-                    if sn:
-                        all_sellers.add(sn)
-                        if tracking_enabled:
-                            personal_sellers.add(sn)
-                if tracking_enabled:
-                    personal_off_price += off
-                    personal_runs += runs
-                vendors_sorted.append(
-                    {
-                        "code": code,
-                        "name": name,
-                        "off_price_count": off,
-                        "run_count": runs,
-                        "scheduler_enabled": enabled_map.get(code, False),
-                        "tracking_enabled": tracking_enabled,
-                        "sellers": sellers,
-                    }
-                )
-            vendors_sorted.sort(
-                key=lambda v: (-int(v["tracking_enabled"]), -v["off_price_count"], v["code"])
-            )
-            vendors_with_hits = sum(1 for v in vendors_sorted if v["off_price_count"] > 0)
-            personal_vendors_with_hits = sum(
-                1 for v in vendors_sorted if v["tracking_enabled"] and v["off_price_count"] > 0
-            )
-            return (
-                vendors_sorted,
-                total_off_price,
-                total_runs,
-                all_sellers,
-                vendors_with_hits,
-                personal_off_price,
-                personal_runs,
-                personal_sellers,
-                personal_vendors_with_hits,
-                True,
-            )
-
-        # Live has jobs: overlay live vendors onto archive for vendors that did not run.
-        vendors_sorted = []
+        vendors_sorted: List[Dict[str, Any]] = []
         personal_off_price = 0
         personal_runs = 0
-        personal_sellers = set()
-        all_sellers = set()
+        personal_sellers: set[str] = set()
+        all_sellers: set[str] = set()
         total_off_price = 0
         total_runs = 0
-        used_archive = False
         for code, name in VENDOR_DEFS:
             tracking_enabled = tracking_map.get(code, True)
-            live = live_by_code.get(code) or {}
-            arch = archive_by_code.get(code) or {}
-            live_run_count = int(live.get("run_count") or 0)
-            if live_run_count > 0:
-                off = int(live.get("off_price_count") or 0)
-                runs = live_run_count
-                sellers = list(live.get("sellers") or [])
-            else:
-                off = int(arch.get("off_price_count") or 0)
-                runs = int(arch.get("run_count") or 0)
-                sellers = list(arch.get("sellers") or [])
-                if off > 0 or runs > 0:
-                    used_archive = True
+            match = archive_by_code.get(code) or {}
+            off = int(match.get("off_price_count") or 0)
+            runs = int(match.get("run_count") or 0)
+            sellers = list(match.get("sellers") or [])
             total_off_price += off
             total_runs += runs
             for s in sellers:
-                sn = str((s or {}).get("seller_name") or "").strip().lower()
-                if sn:
-                    all_sellers.add(sn)
-                    if tracking_enabled:
-                        personal_sellers.add(sn)
+                sn = str((s or {}).get("seller_name") or "").strip()
+                if not sn:
+                    continue
+                all_sellers.add(sn.lower())
+                if tracking_enabled:
+                    personal_sellers.add(sn.lower())
             if tracking_enabled:
                 personal_off_price += off
                 personal_runs += runs
@@ -575,9 +600,6 @@ class OffPriceAnalyticsService:
         personal_vendors_with_hits = sum(
             1 for v in vendors_sorted if v["tracking_enabled"] and v["off_price_count"] > 0
         )
-        # If merge equals live-only and archive added nothing useful, keep live as-is.
-        if not used_archive:
-            return None
         return (
             vendors_sorted,
             total_off_price,
@@ -588,11 +610,149 @@ class OffPriceAnalyticsService:
             personal_runs,
             personal_sellers,
             personal_vendors_with_hits,
-            True,
         )
 
-    def _persist_summary(self, summary: Dict[str, Any], *, source: str = "live") -> bool:
-        """Upsert a durable snapshot. Never overwrite a richer archive with weaker live data."""
+    def _aggregate_period_from_daily_sources(
+        self,
+        start: datetime,
+        end: datetime,
+        *,
+        enabled_map: Dict[str, bool],
+        tracking_map: Dict[str, bool],
+    ) -> Tuple[
+        List[Dict[str, Any]],
+        int,
+        int,
+        set[str],
+        int,
+        int,
+        int,
+        set[str],
+        int,
+        bool,
+    ]:
+        """
+        Sum daily analytics building blocks (live deduped jobs or daily archives).
+
+        At most one recorded report per vendor per calendar day.
+        """
+        vendor_off: Dict[str, int] = defaultdict(int)
+        vendor_runs: Dict[str, int] = defaultdict(int)
+        vendor_sellers: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        used_archive = False
+        day = start
+        identity_tracking = {c: True for c, _ in VENDOR_DEFS}
+        while day < end:
+            day_end = day + timedelta(days=1)
+            day_key = day.strftime("%Y-%m-%d")
+            jobs = self._fetch_daily_jobs(day, day_end)
+            day_vendors: List[Dict[str, Any]]
+            if jobs:
+                day_vendors = self._vendor_stats_from_jobs(
+                    jobs, enabled_map=enabled_map, tracking_map=identity_tracking
+                )[0]
+            else:
+                archived = self.get_archive("daily", day_key)
+                if (
+                    not archived
+                    or not archived.get("vendors")
+                    or int(archived.get("total_off_price_count") or 0) <= 0
+                ):
+                    day += timedelta(days=1)
+                    continue
+                used_archive = True
+                day_vendors = self._vendor_stats_from_archive_vendors(
+                    archived.get("vendors") or [],
+                    enabled_map=enabled_map,
+                    tracking_map=identity_tracking,
+                )[0]
+
+            for v in day_vendors:
+                code = str(v.get("code") or "").lower()
+                if not code:
+                    continue
+                vendor_off[code] += int(v.get("off_price_count") or 0)
+                vendor_runs[code] += int(v.get("run_count") or 0)
+                for s in v.get("sellers") or []:
+                    sn = str((s or {}).get("seller_name") or "").strip()
+                    if not sn:
+                        continue
+                    vendor_sellers[code][sn] += int((s or {}).get("hits") or 0)
+
+            day += timedelta(days=1)
+
+        vendors_out: List[Dict[str, Any]] = []
+        total_off_price = 0
+        total_runs = 0
+        all_sellers: set[str] = set()
+        personal_off_price = 0
+        personal_runs = 0
+        personal_sellers: set[str] = set()
+        for code, name in VENDOR_DEFS:
+            tracking_enabled = tracking_map.get(code, True)
+            off = int(vendor_off.get(code) or 0)
+            runs = int(vendor_runs.get(code) or 0)
+            sellers_sorted = sorted(
+                [
+                    {"seller_name": s, "hits": c}
+                    for s, c in (vendor_sellers.get(code) or {}).items()
+                ],
+                key=lambda item: item["hits"],
+                reverse=True,
+            )
+            for s in sellers_sorted:
+                sn = str(s.get("seller_name") or "").strip().lower()
+                if sn:
+                    all_sellers.add(sn)
+                    if tracking_enabled:
+                        personal_sellers.add(sn)
+            total_off_price += off
+            total_runs += runs
+            if tracking_enabled:
+                personal_off_price += off
+                personal_runs += runs
+            vendors_out.append(
+                {
+                    "code": code,
+                    "name": name,
+                    "off_price_count": off,
+                    "run_count": runs,
+                    "scheduler_enabled": enabled_map.get(code, False),
+                    "tracking_enabled": tracking_enabled,
+                    "sellers": sellers_sorted,
+                }
+            )
+
+        vendors_sorted = sorted(
+            vendors_out,
+            key=lambda v: (-int(v["tracking_enabled"]), -v["off_price_count"], v["code"]),
+        )
+        vendors_with_hits = sum(1 for v in vendors_sorted if v["off_price_count"] > 0)
+        personal_vendors_with_hits = sum(
+            1 for v in vendors_sorted if v["tracking_enabled"] and v["off_price_count"] > 0
+        )
+        return (
+            vendors_sorted,
+            total_off_price,
+            total_runs,
+            all_sellers,
+            vendors_with_hits,
+            personal_off_price,
+            personal_runs,
+            personal_sellers,
+            personal_vendors_with_hits,
+            used_archive,
+        )
+
+    def _persist_summary(
+        self, summary: Dict[str, Any], *, source: str = "live", force: bool = False
+    ) -> bool:
+        """Upsert a durable snapshot.
+
+        Empty live data never clobbers a richer archive (wipe protection).
+        Positive corrections (e.g. deduping same-day Trigger runs) may decrease
+        totals. ``force=True`` always writes (rebuild scripts).
+        """
         try:
             period_type = summary["period"]
             period_key = summary["period_key"]
@@ -600,18 +760,17 @@ class OffPriceAnalyticsService:
             existing = self.snapshots.get_snapshot(period_type, period_key)
             existing_hits = int((existing or {}).get("total_off_price_count") or 0)
             existing_source = str((existing or {}).get("source") or "").lower()
-            # Never let empty/weaker live data clobber a richer live archive.
-            # Demo rows may always be replaced by live.
             if (
-                existing
+                not force
+                and existing
                 and existing_source != "demo"
                 and new_hits < existing_hits
+                and new_hits <= 0
             ):
                 logger.info(
-                    "Skipping analytics persist for %s/%s: live hits %s < archive hits %s",
+                    "Skipping analytics persist for %s/%s: empty live would wipe archive hits %s",
                     period_type,
                     period_key,
-                    new_hits,
                     existing_hits,
                 )
                 return True
