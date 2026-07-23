@@ -26,7 +26,11 @@ import {
   purgeDemoAnalyticsSnapshots,
 } from '../../lib/buildLiveOffPriceAnalytics'
 import { useUser } from '../../contexts/UserContext'
-import { analyticsApi } from '../../services/api'
+import {
+  analyticsApi,
+  type OffPriceMismatchFixResult,
+  type OffPriceMismatchTestResult,
+} from '../../services/api'
 import { downloadBlob } from '../../utils/downloadLinkedFile'
 import {
   buildOffPriceAnalyticsExcelBlob,
@@ -332,6 +336,12 @@ export default function OffPriceAnalytics() {
   const [emailStatus, setEmailStatus] = useState<string | null>(null)
   const [showDownloadLogs, setShowDownloadLogs] = useState(false)
   const [downloadLogs, setDownloadLogs] = useState<DownloadLogEntry[]>(() => loadLocalDownloadLogs())
+  const [mismatchTesting, setMismatchTesting] = useState(false)
+  const [mismatchFixing, setMismatchFixing] = useState(false)
+  const [mismatchResult, setMismatchResult] = useState<OffPriceMismatchTestResult | null>(null)
+  const [mismatchFixResult, setMismatchFixResult] = useState<OffPriceMismatchFixResult | null>(null)
+  const [mismatchError, setMismatchError] = useState<string | null>(null)
+  const [showMismatchModal, setShowMismatchModal] = useState(false)
 
   // Reload personal tracking when user changes
   useEffect(() => {
@@ -444,6 +454,66 @@ export default function OffPriceAnalytics() {
     }
     setDownloadSelection(initial)
     setShowDownloadModal(true)
+  }
+
+  const reloadAnalyticsData = async () => {
+    try {
+      const live = await buildLiveOffPriceAnalytics()
+      setData(live)
+      setDataError(null)
+      setArchiveStatus('Live Daily Run data from July 20, 2026 onward.')
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        (err as Error)?.message ||
+        'Failed to load live analytics'
+      setDataError(String(message))
+    }
+  }
+
+  const handleRunMismatchTest = async () => {
+    setMismatchTesting(true)
+    setMismatchError(null)
+    setMismatchFixResult(null)
+    setMismatchResult(null)
+    setShowMismatchModal(true)
+    try {
+      const result = await analyticsApi.runMismatchTest(0)
+      setMismatchResult(result)
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        (err as Error)?.message ||
+        'Mismatch test failed'
+      setMismatchError(String(message))
+    } finally {
+      setMismatchTesting(false)
+    }
+  }
+
+  const handleFixMismatch = async () => {
+    setMismatchFixing(true)
+    setMismatchError(null)
+    try {
+      const result = await analyticsApi.fixMismatch(0)
+      setMismatchFixResult(result)
+      setMismatchResult(result.after)
+      await reloadAnalyticsData()
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        (err as Error)?.message ||
+        'Failed to fix mismatch'
+      setMismatchError(String(message))
+    } finally {
+      setMismatchFixing(false)
+    }
+  }
+
+  const closeMismatchModal = () => {
+    if (mismatchTesting || mismatchFixing) return
+    setShowMismatchModal(false)
+    setMismatchError(null)
   }
 
   const openEmailModal = () => {
@@ -823,6 +893,22 @@ export default function OffPriceAnalytics() {
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <button
                 type="button"
+                onClick={() => void handleRunMismatchTest()}
+                disabled={mismatchTesting || mismatchFixing || downloading || emailSending}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-950/70"
+              >
+                <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                {mismatchTesting ? 'Testing…' : 'Run Mismatch Test'}
+              </button>
+              <button
+                type="button"
                 onClick={openDownloadModal}
                 disabled={downloading || emailSending}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#404040] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2e2e2e] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white"
@@ -968,6 +1054,162 @@ export default function OffPriceAnalytics() {
             </>
           )}
         </div>
+
+        {showMismatchModal &&
+          createPortal(
+            <div
+              className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="mismatch-test-title"
+              onClick={closeMismatchModal}
+            >
+              <div
+                className="w-full max-w-xl rounded-xl bg-white shadow-xl dark:bg-surface"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="border-b border-gray-200 px-5 py-4 dark:border-border">
+                  <h2
+                    id="mismatch-test-title"
+                    className="text-lg font-semibold text-gray-900 dark:text-content-primary"
+                  >
+                    Run Mismatch Test
+                  </h2>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-content-muted">
+                    Compares today’s Daily Run off-price hits against Analytics totals.
+                  </p>
+                </div>
+
+                <div className="space-y-4 px-5 py-4">
+                  {mismatchTesting && (
+                    <p className="text-sm text-gray-600 dark:text-content-secondary">
+                      Checking Daily Runs and Analytics…
+                    </p>
+                  )}
+
+                  {mismatchError && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+                      {mismatchError}
+                    </div>
+                  )}
+
+                  {!mismatchTesting && mismatchResult && !mismatchResult.has_mismatch && (
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-5 text-center dark:border-emerald-900/40 dark:bg-emerald-950/30">
+                      <p className="text-base font-semibold text-emerald-800 dark:text-emerald-300">
+                        No Mismatch Found
+                      </p>
+                      <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-400">Hurray!</p>
+                      <p className="mt-3 text-xs text-emerald-700/80 dark:text-emerald-400/80">
+                        {mismatchResult.period_label}: {mismatchResult.actual_total.toLocaleString()}{' '}
+                        off-price hits across {mismatchResult.actual_run_count} Daily Run
+                        {mismatchResult.actual_run_count === 1 ? '' : 's'}.
+                      </p>
+                    </div>
+                  )}
+
+                  {!mismatchTesting && mismatchResult?.has_mismatch && (
+                    <div className="space-y-3">
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 dark:border-amber-800/50 dark:bg-amber-950/30">
+                        <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                          {mismatchResult.message}
+                        </p>
+                        <p className="mt-1 text-xs text-amber-800/80 dark:text-amber-200/80">
+                          Actual total {mismatchResult.actual_total.toLocaleString()} vs Analytics{' '}
+                          {mismatchResult.analytics_total.toLocaleString()} (
+                          {mismatchResult.actual_total - mismatchResult.analytics_total > 0 ? '+' : ''}
+                          {(
+                            mismatchResult.actual_total - mismatchResult.analytics_total
+                          ).toLocaleString()}
+                          ).
+                        </p>
+                      </div>
+
+                      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-border">
+                        <table className="min-w-full text-left text-sm">
+                          <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-surface-muted dark:text-content-muted">
+                            <tr>
+                              <th className="px-3 py-2 font-medium">Vendor</th>
+                              <th className="px-3 py-2 font-medium tabular-nums">Actual counted</th>
+                              <th className="px-3 py-2 font-medium tabular-nums">Analytics</th>
+                              <th className="px-3 py-2 font-medium tabular-nums">Discrepancy</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 dark:divide-border">
+                            {mismatchResult.mismatches.map((row) => (
+                              <tr key={row.vendor_code}>
+                                <td className="px-3 py-2 text-gray-900 dark:text-content-primary">
+                                  <span className="font-medium">{row.vendor_name}</span>
+                                  <span className="ml-1 text-xs uppercase text-gray-400">
+                                    {row.vendor_code}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 tabular-nums text-gray-800 dark:text-content-secondary">
+                                  {row.actual_counted.toLocaleString()}
+                                </td>
+                                <td className="px-3 py-2 tabular-nums text-gray-800 dark:text-content-secondary">
+                                  {row.analytics_counted.toLocaleString()}
+                                </td>
+                                <td
+                                  className={`px-3 py-2 tabular-nums font-medium ${
+                                    row.discrepancy === 0
+                                      ? 'text-gray-500'
+                                      : row.discrepancy > 0
+                                        ? 'text-amber-700 dark:text-amber-400'
+                                        : 'text-rose-700 dark:text-rose-400'
+                                  }`}
+                                >
+                                  {row.discrepancy > 0 ? '+' : ''}
+                                  {row.discrepancy.toLocaleString()}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {mismatchFixResult && (
+                        <p
+                          className={`text-sm ${
+                            mismatchFixResult.fixed
+                              ? 'text-emerald-700 dark:text-emerald-400'
+                              : 'text-amber-700 dark:text-amber-400'
+                          }`}
+                        >
+                          {mismatchFixResult.message}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-border">
+                  <button
+                    type="button"
+                    disabled={mismatchTesting || mismatchFixing}
+                    onClick={closeMismatchModal}
+                    className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-border dark:text-content-secondary dark:hover:bg-surface-hover"
+                  >
+                    Close
+                  </button>
+                  {mismatchResult?.has_mismatch && (
+                    <button
+                      type="button"
+                      disabled={mismatchTesting || mismatchFixing || Boolean(mismatchFixResult?.fixed)}
+                      onClick={() => void handleFixMismatch()}
+                      className="rounded-lg bg-[#404040] px-4 py-2 text-sm font-medium text-white hover:bg-[#2e2e2e] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white"
+                    >
+                      {mismatchFixing
+                        ? 'Fixing…'
+                        : mismatchFixResult?.fixed
+                          ? 'Fixed'
+                          : 'Fix Mismatch'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )}
 
         {showDownloadModal &&
           createPortal(

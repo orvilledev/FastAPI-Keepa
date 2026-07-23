@@ -180,6 +180,31 @@ def delete_demo_off_price_snapshots(
     service = OffPriceAnalyticsService(db)
     return service.delete_demo_snapshots()
 
+
+@router.post("/analytics/off-price/mismatch-test")
+@handle_api_errors("run off-price analytics mismatch test")
+def run_off_price_mismatch_test(
+    offset: int = Query(0, ge=0, le=120),
+    current_user: dict = Depends(require_analytics_access),
+    db: Client = Depends(get_supabase),
+):
+    """Compare Daily Run price_alerts counts vs Analytics for a UTC calendar day."""
+    service = OffPriceAnalyticsService(db)
+    return service.run_daily_mismatch_test(offset=offset)
+
+
+@router.post("/analytics/off-price/mismatch-fix")
+@handle_api_errors("fix off-price analytics mismatch")
+def fix_off_price_mismatch(
+    offset: int = Query(0, ge=0, le=120),
+    current_user: dict = Depends(require_analytics_access),
+    db: Client = Depends(get_supabase),
+):
+    """Recompute and force-persist daily (and current week/month/year) Analytics."""
+    service = OffPriceAnalyticsService(db)
+    return service.fix_daily_mismatch(offset=offset)
+
+
 @router.get("/analytics/off-price/tracking")
 @handle_api_errors("list personal analytics tracking settings")
 def list_analytics_tracking(

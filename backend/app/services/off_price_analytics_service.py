@@ -233,28 +233,27 @@ class OffPriceAnalyticsService:
         if not job_ids:
             return counts
 
-        chunk_size = 80
+        # Count per job (not ``in_(...)`` across jobs). Multi-id range pages from
+        # PostgREST can silently drop rows even with ``order`` + empty-page paging.
         page_size = 1000
-        for i in range(0, len(job_ids), chunk_size):
-            id_chunk = job_ids[i : i + chunk_size]
+        for job_id in job_ids:
             page_offset = 0
             while True:
                 response = (
                     self.db.table("price_alerts")
                     .select("id, batch_job_id, seller_name")
-                    .in_("batch_job_id", id_chunk)
+                    .eq("batch_job_id", job_id)
+                    .order("id")
                     .range(page_offset, page_offset + page_size - 1)
                     .execute()
                 )
                 rows = response.data or []
+                if not rows:
+                    break
                 for row in rows:
                     if is_excluded_analytics_seller(row.get("seller_name")):
                         continue
-                    job_id = str(row.get("batch_job_id") or "")
-                    if job_id:
-                        counts[job_id] += 1
-                if len(rows) < page_size:
-                    break
+                    counts[str(job_id)] += 1
                 page_offset += page_size
 
         return counts
@@ -265,30 +264,28 @@ class OffPriceAnalyticsService:
         if not job_ids:
             return by_job
 
-        chunk_size = 80
         page_size = 1000
-        for i in range(0, len(job_ids), chunk_size):
-            id_chunk = job_ids[i : i + chunk_size]
+        for job_id in job_ids:
             page_offset = 0
             while True:
                 response = (
                     self.db.table("price_alerts")
                     .select("batch_job_id, seller_name")
-                    .in_("batch_job_id", id_chunk)
+                    .eq("batch_job_id", job_id)
+                    .order("id")
                     .range(page_offset, page_offset + page_size - 1)
                     .execute()
                 )
                 rows = response.data or []
+                if not rows:
+                    break
                 for row in rows:
-                    job_id = str(row.get("batch_job_id") or "")
                     seller = (row.get("seller_name") or "").strip()
-                    if not job_id or not seller:
+                    if not seller:
                         continue
                     if is_excluded_analytics_seller(seller):
                         continue
-                    by_job[job_id][seller] += 1
-                if len(rows) < page_size:
-                    break
+                    by_job[str(job_id)][seller] += 1
                 page_offset += page_size
 
         return by_job
@@ -511,6 +508,190 @@ class OffPriceAnalyticsService:
             ],
             "archived": archive_summary.get("archived", False) or served_from_archive,
             "personalized": bool(user_id),
+        }
+
+    def run_daily_mismatch_test(
+        self,
+        *,
+        offset: int = 0,
+        reference: Optional[datetime] = None,
+    ) -> Dict[str, Any]:
+        """
+        Compare ground-truth Daily Run ``price_alerts`` counts vs Analytics.
+
+        Actual = recount from completed, deduped Daily jobs for the UTC day.
+        Analytics = archived daily snapshot when present; otherwise the live
+        daily summary (same rules as the Analytics page).
+        """
+        start, end, label, period_key = period_bounds(
+            "daily", offset=offset, reference=reference
+        )
+        enabled_map = self._fetch_scheduler_enabled()
+        tracking_map = {code: True for code, _ in VENDOR_DEFS}
+
+        jobs = dedupe_one_job_per_vendor_day(self._fetch_daily_jobs(start, end))
+        (
+            actual_vendors,
+            actual_total,
+            actual_runs,
+            _sellers,
+            _vendors_with_hits,
+            *_rest,
+        ) = self._vendor_stats_from_jobs(
+            jobs, enabled_map=enabled_map, tracking_map=tracking_map
+        )
+        actual_by_code = {
+            str(v.get("code") or "").lower(): int(v.get("off_price_count") or 0)
+            for v in actual_vendors
+        }
+        actual_runs_by_code = {
+            str(v.get("code") or "").lower(): int(v.get("run_count") or 0)
+            for v in actual_vendors
+        }
+
+        analytics_source = "live"
+        archived = self.get_archive("daily", period_key)
+        if archived and archived.get("vendors") is not None:
+            analytics_source = "archive"
+            (
+                analytics_vendors,
+                analytics_total,
+                analytics_runs,
+                *_a,
+            ) = self._vendor_stats_from_archive_vendors(
+                archived.get("vendors") or [],
+                enabled_map=enabled_map,
+                tracking_map=tracking_map,
+            )
+        else:
+            live = self.get_off_price_summary(
+                "daily",
+                offset=offset,
+                persist=False,
+                user_id=None,
+                reference=reference,
+            )
+            analytics_vendors = list(live.get("vendors") or [])
+            analytics_total = int(live.get("total_off_price_count") or 0)
+            analytics_runs = int(live.get("total_run_count") or 0)
+
+        analytics_by_code = {
+            str(v.get("code") or "").lower(): int(v.get("off_price_count") or 0)
+            for v in analytics_vendors
+        }
+
+        mismatches: List[Dict[str, Any]] = []
+        codes_to_check = {
+            code
+            for code in VENDOR_CODES
+            if actual_runs_by_code.get(code, 0) > 0
+            or analytics_by_code.get(code, 0) > 0
+            or actual_by_code.get(code, 0) > 0
+        }
+        for code in sorted(codes_to_check):
+            actual = int(actual_by_code.get(code, 0))
+            analytics = int(analytics_by_code.get(code, 0))
+            if actual == analytics:
+                continue
+            mismatches.append(
+                {
+                    "vendor_code": code,
+                    "vendor_name": VENDOR_LABELS.get(code, code.upper()),
+                    "actual_counted": actual,
+                    "analytics_counted": analytics,
+                    "discrepancy": actual - analytics,
+                    "run_count": int(actual_runs_by_code.get(code, 0)),
+                }
+            )
+        mismatches.sort(key=lambda row: abs(int(row["discrepancy"])), reverse=True)
+
+        has_mismatch = bool(mismatches) or actual_total != analytics_total
+        if has_mismatch and not mismatches and actual_total != analytics_total:
+            # Totals diverge without a per-vendor delta (unexpected); surface total only.
+            mismatches.append(
+                {
+                    "vendor_code": "total",
+                    "vendor_name": "All vendors",
+                    "actual_counted": actual_total,
+                    "analytics_counted": analytics_total,
+                    "discrepancy": actual_total - analytics_total,
+                    "run_count": actual_runs,
+                }
+            )
+
+        return {
+            "period": "daily",
+            "period_key": period_key,
+            "period_label": label,
+            "offset": offset,
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "has_mismatch": bool(mismatches),
+            "analytics_source": analytics_source,
+            "actual_total": actual_total,
+            "analytics_total": analytics_total,
+            "actual_run_count": actual_runs,
+            "analytics_run_count": analytics_runs,
+            "jobs_checked": len(jobs),
+            "mismatches": mismatches,
+            "message": (
+                "No mismatch found. Hurray!"
+                if not mismatches
+                else (
+                    f"I found a mismatch between Daily Run off-price hits and Analytics "
+                    f"for {label}."
+                )
+            ),
+        }
+
+    def fix_daily_mismatch(
+        self,
+        *,
+        offset: int = 0,
+        reference: Optional[datetime] = None,
+    ) -> Dict[str, Any]:
+        """
+        Recompute today's (or offset) daily Analytics from ``price_alerts`` and
+        force-persist daily plus current week / month / year archives.
+        """
+        before = self.run_daily_mismatch_test(offset=offset, reference=reference)
+        daily = self.get_off_price_summary(
+            "daily",
+            offset=offset,
+            persist=True,
+            force_persist=True,
+            user_id=None,
+            reference=reference,
+        )
+        refreshed: List[str] = [f"daily:{daily.get('period_key')}"]
+        for period in ("weekly", "monthly", "yearly"):
+            summary = self.get_off_price_summary(
+                period,
+                offset=0,
+                persist=True,
+                force_persist=True,
+                user_id=None,
+                reference=reference,
+            )
+            refreshed.append(f"{period}:{summary.get('period_key')}")
+
+        after = self.run_daily_mismatch_test(offset=offset, reference=reference)
+        return {
+            "fixed": not after.get("has_mismatch"),
+            "refreshed": refreshed,
+            "before": before,
+            "after": after,
+            "daily": {
+                "period_key": daily.get("period_key"),
+                "period_label": daily.get("period_label"),
+                "total_off_price_count": daily.get("total_off_price_count"),
+                "total_run_count": daily.get("total_run_count"),
+            },
+            "message": (
+                "Mismatch fixed. Analytics now matches the Daily Run off-price counts."
+                if not after.get("has_mismatch")
+                else "Fix ran, but a mismatch is still present. Re-run the mismatch test."
+            ),
         }
 
     def _vendor_stats_from_jobs(

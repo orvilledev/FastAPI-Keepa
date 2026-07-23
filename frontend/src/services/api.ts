@@ -1434,6 +1434,65 @@ export const analyticsApi = {
     }>('/api/v1/analytics/off-price/email-report', form)
     return response.data
   },
+
+  runMismatchTest: async (offset = 0) => {
+    const response = await api.post<OffPriceMismatchTestResult>(
+      '/api/v1/analytics/off-price/mismatch-test',
+      null,
+      { params: { offset }, timeout: 90_000 },
+    )
+    return response.data
+  },
+
+  fixMismatch: async (offset = 0) => {
+    const response = await api.post<OffPriceMismatchFixResult>(
+      '/api/v1/analytics/off-price/mismatch-fix',
+      null,
+      { params: { offset }, timeout: 120_000 },
+    )
+    return response.data
+  },
+}
+
+export interface OffPriceMismatchRow {
+  vendor_code: string
+  vendor_name: string
+  actual_counted: number
+  analytics_counted: number
+  discrepancy: number
+  run_count: number
+}
+
+export interface OffPriceMismatchTestResult {
+  period: string
+  period_key: string
+  period_label: string
+  offset: number
+  start: string
+  end: string
+  has_mismatch: boolean
+  analytics_source: string
+  actual_total: number
+  analytics_total: number
+  actual_run_count: number
+  analytics_run_count: number
+  jobs_checked: number
+  mismatches: OffPriceMismatchRow[]
+  message: string
+}
+
+export interface OffPriceMismatchFixResult {
+  fixed: boolean
+  refreshed: string[]
+  before: OffPriceMismatchTestResult
+  after: OffPriceMismatchTestResult
+  daily: {
+    period_key?: string
+    period_label?: string
+    total_off_price_count?: number
+    total_run_count?: number
+  }
+  message: string
 }
 
 export interface FeedbackItem {
