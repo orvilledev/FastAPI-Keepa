@@ -535,14 +535,14 @@ def update_keepa_import_scheduler_settings(
             except ValueError:
                 raise HTTPException(status_code=400, detail="anchor_date must be YYYY-MM-DD")
         update_data["anchor_date"] = settings_data.anchor_date
-    if settings_data.email_recipients is not None:
+    if "email_recipients" in settings_data.model_fields_set:
         allowed = _load_allowed_pool_emails(db, str(current_user["id"]))
-        requested = _parse_recipients_csv(settings_data.email_recipients)
+        requested = _parse_recipients_csv(settings_data.email_recipients or "")
         filtered = [email for email in requested if email in allowed]
         update_data["email_recipients"] = ",".join(filtered) if filtered else None
-    if settings_data.email_bcc_recipients is not None:
+    if "email_bcc_recipients" in settings_data.model_fields_set:
         allowed = _load_allowed_pool_emails(db, str(current_user["id"]))
-        requested_bcc = _parse_recipients_csv(settings_data.email_bcc_recipients)
+        requested_bcc = _parse_recipients_csv(settings_data.email_bcc_recipients or "")
         filtered_bcc = [email for email in requested_bcc if email in allowed]
         update_data["email_bcc_recipients"] = ",".join(filtered_bcc) if filtered_bcc else None
 
@@ -591,14 +591,14 @@ def update_keepa_import_scheduler_settings(
             datetime.strptime(settings_data.off_price_anchor_date, "%Y-%m-%d")
         except ValueError:
             raise HTTPException(status_code=400, detail="off_price_anchor_date must be YYYY-MM-DD")
-    if settings_data.off_price_email_recipients is not None:
+    if "off_price_email_recipients" in settings_data.model_fields_set:
         allowed = _load_allowed_pool_emails(db, str(current_user["id"]))
-        requested = _parse_recipients_csv(settings_data.off_price_email_recipients)
+        requested = _parse_recipients_csv(settings_data.off_price_email_recipients or "")
         filtered = [email for email in requested if email in allowed]
         update_data["off_price_email_recipients"] = ",".join(filtered) if filtered else None
-    if settings_data.off_price_email_bcc_recipients is not None:
+    if "off_price_email_bcc_recipients" in settings_data.model_fields_set:
         allowed = _load_allowed_pool_emails(db, str(current_user["id"]))
-        requested_bcc = _parse_recipients_csv(settings_data.off_price_email_bcc_recipients)
+        requested_bcc = _parse_recipients_csv(settings_data.off_price_email_bcc_recipients or "")
         filtered_bcc = [email for email in requested_bcc if email in allowed]
         update_data["off_price_email_bcc_recipients"] = ",".join(filtered_bcc) if filtered_bcc else None
 

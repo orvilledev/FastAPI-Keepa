@@ -351,8 +351,8 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
       )
       const payload = {
         ...settingsForm,
-        email_recipients: recipients.to || null,
-        email_bcc_recipients: recipients.bcc || null,
+        email_recipients: recipients.to,
+        email_bcc_recipients: recipients.bcc,
       }
       await schedulerApi.updateSettings(payload, vendor)
       await loadSchedulerSettings()
@@ -532,8 +532,8 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
         const recipients = normalizeRecipientPair(uploadEmailRecipients, uploadEmailBccRecipients)
         await schedulerApi.updateSettings(
           {
-            email_recipients: recipients.to || null,
-            email_bcc_recipients: recipients.bcc || null,
+            email_recipients: recipients.to,
+            email_bcc_recipients: recipients.bcc,
           },
           vendor,
         )
@@ -557,8 +557,8 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
       const recipients = normalizeRecipientPair(uploadEmailRecipients, uploadEmailBccRecipients)
       await schedulerApi.updateSettings(
         {
-          email_recipients: recipients.to || null,
-          email_bcc_recipients: recipients.bcc || null,
+          email_recipients: recipients.to,
+          email_bcc_recipients: recipients.bcc,
         },
         vendor,
       )

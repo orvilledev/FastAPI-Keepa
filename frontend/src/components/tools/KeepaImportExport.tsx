@@ -407,10 +407,10 @@ export default function KeepaImportExport() {
       )
       await keepaImportExportApi.updateSchedulerSettings(category, {
         ...settingsForm,
-        email_recipients: buildRecipients.to || null,
-        email_bcc_recipients: buildRecipients.bcc || null,
-        off_price_email_recipients: offPricePair.to || null,
-        off_price_email_bcc_recipients: offPricePair.bcc || null,
+        email_recipients: buildRecipients.to,
+        email_bcc_recipients: buildRecipients.bcc,
+        off_price_email_recipients: offPricePair.to,
+        off_price_email_bcc_recipients: offPricePair.bcc,
         enabled: schedulerSettings?.enabled ?? false,
       })
       await loadSchedulerSettings(category)
@@ -432,8 +432,8 @@ export default function KeepaImportExport() {
     try {
       const recipients = normalizeRecipientPair(offPriceRecipients, offPriceBccRecipients)
       await keepaImportExportApi.updateSchedulerSettings(category, {
-        off_price_email_recipients: recipients.to || null,
-        off_price_email_bcc_recipients: recipients.bcc || null,
+        off_price_email_recipients: recipients.to,
+        off_price_email_bcc_recipients: recipients.bcc,
       })
       await loadSchedulerSettings(category)
       setInfo(`Recipients saved for ${vendorUpper}.`)
