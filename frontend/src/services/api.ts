@@ -1300,6 +1300,17 @@ export interface OffPriceAnalyticsArchiveMeta {
   updated_at: string
 }
 
+export interface OffPriceLiveBootstrapResponse {
+  periods: Record<'daily' | 'weekly' | 'monthly' | 'yearly', OffPriceAnalyticsResponse>
+  yearly_archives: OffPriceAnalyticsResponse[]
+  monthly_archives: OffPriceAnalyticsArchiveMeta[]
+  tracking_settings?: Array<{
+    vendor_code: string
+    vendor_name: string
+    tracking_enabled: boolean
+  }>
+}
+
 export const analyticsApi = {
   getOffPrice: async (params: {
     period: 'daily' | 'weekly' | 'monthly' | 'yearly'
@@ -1314,6 +1325,14 @@ export const analyticsApi = {
       },
       timeout: 60_000,
     })
+    return response.data
+  },
+
+  getLiveBootstrap: async () => {
+    const response = await api.get<OffPriceLiveBootstrapResponse>(
+      '/api/v1/analytics/off-price/live-bootstrap',
+      { timeout: 30_000 },
+    )
     return response.data
   },
 

@@ -300,89 +300,56 @@ class OffPriceAnalyticsService:
         user_id: Optional[str] = None,
         force_persist: bool = False,
         reference: Optional[datetime] = None,
+        enabled_map: Optional[Dict[str, bool]] = None,
+        tracking_map: Optional[Dict[str, bool]] = None,
+        snapshot_row: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         start, end, label, period_key = period_bounds(
             period, offset=offset, reference=reference
         )
-        enabled_map = self._fetch_scheduler_enabled()
+        if enabled_map is None:
+            enabled_map = self._fetch_scheduler_enabled()
         # Personal tracking: when user_id is set, only that user's toggles apply.
         # Without user_id (system seed), all vendors remain tracked.
-        if user_id:
-            tracking_map = self.user_tracking.get_tracking_map(user_id)
-        else:
-            tracking_map = {code: True for code, _ in VENDOR_DEFS}
+        if tracking_map is None:
+            if user_id:
+                tracking_map = self.user_tracking.get_tracking_map(user_id)
+            else:
+                tracking_map = {code: True for code, _ in VENDOR_DEFS}
 
         start_out = start.isoformat()
         end_out = end.isoformat()
         served_from_archive = False
 
-        # Fast path for Live Preview (persist=false): serve existing week/month/year
-        # snapshots instead of recomputing (avoids 25s browser timeouts).
-        if (
-            period != "daily"
-            and not persist
-            and not force_persist
-            and source == "live"
-        ):
-            try:
-                existing_snap = self.snapshots.get_snapshot(period, period_key)
-            except Exception:
-                existing_snap = None
+        # Fast path for Live Preview (persist=false): serve existing snapshots for
+        # daily/week/month/year instead of recounting price_alerts (slow path).
+        if not persist and not force_persist and source == "live":
+            existing_snap = snapshot_row
+            if existing_snap is None:
+                try:
+                    existing_snap = self.snapshots.get_snapshot(period, period_key)
+                except Exception:
+                    existing_snap = None
             if (
                 existing_snap
                 and str(existing_snap.get("source") or "").lower() != "demo"
-                and int(existing_snap.get("total_off_price_count") or 0) > 0
+                and (
+                    int(existing_snap.get("total_off_price_count") or 0) > 0
+                    or bool((existing_snap.get("payload") or {}).get("vendors"))
+                )
             ):
-                archived = self.get_archive(period, period_key)
-                if archived and archived.get("vendors"):
-                    (
-                        vendors_sorted,
-                        total_off_price,
-                        total_runs,
-                        all_sellers,
-                        vendors_with_hits,
-                        personal_off_price,
-                        personal_runs,
-                        personal_sellers,
-                        personal_vendors_with_hits,
-                    ) = self._vendor_stats_from_archive_vendors(
-                        archived.get("vendors") or [],
-                        enabled_map=enabled_map,
-                        tracking_map=tracking_map,
-                    )
-                    if archived.get("start"):
-                        start_out = str(archived["start"])
-                    if archived.get("end"):
-                        end_out = str(archived["end"])
-                    return {
-                        "period": period,
-                        "period_key": period_key,
-                        "period_label": label,
-                        "offset": offset,
-                        "start": start_out,
-                        "end": end_out,
-                        "total_off_price_count": (
-                            personal_off_price if user_id else total_off_price
-                        ),
-                        "total_run_count": personal_runs if user_id else total_runs,
-                        "distinct_sellers": (
-                            len(personal_sellers) if user_id else len(all_sellers)
-                        ),
-                        "vendors_with_hits": (
-                            personal_vendors_with_hits if user_id else vendors_with_hits
-                        ),
-                        "vendors": vendors_sorted,
-                        "tracking_settings": [
-                            {
-                                "vendor_code": code,
-                                "vendor_name": name,
-                                "tracking_enabled": tracking_map.get(code, True),
-                            }
-                            for code, name in VENDOR_DEFS
-                        ],
-                        "archived": True,
-                        "personalized": bool(user_id),
-                    }
+                fast = self._summary_from_snapshot_row(
+                    existing_snap,
+                    period=period,
+                    period_key=period_key,
+                    label=label,
+                    offset=offset,
+                    enabled_map=enabled_map,
+                    tracking_map=tracking_map,
+                    user_id=user_id,
+                )
+                if fast:
+                    return fast
 
         if period == "daily":
             jobs = self._fetch_daily_jobs(start, end)
@@ -508,6 +475,216 @@ class OffPriceAnalyticsService:
             ],
             "archived": archive_summary.get("archived", False) or served_from_archive,
             "personalized": bool(user_id),
+        }
+
+    def _summary_from_snapshot_row(
+        self,
+        row: Dict[str, Any],
+        *,
+        period: Period,
+        period_key: str,
+        label: str,
+        offset: int,
+        enabled_map: Dict[str, bool],
+        tracking_map: Dict[str, bool],
+        user_id: Optional[str],
+    ) -> Optional[Dict[str, Any]]:
+        """Build a Live Preview summary from one snapshot row (no extra DB read)."""
+        payload = row.get("payload") or {}
+        vendors_raw = self._strip_excluded_sellers_from_vendors(payload.get("vendors") or [])
+        if not vendors_raw and int(row.get("total_off_price_count") or 0) <= 0:
+            return None
+        (
+            vendors_sorted,
+            total_off_price,
+            total_runs,
+            all_sellers,
+            vendors_with_hits,
+            personal_off_price,
+            personal_runs,
+            personal_sellers,
+            personal_vendors_with_hits,
+        ) = self._vendor_stats_from_archive_vendors(
+            vendors_raw,
+            enabled_map=enabled_map,
+            tracking_map=tracking_map,
+        )
+        start_out = str(row.get("period_start") or "")
+        end_out = str(row.get("period_end") or "")
+        return {
+            "period": period,
+            "period_key": str(row.get("period_key") or period_key),
+            "period_label": str(row.get("period_label") or label),
+            "offset": offset,
+            "start": start_out,
+            "end": end_out,
+            "total_off_price_count": personal_off_price if user_id else total_off_price,
+            "total_run_count": (
+                personal_runs if user_id else int(row.get("total_run_count") or total_runs)
+            ),
+            "distinct_sellers": (
+                len(personal_sellers) if user_id else len(all_sellers)
+            ),
+            "vendors_with_hits": (
+                personal_vendors_with_hits if user_id else vendors_with_hits
+            ),
+            "vendors": vendors_sorted,
+            "tracking_settings": [
+                {
+                    "vendor_code": code,
+                    "vendor_name": name,
+                    "tracking_enabled": tracking_map.get(code, True),
+                }
+                for code, name in VENDOR_DEFS
+            ],
+            "archived": True,
+            "personalized": bool(user_id),
+            "source": row.get("source"),
+        }
+
+    def get_live_preview_bootstrap(self, user_id: str) -> Dict[str, Any]:
+        """
+        One-shot Live Analytics payload: current daily/week/month/year + recent
+        yearly details + monthly trend metas. Snapshot-first; no alert recount.
+        """
+        enabled_map = self._fetch_scheduler_enabled()
+        tracking_map = self.user_tracking.get_tracking_map(user_id)
+
+        period_bounds_map: Dict[str, Tuple[datetime, datetime, str, str]] = {}
+        pairs: List[Tuple[str, str]] = []
+        for period in ("daily", "weekly", "monthly", "yearly"):
+            bounds = period_bounds(period, offset=0)  # type: ignore[arg-type]
+            period_bounds_map[period] = bounds
+            pairs.append((period, bounds[3]))
+
+        try:
+            snap_by_key = self.snapshots.get_snapshots_by_period_keys(pairs)
+        except Exception:
+            snap_by_key = {}
+
+        periods: Dict[str, Any] = {}
+        for period in ("daily", "weekly", "monthly", "yearly"):
+            _start, _end, _label, period_key = period_bounds_map[period]
+            row = snap_by_key.get((period, period_key))
+            periods[period] = self.get_off_price_summary(
+                period,  # type: ignore[arg-type]
+                offset=0,
+                persist=False,
+                user_id=user_id,
+                enabled_map=enabled_map,
+                tracking_map=tracking_map,
+                snapshot_row=row,
+            )
+
+        yearly_archives: List[Dict[str, Any]] = []
+        try:
+            yearly_metas = self.snapshots.list_snapshots(
+                period_type="yearly", limit=12, exclude_demo=True
+            )
+        except Exception:
+            yearly_metas = []
+        live_year_key = str(periods["yearly"].get("period_key") or "")
+        live_year = int(live_year_key[:4]) if live_year_key[:4].isdigit() else None
+        years_to_load: List[str] = []
+        for meta in yearly_metas:
+            key = str(meta.get("period_key") or "")
+            y = int(key[:4]) if key[:4].isdigit() else None
+            if live_year is not None and y is not None and y >= live_year - 1:
+                years_to_load.append(key)
+            if len(years_to_load) >= 3:
+                break
+        if live_year_key and live_year_key not in years_to_load:
+            years_to_load.insert(0, live_year_key)
+
+        yearly_pairs = [("yearly", key) for key in years_to_load]
+        try:
+            yearly_rows = self.snapshots.get_snapshots_by_period_keys(yearly_pairs)
+        except Exception:
+            yearly_rows = {}
+        # Prefer already-fetched current yearly row when present.
+        current_yearly = snap_by_key.get(("yearly", live_year_key))
+        if current_yearly and live_year_key:
+            yearly_rows.setdefault(("yearly", live_year_key), current_yearly)
+
+        for key in years_to_load:
+            row = yearly_rows.get(("yearly", key))
+            if not row or str(row.get("source") or "").lower() == "demo":
+                continue
+            archived = self._archive_dict_from_row(row)
+            (
+                vendors_sorted,
+                _total_off_price,
+                _total_runs,
+                _all_sellers,
+                _vendors_with_hits,
+                personal_off_price,
+                personal_runs,
+                personal_sellers,
+                personal_vendors_with_hits,
+            ) = self._vendor_stats_from_archive_vendors(
+                archived.get("vendors") or [],
+                enabled_map=enabled_map,
+                tracking_map=tracking_map,
+            )
+            yearly_archives.append(
+                {
+                    **archived,
+                    "total_off_price_count": personal_off_price,
+                    "total_run_count": personal_runs,
+                    "distinct_sellers": len(personal_sellers),
+                    "vendors_with_hits": personal_vendors_with_hits,
+                    "vendors": vendors_sorted,
+                    "personalized": True,
+                }
+            )
+
+        try:
+            monthly_archives = self.snapshots.list_snapshots(
+                period_type="monthly", limit=24, exclude_demo=True
+            )
+        except Exception:
+            monthly_archives = []
+
+        return {
+            "periods": periods,
+            "yearly_archives": yearly_archives,
+            "monthly_archives": monthly_archives,
+            "tracking_settings": [
+                {
+                    "vendor_code": code,
+                    "vendor_name": name,
+                    "tracking_enabled": tracking_map.get(code, True),
+                }
+                for code, name in VENDOR_DEFS
+            ],
+        }
+
+    def _archive_dict_from_row(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        """Shape a snapshot DB row like ``get_archive`` without another round-trip."""
+        payload = row.get("payload") or {}
+        vendors = self._strip_excluded_sellers_from_vendors(payload.get("vendors") or [])
+        total_off = sum(int(v.get("off_price_count") or 0) for v in vendors)
+        distinct = {
+            str(s.get("seller_name") or "").strip().lower()
+            for v in vendors
+            for s in (v.get("sellers") or [])
+            if str(s.get("seller_name") or "").strip()
+        }
+        return {
+            "period": row.get("period_type"),
+            "period_key": row.get("period_key"),
+            "period_label": row.get("period_label"),
+            "start": row.get("period_start"),
+            "end": row.get("period_end"),
+            "total_off_price_count": total_off,
+            "total_run_count": row.get("total_run_count", 0),
+            "distinct_sellers": len(distinct),
+            "vendors_with_hits": sum(1 for v in vendors if int(v.get("off_price_count") or 0) > 0),
+            "vendors": vendors,
+            "source": row.get("source"),
+            "archived": True,
+            "created_at": row.get("created_at"),
+            "updated_at": row.get("updated_at"),
         }
 
     def run_daily_mismatch_test(

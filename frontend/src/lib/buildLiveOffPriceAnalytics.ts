@@ -1,6 +1,9 @@
 /**
  * Build the Analytics page dataset from live API period summaries + archives.
  * Shape matches DemoOffPriceAnalytics so existing charts/export keep working.
+ *
+ * Cold start uses a single ``live-bootstrap`` request (snapshot-first) so the
+ * page paints without recounting price_alerts.
  */
 import type {
   AnalyticsPeriod,
@@ -13,6 +16,7 @@ import {
   analyticsApi,
   type OffPriceAnalyticsArchiveMeta,
   type OffPriceAnalyticsResponse,
+  type OffPriceLiveBootstrapResponse,
 } from '../services/api'
 
 const PERIODS: AnalyticsPeriod[] = ['daily', 'weekly', 'monthly', 'yearly']
@@ -67,16 +71,6 @@ function isExcludedAnalyticsSeller(sellerName: string | null | undefined): boole
   if (!sellerName) return false
   const normalized = sellerName.toLowerCase().replace(/[^a-z0-9]/g, '')
   return normalized.includes('metroshoe')
-}
-
-async function fetchPeriodBundle(period: AnalyticsPeriod): Promise<{
-  current: OffPriceAnalyticsResponse
-  prior: OffPriceAnalyticsResponse | null
-}> {
-  // Only fetch the current period for initial paint. Prior-period change % is
-  // nice-to-have and doubles cold-start load (often exceeds the 25s axios timeout).
-  const current = await analyticsApi.getOffPrice({ period, offset: 0, persist: false })
-  return { current, prior: null }
 }
 
 function mapYearArchive(detail: OffPriceAnalyticsResponse): DemoYearArchive {
@@ -145,83 +139,14 @@ function mapMonthPoint(meta: OffPriceAnalyticsArchiveMeta): DemoMonthPoint {
   }
 }
 
-export async function buildLiveOffPriceAnalytics(): Promise<DemoOffPriceAnalytics> {
-  const periodResults = await Promise.all(PERIODS.map((p) => fetchPeriodBundle(p)))
-  const byPeriod = Object.fromEntries(
-    PERIODS.map((p, i) => [p, periodResults[i]]),
-  ) as Record<AnalyticsPeriod, { current: OffPriceAnalyticsResponse; prior: OffPriceAnalyticsResponse | null }>
-
-  const [yearlyList, monthlyList] = await Promise.all([
-    analyticsApi.listArchives({ period_type: 'yearly', limit: 12, exclude_demo: true }),
-    analyticsApi.listArchives({ period_type: 'monthly', limit: 24, exclude_demo: true }),
-  ])
-
-  const yearlyMetas = (yearlyList.archives || []).filter(
-    (a) => (a.source || '').toLowerCase() !== 'demo',
-  )
-  const monthlyMetas = (monthlyList.archives || [])
-    .filter((a) => (a.source || '').toLowerCase() !== 'demo')
-    .slice(0, 24)
-
-  // Hydrate only the current live year (+ at most a couple of recent archives).
-  // Fetching dozens of year details in parallel was hanging Live Preview.
-  const liveYearly = byPeriod.yearly.current
-  const liveYear = Number.parseInt(String(liveYearly.period_key || '').slice(0, 4), 10)
-  const yearsToHydrate = yearlyMetas
-    .filter((meta) => {
-      const y = Number.parseInt(String(meta.period_key || '').slice(0, 4), 10)
-      return Number.isFinite(y) && Number.isFinite(liveYear) && y >= liveYear - 1
-    })
-    .slice(0, 3)
-
-  const yearDetails = await Promise.all(
-    yearsToHydrate.map(async (meta) => {
-      try {
-        const detail = await analyticsApi.getArchive('yearly', meta.period_key)
-        if ((detail.source || '').toLowerCase() === 'demo') return null
-        return mapYearArchive(detail)
-      } catch {
-        const year = Number.parseInt(String(meta.period_key || '').slice(0, 4), 10)
-        return {
-          year: Number.isFinite(year) ? year : 0,
-          period_key: meta.period_key,
-          period_label: meta.period_label,
-          period_range: formatRange(meta.period_start, meta.period_end, meta.period_label),
-          total_off_price_count: meta.total_off_price_count,
-          total_run_count: meta.total_run_count,
-          distinct_sellers: meta.distinct_sellers,
-          vendors_with_hits: meta.vendors_with_hits,
-          vendors: [],
-        } satisfies DemoYearArchive
-      }
-    }),
-  )
-
-  const historical_years = yearDetails
-    .filter((y): y is DemoYearArchive => Boolean(y))
-    .sort((a, b) => b.year - a.year)
-
-  if (Number.isFinite(liveYear) && !historical_years.some((y) => y.year === liveYear)) {
-    historical_years.unshift(mapYearArchive(liveYearly))
-  }
-
-  const historical_months: DemoMonthPoint[] = [...monthlyMetas]
-    .map(mapMonthPoint)
-    .sort((a, b) => a.year - b.year || a.month - b.month)
-
-  // If monthly archives are empty, seed trend with the live current month point.
-  if (historical_months.length === 0) {
-    const m = byPeriod.monthly.current
-    historical_months.push({
-      year: Number.parseInt((m.period_key || '').slice(0, 4), 10) || new Date().getUTCFullYear(),
-      month: Number.parseInt((m.period_key || '').slice(5, 7), 10) || 1,
-      period_key: m.period_key,
-      period_label: m.period_label,
-      total_off_price_count: m.total_off_price_count,
-      total_run_count: m.total_run_count,
-    })
-  }
-
+function assembleFromPeriods(
+  byPeriod: Record<
+    AnalyticsPeriod,
+    { current: OffPriceAnalyticsResponse; prior: OffPriceAnalyticsResponse | null }
+  >,
+  historical_years: DemoYearArchive[],
+  historical_months: DemoMonthPoint[],
+): DemoOffPriceAnalytics {
   const codeSet = new Set<string>()
   for (const p of PERIODS) {
     for (const v of byPeriod[p].current.vendors || []) {
@@ -236,8 +161,7 @@ export async function buildLiveOffPriceAnalytics(): Promise<DemoOffPriceAnalytic
     const pickPrior = (period: AnalyticsPeriod) =>
       (byPeriod[period].prior?.vendors || []).find((v) => vendorCodeKey(v.code) === code)
 
-    const base =
-      pick('yearly') || pick('monthly') || pick('weekly') || pick('daily')
+    const base = pick('yearly') || pick('monthly') || pick('weekly') || pick('daily')
     const name = base?.name || code.toUpperCase()
     const scheduler_enabled = Boolean(base?.scheduler_enabled)
 
@@ -308,7 +232,6 @@ export async function buildLiveOffPriceAnalytics(): Promise<DemoOffPriceAnalytic
     }
   })
 
-  // Prefer vendor order from yearly response when available.
   const yearlyOrder = (byPeriod.yearly.current.vendors || []).map((v) => vendorCodeKey(v.code))
   if (yearlyOrder.length) {
     vendors.sort((a, b) => {
@@ -391,7 +314,6 @@ export async function buildLiveOffPriceAnalytics(): Promise<DemoOffPriceAnalytic
     .sort((a, b) => b.yearly_hits - a.yearly_hits)
     .slice(0, 12)
 
-  // Guarantee at least empty vendor shells if API returned nothing.
   const finalVendors =
     vendors.length > 0
       ? vendors
@@ -418,6 +340,140 @@ export async function buildLiveOffPriceAnalytics(): Promise<DemoOffPriceAnalytic
     historical_years,
     historical_months,
   }
+}
+
+function assembleFromBootstrap(boot: OffPriceLiveBootstrapResponse): DemoOffPriceAnalytics {
+  const byPeriod = Object.fromEntries(
+    PERIODS.map((p) => [p, { current: boot.periods[p], prior: null }]),
+  ) as Record<
+    AnalyticsPeriod,
+    { current: OffPriceAnalyticsResponse; prior: OffPriceAnalyticsResponse | null }
+  >
+
+  const historical_years = (boot.yearly_archives || [])
+    .filter((y) => (y.source || '').toLowerCase() !== 'demo')
+    .map(mapYearArchive)
+    .sort((a, b) => b.year - a.year)
+
+  const liveYearly = byPeriod.yearly.current
+  const liveYear = Number.parseInt(String(liveYearly.period_key || '').slice(0, 4), 10)
+  if (Number.isFinite(liveYear) && !historical_years.some((y) => y.year === liveYear)) {
+    historical_years.unshift(mapYearArchive(liveYearly))
+  }
+
+  const historical_months: DemoMonthPoint[] = [...(boot.monthly_archives || [])]
+    .filter((a) => (a.source || '').toLowerCase() !== 'demo')
+    .map(mapMonthPoint)
+    .sort((a, b) => a.year - b.year || a.month - b.month)
+
+  if (historical_months.length === 0) {
+    const m = byPeriod.monthly.current
+    historical_months.push({
+      year: Number.parseInt((m.period_key || '').slice(0, 4), 10) || new Date().getUTCFullYear(),
+      month: Number.parseInt((m.period_key || '').slice(5, 7), 10) || 1,
+      period_key: m.period_key,
+      period_label: m.period_label,
+      total_off_price_count: m.total_off_price_count,
+      total_run_count: m.total_run_count,
+    })
+  }
+
+  return assembleFromPeriods(byPeriod, historical_years, historical_months)
+}
+
+/** Legacy multi-request path (fallback if bootstrap is unavailable). */
+async function buildLiveOffPriceAnalyticsLegacy(): Promise<DemoOffPriceAnalytics> {
+  const periodResults = await Promise.all(
+    PERIODS.map(async (period) => {
+      const current = await analyticsApi.getOffPrice({ period, offset: 0, persist: false })
+      return { current, prior: null }
+    }),
+  )
+  const byPeriod = Object.fromEntries(
+    PERIODS.map((p, i) => [p, periodResults[i]]),
+  ) as Record<AnalyticsPeriod, { current: OffPriceAnalyticsResponse; prior: OffPriceAnalyticsResponse | null }>
+
+  const [yearlyList, monthlyList] = await Promise.all([
+    analyticsApi.listArchives({ period_type: 'yearly', limit: 12, exclude_demo: true }),
+    analyticsApi.listArchives({ period_type: 'monthly', limit: 24, exclude_demo: true }),
+  ])
+
+  const yearlyMetas = (yearlyList.archives || []).filter(
+    (a) => (a.source || '').toLowerCase() !== 'demo',
+  )
+  const monthlyMetas = (monthlyList.archives || [])
+    .filter((a) => (a.source || '').toLowerCase() !== 'demo')
+    .slice(0, 24)
+
+  const liveYearly = byPeriod.yearly.current
+  const liveYear = Number.parseInt(String(liveYearly.period_key || '').slice(0, 4), 10)
+  const yearsToHydrate = yearlyMetas
+    .filter((meta) => {
+      const y = Number.parseInt(String(meta.period_key || '').slice(0, 4), 10)
+      return Number.isFinite(y) && Number.isFinite(liveYear) && y >= liveYear - 1
+    })
+    .slice(0, 3)
+
+  const yearDetails = await Promise.all(
+    yearsToHydrate.map(async (meta) => {
+      try {
+        const detail = await analyticsApi.getArchive('yearly', meta.period_key)
+        if ((detail.source || '').toLowerCase() === 'demo') return null
+        return mapYearArchive(detail)
+      } catch {
+        const year = Number.parseInt(String(meta.period_key || '').slice(0, 4), 10)
+        return {
+          year: Number.isFinite(year) ? year : 0,
+          period_key: meta.period_key,
+          period_label: meta.period_label,
+          period_range: formatRange(meta.period_start, meta.period_end, meta.period_label),
+          total_off_price_count: meta.total_off_price_count,
+          total_run_count: meta.total_run_count,
+          distinct_sellers: meta.distinct_sellers,
+          vendors_with_hits: meta.vendors_with_hits,
+          vendors: [],
+        } satisfies DemoYearArchive
+      }
+    }),
+  )
+
+  const historical_years = yearDetails
+    .filter((y): y is DemoYearArchive => Boolean(y))
+    .sort((a, b) => b.year - a.year)
+
+  if (Number.isFinite(liveYear) && !historical_years.some((y) => y.year === liveYear)) {
+    historical_years.unshift(mapYearArchive(liveYearly))
+  }
+
+  const historical_months: DemoMonthPoint[] = [...monthlyMetas]
+    .map(mapMonthPoint)
+    .sort((a, b) => a.year - b.year || a.month - b.month)
+
+  if (historical_months.length === 0) {
+    const m = byPeriod.monthly.current
+    historical_months.push({
+      year: Number.parseInt((m.period_key || '').slice(0, 4), 10) || new Date().getUTCFullYear(),
+      month: Number.parseInt((m.period_key || '').slice(5, 7), 10) || 1,
+      period_key: m.period_key,
+      period_label: m.period_label,
+      total_off_price_count: m.total_off_price_count,
+      total_run_count: m.total_run_count,
+    })
+  }
+
+  return assembleFromPeriods(byPeriod, historical_years, historical_months)
+}
+
+export async function buildLiveOffPriceAnalytics(): Promise<DemoOffPriceAnalytics> {
+  try {
+    const boot = await analyticsApi.getLiveBootstrap()
+    if (boot?.periods?.daily && boot?.periods?.weekly) {
+      return assembleFromBootstrap(boot)
+    }
+  } catch {
+    /* fall through to legacy multi-request path */
+  }
+  return buildLiveOffPriceAnalyticsLegacy()
 }
 
 /** Best-effort purge of fabricated demo snapshot rows (ignore failures). */

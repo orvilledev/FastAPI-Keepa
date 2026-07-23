@@ -114,6 +114,17 @@ def get_off_price_analytics(
     )
 
 
+@router.get("/analytics/off-price/live-bootstrap")
+@handle_api_errors("get live analytics bootstrap")
+def get_live_analytics_bootstrap(
+    current_user: dict = Depends(require_analytics_access),
+    db: Client = Depends(get_supabase),
+):
+    """One-shot Live Analytics page payload (snapshot-first, no alert recount)."""
+    service = OffPriceAnalyticsService(db)
+    return service.get_live_preview_bootstrap(_user_id(current_user))
+
+
 @router.get("/analytics/off-price/archives")
 @handle_api_errors("list off-price analytics archives")
 def list_off_price_analytics_archives(

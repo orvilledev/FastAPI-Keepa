@@ -8,7 +8,7 @@ This table is isolated from Express / Daily job cleanup:
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from supabase import Client
 
@@ -106,3 +106,19 @@ class OffPriceAnalyticsSnapshotRepository:
         )
         data = response.data or []
         return data[0] if data else None
+
+    def get_snapshots_by_period_keys(
+        self, pairs: List[Tuple[str, str]]
+    ) -> Dict[Tuple[str, str], Dict[str, Any]]:
+        """Fetch multiple snapshots. Uses per-key gets (compatible across supabase-py)."""
+        out: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        seen: set[Tuple[str, str]] = set()
+        for period_type, period_key in pairs:
+            key = (str(period_type or ""), str(period_key or ""))
+            if not key[0] or not key[1] or key in seen:
+                continue
+            seen.add(key)
+            row = self.get_snapshot(key[0], key[1])
+            if row:
+                out[key] = row
+        return out
