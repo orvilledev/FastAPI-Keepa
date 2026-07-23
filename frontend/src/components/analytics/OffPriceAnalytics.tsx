@@ -1468,6 +1468,10 @@ export default function OffPriceAnalytics() {
                     bccValue={emailBccRecipients}
                     onChange={setEmailRecipients}
                     onBccChange={setEmailBccRecipients}
+                    onRecipientsChange={({ to, bcc }) => {
+                      setEmailRecipients(to)
+                      setEmailBccRecipients(bcc)
+                    }}
                     emptyMeansNoRecipients
                     allowVendorBcc
                     disabled={emailSending}

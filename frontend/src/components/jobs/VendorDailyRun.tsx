@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { authApi, schedulerApi } from '../../services/api'
 import type { SchedulerSettings } from '../../types'
-import EmailRecipientsPicker from './EmailRecipientsPicker'
+import EmailRecipientsPicker, { normalizeRecipientPair } from './EmailRecipientsPicker'
 import DancingCapybaraReminderModal, {
   useDailyRunCapybaraReminder,
 } from '../dashboard/DancingCapybaraReminderModal'
@@ -267,14 +267,18 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
   const loadSchedulerSettings = async () => {
     try {
       const settings = await schedulerApi.getSettings(vendor)
+      const recipients = normalizeRecipientPair(
+        settings.email_recipients || '',
+        settings.email_bcc_recipients || '',
+      )
       const normalizedSettings: SchedulerSettings = {
         ...settings,
         run_mode: settings.run_mode || 'daily',
         input_mode: settings.input_mode || 'api',
         custom_days: settings.custom_days || [],
         anchor_date: settings.anchor_date ?? null,
-        email_recipients: settings.email_recipients || '',
-        email_bcc_recipients: settings.email_bcc_recipients || '',
+        email_recipients: recipients.to,
+        email_bcc_recipients: recipients.bcc,
         uploaded_wait_timeout_seconds:
           typeof settings.uploaded_wait_timeout_seconds === 'number'
             ? settings.uploaded_wait_timeout_seconds
@@ -341,7 +345,15 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
         setError('Import Mode wait timeout must be between 0 and 900 seconds.')
         return
       }
-      const payload = { ...settingsForm }
+      const recipients = normalizeRecipientPair(
+        settingsForm.email_recipients || '',
+        settingsForm.email_bcc_recipients || '',
+      )
+      const payload = {
+        ...settingsForm,
+        email_recipients: recipients.to || null,
+        email_bcc_recipients: recipients.bcc || null,
+      }
       await schedulerApi.updateSettings(payload, vendor)
       await loadSchedulerSettings()
       await loadNextRun()
@@ -517,10 +529,11 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
     setSuccess('')
     try {
       if (uploadRecipientsDirty) {
+        const recipients = normalizeRecipientPair(uploadEmailRecipients, uploadEmailBccRecipients)
         await schedulerApi.updateSettings(
           {
-            email_recipients: uploadEmailRecipients.trim() || null,
-            email_bcc_recipients: uploadEmailBccRecipients.trim() || null,
+            email_recipients: recipients.to || null,
+            email_bcc_recipients: recipients.bcc || null,
           },
           vendor,
         )
@@ -541,10 +554,11 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
     setError('')
     setSuccess('')
     try {
+      const recipients = normalizeRecipientPair(uploadEmailRecipients, uploadEmailBccRecipients)
       await schedulerApi.updateSettings(
         {
-          email_recipients: uploadEmailRecipients.trim() || null,
-          email_bcc_recipients: uploadEmailBccRecipients.trim() || null,
+          email_recipients: recipients.to || null,
+          email_bcc_recipients: recipients.bcc || null,
         },
         vendor,
       )
@@ -970,6 +984,10 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
               bccValue={uploadEmailBccRecipients}
               onChange={setUploadEmailRecipients}
               onBccChange={setUploadEmailBccRecipients}
+              onRecipientsChange={({ to, bcc }) => {
+                setUploadEmailRecipients(to)
+                setUploadEmailBccRecipients(bcc)
+              }}
               persistDismissed
               emptyMeansNoRecipients
               allowVendorBcc
@@ -1162,8 +1180,19 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                 <EmailRecipientsPicker
                   value={settingsForm.email_recipients || ''}
                   bccValue={settingsForm.email_bcc_recipients || ''}
-                  onChange={(value) => setSettingsForm({ ...settingsForm, email_recipients: value })}
-                  onBccChange={(value) => setSettingsForm({ ...settingsForm, email_bcc_recipients: value })}
+                  onChange={(value) =>
+                    setSettingsForm((prev) => ({ ...prev, email_recipients: value }))
+                  }
+                  onBccChange={(value) =>
+                    setSettingsForm((prev) => ({ ...prev, email_bcc_recipients: value }))
+                  }
+                  onRecipientsChange={({ to, bcc }) =>
+                    setSettingsForm((prev) => ({
+                      ...prev,
+                      email_recipients: to,
+                      email_bcc_recipients: bcc,
+                    }))
+                  }
                   disabled={savingSettings}
                   emptyMeansNoRecipients
                   allowVendorBcc

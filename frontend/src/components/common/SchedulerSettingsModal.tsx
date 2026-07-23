@@ -61,6 +61,7 @@ function ScheduleBlock({
   onAnchorDate,
   onEmailRecipients,
   onEmailBccRecipients,
+  onRecipientsChange,
   recipientsLabel,
 }: {
   label: string
@@ -81,6 +82,7 @@ function ScheduleBlock({
   onAnchorDate: (value: string | null) => void
   onEmailRecipients: (value: string) => void
   onEmailBccRecipients: (value: string) => void
+  onRecipientsChange: (next: { to: string; bcc: string }) => void
   recipientsLabel: string
 }) {
   return (
@@ -179,6 +181,7 @@ function ScheduleBlock({
           bccValue={emailBccRecipients || ''}
           onChange={onEmailRecipients}
           onBccChange={onEmailBccRecipients}
+          onRecipientsChange={onRecipientsChange}
           disabled={saving}
           emptyMeansNoRecipients
           allowVendorBcc
@@ -256,6 +259,9 @@ export default function SchedulerSettingsModal({
               onAnchorDate={(value) => onChange({ ...form, anchor_date: value })}
               onEmailRecipients={(value) => onChange({ ...form, email_recipients: value })}
               onEmailBccRecipients={(value) => onChange({ ...form, email_bcc_recipients: value })}
+              onRecipientsChange={({ to, bcc }) =>
+                onChange({ ...form, email_recipients: to, email_bcc_recipients: bcc })
+              }
               recipientsLabel={`Keepa file email recipients (${vendorUpper})`}
             />
           )}
@@ -281,6 +287,13 @@ export default function SchedulerSettingsModal({
               onEmailRecipients={(value) => onChange({ ...form, off_price_email_recipients: value })}
               onEmailBccRecipients={(value) =>
                 onChange({ ...form, off_price_email_bcc_recipients: value })
+              }
+              onRecipientsChange={({ to, bcc }) =>
+                onChange({
+                  ...form,
+                  off_price_email_recipients: to,
+                  off_price_email_bcc_recipients: bcc,
+                })
               }
               recipientsLabel={`Off-price report recipients (${vendorUpper}, separate from Daily Run)`}
             />

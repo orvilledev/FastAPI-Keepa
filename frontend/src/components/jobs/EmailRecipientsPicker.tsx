@@ -9,8 +9,21 @@ function parseEmails(value: string): string[] {
     .filter(Boolean)
 }
 
-function joinEmails(emails: Set<string>): string {
+function joinEmails(emails: Set<string> | Iterable<string>): string {
   return [...emails].sort().join(', ')
+}
+
+/** Keep To and BCC mutually exclusive; BCC wins on overlap. */
+export function exclusiveSelection(toRaw: string, bccRaw: string): { to: Set<string>; bcc: Set<string> } {
+  const bcc = new Set(parseEmails(bccRaw))
+  const to = new Set(parseEmails(toRaw).filter((email) => !bcc.has(email)))
+  return { to, bcc }
+}
+
+/** Canonical CSV pair for persisting vendor recipient settings. */
+export function normalizeRecipientPair(toRaw: string, bccRaw: string): { to: string; bcc: string } {
+  const { to, bcc } = exclusiveSelection(toRaw, bccRaw)
+  return { to: joinEmails(to), bcc: joinEmails(bcc) }
 }
 
 type Props = {
@@ -19,6 +32,11 @@ type Props = {
   onChange: (commaSeparated: string) => void
   bccValue?: string
   onBccChange?: (commaSeparated: string) => void
+  /**
+   * Preferred when To + BCC are both used. Called once per edit with both lists
+   * so parents never apply two staggered setStates (which can resurrect stale To).
+   */
+  onRecipientsChange?: (next: { to: string; bcc: string }) => void
   disabled?: boolean
   persistDismissed?: boolean
   /** When true, an empty selection sends no email (daily runs). Default uses report recipients. */
@@ -35,19 +53,21 @@ export default function EmailRecipientsPicker({
   onChange,
   bccValue = '',
   onBccChange,
+  onRecipientsChange,
   disabled,
   emptyMeansNoRecipients = false,
   allowVendorBcc = false,
   panelMaxHeightClass = 'max-h-[min(70vh,520px)]',
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
-  const skipValueSyncRef = useRef(false)
+  const skipValueSyncRef = useRef(0)
   const [panelOpen, setPanelOpen] = useState(false)
   const [pool, setPool] = useState<EmailPoolEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [selectedTo, setSelectedTo] = useState<Set<string>>(() => new Set(parseEmails(value)))
-  const [selectedBcc, setSelectedBcc] = useState<Set<string>>(() => new Set(parseEmails(bccValue)))
+  const initial = exclusiveSelection(value, bccValue)
+  const [selectedTo, setSelectedTo] = useState<Set<string>>(() => initial.to)
+  const [selectedBcc, setSelectedBcc] = useState<Set<string>>(() => initial.bcc)
 
   const refreshData = useCallback(async () => {
     setLoadError(null)
@@ -67,12 +87,13 @@ export default function EmailRecipientsPicker({
   }, [refreshData])
 
   useEffect(() => {
-    if (skipValueSyncRef.current) {
-      skipValueSyncRef.current = false
+    if (skipValueSyncRef.current > 0) {
+      skipValueSyncRef.current -= 1
       return
     }
-    setSelectedTo(new Set(parseEmails(value)))
-    setSelectedBcc(new Set(parseEmails(bccValue)))
+    const next = exclusiveSelection(value, bccValue)
+    setSelectedTo(next.to)
+    setSelectedBcc(next.bcc)
   }, [value, bccValue])
 
   useEffect(() => {
@@ -112,15 +133,35 @@ export default function EmailRecipientsPicker({
 
   const commitSelection = useCallback(
     (nextTo: Set<string>, nextBcc: Set<string>) => {
-      setSelectedTo(nextTo)
-      setSelectedBcc(nextBcc)
-      skipValueSyncRef.current = true
-      onChange(joinEmails(nextTo))
+      // Enforce exclusivity before committing.
+      const bcc = new Set([...nextBcc].map((e) => e.toLowerCase()))
+      const to = new Set(
+        [...nextTo].map((e) => e.toLowerCase()).filter((email) => !bcc.has(email)),
+      )
+      setSelectedTo(to)
+      setSelectedBcc(bcc)
+      const toStr = joinEmails(to)
+      const bccStr = joinEmails(bcc)
+
+      // Skip the next prop sync from our own commit (one React update when atomic).
+      skipValueSyncRef.current = 1
+
+      if (onRecipientsChange) {
+        onRecipientsChange({ to: toStr, bcc: bccStr })
+        return
+      }
+
+      // Legacy path: two parent setters. Skip twice so a stale second write cannot
+      // immediately re-hydrate old To from props after the first update.
       if (allowVendorBcc && onBccChange) {
-        onBccChange(joinEmails(nextBcc))
+        skipValueSyncRef.current = 2
+      }
+      onChange(toStr)
+      if (allowVendorBcc && onBccChange) {
+        onBccChange(bccStr)
       }
     },
-    [allowVendorBcc, onBccChange, onChange]
+    [allowVendorBcc, onBccChange, onChange, onRecipientsChange],
   )
 
   const toggleEmail = (email: string) => {

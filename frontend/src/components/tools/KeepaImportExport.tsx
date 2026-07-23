@@ -12,7 +12,7 @@ import KeepaImportBuildContentsModal from './KeepaImportBuildContentsModal'
 import SchedulerSettingsModal, {
   type SchedulerSettingsFormState,
 } from '../common/SchedulerSettingsModal'
-import EmailRecipientsPicker from '../jobs/EmailRecipientsPicker'
+import EmailRecipientsPicker, { normalizeRecipientPair } from '../jobs/EmailRecipientsPicker'
 import { useUser } from '../../contexts/UserContext'
 
 const VENDORS = [
@@ -302,8 +302,12 @@ export default function KeepaImportExport() {
   }, [category, loadSchedulerSettings, loadNextRun, loadOffPriceNextRun])
 
   useEffect(() => {
-    setOffPriceRecipients(schedulerSettings?.off_price_email_recipients || '')
-    setOffPriceBccRecipients(schedulerSettings?.off_price_email_bcc_recipients || '')
+    const offPrice = normalizeRecipientPair(
+      schedulerSettings?.off_price_email_recipients || '',
+      schedulerSettings?.off_price_email_bcc_recipients || '',
+    )
+    setOffPriceRecipients(offPrice.to)
+    setOffPriceBccRecipients(offPrice.bcc)
   }, [schedulerSettings, category])
 
   const loadGlobalBusy = useCallback(async () => {
@@ -348,6 +352,14 @@ export default function KeepaImportExport() {
 
   const populateSettingsForm = () => {
     if (!schedulerSettings) return
+    const buildRecipients = normalizeRecipientPair(
+      schedulerSettings.email_recipients || '',
+      schedulerSettings.email_bcc_recipients || '',
+    )
+    const offPricePair = normalizeRecipientPair(
+      schedulerSettings.off_price_email_recipients || '',
+      schedulerSettings.off_price_email_bcc_recipients || '',
+    )
     setSettingsForm({
       timezone: schedulerSettings.timezone,
       hour: schedulerSettings.hour,
@@ -355,16 +367,16 @@ export default function KeepaImportExport() {
       run_mode: schedulerSettings.run_mode,
       custom_days: schedulerSettings.custom_days || [],
       anchor_date: schedulerSettings.anchor_date || null,
-      email_recipients: schedulerSettings.email_recipients || '',
-      email_bcc_recipients: schedulerSettings.email_bcc_recipients || '',
+      email_recipients: buildRecipients.to,
+      email_bcc_recipients: buildRecipients.bcc,
       off_price_timezone: schedulerSettings.off_price_timezone || 'America/Chicago',
       off_price_hour: schedulerSettings.off_price_hour ?? 7,
       off_price_minute: schedulerSettings.off_price_minute ?? 0,
       off_price_run_mode: schedulerSettings.off_price_run_mode || 'daily',
       off_price_custom_days: schedulerSettings.off_price_custom_days || [],
       off_price_anchor_date: schedulerSettings.off_price_anchor_date || null,
-      off_price_email_recipients: schedulerSettings.off_price_email_recipients || '',
-      off_price_email_bcc_recipients: schedulerSettings.off_price_email_bcc_recipients || '',
+      off_price_email_recipients: offPricePair.to,
+      off_price_email_bcc_recipients: offPricePair.bcc,
       off_price_send_after_build: schedulerSettings.off_price_send_after_build ?? true,
     })
   }
@@ -385,8 +397,20 @@ export default function KeepaImportExport() {
     setSavingSettings(true)
     setError(null)
     try {
+      const buildRecipients = normalizeRecipientPair(
+        settingsForm.email_recipients || '',
+        settingsForm.email_bcc_recipients || '',
+      )
+      const offPricePair = normalizeRecipientPair(
+        settingsForm.off_price_email_recipients || '',
+        settingsForm.off_price_email_bcc_recipients || '',
+      )
       await keepaImportExportApi.updateSchedulerSettings(category, {
         ...settingsForm,
+        email_recipients: buildRecipients.to || null,
+        email_bcc_recipients: buildRecipients.bcc || null,
+        off_price_email_recipients: offPricePair.to || null,
+        off_price_email_bcc_recipients: offPricePair.bcc || null,
         enabled: schedulerSettings?.enabled ?? false,
       })
       await loadSchedulerSettings(category)
@@ -406,9 +430,10 @@ export default function KeepaImportExport() {
     setSavingOffPriceRecipients(true)
     setError(null)
     try {
+      const recipients = normalizeRecipientPair(offPriceRecipients, offPriceBccRecipients)
       await keepaImportExportApi.updateSchedulerSettings(category, {
-        off_price_email_recipients: offPriceRecipients.trim() || null,
-        off_price_email_bcc_recipients: offPriceBccRecipients.trim() || null,
+        off_price_email_recipients: recipients.to || null,
+        off_price_email_bcc_recipients: recipients.bcc || null,
       })
       await loadSchedulerSettings(category)
       setInfo(`Recipients saved for ${vendorUpper}.`)
@@ -722,6 +747,10 @@ export default function KeepaImportExport() {
                       bccValue={offPriceBccRecipients}
                       onChange={setOffPriceRecipients}
                       onBccChange={setOffPriceBccRecipients}
+                      onRecipientsChange={({ to, bcc }) => {
+                        setOffPriceRecipients(to)
+                        setOffPriceBccRecipients(bcc)
+                      }}
                       disabled={savingOffPriceRecipients}
                       emptyMeansNoRecipients
                       allowVendorBcc
