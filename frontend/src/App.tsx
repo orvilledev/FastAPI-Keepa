@@ -66,6 +66,7 @@ const Notifications = lazy(() => import('./components/notifications/Notification
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
 const Feedback = lazy(() => import('./components/feedback/Feedback'))
 const OffPriceAnalytics = lazy(() => import('./components/analytics/OffPriceAnalytics'))
+const Playground = lazy(() => import('./components/playground/Playground'))
 
 /** Packaged Electron loads `index.html` over `file:`; BrowserRouter cannot match routes there. */
 function AppRouter({ children }: { children: ReactNode }) {
@@ -468,6 +469,14 @@ function AppRoutes() {
               }
             />
           )}
+          <Route
+            path="playground"
+            element={
+              <ProtectedRoute requirePlaygroundAccess={true}>
+                <Playground />
+              </ProtectedRoute>
+            }
+          />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

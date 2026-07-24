@@ -1,12 +1,14 @@
 import { Navigate } from 'react-router-dom'
 import { useUser } from '../../contexts/UserContext'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
+import { canAccessPlayground } from '../../lib/playground/access'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
   requireKeepaAccess?: boolean
   requireLabelStationAccess?: boolean
   requireAnalyticsAccess?: boolean
+  requirePlaygroundAccess?: boolean
 }
 
 export default function ProtectedRoute({
@@ -14,11 +16,13 @@ export default function ProtectedRoute({
   requireKeepaAccess = false,
   requireLabelStationAccess = false,
   requireAnalyticsAccess = false,
+  requirePlaygroundAccess = false,
 }: ProtectedRouteProps) {
   const {
     hasKeepaAccess,
     hasLabelStationAccess,
     isWarehouseOnly,
+    isSuperadmin,
     userInfoLoading,
     userInfo,
     authUser,
@@ -46,6 +50,13 @@ export default function ProtectedRoute({
   if (requireAnalyticsAccess) {
     const email = userInfo.email || authUser?.email || null
     if (!canAccessWebAnalytics(email)) {
+      return <Navigate to="/dashboard" replace />
+    }
+  }
+
+  if (requirePlaygroundAccess) {
+    const email = userInfo.email || authUser?.email || null
+    if (!canAccessPlayground(email, isSuperadmin)) {
       return <Navigate to="/dashboard" replace />
     }
   }

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useUser } from '../../contexts/UserContext'
 import { isUserHiddenFromFeedbackPage } from '../../constants/feedbackAccess'
+import { canAccessPlayground } from '../../lib/playground/access'
 
 type SearchItem = {
   label: string
@@ -15,6 +16,7 @@ function buildSearchItems(
   isWarehouseOnly: boolean,
   isSuperadmin: boolean,
   showFeedbackNav: boolean,
+  showPlayground: boolean,
 ): SearchItem[] {
   if (isWarehouseOnly) {
     const items: SearchItem[] = [
@@ -49,6 +51,13 @@ function buildSearchItems(
     { label: 'Micro Tools', path: '/micro-tools', section: 'Tools' },
     { label: 'Tracking Extractor', path: '/tracking-scanner', section: 'Tools' },
     { label: 'FNSKU Labels', path: '/fnsku-labels', section: 'Tools' },
+  )
+
+  if (showPlayground) {
+    items.push({ label: 'Testing Playground', path: '/playground', section: 'Tools' })
+  }
+
+  items.push(
     { label: 'About', path: '/about', section: 'General' },
     { label: 'FAQ', path: '/faq', section: 'General' },
   )
@@ -81,9 +90,21 @@ export default function NavbarSearch() {
       authUser?.email,
     )
 
+  const showPlayground = canAccessPlayground(
+    userInfo?.email || authUser?.email,
+    isSuperadmin,
+  )
+
   const searchItems = useMemo(
-    () => buildSearchItems(hasKeepaAccess, isWarehouseOnly, isSuperadmin, showFeedbackNav),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showFeedbackNav],
+    () =>
+      buildSearchItems(
+        hasKeepaAccess,
+        isWarehouseOnly,
+        isSuperadmin,
+        showFeedbackNav,
+        showPlayground,
+      ),
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showFeedbackNav, showPlayground],
   )
 
   const results = useMemo(() => {
