@@ -173,6 +173,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
   const keepaMenuItems = [
     { path: '/jobs',         label: 'Express Jobs', icon: 'package'  as const },
     { path: '/daily-run',    label: 'Daily Runs',   icon: 'biking'   as const },
+    { path: '/keepa-import-export', label: 'Keepa Import File', icon: 'download' as const },
     { path: '/manage-upcs', label: 'Manage UPCs',  icon: 'barcode'  as const },
     { path: '/map',          label: 'Manage MAP',   icon: 'dollar'   as const },
     { path: '/seller-list',  label: 'Seller List',  icon: 'users'    as const },
@@ -343,6 +344,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
                 item.path === '/seller-list'  ? 'seller-list' :
                 item.path === '/email-list'   ? 'email-list'  :
                 item.path === '/daily-run'    ? 'daily-runs'  :
+                item.path === '/keepa-import-export' ? 'keepa-import-export' :
                 item.path === '/analytics'    ? 'analytics'   :
                 'keepa-other'
 
@@ -422,36 +424,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
               <span className="sidebar-link-label">Manifest Generator</span>
             </Link>
 
-            {canAccessPlayground(userInfo?.email || authUser?.email, isSuperadmin) && (
-              <Link
-                to="/playground"
-                onMouseEnter={() => setHoveredNav('playground')}
-                className={`sidebar-link ${
-                  navHighlighted('playground', isActive('/playground'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.playground}</span>
-                <span className="sidebar-link-label">Playground</span>
-              </Link>
-            )}
-
-            {hasKeepaAccess && (
-              <Link
-                to="/keepa-import-export"
-                onMouseEnter={() => setHoveredNav('keepa-import-export')}
-                className={`sidebar-link ${
-                  navHighlighted('keepa-import-export', isActive('/keepa-import-export'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.download}</span>
-                <span className="sidebar-link-label">Keepa Import File</span>
-              </Link>
-            )}
-
             {hasKeepaAccess && (
               <Link
                 to="/label-station"
@@ -467,6 +439,28 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
               </Link>
             )}
         </div>
+
+        {canAccessPlayground(userInfo?.email || authUser?.email, isSuperadmin) && (
+          <>
+            <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
+
+            <div className="shrink-0 space-y-0.5 pb-1 pt-1">
+              <p className="sidebar-section-label">TESTING</p>
+              <Link
+                to="/playground"
+                onMouseEnter={() => setHoveredNav('playground')}
+                className={`sidebar-link ${
+                  navHighlighted('playground', isActive('/playground'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.playground}</span>
+                <span className="sidebar-link-label">Playground</span>
+              </Link>
+            </div>
+          </>
+        )}
 
         <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 
