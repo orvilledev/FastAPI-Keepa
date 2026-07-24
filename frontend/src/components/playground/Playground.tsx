@@ -8,18 +8,18 @@ import {
   loadSelectedPlaygroundToolIds,
   saveSelectedPlaygroundToolIds,
 } from '../../lib/playground/catalog'
-import { FNSKU_PLAYGROUND_APP_ID } from '../../lib/playground/fnskuLabelsRunner'
+import { getPlaygroundRunner } from '../../lib/playground/runners'
 import {
   clearLegacyPlaygroundIndexedDb,
   isValidPlaygroundUserScope,
   normalizePlaygroundUserScope,
 } from '../../lib/playground/storage'
-import FnskuLabelsToolCard from './FnskuLabelsToolCard'
 import PendingToolCard from './PendingToolCard'
+import PlaygroundFileToolCard from './PlaygroundFileToolCard'
 
 /**
  * Personal Testing Playground — each allowed user has an independent view.
- * Fixtures and tool selections are scoped to their signed-in email.
+ * Tools with runners: upload same inputs as the live app → run → report → typed downloads.
  */
 export default function Playground() {
   const { userInfo, authUser, isSuperadmin, hasKeepaAccess, userInfoLoading } = useUser()
@@ -137,17 +137,20 @@ export default function Playground() {
           Testing Playground
         </h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-content-muted">
-          Personal sandbox for <span className="font-medium text-gray-800 dark:text-content-primary">{ownerLabel}</span>
+          Personal sandbox for{' '}
+          <span className="font-medium text-gray-800 dark:text-content-primary">{ownerLabel}</span>
           {email && displayName ? (
             <span className="text-gray-500"> ({email})</span>
           ) : null}
-          . Your tools, uploads, and results are independent from other testers.
+          . Upload the same file types as the live tool, run a test, then download the expected
+          output type(s). Independent from other testers.
         </p>
       </div>
 
       <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-800/50 dark:bg-sky-950/30 dark:text-sky-100">
-        Individual view — Stephanie, Sunshine, Orville, and other allowed users each keep their own
-        playground data. Switching accounts loads that user’s fixtures and tool set only.
+        Individual view — each allowed user keeps their own playground data. New tools follow the
+        same pattern: matching input → Run test → success report → download(s) for that tool’s
+        expected file type(s).
       </div>
 
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-100">
@@ -178,7 +181,7 @@ export default function Playground() {
               addableTools.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.label}
-                  {t.runnerReady ? '' : ' (runner coming soon)'}
+                  {getPlaygroundRunner(t) ? '' : ' (runner coming soon)'}
                 </option>
               ))
             )}
@@ -206,9 +209,9 @@ export default function Playground() {
           {selectedIds.map((id) => {
             const tool = getPlaygroundTool(id)
             if (!tool) return null
-            if (tool.id === FNSKU_PLAYGROUND_APP_ID && tool.runnerReady) {
+            if (getPlaygroundRunner(tool)) {
               return (
-                <FnskuLabelsToolCard
+                <PlaygroundFileToolCard
                   key={`${userScope}::${tool.id}`}
                   tool={tool}
                   userScope={userScope}

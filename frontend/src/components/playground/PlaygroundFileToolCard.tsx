@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  FNSKU_PLAYGROUND_ACCEPT,
-  FNSKU_PLAYGROUND_APP_ID,
-  isFnskuPlaygroundFileAllowed,
-  runFnskuLabelsPlayground,
-} from '../../lib/playground/fnskuLabelsRunner'
+import type { PlaygroundToolDef } from '../../lib/playground/catalog'
+import { getPlaygroundRunner } from '../../lib/playground/runners'
 import {
   formatBytes,
   getPlaygroundStoredInput,
@@ -13,7 +9,6 @@ import {
   storedInputToSessionFixture,
   type PlaygroundSessionFixture,
 } from '../../lib/playground/storage'
-import type { PlaygroundToolDef } from '../../lib/playground/catalog'
 
 function downloadBytes(bytes: ArrayBuffer, filename: string, mimeType: string) {
   const blob = new Blob([bytes], { type: mimeType })
@@ -40,11 +35,20 @@ type Props = {
   onRemoveTool: (toolId: string) => void
 }
 
-/** Full FNSKU Labels sandbox card (upload persists; run outputs are session-only). */
-export default function FnskuLabelsToolCard({ tool, userScope, onRemoveTool }: Props) {
+/**
+ * Shared playground card for any tool with a registered runner:
+ * upload (persists) → Run test → success/fail report → typed downloads (session-only).
+ */
+export default function PlaygroundFileToolCard({
+  tool,
+  userScope,
+  onRemoveTool,
+}: Props) {
+  const runner = getPlaygroundRunner(tool)
   const [fixture, setFixture] = useState<PlaygroundSessionFixture | null>(null)
   const [loadingFixture, setLoadingFixture] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [progressDetail, setProgressDetail] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -53,7 +57,7 @@ export default function FnskuLabelsToolCard({ tool, userScope, onRemoveTool }: P
     setLoadingFixture(true)
     setError(null)
     try {
-      const stored = await getPlaygroundStoredInput(userScope, FNSKU_PLAYGROUND_APP_ID)
+      const stored = await getPlaygroundStoredInput(userScope, tool.id)
       setFixture(stored ? storedInputToSessionFixture(stored) : null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load playground fixture.')
@@ -61,7 +65,7 @@ export default function FnskuLabelsToolCard({ tool, userScope, onRemoveTool }: P
     } finally {
       setLoadingFixture(false)
     }
-  }, [userScope])
+  }, [userScope, tool.id])
 
   useEffect(() => {
     void reloadFixture()
@@ -69,19 +73,15 @@ export default function FnskuLabelsToolCard({ tool, userScope, onRemoveTool }: P
 
   const handleUpload = useCallback(
     async (file: File | null | undefined) => {
-      if (!file) return
-      if (!isFnskuPlaygroundFileAllowed(file)) {
-        setError('Unsupported file. Upload .csv, .xlsx, .xls, .xlsm, or .zip.')
+      if (!file || !runner) return
+      if (!runner.isFileAllowed(file)) {
+        setError(`Unsupported file. Upload ${runner.acceptHint}.`)
         return
       }
       setBusy(true)
       setError(null)
       try {
-        const stored = await savePlaygroundStoredInput(
-          userScope,
-          FNSKU_PLAYGROUND_APP_ID,
-          file,
-        )
+        const stored = await savePlaygroundStoredInput(userScope, tool.id, file)
         setFixture(storedInputToSessionFixture(stored))
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Upload failed.')
@@ -90,14 +90,14 @@ export default function FnskuLabelsToolCard({ tool, userScope, onRemoveTool }: P
         if (fileInputRef.current) fileInputRef.current.value = ''
       }
     },
-    [userScope],
+    [runner, tool.id, userScope],
   )
 
   const handleRemoveFile = useCallback(async () => {
     if (!fixture) return
     if (
       !window.confirm(
-        'Remove the uploaded FNSKU test file? You will need to upload again before running a test.',
+        `Remove the uploaded ${tool.label} test file? You will need to upload again before running a test.`,
       )
     ) {
       return
@@ -105,7 +105,7 @@ export default function FnskuLabelsToolCard({ tool, userScope, onRemoveTool }: P
     setBusy(true)
     setError(null)
     try {
-      await removePlaygroundStoredInput(userScope, FNSKU_PLAYGROUND_APP_ID)
+      await removePlaygroundStoredInput(userScope, tool.id)
       setFixture(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     } catch (err) {
@@ -113,24 +113,28 @@ export default function FnskuLabelsToolCard({ tool, userScope, onRemoveTool }: P
     } finally {
       setBusy(false)
     }
-  }, [fixture, userScope])
+  }, [fixture, tool.id, tool.label, userScope])
 
   const handleRun = useCallback(async () => {
-    if (!fixture) {
+    if (!fixture || !runner) {
       setError('Upload a test file first.')
       return
     }
     setBusy(true)
+    setProgressDetail(null)
     setError(null)
     try {
-      const result = await runFnskuLabelsPlayground(fixture.file)
+      const result = await runner.run(fixture.file, (p) => {
+        setProgressDetail(p.detail || `${p.percent}%`)
+      })
       setFixture((prev) => (prev ? { ...prev, lastRun: result } : prev))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Test run failed.')
     } finally {
       setBusy(false)
+      setProgressDetail(null)
     }
-  }, [fixture])
+  }, [fixture, runner])
 
   const handleDownload = useCallback(
     (kind: 'excel' | 'pdf' | 'other') => {
@@ -143,6 +147,10 @@ export default function FnskuLabelsToolCard({ tool, userScope, onRemoveTool }: P
     [fixture],
   )
 
+  if (!runner) {
+    return null
+  }
+
   const lastRun = fixture?.lastRun ?? null
 
   return (
@@ -153,7 +161,7 @@ export default function FnskuLabelsToolCard({ tool, userScope, onRemoveTool }: P
             {tool.label}
           </h2>
           <p className="mt-0.5 text-sm text-gray-500 dark:text-content-muted">
-            Same parse → Excel + PDF pipeline as the live tool, without writing label history.
+            {runner.description}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -213,8 +221,8 @@ export default function FnskuLabelsToolCard({ tool, userScope, onRemoveTool }: P
               </div>
             ) : (
               <p className="text-sm text-gray-600 dark:text-content-secondary">
-                Drop an Amazon FBA shipment export here ({tool.acceptHint || FNSKU_PLAYGROUND_ACCEPT}
-                ), or choose a file.
+                Drop a test file here ({runner.acceptHint}), or choose a file — same inputs as the
+                live {tool.label} tool.
               </p>
             )}
 
@@ -222,7 +230,7 @@ export default function FnskuLabelsToolCard({ tool, userScope, onRemoveTool }: P
               <input
                 ref={fileInputRef}
                 type="file"
-                accept={tool.accept || FNSKU_PLAYGROUND_ACCEPT}
+                accept={runner.accept}
                 className="hidden"
                 onChange={(e) => void handleUpload(e.target.files?.[0])}
               />
@@ -254,7 +262,11 @@ export default function FnskuLabelsToolCard({ tool, userScope, onRemoveTool }: P
               onClick={() => void handleRun()}
               className="rounded-lg bg-[#404040] px-4 py-2 text-sm font-medium text-white hover:bg-[#2e2e2e] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white"
             >
-              {busy ? 'Working…' : 'Run test'}
+              {busy
+                ? progressDetail
+                  ? `Running… ${progressDetail}`
+                  : 'Working…'
+                : 'Run test'}
             </button>
             {lastRun?.ok &&
               (lastRun.outputs || []).map((output) => (

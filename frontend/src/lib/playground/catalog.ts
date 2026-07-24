@@ -34,7 +34,7 @@ export const PLAYGROUND_TOOLS: PlaygroundToolDef[] = [
     id: 'tracking-scanner',
     label: 'Tracking Extractor',
     path: '/tracking-scanner',
-    runnerReady: false,
+    runnerReady: true,
     accept: '.pdf,.zip,application/pdf,application/zip,application/x-zip-compressed',
     acceptHint: '.pdf or .zip',
   },
