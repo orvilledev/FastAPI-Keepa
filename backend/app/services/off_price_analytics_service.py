@@ -374,7 +374,16 @@ class OffPriceAnalyticsService:
                     existing_snap = None
                 if existing_snap and str(existing_snap.get("source") or "").lower() != "demo":
                     archived = self.get_archive(period, period_key)
-                if (not archived or not archived.get("vendors")) and offset == 0:
+                # UX-only: when reading live Analytics with no runs yet, show the
+                # latest prior day that has hits. Never do this on persist/fix —
+                # that would attribute another day's totals to today (or rewrite
+                # the prior archive under a mutated period_key).
+                if (
+                    (not archived or not archived.get("vendors"))
+                    and offset == 0
+                    and not persist
+                    and not force_persist
+                ):
                     try:
                         recent = self.snapshots.list_snapshots(
                             period_type="daily", limit=14, exclude_demo=True
@@ -697,8 +706,8 @@ class OffPriceAnalyticsService:
         Compare ground-truth Daily Run ``price_alerts`` counts vs Analytics.
 
         Actual = recount from completed, deduped Daily jobs for the UTC day.
-        Analytics = archived daily snapshot when present; otherwise the live
-        daily summary (same rules as the Analytics page).
+        Analytics = same-day archived snapshot only. Never use the Analytics page
+        prior-day UX fallback (that made empty days look mismatched).
         """
         start, end, label, period_key = period_bounds(
             "daily", offset=offset, reference=reference
@@ -726,9 +735,19 @@ class OffPriceAnalyticsService:
             for v in actual_vendors
         }
 
-        analytics_source = "live"
+        analytics_source = "none"
+        analytics_vendors: List[Dict[str, Any]] = []
+        analytics_total = 0
+        analytics_runs = 0
+
         archived = self.get_archive("daily", period_key)
-        if archived and archived.get("vendors") is not None:
+        # Same calendar day only; ignore demo rows and prior-day fallbacks.
+        if (
+            archived
+            and archived.get("vendors") is not None
+            and str(archived.get("source") or "").lower() != "demo"
+            and str(archived.get("period_key") or "") == period_key
+        ):
             analytics_source = "archive"
             (
                 analytics_vendors,
@@ -740,17 +759,13 @@ class OffPriceAnalyticsService:
                 enabled_map=enabled_map,
                 tracking_map=tracking_map,
             )
-        else:
-            live = self.get_off_price_summary(
-                "daily",
-                offset=offset,
-                persist=False,
-                user_id=None,
-                reference=reference,
-            )
-            analytics_vendors = list(live.get("vendors") or [])
-            analytics_total = int(live.get("total_off_price_count") or 0)
-            analytics_runs = int(live.get("total_run_count") or 0)
+        elif actual_runs > 0:
+            # Runs exist but nothing archived yet — live equals Actual (not a mismatch).
+            analytics_source = "live"
+            analytics_vendors = list(actual_vendors)
+            analytics_total = actual_total
+            analytics_runs = actual_runs
+        # else: no runs and no same-day archive → empty day (0 vs 0)
 
         analytics_by_code = {
             str(v.get("code") or "").lower(): int(v.get("off_price_count") or 0)
@@ -796,6 +811,18 @@ class OffPriceAnalyticsService:
                 }
             )
 
+        if mismatches:
+            message = (
+                f"I found a mismatch between Daily Run off-price hits and Analytics "
+                f"for {label}."
+            )
+        elif actual_runs == 0 and analytics_source == "none":
+            message = (
+                f"No Daily Runs yet for {label}. Nothing to compare — not a mismatch."
+            )
+        else:
+            message = "No mismatch found. Hurray!"
+
         return {
             "period": "daily",
             "period_key": period_key,
@@ -811,14 +838,7 @@ class OffPriceAnalyticsService:
             "analytics_run_count": analytics_runs,
             "jobs_checked": len(jobs),
             "mismatches": mismatches,
-            "message": (
-                "No mismatch found. Hurray!"
-                if not mismatches
-                else (
-                    f"I found a mismatch between Daily Run off-price hits and Analytics "
-                    f"for {label}."
-                )
-            ),
+            "message": message,
         }
 
     def fix_daily_mismatch(
@@ -832,6 +852,21 @@ class OffPriceAnalyticsService:
         force-persist daily plus current week / month / year archives.
         """
         before = self.run_daily_mismatch_test(offset=offset, reference=reference)
+        if not before.get("has_mismatch"):
+            return {
+                "fixed": True,
+                "refreshed": [],
+                "before": before,
+                "after": before,
+                "daily": {
+                    "period_key": before.get("period_key"),
+                    "period_label": before.get("period_label"),
+                    "total_off_price_count": before.get("actual_total"),
+                    "total_run_count": before.get("actual_run_count"),
+                },
+                "message": before.get("message") or "No mismatch to fix.",
+            }
+
         daily = self.get_off_price_summary(
             "daily",
             offset=offset,

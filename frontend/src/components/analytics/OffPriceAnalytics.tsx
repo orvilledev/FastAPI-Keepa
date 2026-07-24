@@ -1093,12 +1093,17 @@ export default function OffPriceAnalytics() {
                       <p className="text-base font-semibold text-emerald-800 dark:text-emerald-300">
                         No Mismatch Found
                       </p>
-                      <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-400">Hurray!</p>
-                      <p className="mt-3 text-xs text-emerald-700/80 dark:text-emerald-400/80">
-                        {mismatchResult.period_label}: {mismatchResult.actual_total.toLocaleString()}{' '}
-                        off-price hits across {mismatchResult.actual_run_count} Daily Run
-                        {mismatchResult.actual_run_count === 1 ? '' : 's'}.
+                      <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-400">
+                        {mismatchResult.actual_run_count === 0 ? mismatchResult.message : 'Hurray!'}
                       </p>
+                      {mismatchResult.actual_run_count > 0 && (
+                        <p className="mt-3 text-xs text-emerald-700/80 dark:text-emerald-400/80">
+                          {mismatchResult.period_label}:{' '}
+                          {mismatchResult.actual_total.toLocaleString()} off-price hits across{' '}
+                          {mismatchResult.actual_run_count} Daily Run
+                          {mismatchResult.actual_run_count === 1 ? '' : 's'}.
+                        </p>
+                      )}
                     </div>
                   )}
 
