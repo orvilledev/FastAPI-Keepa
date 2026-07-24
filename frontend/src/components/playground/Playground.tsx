@@ -148,16 +148,16 @@ export default function Playground() {
     }
   }, [fixture, userScope])
 
-  const handleDownload = useCallback(() => {
-    const run = fixture?.lastRun
-    if (!run?.ok || !run.outputBytes || !run.outputFilename) return
-    downloadBytes(
-      run.outputBytes,
-      run.outputFilename,
-      run.outputMimeType ||
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    )
-  }, [fixture])
+  const handleDownload = useCallback(
+    (kind: 'excel' | 'pdf' | 'other') => {
+      const run = fixture?.lastRun
+      if (!run?.ok) return
+      const output = (run.outputs || []).find((o) => o.kind === kind)
+      if (!output?.bytes || !output.filename) return
+      downloadBytes(output.bytes, output.filename, output.mimeType)
+    },
+    [fixture],
+  )
 
   if (userInfoLoading) {
     return (
@@ -203,7 +203,7 @@ export default function Playground() {
               FNSKU Labels
             </h2>
             <p className="mt-0.5 text-sm text-gray-500 dark:text-content-muted">
-              Same parse → workbook pipeline as the live tool, without writing label history.
+              Same parse → Excel + PDF pipeline as the live tool, without writing label history.
             </p>
           </div>
           <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-surface-muted dark:text-content-secondary">
@@ -285,16 +285,18 @@ export default function Playground() {
               >
                 {busy ? 'Working…' : 'Run test'}
               </button>
-              {lastRun?.ok && lastRun.outputBytes && lastRun.outputFilename && (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={handleDownload}
-                  className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-900 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-800/50 dark:bg-emerald-950/40 dark:text-emerald-200"
-                >
-                  Download output
-                </button>
-              )}
+              {lastRun?.ok &&
+                (lastRun.outputs || []).map((output) => (
+                  <button
+                    key={output.kind}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => handleDownload(output.kind)}
+                    className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-900 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-800/50 dark:bg-emerald-950/40 dark:text-emerald-200"
+                  >
+                    Download {output.label}
+                  </button>
+                ))}
             </div>
 
             {lastRun && (

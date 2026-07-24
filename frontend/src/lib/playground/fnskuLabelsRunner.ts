@@ -1,21 +1,28 @@
 /**
  * Playground runner for FNSKU Labels.
  * Reuses production parsers/generators without writing to production history or APIs.
+ * Live tool offers both Excel and PDF — playground produces both on success.
  */
 
 import {
   FnskuParseError,
+  buildFnskuLabelsPdfBlob,
   buildFnskuLabelsWorkbookBlob,
   parseFnskuSource,
   suggestedFnskuLabelFilename,
+  suggestedFnskuLabelPdfFilename,
   summarizeFnskuShipment,
 } from '../../utils/fnskuLabelGenerator'
-import type { PlaygroundLastRun } from './storage'
+import type { PlaygroundLastRun, PlaygroundOutputFile } from './storage'
 
 export const FNSKU_PLAYGROUND_APP_ID = 'fnsku-labels'
 
 export const FNSKU_PLAYGROUND_ACCEPT =
   '.csv,.xlsx,.xls,.xlsm,.zip,application/zip,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+const EXCEL_MIME =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+const PDF_MIME = 'application/pdf'
 
 export function isFnskuPlaygroundFileAllowed(file: File): boolean {
   return /\.(csv|xlsx|xls|xlsm|zip)$/i.test(file.name)
@@ -26,9 +33,28 @@ export async function runFnskuLabelsPlayground(file: File): Promise<PlaygroundLa
   try {
     const shipment = await parseFnskuSource(file)
     const summary = summarizeFnskuShipment(shipment)
-    const blob = buildFnskuLabelsWorkbookBlob(shipment)
-    const outputBytes = await blob.arrayBuffer()
-    const outputFilename = suggestedFnskuLabelFilename(shipment)
+
+    const excelBlob = buildFnskuLabelsWorkbookBlob(shipment)
+    const pdfBlob = buildFnskuLabelsPdfBlob(shipment)
+    const excelFilename = suggestedFnskuLabelFilename(shipment)
+    const pdfFilename = suggestedFnskuLabelPdfFilename(shipment)
+
+    const outputs: PlaygroundOutputFile[] = [
+      {
+        kind: 'excel',
+        label: 'Excel (.xlsx)',
+        filename: excelFilename,
+        mimeType: EXCEL_MIME,
+        bytes: await excelBlob.arrayBuffer(),
+      },
+      {
+        kind: 'pdf',
+        label: 'PDF',
+        filename: pdfFilename,
+        mimeType: PDF_MIME,
+        bytes: await pdfBlob.arrayBuffer(),
+      },
+    ]
 
     return {
       ok: true,
@@ -41,12 +67,9 @@ export async function runFnskuLabelsPlayground(file: File): Promise<PlaygroundLa
         `SKUs / FNSKUs: ${summary.skuCount}`,
         `Total units: ${summary.computedUnits}`,
         `Source file: ${file.name}`,
-        `Output: ${outputFilename}`,
+        `Outputs: ${excelFilename}; ${pdfFilename}`,
       ],
-      outputFilename,
-      outputBytes,
-      outputMimeType:
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      outputs,
     }
   } catch (err) {
     const message =
@@ -60,7 +83,7 @@ export async function runFnskuLabelsPlayground(file: File): Promise<PlaygroundLa
       message,
       ranAt,
       summaryLines: [`Source file: ${file.name}`],
-      outputFilename: null,
+      outputs: [],
     }
   }
 }

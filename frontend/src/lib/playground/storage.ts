@@ -7,15 +7,25 @@ const DB_NAME = 'msw-playground-v1'
 const DB_VERSION = 1
 const STORE = 'fixtures'
 
+/** Output kinds mirror what the real app can generate. */
+export type PlaygroundOutputKind = 'excel' | 'pdf' | 'other'
+
+export type PlaygroundOutputFile = {
+  kind: PlaygroundOutputKind
+  /** Button / report label, e.g. "Excel (.xlsx)" or "PDF". */
+  label: string
+  filename: string
+  mimeType: string
+  bytes: ArrayBuffer
+}
+
 export type PlaygroundLastRun = {
   ok: boolean
   message: string
   ranAt: string
   summaryLines: string[]
-  outputFilename: string | null
-  /** Present only when the last run succeeded. */
-  outputBytes?: ArrayBuffer
-  outputMimeType?: string
+  /** One entry per generated file type (excel, pdf, or both). */
+  outputs: PlaygroundOutputFile[]
 }
 
 export type PlaygroundFixtureRecord = {
@@ -54,13 +64,75 @@ export function normalizePlaygroundUserScope(email?: string | null): string {
   return normalized || 'anonymous'
 }
 
+/** Normalize older single-file lastRun shapes (if any) into `outputs[]`. */
+export function normalizePlaygroundLastRun(
+  raw: (PlaygroundLastRun & Record<string, unknown>) | null | undefined,
+): PlaygroundLastRun | null {
+  if (!raw) return null
+  if (Array.isArray(raw.outputs)) {
+    return {
+      ok: Boolean(raw.ok),
+      message: String(raw.message || ''),
+      ranAt: String(raw.ranAt || ''),
+      summaryLines: Array.isArray(raw.summaryLines) ? raw.summaryLines.map(String) : [],
+      outputs: raw.outputs as PlaygroundOutputFile[],
+    }
+  }
+  const legacy = raw as {
+    ok?: boolean
+    message?: string
+    ranAt?: string
+    summaryLines?: string[]
+    outputFilename?: string | null
+    outputBytes?: ArrayBuffer
+    outputMimeType?: string
+  }
+  const outputs: PlaygroundOutputFile[] = []
+  if (legacy.ok && legacy.outputBytes && legacy.outputFilename) {
+    const mime =
+      legacy.outputMimeType ||
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    const kind: PlaygroundOutputKind = /\.pdf$/i.test(legacy.outputFilename)
+      ? 'pdf'
+      : /\.xlsx?$/i.test(legacy.outputFilename)
+        ? 'excel'
+        : 'other'
+    outputs.push({
+      kind,
+      label: kind === 'pdf' ? 'PDF' : kind === 'excel' ? 'Excel (.xlsx)' : 'Download',
+      filename: legacy.outputFilename,
+      mimeType: mime,
+      bytes: legacy.outputBytes,
+    })
+  }
+  return {
+    ok: Boolean(legacy.ok),
+    message: String(legacy.message || ''),
+    ranAt: String(legacy.ranAt || ''),
+    summaryLines: Array.isArray(legacy.summaryLines) ? legacy.summaryLines.map(String) : [],
+    outputs,
+  }
+}
+
 async function idbGet(key: string): Promise<PlaygroundFixtureRecord | null> {
   const db = await openDb()
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, 'readonly')
     const req = tx.objectStore(STORE).get(key)
     req.onerror = () => reject(req.error ?? new Error('Playground fixture read failed'))
-    req.onsuccess = () => resolve((req.result as PlaygroundFixtureRecord | undefined) ?? null)
+    req.onsuccess = () => {
+      const row = (req.result as PlaygroundFixtureRecord | undefined) ?? null
+      if (!row) {
+        resolve(null)
+        return
+      }
+      resolve({
+        ...row,
+        lastRun: normalizePlaygroundLastRun(
+          row.lastRun as (PlaygroundLastRun & Record<string, unknown>) | null,
+        ),
+      })
+    }
   })
 }
 
@@ -97,7 +169,6 @@ export async function savePlaygroundFixtureInput(
   file: File,
 ): Promise<PlaygroundFixtureRecord> {
   const bytes = await file.arrayBuffer()
-  const existing = await getPlaygroundFixture(userScope, appId)
   const record: PlaygroundFixtureRecord = {
     key: fixtureKey(userScope, appId),
     userScope,
@@ -107,11 +178,8 @@ export async function savePlaygroundFixtureInput(
     size: file.size,
     uploadedAt: new Date().toISOString(),
     bytes,
-    // Replacing the input clears the previous run/output.
     lastRun: null,
   }
-  // Preserve nothing from existing except we intentionally clear lastRun on replace.
-  void existing
   await idbPut(record)
   return record
 }
@@ -123,7 +191,12 @@ export async function savePlaygroundLastRun(
 ): Promise<PlaygroundFixtureRecord | null> {
   const existing = await getPlaygroundFixture(userScope, appId)
   if (!existing) return null
-  const next: PlaygroundFixtureRecord = { ...existing, lastRun }
+  const next: PlaygroundFixtureRecord = {
+    ...existing,
+    lastRun: normalizePlaygroundLastRun(
+      lastRun as PlaygroundLastRun & Record<string, unknown>,
+    ),
+  }
   await idbPut(next)
   return next
 }
