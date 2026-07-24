@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.database import init_db
-from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, keepa_import_export, analytics, presence
+from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, keepa_import_export, analytics, presence, manifest_generator
 from app.scheduler import setup_scheduler, start_scheduler, shutdown_scheduler
 from app.dependencies import require_app_access
 from app.maintenance import get_maintenance_state
@@ -95,6 +95,14 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=[
+        "Content-Disposition",
+        "X-Manifest-File-Count",
+        "X-Manifest-Primary-Vendor",
+        "X-Manifest-Sku-Count",
+        "X-Manifest-Total-Units",
+        "X-Manifest-Zip-Filename",
+    ],
 )
 
 # Custom exception handler for validation errors
@@ -281,6 +289,7 @@ app.include_router(feedback.router, prefix=settings.api_v1_str, tags=["feedback"
 app.include_router(tracking_scanner.router, prefix=settings.api_v1_str, tags=["tracking-scanner"], dependencies=[Depends(require_app_access)])
 app.include_router(warehouse_products.router, prefix=settings.api_v1_str, tags=["warehouse-products"], dependencies=[Depends(require_app_access)])
 app.include_router(keepa_import_export.router, prefix=settings.api_v1_str, tags=["keepa-import-export"], dependencies=[Depends(require_app_access)])
+app.include_router(manifest_generator.router, prefix=settings.api_v1_str, tags=["manifest-generator"], dependencies=[Depends(require_app_access)])
 # Off-price analytics (web). Electron hides the UI; API remains auth-gated.
 app.include_router(analytics.router, prefix=settings.api_v1_str, tags=["analytics"], dependencies=[Depends(require_app_access)])
 
