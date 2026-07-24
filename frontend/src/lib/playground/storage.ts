@@ -54,7 +54,12 @@ export type PlaygroundSessionFixture = {
 
 export function normalizePlaygroundUserScope(email?: string | null): string {
   const normalized = (email || '').trim().toLowerCase()
-  return normalized || 'anonymous'
+  return normalized
+}
+
+/** True when we have a real signed-in email to isolate playground data. */
+export function isValidPlaygroundUserScope(userScope: string): boolean {
+  return Boolean(userScope) && userScope.includes('@')
 }
 
 function fixtureKey(userScope: string, appId: string): string {
@@ -88,6 +93,7 @@ export async function getPlaygroundStoredInput(
   userScope: string,
   appId: string,
 ): Promise<PlaygroundStoredInput | null> {
+  if (!isValidPlaygroundUserScope(userScope)) return null
   const db = await openDb()
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, 'readonly')
@@ -103,6 +109,9 @@ export async function savePlaygroundStoredInput(
   appId: string,
   file: File,
 ): Promise<PlaygroundStoredInput> {
+  if (!isValidPlaygroundUserScope(userScope)) {
+    throw new Error('Sign in with your email to use a personal playground.')
+  }
   const bytes = await file.arrayBuffer()
   const record: PlaygroundStoredInput = {
     key: fixtureKey(userScope, appId),
@@ -128,6 +137,7 @@ export async function removePlaygroundStoredInput(
   userScope: string,
   appId: string,
 ): Promise<void> {
+  if (!isValidPlaygroundUserScope(userScope)) return
   const db = await openDb()
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite')

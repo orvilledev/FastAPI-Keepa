@@ -11,20 +11,23 @@ import {
 import { FNSKU_PLAYGROUND_APP_ID } from '../../lib/playground/fnskuLabelsRunner'
 import {
   clearLegacyPlaygroundIndexedDb,
+  isValidPlaygroundUserScope,
   normalizePlaygroundUserScope,
 } from '../../lib/playground/storage'
 import FnskuLabelsToolCard from './FnskuLabelsToolCard'
 import PendingToolCard from './PendingToolCard'
 
 /**
- * Testing Playground — pick tools from the sidebar Tools category,
- * upload fixtures (persisted until replaced), run session-only snapshots.
+ * Personal Testing Playground — each allowed user has an independent view.
+ * Fixtures and tool selections are scoped to their signed-in email.
  */
 export default function Playground() {
   const { userInfo, authUser, isSuperadmin, hasKeepaAccess, userInfoLoading } = useUser()
   const email = userInfo?.email || authUser?.email || null
+  const displayName = (userInfo?.display_name || '').trim()
   const allowed = canAccessPlayground(email, isSuperadmin)
   const userScope = useMemo(() => normalizePlaygroundUserScope(email), [email])
+  const scopeReady = isValidPlaygroundUserScope(userScope)
 
   const availableTools = useMemo(
     () => listPlaygroundToolsForUser(hasKeepaAccess),
@@ -41,20 +44,27 @@ export default function Playground() {
   }, [])
 
   useEffect(() => {
-    if (!allowed) return
+    if (!allowed || !scopeReady) {
+      setSelectedIds([])
+      setHydrated(false)
+      return
+    }
+    setHydrated(false)
+    setSelectedIds([])
     const loaded = loadSelectedPlaygroundToolIds(userScope).filter((id) =>
       availableTools.some((t) => t.id === id),
     )
     setSelectedIds(loaded)
     setHydrated(true)
-  }, [allowed, userScope, availableTools])
+  }, [allowed, scopeReady, userScope, availableTools])
 
   const persistSelected = useCallback(
     (ids: string[]) => {
+      if (!scopeReady) return
       setSelectedIds(ids)
       saveSelectedPlaygroundToolIds(userScope, ids)
     },
-    [userScope],
+    [scopeReady, userScope],
   )
 
   const addableTools = useMemo(
@@ -74,6 +84,10 @@ export default function Playground() {
 
   const handleAddTool = () => {
     setPickerError(null)
+    if (!scopeReady) {
+      setPickerError('Sign in with your email to use your personal playground.')
+      return
+    }
     if (!pickerId) {
       setPickerError('Choose a tool from the dropdown.')
       return
@@ -93,7 +107,7 @@ export default function Playground() {
     persistSelected(selectedIds.filter((id) => id !== toolId))
   }
 
-  if (userInfoLoading || (allowed && !hydrated)) {
+  if (userInfoLoading || (allowed && scopeReady && !hydrated)) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#404040] border-t-transparent" />
@@ -105,22 +119,40 @@ export default function Playground() {
     return <Navigate to="/dashboard" replace />
   }
 
+  if (!scopeReady) {
+    return (
+      <div className="mx-auto max-w-3xl rounded-xl border border-amber-200 bg-amber-50 px-4 py-6 text-sm text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-100">
+        Sign in with your email to open your personal Testing Playground. Each allowed user has a
+        separate view and fixtures.
+      </div>
+    )
+  }
+
+  const ownerLabel = displayName || email || userScope
+
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6" key={userScope}>
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-content-primary">
           Testing Playground
         </h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-content-muted">
-          Choose tools from the sidebar Tools category, add them here, then upload fixtures and run
-          tests. Uploaded files stay until replaced; run outputs clear on refresh so each Run test
-          is a fresh snapshot. Does not change Daily Runs, MAP, warehouse data, or live tools.
+          Personal sandbox for <span className="font-medium text-gray-800 dark:text-content-primary">{ownerLabel}</span>
+          {email && displayName ? (
+            <span className="text-gray-500"> ({email})</span>
+          ) : null}
+          . Your tools, uploads, and results are independent from other testers.
         </p>
       </div>
 
+      <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-800/50 dark:bg-sky-950/30 dark:text-sky-100">
+        Individual view — Stephanie, Sunshine, Orville, and other allowed users each keep their own
+        playground data. Switching accounts loads that user’s fixtures and tool set only.
+      </div>
+
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-100">
-        Uploaded files persist across refresh. Test outputs clear on refresh — re-run to check the
-        current app state at that date and time.
+        Uploaded files persist across refresh for you until replaced. Test outputs clear on refresh —
+        re-run for a fresh snapshot of the app at that date and time.
       </div>
 
       <section className="card space-y-3 p-5">
@@ -128,7 +160,7 @@ export default function Playground() {
           Add a tool to test
         </h2>
         <p className="text-sm text-gray-600 dark:text-content-secondary">
-          Same list as the sidebar Tools section (for your access level).
+          Available now: FNSKU Labels and Tracking Extractor.
         </p>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <select
@@ -177,7 +209,7 @@ export default function Playground() {
             if (tool.id === FNSKU_PLAYGROUND_APP_ID && tool.runnerReady) {
               return (
                 <FnskuLabelsToolCard
-                  key={tool.id}
+                  key={`${userScope}::${tool.id}`}
                   tool={tool}
                   userScope={userScope}
                   onRemoveTool={handleRemoveTool}
@@ -186,7 +218,7 @@ export default function Playground() {
             }
             return (
               <PendingToolCard
-                key={tool.id}
+                key={`${userScope}::${tool.id}`}
                 tool={tool}
                 onRemoveTool={handleRemoveTool}
               />

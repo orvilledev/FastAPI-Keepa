@@ -1,6 +1,7 @@
 /**
- * Tools available in the Playground dropdown — mirrors the sidebar TOOLS section
- * (excluding Playground itself).
+ * Tools selectable in the Playground dropdown.
+ * Currently only tools that accept file uploads for sandbox testing:
+ * FNSKU Labels and Tracking Extractor.
  */
 
 export type PlaygroundToolDef = {
@@ -18,21 +19,8 @@ export type PlaygroundToolDef = {
   acceptHint?: string
 }
 
+/** Only these Tools-category apps are offered for playground testing right now. */
 export const PLAYGROUND_TOOLS: PlaygroundToolDef[] = [
-  {
-    id: 'micro-tools',
-    label: 'Micro Tools',
-    path: '/micro-tools',
-    runnerReady: false,
-  },
-  {
-    id: 'tracking-scanner',
-    label: 'Tracking Extractor',
-    path: '/tracking-scanner',
-    runnerReady: false,
-    accept: '.pdf,application/pdf',
-    acceptHint: '.pdf',
-  },
   {
     id: 'fnsku-labels',
     label: 'FNSKU Labels',
@@ -43,18 +31,12 @@ export const PLAYGROUND_TOOLS: PlaygroundToolDef[] = [
     acceptHint: '.csv, .xlsx, or .zip',
   },
   {
-    id: 'keepa-import-export',
-    label: 'Keepa Import File',
-    path: '/keepa-import-export',
-    requiresKeepaAccess: true,
+    id: 'tracking-scanner',
+    label: 'Tracking Extractor',
+    path: '/tracking-scanner',
     runnerReady: false,
-  },
-  {
-    id: 'label-station',
-    label: 'Label Station',
-    path: '/label-station',
-    requiresKeepaAccess: true,
-    runnerReady: false,
+    accept: '.pdf,.zip,application/pdf,application/zip,application/x-zip-compressed',
+    acceptHint: '.pdf or .zip',
   },
 ]
 
@@ -70,13 +52,22 @@ export function listPlaygroundToolsForUser(hasKeepaAccess: boolean): PlaygroundT
 
 const SELECTED_KEY_PREFIX = 'msw-playground-selected-tools-v1:'
 
+function selectedToolsStorageKey(userScope: string): string {
+  return `${SELECTED_KEY_PREFIX}${userScope.trim().toLowerCase()}`
+}
+
 export function loadSelectedPlaygroundToolIds(userScope: string): string[] {
+  const scope = (userScope || '').trim().toLowerCase()
+  if (!scope.includes('@')) return []
   try {
-    const raw = localStorage.getItem(`${SELECTED_KEY_PREFIX}${userScope}`)
+    const raw = localStorage.getItem(selectedToolsStorageKey(scope))
     if (!raw) return []
     const parsed = JSON.parse(raw) as unknown
     if (!Array.isArray(parsed)) return []
-    return parsed.filter((id): id is string => typeof id === 'string')
+    const allowed = new Set(PLAYGROUND_TOOLS.map((t) => t.id))
+    return parsed.filter(
+      (id): id is string => typeof id === 'string' && allowed.has(id),
+    )
   } catch {
     return []
   }
@@ -86,11 +77,12 @@ export function saveSelectedPlaygroundToolIds(
   userScope: string,
   ids: string[],
 ): void {
+  const scope = (userScope || '').trim().toLowerCase()
+  if (!scope.includes('@')) return
   try {
-    localStorage.setItem(
-      `${SELECTED_KEY_PREFIX}${userScope}`,
-      JSON.stringify(ids),
-    )
+    const allowed = new Set(PLAYGROUND_TOOLS.map((t) => t.id))
+    const cleaned = ids.filter((id) => allowed.has(id))
+    localStorage.setItem(selectedToolsStorageKey(scope), JSON.stringify(cleaned))
   } catch {
     /* ignore quota / private mode */
   }
