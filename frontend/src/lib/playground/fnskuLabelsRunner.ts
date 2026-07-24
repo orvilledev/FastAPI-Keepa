@@ -61,6 +61,7 @@ export async function runFnskuLabelsPlayground(file: File): Promise<PlaygroundLa
       message: 'Testing successful',
       ranAt,
       summaryLines: [
+        `Test time: ${new Date(ranAt).toLocaleString()}`,
         `Shipment: ${summary.shipmentId || '—'}`,
         `Name: ${summary.shipmentName || '—'}`,
         `Boxes: ${summary.boxCount}`,
@@ -82,7 +83,10 @@ export async function runFnskuLabelsPlayground(file: File): Promise<PlaygroundLa
       ok: false,
       message,
       ranAt,
-      summaryLines: [`Source file: ${file.name}`],
+      summaryLines: [
+        `Test time: ${new Date(ranAt).toLocaleString()}`,
+        `Source file: ${file.name}`,
+      ],
       outputs: [],
     }
   }
