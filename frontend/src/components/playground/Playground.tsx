@@ -163,7 +163,7 @@ export default function Playground() {
           Add a tool to test
         </h2>
         <p className="text-sm text-gray-600 dark:text-content-secondary">
-          Available now: FNSKU Labels and Tracking Extractor.
+          Available now: FNSKU Labels, Tracking Extractor, and Manifest Generator.
         </p>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <select

@@ -10,6 +10,12 @@ import {
   isFnskuPlaygroundFileAllowed,
   runFnskuLabelsPlayground,
 } from './fnskuLabelsRunner'
+import {
+  MANIFEST_PLAYGROUND_ACCEPT,
+  MANIFEST_PLAYGROUND_APP_ID,
+  isManifestPlaygroundFileAllowed,
+  runManifestGeneratorPlayground,
+} from './manifestGeneratorRunner'
 import type { PlaygroundLastRun } from './storage'
 import {
   TRACKING_PLAYGROUND_ACCEPT,
@@ -61,6 +67,15 @@ export const PLAYGROUND_RUNNERS: Record<string, PlaygroundToolRunner> = {
             : `${p.percent}%`,
         })
       }),
+  },
+  [MANIFEST_PLAYGROUND_APP_ID]: {
+    appId: MANIFEST_PLAYGROUND_APP_ID,
+    description:
+      'Same packing-sheet → Amazon STA pack-group zip pipeline as the live tool.',
+    accept: MANIFEST_PLAYGROUND_ACCEPT,
+    acceptHint: '.xlsx or .xlsm',
+    isFileAllowed: isManifestPlaygroundFileAllowed,
+    run: async (file) => runManifestGeneratorPlayground(file),
   },
 }
 

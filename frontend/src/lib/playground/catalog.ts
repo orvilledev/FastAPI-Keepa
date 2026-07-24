@@ -1,7 +1,7 @@
 /**
  * Tools selectable in the Playground dropdown.
  * Currently only tools that accept file uploads for sandbox testing:
- * FNSKU Labels and Tracking Extractor.
+ * FNSKU Labels, Tracking Extractor, and Manifest Generator.
  */
 
 export type PlaygroundToolDef = {
@@ -37,6 +37,15 @@ export const PLAYGROUND_TOOLS: PlaygroundToolDef[] = [
     runnerReady: true,
     accept: '.pdf,.zip,application/pdf,application/zip,application/x-zip-compressed',
     acceptHint: '.pdf or .zip',
+  },
+  {
+    id: 'manifest-generator',
+    label: 'Manifest Generator',
+    path: '/manifest-generator',
+    runnerReady: true,
+    accept:
+      '.xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12',
+    acceptHint: '.xlsx or .xlsm',
   },
 ]
 

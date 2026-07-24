@@ -1,6 +1,6 @@
 /**
  * Playground access — selected users only.
- * Frontend gate only; playground runs locally and does not call production write APIs.
+ * Frontend gate only; playground runners do not write production history.
  */
 
 /** Same initial roster as Analytics; expand as more testers are added. */
