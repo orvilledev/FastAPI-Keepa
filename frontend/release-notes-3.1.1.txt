@@ -1,0 +1,25 @@
+MSW Overwatch 3.1.1 — desktop and web release
+
+Patch release with reliability fixes since 3.1.0. Installers and auto-update use GitHub Releases; existing desktop users can use **Check for Updates** in the sidebar or About page.
+
+## Daily Runs
+- Same-day Daily Run emails work for each new import job (not only the first)
+- Analytics archives merge new same-day runs instead of hiding them
+- Snapshots still refresh when a Daily Run has no email recipients
+
+## Off-Price Analytics (web only)
+- Faster Live Analytics via snapshot bootstrap
+- Mismatch test no longer false-flags days with no Daily Runs yet
+- Live Preview hang / empty-after-wipe fixes; Express Clear no longer wipes archives
+- One Daily Run counted per vendor per day; vendor rows stay collapsed on first load
+- Demo mode retired — live Daily Run data is the default
+
+## Email recipients
+- Recipient picker no longer saves phantom selections
+- Cleared recipient lists persist correctly
+
+## Sessions
+- Live app sessions show names for everyone, with email-local fallback
+
+## Upgrade from 3.1.0
+Windows desktop: open MSW Overwatch → sidebar **Check for Updates**, or About → **Check for Updates**. Web/PWA users get 3.1.1 on the next deploy/refresh.
