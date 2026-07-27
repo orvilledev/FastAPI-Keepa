@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from pytz import timezone as pytz_timezone
@@ -30,6 +30,7 @@ from app.api.scheduler import (
 )
 from app.database import get_supabase
 from app.dependencies import get_admin_user, get_keepa_access_user
+from app.services.audit_log_service import record_audit_event
 from app.keepa_import_scheduler import (
     _job_id as keepa_import_job_id,
     update_keepa_import_scheduler,
@@ -742,6 +743,7 @@ async def get_keepa_import_global_busy(
 @handle_api_errors("download keepa import build history file")
 def download_keepa_import_build_history(
     build_id: str,
+    request: Request,
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase),
 ):
@@ -761,6 +763,19 @@ def download_keepa_import_build_history(
     if not file_bytes or not filename:
         raise HTTPException(status_code=500, detail="Build file is missing.")
 
+    record_audit_event(
+        db,
+        action="keepa_download",
+        current_user=current_user,
+        request=request,
+        detail=f"Downloaded Keepa Import history file: {filename}",
+        metadata={
+            "build_id": build_id,
+            "filename": filename,
+            "category": row.get("category"),
+            "source": "history",
+        },
+    )
     return _streaming_excel_response(file_bytes, filename)
 
 
@@ -890,6 +905,7 @@ async def cancel_keepa_import_build(
 @handle_api_errors("download keepa import build file")
 async def download_keepa_import_build(
     build_id: str,
+    request: Request,
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase),
 ):
@@ -904,6 +920,19 @@ async def download_keepa_import_build(
                 detail=build.error or "Build failed.",
             )
         if build.file_bytes and build.filename:
+            record_audit_event(
+                db,
+                action="keepa_download",
+                current_user=current_user,
+                request=request,
+                detail=f"Downloaded Keepa Import file: {build.filename}",
+                metadata={
+                    "build_id": build_id,
+                    "filename": build.filename,
+                    "category": getattr(build, "category", None),
+                    "source": "live",
+                },
+            )
             return _streaming_excel_response(build.file_bytes, build.filename)
 
     repo = KeepaImportBuildHistoryRepository(db)
@@ -921,6 +950,19 @@ async def download_keepa_import_build(
     if not file_bytes or not filename:
         raise HTTPException(status_code=500, detail="Build file is missing.")
 
+    record_audit_event(
+        db,
+        action="keepa_download",
+        current_user=current_user,
+        request=request,
+        detail=f"Downloaded Keepa Import file: {filename}",
+        metadata={
+            "build_id": build_id,
+            "filename": filename,
+            "category": row.get("category"),
+            "source": "history_fallback",
+        },
+    )
     return _streaming_excel_response(file_bytes, filename)
 
 
@@ -962,6 +1004,7 @@ async def start_keepa_import_export_build(
 @handle_api_errors("download keepa import export file")
 async def download_keepa_import_export(
     category: str,
+    request: Request,
     include_header: bool = True,
     current_user: dict = Depends(get_keepa_access_user),
     db: Client = Depends(get_supabase),
@@ -985,6 +1028,19 @@ async def download_keepa_import_export(
     )
 
     filename = f"{cat.upper()}_Keepa_{datetime.now().strftime('%m.%d.%y')}.xlsx"
+    record_audit_event(
+        db,
+        action="keepa_download",
+        current_user=current_user,
+        request=request,
+        detail=f"Downloaded Keepa Import file: {filename}",
+        metadata={
+            "filename": filename,
+            "category": cat,
+            "source": "sync",
+            "upc_count": len(upcs),
+        },
+    )
     return StreamingResponse(
         BytesIO(file_bytes),
         media_type=_EXCEL_MEDIA_TYPE,

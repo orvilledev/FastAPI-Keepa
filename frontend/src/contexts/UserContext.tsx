@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, Re
 import { supabase } from '../lib/supabase'
 import { authApi, invalidateAuthTokenCache } from '../services/api'
 import { clearMfaActivity, getMfaExemptEmails, isMfaAuthRoute, isMfaExemptEmail, redirectForIncompleteMfa } from '../lib/mfa'
+import { recordWebAuditEvent } from '../lib/auditEvents'
 import { DEV_BYPASS_AUTH_USER, DEV_BYPASS_USER_INFO, isDevAuthBypass } from '../lib/devAuth'
 
 // Extended user info from API
@@ -219,6 +220,7 @@ function UserProviderAuthenticated({ children }: UserProviderProps) {
   }, [authUser?.id, authLoading, syncProfileAfterAuth])
 
   const signOut = async () => {
+    await recordWebAuditEvent('logout')
     await supabase.auth.signOut()
     setUserInfo(null)
     profileLoadedForUserId.current = null

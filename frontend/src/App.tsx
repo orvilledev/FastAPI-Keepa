@@ -64,6 +64,7 @@ const ManifestGenerator = lazy(() => import('./components/tools/ManifestGenerato
 const LabelStation = lazy(() => import('./components/scanner/LabelStation'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
+const AuditLog = lazy(() => import('./components/admin/AuditLog'))
 const Feedback = lazy(() => import('./components/feedback/Feedback'))
 const OffPriceAnalytics = lazy(() => import('./components/analytics/OffPriceAnalytics'))
 const Playground = lazy(() => import('./components/playground/Playground'))
@@ -443,6 +444,7 @@ function AppRoutes() {
           <Route path="tools/job-aids" element={<Navigate to="/faq" replace />} />
           <Route path="tools/my-toolbox" element={<Navigate to="/dashboard" replace />} />
           <Route path="admin/users" element={<UserManagement />} />
+          <Route path="admin/audit-log" element={<AuditLog />} />
           {isWebAnalyticsEnabled() && (
             <Route
               path="analytics"

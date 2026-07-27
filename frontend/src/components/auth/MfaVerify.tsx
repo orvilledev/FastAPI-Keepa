@@ -13,6 +13,7 @@ import {
 import { getLastPrivatePath } from '../../lib/privatePath'
 import { supabase } from '../../lib/supabase'
 import { useUser } from '../../contexts/UserContext'
+import { recordWebAuditEvent } from '../../lib/auditEvents'
 
 export default function MfaVerify() {
   const navigate = useNavigate()
@@ -94,6 +95,9 @@ export default function MfaVerify() {
     // Reset the idle clock now that the user re-verified.
     recordMfaActivity()
     await refetchUserInfo()
+    if (!isIdleReverify) {
+      void recordWebAuditEvent('login')
+    }
     const lastPrivatePath = getLastPrivatePath()
     const destination =
       isIdleReverify && lastPrivatePath && lastPrivatePath !== '/' ? lastPrivatePath : '/dashboard'

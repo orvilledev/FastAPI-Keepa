@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
 import { isMfaAuthRoute, redirectForIncompleteMfa } from '../lib/mfa'
+import { isElectronDesktop } from '../lib/privatePath'
 import type {
   MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, MicroToolRecord, JobAid, Notification, ComprehensiveReportRow, SellerName, CliChatSession, CliChatMessage, TrackingHistorySummary, TrackingHistoryDetail, TrackingScannerRow,
   WarehouseProductLookup, WarehouseProductImportResult, WarehouseProduct } from '../types'
@@ -95,6 +96,11 @@ api.interceptors.request.use(async (config) => {
   
   if (cachedToken) {
     config.headers.Authorization = `Bearer ${cachedToken}`
+  }
+
+  // Distinguish web vs Electron so server-side audit can stay web-app-only.
+  if (config.headers) {
+    config.headers['X-Client-Type'] = isElectronDesktop() ? 'electron' : 'web'
   }
 
   // Let axios/browser set multipart boundary automatically for FormData.
@@ -277,6 +283,38 @@ export const authApi = {
         created_at: string
       }>
     }>('/api/v1/auth/presence/sessions')
+    return response.data
+  },
+  recordAuditEvent: async (action: 'login' | 'logout', detail?: string) => {
+    const response = await api.post<{ ok: boolean; recorded: boolean }>(
+      '/api/v1/audit/events',
+      { action, detail },
+    )
+    return response.data
+  },
+  listAuditEvents: async (params?: { limit?: number; action?: string }) => {
+    const response = await api.get<{
+      logs: Array<{
+        id: string | null
+        action: string
+        user_id: string | null
+        user_display_name: string | null
+        user_email: string | null
+        client_type: string
+        ip_address: string | null
+        detail: string | null
+        metadata: Record<string, unknown>
+        created_at: string | null
+      }>
+      available: boolean
+      detail?: string
+    }>('/api/v1/audit/events', {
+      params: {
+        limit: params?.limit ?? 100,
+        ...(params?.action ? { action: params.action } : {}),
+        client_type: 'web',
+      },
+    })
     return response.data
   },
   updateProfile: async (profileData: any) => {

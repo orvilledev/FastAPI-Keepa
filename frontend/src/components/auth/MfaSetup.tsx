@@ -13,6 +13,7 @@ import {
 import { supabase } from '../../lib/supabase'
 import { useUser } from '../../contexts/UserContext'
 import TotpQrCode from './TotpQrCode'
+import { recordWebAuditEvent } from '../../lib/auditEvents'
 
 export default function MfaSetup() {
   const navigate = useNavigate()
@@ -93,6 +94,7 @@ export default function MfaSetup() {
       await authApi.confirmMfaEnrollment()
       recordMfaActivity()
       await refetchUserInfo()
+      void recordWebAuditEvent('login', 'Completed MFA setup')
       navigate('/dashboard', { replace: true })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Invalid verification code'

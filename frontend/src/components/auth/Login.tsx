@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { fetchMfaStatus, shouldSkipMfaForEmail, shouldShowMfaSetup, shouldShowMfaVerify } from '../../lib/mfa'
+import { recordWebAuditEvent } from '../../lib/auditEvents'
 import ThemeSelector from '../common/ThemeSelector'
 import AppLogo from '../common/AppLogo'
 import { WAREHOUSE_HOME_PATH } from '../../constants/warehouseAccess'
@@ -36,12 +37,14 @@ export default function Login() {
       }
       return false
     }
+    void recordWebAuditEvent('login')
     navigate('/dashboard')
     return true
   }
 
   const routeAfterPasswordSignIn = async () => {
     if (await shouldSkipMfaForEmail(email)) {
+      void recordWebAuditEvent('login', 'Warehouse MFA-exempt sign-in')
       navigate(WAREHOUSE_HOME_PATH)
       return
     }

@@ -13,6 +13,7 @@ from app.scheduler import (
     cancel_same_day_run,
 )
 from app.database import get_supabase
+from app.services.audit_log_service import record_audit_event
 from app.services.daily_run_completion import uploaded_daily_run_in_progress
 from app.utils.error_handler import handle_api_errors
 from datetime import datetime, timedelta, timezone as dt_timezone
@@ -965,6 +966,20 @@ async def upload_scheduler_report(
         raise HTTPException(status_code=500, detail="Failed to create uploaded report record")
 
     background_tasks.add_task(_process_uploaded_report_in_background, report_id, filename, raw)
+
+    record_audit_event(
+        db,
+        action="keepa_upload",
+        current_user=current_user,
+        request=request,
+        detail=f"Uploaded Keepa report for {category.upper()}: {filename}",
+        metadata={
+            "category": category,
+            "filename": filename,
+            "report_id": report_id,
+            "bytes": len(raw),
+        },
+    )
 
     return {
         "message": "Uploaded report accepted. Parsing in progress.",
