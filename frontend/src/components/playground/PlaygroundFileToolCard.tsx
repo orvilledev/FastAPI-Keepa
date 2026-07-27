@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PlaygroundToolDef } from '../../lib/playground/catalog'
+import { auditAction } from '../../lib/auditEvents'
 import { getPlaygroundRunner } from '../../lib/playground/runners'
 import {
   formatBytes,
@@ -83,6 +84,11 @@ export default function PlaygroundFileToolCard({
       try {
         const stored = await savePlaygroundStoredInput(userScope, tool.id, file)
         setFixture(storedInputToSessionFixture(stored))
+        auditAction(
+          'playground.fixture_upload',
+          `Uploaded a ${tool.label} playground test file: ${file.name}`,
+          { tool: tool.id, filename: file.name, bytes: file.size },
+        )
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Upload failed.')
       } finally {
@@ -108,6 +114,11 @@ export default function PlaygroundFileToolCard({
       await removePlaygroundStoredInput(userScope, tool.id)
       setFixture(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
+      auditAction(
+        'playground.fixture_remove',
+        `Removed the ${tool.label} playground test file`,
+        { tool: tool.id },
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not remove fixture.')
     } finally {
@@ -128,8 +139,18 @@ export default function PlaygroundFileToolCard({
         setProgressDetail(p.detail || `${p.percent}%`)
       })
       setFixture((prev) => (prev ? { ...prev, lastRun: result } : prev))
+      auditAction(
+        'playground.run',
+        `Ran the ${tool.label} playground test: ${result.ok ? 'successful' : 'failed'}`,
+        { tool: tool.id, filename: fixture.filename, ok: result.ok },
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Test run failed.')
+      auditAction('playground.run', `Ran the ${tool.label} playground test: failed`, {
+        tool: tool.id,
+        filename: fixture.filename,
+        ok: false,
+      })
     } finally {
       setBusy(false)
       setProgressDetail(null)
@@ -143,8 +164,13 @@ export default function PlaygroundFileToolCard({
       const output = (run.outputs || []).find((o) => o.kind === kind)
       if (!output?.bytes || !output.filename) return
       downloadBytes(output.bytes, output.filename, output.mimeType)
+      auditAction(
+        'playground.download',
+        `Downloaded a ${tool.label} playground output: ${output.filename}`,
+        { tool: tool.id, kind, filename: output.filename },
+      )
     },
-    [fixture],
+    [fixture, tool.id, tool.label],
   )
 
   if (!runner) {

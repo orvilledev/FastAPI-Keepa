@@ -18,6 +18,7 @@ import {
   listFnskuLabelHistory,
   type FnskuLabelHistoryEntry,
 } from '../../utils/fnskuLabelHistory'
+import { auditAction } from '../../lib/auditEvents'
 
 const ACCEPTED =
   '.csv,.xlsx,.xls,.xlsm,.zip,text/csv,application/vnd.ms-excel,' +
@@ -174,6 +175,11 @@ export default function FNSKULabelGenerator() {
         if (result.shipment) {
           recordHistory(result.file.name, result.shipment)
         }
+        auditAction(
+          'fnsku.parse',
+          `Loaded ${result.file.name} into FNSKU Labels${result.shipment ? '' : ' (failed)'}`,
+          { filename: result.file.name, ok: Boolean(result.shipment) },
+        )
       })
     },
     [parseFile, recordHistory]
@@ -198,6 +204,10 @@ export default function FNSKULabelGenerator() {
     const blob = buildFnskuLabelsWorkbookBlob(shipment)
     const filename = suggestedFnskuLabelFilename(shipment)
     downloadBlob(blob, filename)
+    auditAction('fnsku.download', `Downloaded FNSKU labels workbook: ${filename}`, {
+      filename,
+      format: 'xlsx',
+    })
     return filename
   }, [])
 
@@ -205,6 +215,10 @@ export default function FNSKULabelGenerator() {
     const blob = buildFnskuLabelsPdfBlob(shipment)
     const filename = suggestedFnskuLabelPdfFilename(shipment)
     downloadBlob(blob, filename)
+    auditAction('fnsku.download', `Downloaded FNSKU labels PDF: ${filename}`, {
+      filename,
+      format: 'pdf',
+    })
     return filename
   }, [])
 
@@ -287,6 +301,7 @@ export default function FNSKULabelGenerator() {
       try {
         deleteFnskuLabelHistoryEntry(id)
         setHistory((prev) => prev.filter((item) => item.id !== id))
+        auditAction('fnsku.history_delete', 'Deleted an FNSKU Labels history record')
       } catch {
         setGlobalError('Could not delete selected history record.')
       } finally {
@@ -304,6 +319,7 @@ export default function FNSKULabelGenerator() {
       clearFnskuLabelHistory()
       setHistory([])
       setGlobalSuccess('History cleared.')
+      auditAction('fnsku.history_clear', 'Cleared all FNSKU Labels history')
     } catch {
       setGlobalError('Could not clear history.')
     } finally {

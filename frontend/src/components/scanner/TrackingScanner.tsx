@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { exportRowsToExcelBlob } from '../../utils/trackingExtractor'
 import { useUser } from '../../contexts/UserContext'
 import { useTrackingScan } from '../../contexts/TrackingScanContext'
+import { auditAction } from '../../lib/auditEvents'
 
 const ACCEPTED = '.pdf,.zip,application/pdf,application/zip,application/x-zip-compressed'
 
@@ -74,6 +75,11 @@ export default function TrackingScanner() {
       const filename = suggestedExcelFilename()
       downloadBlob(blob, filename)
       setSuccess(`Exported ${rows.length} row(s) to ${filename}.`)
+      auditAction(
+        'tracking.export_excel',
+        `Exported ${rows.length} Tracking Extractor row(s) to ${filename}`,
+        { filename, rows: rows.length },
+      )
     } catch (err: unknown) {
       const detail =
         (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data

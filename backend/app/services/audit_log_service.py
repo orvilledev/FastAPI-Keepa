@@ -8,6 +8,7 @@ from fastapi import Request
 from supabase import Client
 
 from app.repositories.audit_log_repository import AuditLogRepository
+from app.services.audit_actions import category_for
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +76,10 @@ def record_audit_event(
     current_user: dict,
     request: Optional[Request] = None,
     detail: Optional[str] = None,
+    label: Optional[str] = None,
+    category: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
+    status_code: Optional[int] = None,
     client_type: Optional[str] = None,
     web_only: bool = True,
 ) -> Optional[Dict[str, Any]]:
@@ -92,11 +96,16 @@ def record_audit_event(
         repo = AuditLogRepository(db)
         return repo.record(
             action=action,
+            category=category or category_for(action) or "other",
+            label=label or detail,
             user_id=str(current_user["id"]) if current_user.get("id") else None,
             user_display_name=display_name_for_user(current_user, db),
             user_email=current_user.get("email"),
             client_type=resolved_client,
             ip_address=client_ip(request),
+            method=request.method if request is not None else None,
+            path=str(request.url.path) if request is not None else None,
+            status_code=status_code,
             detail=detail,
             metadata=metadata,
         )

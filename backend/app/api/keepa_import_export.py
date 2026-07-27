@@ -765,7 +765,8 @@ def download_keepa_import_build_history(
 
     record_audit_event(
         db,
-        action="keepa_download",
+        action="keepa.download",
+        category="download",
         current_user=current_user,
         request=request,
         detail=f"Downloaded Keepa Import history file: {filename}",
@@ -922,7 +923,8 @@ async def download_keepa_import_build(
         if build.file_bytes and build.filename:
             record_audit_event(
                 db,
-                action="keepa_download",
+                action="keepa.download",
+                category="download",
                 current_user=current_user,
                 request=request,
                 detail=f"Downloaded Keepa Import file: {build.filename}",
@@ -952,7 +954,8 @@ async def download_keepa_import_build(
 
     record_audit_event(
         db,
-        action="keepa_download",
+        action="keepa.download",
+        category="download",
         current_user=current_user,
         request=request,
         detail=f"Downloaded Keepa Import file: {filename}",
@@ -1030,7 +1033,8 @@ async def download_keepa_import_export(
     filename = f"{cat.upper()}_Keepa_{datetime.now().strftime('%m.%d.%y')}.xlsx"
     record_audit_event(
         db,
-        action="keepa_download",
+        action="keepa.download",
+        category="download",
         current_user=current_user,
         request=request,
         detail=f"Downloaded Keepa Import file: {filename}",

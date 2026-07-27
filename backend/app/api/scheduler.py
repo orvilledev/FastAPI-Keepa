@@ -969,7 +969,8 @@ async def upload_scheduler_report(
 
     record_audit_event(
         db,
-        action="keepa_upload",
+        action="keepa.upload",
+        category="upload",
         current_user=current_user,
         request=request,
         detail=f"Uploaded Keepa report for {category.upper()}: {filename}",

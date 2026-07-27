@@ -15,6 +15,7 @@ import {
   type TrackingScannerAggregateResponse,
 } from '../utils/trackingExtractor'
 import { trackingScannerApi } from '../services/api'
+import { auditAction } from '../lib/auditEvents'
 import { useUser } from './UserContext'
 import type { TrackingHistorySummary } from '../types'
 
@@ -147,6 +148,17 @@ export function TrackingScanProvider({ children }: { children: ReactNode }) {
         matched: result.matched_count,
         needsReview: result.needs_review_count,
       })
+      auditAction(
+        'tracking.scan_browser',
+        `Scanned ${result.file_count} PDF(s) with the Tracking Extractor: ` +
+          `${result.pair_count} pair(s), ${result.matched_count} matched`,
+        {
+          files: result.file_count,
+          sources: result.source_count,
+          pairs: result.pair_count,
+          matched: result.matched_count,
+        },
+      )
       try {
         const saved = await trackingScannerApi.saveHistory({
           name: `Scan ${new Date().toLocaleString()}`,
@@ -177,6 +189,10 @@ export function TrackingScanProvider({ children }: { children: ReactNode }) {
         (err as { message?: string })?.message ||
         'Failed to scan files.'
       setError(typeof detail === 'string' ? detail : 'Failed to scan files.')
+      auditAction('tracking.scan_browser', 'Tracking Extractor scan failed', {
+        files: files.length,
+        ok: false,
+      })
     } finally {
       setScanning(false)
       setScanProgress(null)

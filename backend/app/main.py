@@ -10,6 +10,7 @@ from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_
 from app.scheduler import setup_scheduler, start_scheduler, shutdown_scheduler
 from app.dependencies import require_app_access
 from app.maintenance import get_maintenance_state
+from app.middleware.audit_logger import AuditLogMiddleware
 from app.middleware.rate_limiter import limiter, log_rate_limit_exceeded, RATE_LIMIT_ERROR_MESSAGE
 import logging
 import json
@@ -104,6 +105,10 @@ app.add_middleware(
         "X-Manifest-Zip-Filename",
     ],
 )
+
+# Records mutating requests and downloads for the superadmin audit log. Added
+# after CORS so preflight requests are answered before reaching it.
+app.add_middleware(AuditLogMiddleware)
 
 # Custom exception handler for validation errors
 @app.exception_handler(RequestValidationError)

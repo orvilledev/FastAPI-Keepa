@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useUser } from '../../contexts/UserContext'
+import { auditAction } from '../../lib/auditEvents'
 import { canAccessPlayground } from '../../lib/playground/access'
 import {
   getPlaygroundTool,
@@ -101,10 +102,20 @@ export default function Playground() {
       return
     }
     persistSelected([...selectedIds, pickerId])
+    auditAction(
+      'playground.tool_add',
+      `Added ${getPlaygroundTool(pickerId)?.label || pickerId} to the playground`,
+      { tool: pickerId },
+    )
   }
 
   const handleRemoveTool = (toolId: string) => {
     persistSelected(selectedIds.filter((id) => id !== toolId))
+    auditAction(
+      'playground.tool_remove',
+      `Removed ${getPlaygroundTool(toolId)?.label || toolId} from the playground`,
+      { tool: toolId },
+    )
   }
 
   if (userInfoLoading || (allowed && scopeReady && !hydrated)) {

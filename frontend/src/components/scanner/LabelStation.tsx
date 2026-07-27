@@ -29,6 +29,7 @@ import {
   buildWarehouseProductsTemplateBlob,
   WAREHOUSE_PRODUCTS_TEMPLATE_FILENAME,
 } from '../../utils/warehouseProductTemplate'
+import { auditAction } from '../../lib/auditEvents'
 
 const ACCEPTED_IMPORT =
   '.csv,.xlsx,.xls,.xlsm,text/csv,application/vnd.ms-excel,' +
@@ -224,6 +225,11 @@ export default function LabelStation() {
             throw new Error(result.message || 'Print failed')
           }
           setMessage(`Sent ${quantity} label(s) to ${printerName}.`)
+          auditAction(
+            'label_station.print',
+            `Printed ${quantity} label(s) for ${item.upc} on ${printerName}`,
+            { upc: item.upc, quantity, printer: printerName },
+          )
         } else if (isElectron) {
           printerName = (await refreshPrinters()).trim()
           if (printerName && window.desktop?.printZpl) {
@@ -232,12 +238,23 @@ export default function LabelStation() {
               throw new Error(result.message || 'Print failed')
             }
             setMessage(`Sent ${quantity} label(s) to ${printerName}.`)
+            auditAction(
+              'label_station.print',
+              `Printed ${quantity} label(s) for ${item.upc} on ${printerName}`,
+              { upc: item.upc, quantity, printer: printerName },
+            )
           } else {
             throw new Error('No printer selected. Connect a Zebra printer and pick it below.')
           }
         } else {
           const blob = buildWarehouseLabelPdfBlob(item, quantity, selectedDpi, selectedSize)
-          downloadBlob(blob, suggestedWarehouseLabelPdfFilename(item))
+          const pdfFilename = suggestedWarehouseLabelPdfFilename(item)
+          downloadBlob(blob, pdfFilename)
+          auditAction(
+            'label_station.download_pdf',
+            `Downloaded ${quantity} label(s) as ${pdfFilename}`,
+            { upc: item.upc, quantity, filename: pdfFilename },
+          )
           setMessage(
             `Downloaded PDF (${quantity} label(s)). Open the desktop app for direct Zebra printing.`
           )
@@ -646,6 +663,10 @@ export default function LabelStation() {
             onClick={() => {
               const blob = buildWarehouseProductsTemplateBlob()
               downloadBlob(blob, WAREHOUSE_PRODUCTS_TEMPLATE_FILENAME)
+              auditAction(
+                'label_station.template_download',
+                `Downloaded ${WAREHOUSE_PRODUCTS_TEMPLATE_FILENAME}`,
+              )
             }}
             className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100"
           >

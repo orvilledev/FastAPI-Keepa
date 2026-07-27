@@ -28,6 +28,24 @@ export function getApiBaseUrl(): string {
   return API_URL
 }
 
+export interface AuditLogEntry {
+  id: string | null
+  action: string
+  category: string
+  label: string | null
+  user_id: string | null
+  user_display_name: string | null
+  user_email: string | null
+  client_type: string
+  ip_address: string | null
+  method: string | null
+  path: string | null
+  status_code: number | null
+  detail: string | null
+  metadata: Record<string, unknown>
+  created_at: string | null
+}
+
 function redirectToLogin(): void {
   if (typeof window === 'undefined') return
   if (window.location.protocol === 'file:') {
@@ -285,33 +303,34 @@ export const authApi = {
     }>('/api/v1/auth/presence/sessions')
     return response.data
   },
-  recordAuditEvent: async (action: 'login' | 'logout', detail?: string) => {
+  recordAuditEvent: async (
+    action: string,
+    detail?: string,
+    metadata?: Record<string, unknown>,
+  ) => {
     const response = await api.post<{ ok: boolean; recorded: boolean }>(
       '/api/v1/audit/events',
-      { action, detail },
+      { action, detail, metadata },
     )
     return response.data
   },
-  listAuditEvents: async (params?: { limit?: number; action?: string }) => {
+  listAuditEvents: async (params?: {
+    limit?: number
+    action?: string
+    category?: string
+    search?: string
+  }) => {
     const response = await api.get<{
-      logs: Array<{
-        id: string | null
-        action: string
-        user_id: string | null
-        user_display_name: string | null
-        user_email: string | null
-        client_type: string
-        ip_address: string | null
-        detail: string | null
-        metadata: Record<string, unknown>
-        created_at: string | null
-      }>
+      logs: AuditLogEntry[]
       available: boolean
+      categories: string[]
       detail?: string
     }>('/api/v1/audit/events', {
       params: {
-        limit: params?.limit ?? 100,
+        limit: params?.limit ?? 200,
         ...(params?.action ? { action: params.action } : {}),
+        ...(params?.category ? { category: params.category } : {}),
+        ...(params?.search ? { search: params.search } : {}),
         client_type: 'web',
       },
     })
