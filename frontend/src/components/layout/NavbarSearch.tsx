@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useUser } from '../../contexts/UserContext'
-import { isUserHiddenFromFeedbackPage } from '../../constants/feedbackAccess'
 import { canAccessPlayground } from '../../lib/playground/access'
 
 type SearchItem = {
@@ -15,19 +14,15 @@ function buildSearchItems(
   hasKeepaAccess: boolean,
   isWarehouseOnly: boolean,
   isSuperadmin: boolean,
-  showFeedbackNav: boolean,
   showPlayground: boolean,
 ): SearchItem[] {
   if (isWarehouseOnly) {
-    const items: SearchItem[] = [
+    return [
       { label: 'Label Station', path: '/label-station', section: 'Tools' },
       { label: 'About', path: '/about', section: 'General' },
       { label: 'FAQ', path: '/faq', section: 'General' },
+      { label: 'Feedback From Users', path: '/feedback', section: 'General' },
     ]
-    if (showFeedbackNav) {
-      items.push({ label: 'Feedback From Users', path: '/feedback', section: 'General' })
-    }
-    return items
   }
 
   const items: SearchItem[] = [
@@ -62,11 +57,8 @@ function buildSearchItems(
   items.push(
     { label: 'About', path: '/about', section: 'General' },
     { label: 'FAQ', path: '/faq', section: 'General' },
+    { label: 'Feedback From Users', path: '/feedback', section: 'General' },
   )
-
-  if (showFeedbackNav) {
-    items.push({ label: 'Feedback From Users', path: '/feedback', section: 'General' })
-  }
 
   if (isSuperadmin) {
     items.push({ label: 'User Management', path: '/admin/users', section: 'General' })
@@ -78,19 +70,10 @@ function buildSearchItems(
 export default function NavbarSearch() {
   const navigate = useNavigate()
   const { user: authUser } = useAuth()
-  const { hasKeepaAccess, isWarehouseOnly, isSuperadmin, userInfo, userInfoLoading } = useUser()
+  const { hasKeepaAccess, isWarehouseOnly, isSuperadmin, userInfo } = useUser()
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
-
-  const showFeedbackNav =
-    authUser !== null &&
-    !userInfoLoading &&
-    !isUserHiddenFromFeedbackPage(
-      userInfo?.display_name,
-      userInfo?.email,
-      authUser?.email,
-    )
 
   const showPlayground = canAccessPlayground(
     userInfo?.email || authUser?.email,
@@ -103,10 +86,9 @@ export default function NavbarSearch() {
         hasKeepaAccess,
         isWarehouseOnly,
         isSuperadmin,
-        showFeedbackNav,
         showPlayground,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showFeedbackNav, showPlayground],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showPlayground],
   )
 
   const results = useMemo(() => {

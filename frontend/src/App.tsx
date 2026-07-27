@@ -23,7 +23,6 @@ import DesktopUpdateOverlay from './components/desktop/DesktopUpdateOverlay'
 import PresenceHeartbeat from './components/admin/PresenceHeartbeat'
 import { systemApi } from './services/api'
 import { fetchMfaStatus, isMfaIdleReverifyDue, recordMfaActivity, shouldShowMfaSetup, shouldShowMfaVerify, shouldSkipMfaForEmail } from './lib/mfa'
-import { isUserHiddenFromFeedbackPage } from './constants/feedbackAccess'
 import { getLastPrivatePath, getCurrentRememberedPath, setLastPrivatePath } from './lib/privatePath'
 import { WAREHOUSE_HOME_PATH, isWarehouseAllowedPath } from './constants/warehouseAccess'
 import { isDevAuthBypass } from './lib/devAuth'
@@ -296,23 +295,6 @@ function RememberLastPrivatePath() {
   return null
 }
 
-function FeedbackRoute() {
-  const { userInfoLoading, userInfo, authUser, isWarehouseOnly } = useUser()
-  if (userInfoLoading) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
-        Loading…
-      </div>
-    )
-  }
-  if (
-    isUserHiddenFromFeedbackPage(userInfo?.display_name, userInfo?.email, authUser?.email)
-  ) {
-    return <Navigate to={isWarehouseOnly ? WAREHOUSE_HOME_PATH : '/dashboard'} replace />
-  }
-  return <Feedback />
-}
-
 // Inner app component that uses the user context
 function AppRoutes() {
   const { authLoading, authUser, userInfoLoading, isSuperadmin, userInfo } = useUser()
@@ -411,7 +393,7 @@ function AppRoutes() {
         <Route element={<PrivateLayout />}>
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="about" element={<About />} />
-          <Route path="feedback" element={<FeedbackRoute />} />
+          <Route path="feedback" element={<Feedback />} />
           <Route path="dev-md" element={<Navigate to="/dashboard" replace />} />
 
           <Route path="jobs" element={<ProtectedRoute requireKeepaAccess={true}><JobList /></ProtectedRoute>} />

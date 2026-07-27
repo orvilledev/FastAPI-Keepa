@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from supabase import Client
 
 from app.api.auth import _ensure_profile_row
-from app.api.feedback_blocklist import feedback_blocked_for_identity
 from app.database import get_supabase
 from app.dependencies import get_current_user, get_superadmin_user, is_superadmin_user
 from app.models.feedback import FeedbackCreate, FeedbackItem, FeedbackUpdate
@@ -57,44 +56,11 @@ def _fetch_feedback_row(db: Client, fid: str) -> dict | None:
     return rows[0] if rows else None
 
 
-def _reject_if_feedback_blocked(db: Client, current_user: dict) -> None:
-    prof = db.table("profiles").select("display_name,email").eq("id", current_user["id"]).limit(1).execute()
-    dn = ""
-    em = ""
-    if getattr(prof, "data", None):
-        row = prof.data[0]
-        dn = str(row.get("display_name") or "").strip()
-        em = str(row.get("email") or "").strip().lower()
-    if not em:
-        em = str(current_user.get("email") or "").strip().lower()
-    if feedback_blocked_for_identity(dn, em):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Feedback is not available for your account.",
-        )
-
-
-def require_feedback_allowed(
-    current_user: dict = Depends(get_current_user),
-    db: Client = Depends(get_supabase),
-) -> dict:
-    _reject_if_feedback_blocked(db, current_user)
-    return current_user
-
-
-def require_superadmin_feedback_allowed(
-    current_user: dict = Depends(get_superadmin_user),
-    db: Client = Depends(get_supabase),
-) -> dict:
-    _reject_if_feedback_blocked(db, current_user)
-    return current_user
-
-
 @router.get("/feedback/me", response_model=list[FeedbackItem])
 @handle_api_errors("list feedback")
 def list_my_feedback(
     limit: int = Query(50, ge=1, le=100),
-    current_user: dict = Depends(require_feedback_allowed),
+    current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
     """Return this user's feedback (at most one row per user once uniqueness is enforced)."""
@@ -116,7 +82,7 @@ def list_my_feedback(
 @handle_api_errors("list all feedback")
 def list_all_feedback(
     limit: int = Query(200, ge=1, le=500),
-    current_user: dict = Depends(require_superadmin_feedback_allowed),
+    current_user: dict = Depends(get_superadmin_user),
     db: Client = Depends(get_supabase),
 ):
     """Return all submitted feedback (newest first). Superadmin only."""
@@ -137,7 +103,7 @@ def list_all_feedback(
 @handle_api_errors("delete feedback")
 def delete_feedback(
     feedback_id: UUID,
-    current_user: dict = Depends(require_feedback_allowed),
+    current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
     """Remove feedback. Allowed for superadmin (any row) or the submitter (own rows only)."""
@@ -163,7 +129,7 @@ def delete_feedback(
 def update_feedback(
     feedback_id: UUID,
     payload: FeedbackUpdate,
-    current_user: dict = Depends(require_feedback_allowed),
+    current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
     """Update editable fields on own feedback only."""
@@ -209,7 +175,7 @@ def update_feedback(
 @handle_api_errors("submit feedback")
 def submit_feedback(
     payload: FeedbackCreate,
-    current_user: dict = Depends(require_feedback_allowed),
+    current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
     """Store feedback with name entered by the user. One submission per account at a time."""

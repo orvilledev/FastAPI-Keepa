@@ -3,7 +3,6 @@ import { useState, useEffect, type MouseEvent } from 'react'
 import { useUser } from '../../contexts/UserContext'
 import { APP_NAME } from '../../constants/app'
 import AppLogo from '../common/AppLogo'
-import { isUserHiddenFromFeedbackPage } from '../../constants/feedbackAccess'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessPlayground } from '../../lib/playground/access'
 
@@ -123,7 +122,7 @@ interface SidebarProps {
 
 export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps = {}) {
   const location = useLocation()
-  const { hasKeepaAccess, isWarehouseOnly, isSuperadmin, userInfo, authUser, userInfoLoading } = useUser()
+  const { hasKeepaAccess, isWarehouseOnly, isSuperadmin, userInfo, authUser } = useUser()
   const isElectron = Boolean(window.desktop?.isElectron)
   const [desktopVersion, setDesktopVersion] = useState<string | null>(null)
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false)
@@ -182,16 +181,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
       ? [{ path: '/analytics', label: 'Analytics', icon: 'chart' as const }]
       : []),
   ]
-
-  /** Blocklist hides nav item entirely once user profile / session is resolved. */
-  const showFeedbackNav =
-    authUser !== null &&
-    !userInfoLoading &&
-    !isUserHiddenFromFeedbackPage(
-      userInfo?.display_name,
-      userInfo?.email,
-      authUser?.email,
-    )
 
   useEffect(() => {
     if (!isElectron || !window.desktop?.getVersion) return
@@ -301,20 +290,18 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
                 <span className="sidebar-link-label">FAQ</span>
               </Link>
 
-              {showFeedbackNav && (
-                <Link
-                  to="/feedback"
-                  onMouseEnter={() => setHoveredNav('feedback')}
-                  className={`sidebar-link ${
-                    navHighlighted('feedback', isActive('/feedback'))
-                      ? 'sidebar-link-active'
-                      : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="shrink-0">{Icons.feedback}</span>
-                  <span className="sidebar-link-label">Feedback From Users</span>
-                </Link>
-              )}
+              <Link
+                to="/feedback"
+                onMouseEnter={() => setHoveredNav('feedback')}
+                className={`sidebar-link ${
+                  navHighlighted('feedback', isActive('/feedback'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.feedback}</span>
+                <span className="sidebar-link-label">Feedback From Users</span>
+              </Link>
             </div>
           </>
         ) : (
@@ -493,20 +480,18 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
             <span className="sidebar-link-label">FAQ</span>
           </Link>
 
-          {showFeedbackNav && (
-            <Link
-              to="/feedback"
-              onMouseEnter={() => setHoveredNav('feedback')}
-              className={`sidebar-link ${
-                navHighlighted('feedback', isActive('/feedback'))
-                  ? 'sidebar-link-active'
-                  : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="shrink-0">{Icons.feedback}</span>
-              <span className="sidebar-link-label">Feedback From Users</span>
-            </Link>
-          )}
+          <Link
+            to="/feedback"
+            onMouseEnter={() => setHoveredNav('feedback')}
+            className={`sidebar-link ${
+              navHighlighted('feedback', isActive('/feedback'))
+                ? 'sidebar-link-active'
+                : 'sidebar-link-inactive'
+            }`}
+          >
+            <span className="shrink-0">{Icons.feedback}</span>
+            <span className="sidebar-link-label">Feedback From Users</span>
+          </Link>
 
           {isSuperadmin && (
             <Link
