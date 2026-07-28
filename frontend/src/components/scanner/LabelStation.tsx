@@ -692,6 +692,7 @@ export default function LabelStation() {
       <WarehouseProductCatalog
         refreshToken={catalogRefresh}
         canManageCatalog={canManageCatalog}
+        totalHint={catalogCount}
         onCountChange={setCatalogCount}
         onSelectUpc={(upc) => {
           setScanUpc(upc)
