@@ -4,9 +4,12 @@
  * Last-run outputs stay in React memory and clear on refresh.
  */
 
+import type { PlaygroundComparisonReport } from './outputComparison'
+
 const DB_NAME = 'msw-playground-v2'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE = 'fixtures'
+const EXPECTED_STORE = 'expected'
 const LEGACY_DB = 'msw-playground-v1'
 
 /** Output kinds mirror what the real app can generate. */
@@ -28,6 +31,24 @@ export type PlaygroundLastRun = {
   summaryLines: string[]
   /** One entry per generated file type (excel, pdf, or both). */
   outputs: PlaygroundOutputFile[]
+  /** Present only when expected output files were uploaded for this tool. */
+  comparison?: PlaygroundComparisonReport | null
+}
+
+/** One uploaded "this is the correct output" file, kept per tool. */
+export type PlaygroundExpectedFile = {
+  filename: string
+  mimeType: string
+  size: number
+  uploadedAt: string
+  bytes: ArrayBuffer
+}
+
+type PlaygroundExpectedRecord = {
+  key: string
+  userScope: string
+  appId: string
+  files: PlaygroundExpectedFile[]
 }
 
 /** Persisted input only (no lastRun). */
@@ -75,6 +96,9 @@ function openDb(): Promise<IDBDatabase> {
       const db = req.result
       if (!db.objectStoreNames.contains(STORE)) {
         db.createObjectStore(STORE, { keyPath: 'key' })
+      }
+      if (!db.objectStoreNames.contains(EXPECTED_STORE)) {
+        db.createObjectStore(EXPECTED_STORE, { keyPath: 'key' })
       }
     }
   })
@@ -145,6 +169,92 @@ export async function removePlaygroundStoredInput(
     req.onerror = () => reject(req.error ?? new Error('Playground fixture delete failed'))
     tx.oncomplete = () => resolve()
   })
+}
+
+async function readExpectedRecord(
+  userScope: string,
+  appId: string,
+): Promise<PlaygroundExpectedRecord | null> {
+  const db = await openDb()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(EXPECTED_STORE, 'readonly')
+    const req = tx.objectStore(EXPECTED_STORE).get(fixtureKey(userScope, appId))
+    req.onerror = () =>
+      reject(req.error ?? new Error('Playground expected-output read failed'))
+    req.onsuccess = () =>
+      resolve((req.result as PlaygroundExpectedRecord | undefined) ?? null)
+  })
+}
+
+async function writeExpectedFiles(
+  userScope: string,
+  appId: string,
+  files: PlaygroundExpectedFile[],
+): Promise<void> {
+  const db = await openDb()
+  const key = fixtureKey(userScope, appId)
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(EXPECTED_STORE, 'readwrite')
+    const store = tx.objectStore(EXPECTED_STORE)
+    const req =
+      files.length === 0
+        ? store.delete(key)
+        : store.put({ key, userScope, appId, files } satisfies PlaygroundExpectedRecord)
+    req.onerror = () =>
+      reject(req.error ?? new Error('Playground expected-output write failed'))
+    tx.oncomplete = () => resolve()
+  })
+}
+
+export async function getPlaygroundExpectedFiles(
+  userScope: string,
+  appId: string,
+): Promise<PlaygroundExpectedFile[]> {
+  if (!isValidPlaygroundUserScope(userScope)) return []
+  const record = await readExpectedRecord(userScope, appId)
+  return record?.files ?? []
+}
+
+/** Adds/replaces expected outputs by filename and returns the full stored list. */
+export async function savePlaygroundExpectedFiles(
+  userScope: string,
+  appId: string,
+  incoming: File[],
+): Promise<PlaygroundExpectedFile[]> {
+  if (!isValidPlaygroundUserScope(userScope)) {
+    throw new Error('Sign in with your email to use a personal playground.')
+  }
+  const existing = await getPlaygroundExpectedFiles(userScope, appId)
+  const merged = [...existing]
+  for (const file of incoming) {
+    const record: PlaygroundExpectedFile = {
+      filename: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      size: file.size,
+      uploadedAt: new Date().toISOString(),
+      bytes: await file.arrayBuffer(),
+    }
+    const at = merged.findIndex(
+      (f) => f.filename.toLowerCase() === record.filename.toLowerCase(),
+    )
+    if (at >= 0) merged[at] = record
+    else merged.push(record)
+  }
+  await writeExpectedFiles(userScope, appId, merged)
+  return merged
+}
+
+export async function removePlaygroundExpectedFile(
+  userScope: string,
+  appId: string,
+  filename: string,
+): Promise<PlaygroundExpectedFile[]> {
+  if (!isValidPlaygroundUserScope(userScope)) return []
+  const remaining = (await getPlaygroundExpectedFiles(userScope, appId)).filter(
+    (f) => f.filename.toLowerCase() !== filename.toLowerCase(),
+  )
+  await writeExpectedFiles(userScope, appId, remaining)
+  return remaining
 }
 
 export function storedInputToSessionFixture(
