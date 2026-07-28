@@ -3,12 +3,13 @@
  *
  * Generated xlsx/pdf/zip files embed creation timestamps, generator metadata and
  * archive mtimes, so a raw byte diff of two otherwise-identical exports always
- * reports a mismatch. Each format is therefore decoded to a stable content-only
- * shape (cell values / page text / archive entries) before being compared.
+ * reports a mismatch. Each format is therefore decoded to its content before being
+ * compared: spreadsheets down to sheets/columns/rows/cells, PDFs down to per-page
+ * text lines and embedded image counts, archives entry by entry.
  */
 
 import JSZip from 'jszip'
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
+import { getDocument, GlobalWorkerOptions, OPS } from 'pdfjs-dist'
 import XLSX from 'xlsx-js-style'
 import type { PlaygroundExpectedFile, PlaygroundOutputFile } from './storage'
 
@@ -22,16 +23,17 @@ const MAX_DIFFERENCES = 25
 const MAX_ZIP_DEPTH = 3
 
 const WORKBOOK_EXTENSIONS = new Set(['xlsx', 'xlsm', 'xls'])
-const TEXT_EXTENSIONS = new Set(['csv', 'txt', 'json', 'xml', 'html', 'md', 'tsv'])
+const TABLE_EXTENSIONS = new Set(['csv', 'tsv'])
+const TEXT_EXTENSIONS = new Set(['txt', 'json', 'xml', 'html', 'md'])
 
 export const PLAYGROUND_EXPECTED_ACCEPT =
-  '.xlsx,.xlsm,.xls,.pdf,.zip,.csv,.txt,.json,.xml'
+  '.xlsx,.xlsm,.xls,.pdf,.zip,.csv,.tsv,.txt,.json,.xml'
 
 export type PlaygroundComparisonEntry = {
   expectedFilename: string
   /** Output the expected file was matched to, or null when nothing matched. */
   actualFilename: string | null
-  /** How the two files were compared, e.g. "Excel cell values". */
+  /** What was compared, e.g. "sheets, columns, rows and cell values". */
   method: string
   matched: boolean
   differences: string[]
@@ -55,6 +57,20 @@ type DiffResult = {
   differences: string[]
 }
 
+/** Collects differences up to the cap so a wildly different file stays readable. */
+function createCollector() {
+  const differences: string[] = []
+  return {
+    differences,
+    add(line: string) {
+      if (differences.length < MAX_DIFFERENCES) differences.push(line)
+    },
+    full() {
+      return differences.length >= MAX_DIFFERENCES
+    },
+  }
+}
+
 function extensionOf(filename: string): string {
   const match = /\.([a-z0-9]+)$/i.exec(filename.trim())
   return match ? match[1].toLowerCase() : ''
@@ -64,6 +80,7 @@ export function isComparableExpectedFile(file: File): boolean {
   const ext = extensionOf(file.name)
   return (
     WORKBOOK_EXTENSIONS.has(ext) ||
+    TABLE_EXTENSIONS.has(ext) ||
     TEXT_EXTENSIONS.has(ext) ||
     ext === 'pdf' ||
     ext === 'zip'
@@ -80,7 +97,11 @@ function errorText(err: unknown): string {
   return err instanceof Error && err.message ? err.message : 'unknown error'
 }
 
-/* ------------------------------------------------------------------ Excel */
+function count(n: number, singular: string): string {
+  return `${n} ${singular}${n === 1 ? '' : 's'}`
+}
+
+/* ------------------------------------------------- Spreadsheets and tables */
 
 type SheetGrid = {
   name: string
@@ -103,6 +124,11 @@ function trimGrid(rows: string[][]): string[][] {
   return trimmed
 }
 
+function columnCount(rows: string[][]): number {
+  return rows.reduce((max, row) => Math.max(max, row.length), 0)
+}
+
+/** Reads xlsx/xlsm/xls/csv/tsv into plain string grids, one per sheet. */
 function readSheetGrids(bytes: ArrayBuffer): SheetGrid[] {
   const workbook = XLSX.read(new Uint8Array(bytes), { type: 'array' })
   return workbook.SheetNames.map((name) => {
@@ -116,73 +142,148 @@ function readSheetGrids(bytes: ArrayBuffer): SheetGrid[] {
   })
 }
 
-function diffWorkbooks(
+function diffSheet(
   prefix: string,
-  expected: ArrayBuffer,
-  actual: ArrayBuffer,
+  where: string,
+  expected: SheetGrid,
+  actual: SheetGrid,
+  out: ReturnType<typeof createCollector>,
+): void {
+  const expectedHeaders = expected.rows[0] ?? []
+  const actualHeaders = actual.rows[0] ?? []
+  const missingColumns = expectedHeaders.filter((h) => h && !actualHeaders.includes(h))
+  const extraColumns = actualHeaders.filter((h) => h && !expectedHeaders.includes(h))
+  const orderChanged =
+    missingColumns.length === 0 &&
+    extraColumns.length === 0 &&
+    expectedHeaders.join('\u0000') !== actualHeaders.join('\u0000')
+
+  for (const header of missingColumns) out.add(`${prefix}${where}missing column ${quote(header)}`)
+  for (const header of extraColumns) {
+    out.add(`${prefix}${where}unexpected extra column ${quote(header)}`)
+  }
+  if (orderChanged) {
+    out.add(
+      `${prefix}${where}column order differs: expected ${expectedHeaders.join(' | ')}; got ${actualHeaders.join(' | ')}`,
+    )
+  }
+
+  if (expected.rows.length !== actual.rows.length) {
+    out.add(
+      `${prefix}${where}expected ${count(expected.rows.length, 'row')}, got ${actual.rows.length}`,
+    )
+  }
+  const expectedColumns = columnCount(expected.rows)
+  const actualColumns = columnCount(actual.rows)
+  if (expectedColumns !== actualColumns) {
+    out.add(
+      `${prefix}${where}expected ${count(expectedColumns, 'column')}, got ${actualColumns}`,
+    )
+  }
+
+  // Header differences are already reported by name above; re-reporting row 1 cell
+  // by cell would just duplicate them.
+  const headerReported = missingColumns.length > 0 || extraColumns.length > 0 || orderChanged
+  const rowCount = Math.max(expected.rows.length, actual.rows.length)
+  for (let r = headerReported ? 1 : 0; r < rowCount; r += 1) {
+    if (out.full()) return
+    const expectedRow = expected.rows[r] ?? []
+    const actualRow = actual.rows[r] ?? []
+    const colCount = Math.max(expectedRow.length, actualRow.length)
+    for (let c = 0; c < colCount; c += 1) {
+      const expectedValue = expectedRow[c] ?? ''
+      const actualValue = actualRow[c] ?? ''
+      if (expectedValue === actualValue) continue
+      const column = expectedHeaders[c] || actualHeaders[c]
+      const columnNote = column ? ` (${column})` : ''
+      out.add(
+        `${prefix}${where}cell ${XLSX.utils.encode_cell({ r, c })}${columnNote}: expected ${quote(expectedValue)}, got ${quote(actualValue)}`,
+      )
+      if (out.full()) return
+    }
+  }
+}
+
+function diffGrids(
+  prefix: string,
+  method: string,
+  expectedBytes: ArrayBuffer,
+  actualBytes: ArrayBuffer,
 ): DiffResult {
-  const method = 'Excel cell values'
-  const differences: string[] = []
-  const expectedSheets = readSheetGrids(expected)
-  const actualSheets = readSheetGrids(actual)
+  const out = createCollector()
+  const expectedSheets = readSheetGrids(expectedBytes)
+  const actualSheets = readSheetGrids(actualBytes)
+  const expectedNames = expectedSheets.map((s) => s.name)
   const actualNames = actualSheets.map((s) => s.name)
 
-  for (const sheet of expectedSheets) {
-    if (!actualNames.includes(sheet.name)) {
-      differences.push(`${prefix}missing sheet ${quote(sheet.name)}`)
-    }
+  for (const name of expectedNames) {
+    if (!actualNames.includes(name)) out.add(`${prefix}missing sheet ${quote(name)}`)
   }
   for (const name of actualNames) {
-    if (!expectedSheets.some((s) => s.name === name)) {
-      differences.push(`${prefix}unexpected extra sheet ${quote(name)}`)
+    if (!expectedNames.includes(name)) {
+      out.add(`${prefix}unexpected extra sheet ${quote(name)}`)
     }
+  }
+  if (
+    out.differences.length === 0 &&
+    expectedNames.join('\u0000') !== actualNames.join('\u0000')
+  ) {
+    out.add(
+      `${prefix}sheet order differs: expected ${expectedNames.join(', ')}; got ${actualNames.join(', ')}`,
+    )
   }
 
   for (const sheet of expectedSheets) {
+    if (out.full()) break
     const other = actualSheets.find((s) => s.name === sheet.name)
     if (!other) continue
-    if (sheet.rows.length !== other.rows.length) {
-      differences.push(
-        `${prefix}sheet ${quote(sheet.name)}: expected ${sheet.rows.length} rows, got ${other.rows.length}`,
-      )
-    }
-    const rowCount = Math.max(sheet.rows.length, other.rows.length)
-    for (let r = 0; r < rowCount; r += 1) {
-      const expectedRow = sheet.rows[r] ?? []
-      const actualRow = other.rows[r] ?? []
-      const colCount = Math.max(expectedRow.length, actualRow.length)
-      for (let c = 0; c < colCount; c += 1) {
-        const expectedValue = expectedRow[c] ?? ''
-        const actualValue = actualRow[c] ?? ''
-        if (expectedValue === actualValue) continue
-        differences.push(
-          `${prefix}sheet ${quote(sheet.name)} cell ${XLSX.utils.encode_cell({ r, c })}: expected ${quote(expectedValue)}, got ${quote(actualValue)}`,
-        )
-        if (differences.length >= MAX_DIFFERENCES) return { method, differences }
-      }
-    }
+    // Naming the sheet only helps when there is more than one to tell apart.
+    const where = expectedSheets.length > 1 ? `sheet ${quote(sheet.name)} ` : ''
+    diffSheet(prefix, where, sheet, other, out)
   }
 
-  return { method, differences }
+  return { method, differences: out.differences }
 }
 
 /* -------------------------------------------------------------------- PDF */
 
-async function readPdfPages(bytes: ArrayBuffer): Promise<string[]> {
+type PdfPage = {
+  lines: string[]
+  imageCount: number
+}
+
+async function readPdfPages(bytes: ArrayBuffer): Promise<PdfPage[]> {
   // pdf.js detaches the buffer it is handed, so pass it a copy.
   const doc = await getDocument({ data: new Uint8Array(bytes.slice(0)) }).promise
-  const pages: string[] = []
+  const pages: PdfPage[] = []
   try {
     for (let i = 1; i <= doc.numPages; i += 1) {
       const page = await doc.getPage(i)
       const content = await page.getTextContent()
-      pages.push(
-        content.items
-          .map((item) => ('str' in item ? item.str : ''))
-          .join(' ')
-          .replace(/\s+/g, ' ')
-          .trim(),
-      )
+
+      const lines: string[] = []
+      let current = ''
+      const flush = () => {
+        const line = current.replace(/\s+/g, ' ').trim()
+        if (line) lines.push(line)
+        current = ''
+      }
+      for (const item of content.items) {
+        if (!('str' in item)) continue
+        current += item.str
+        if (item.hasEOL) flush()
+      }
+      flush()
+
+      const { fnArray } = await page.getOperatorList()
+      const imageCount = fnArray.filter(
+        (fn) =>
+          fn === OPS.paintImageXObject ||
+          fn === OPS.paintInlineImageXObject ||
+          fn === OPS.paintImageMaskXObject,
+      ).length
+
+      pages.push({ lines, imageCount })
       page.cleanup()
     }
   } finally {
@@ -191,47 +292,58 @@ async function readPdfPages(bytes: ArrayBuffer): Promise<string[]> {
   return pages
 }
 
-function firstTextDifference(expected: string, actual: string): string {
-  const limit = Math.min(expected.length, actual.length)
-  let at = 0
-  while (at < limit && expected[at] === actual[at]) at += 1
-  const from = Math.max(0, at - 20)
-  return `expected …${quote(expected.slice(from, at + 40))}, got …${quote(actual.slice(from, at + 40))}`
-}
-
 async function diffPdfs(
   prefix: string,
-  expected: ArrayBuffer,
-  actual: ArrayBuffer,
+  expectedBytes: ArrayBuffer,
+  actualBytes: ArrayBuffer,
 ): Promise<DiffResult> {
-  const method = 'PDF page text'
-  const differences: string[] = []
-  const expectedPages = await readPdfPages(expected)
-  const actualPages = await readPdfPages(actual)
+  const method = 'pages, text lines and embedded images'
+  const out = createCollector()
+  const expectedPages = await readPdfPages(expectedBytes)
+  const actualPages = await readPdfPages(actualBytes)
 
   if (expectedPages.length !== actualPages.length) {
-    differences.push(
-      `${prefix}expected ${expectedPages.length} pages, got ${actualPages.length}`,
-    )
+    out.add(`${prefix}expected ${count(expectedPages.length, 'page')}, got ${actualPages.length}`)
   }
 
   const pageCount = Math.max(expectedPages.length, actualPages.length)
-  for (let i = 0; i < pageCount; i += 1) {
-    const expectedPage = expectedPages[i]
-    const actualPage = actualPages[i]
-    if (expectedPage === undefined) {
-      differences.push(`${prefix}page ${i + 1}: unexpected extra page`)
-    } else if (actualPage === undefined) {
-      differences.push(`${prefix}page ${i + 1}: missing from the produced output`)
-    } else if (expectedPage !== actualPage) {
-      differences.push(
-        `${prefix}page ${i + 1} text differs — ${firstTextDifference(expectedPage, actualPage)}`,
+  for (let p = 0; p < pageCount; p += 1) {
+    if (out.full()) break
+    const expectedPage = expectedPages[p]
+    const actualPage = actualPages[p]
+    if (!expectedPage) {
+      out.add(`${prefix}page ${p + 1}: unexpected extra page`)
+      continue
+    }
+    if (!actualPage) {
+      out.add(`${prefix}page ${p + 1}: missing from the produced output`)
+      continue
+    }
+
+    if (expectedPage.imageCount !== actualPage.imageCount) {
+      out.add(
+        `${prefix}page ${p + 1}: expected ${count(expectedPage.imageCount, 'embedded image')} (barcodes/logos), got ${actualPage.imageCount}`,
       )
     }
-    if (differences.length >= MAX_DIFFERENCES) break
+    if (expectedPage.lines.length !== actualPage.lines.length) {
+      out.add(
+        `${prefix}page ${p + 1}: expected ${count(expectedPage.lines.length, 'text line')}, got ${actualPage.lines.length}`,
+      )
+    }
+
+    const lineCount = Math.max(expectedPage.lines.length, actualPage.lines.length)
+    for (let l = 0; l < lineCount; l += 1) {
+      const expectedLine = expectedPage.lines[l] ?? ''
+      const actualLine = actualPage.lines[l] ?? ''
+      if (expectedLine === actualLine) continue
+      out.add(
+        `${prefix}page ${p + 1} line ${l + 1}: expected ${quote(expectedLine)}, got ${quote(actualLine)}`,
+      )
+      if (out.full()) break
+    }
   }
 
-  return { method, differences }
+  return { method, differences: out.differences }
 }
 
 /* -------------------------------------------------------------- Text/bytes */
@@ -246,16 +358,18 @@ function readTextLines(bytes: ArrayBuffer): string[] {
   return lines
 }
 
-function diffText(prefix: string, expected: ArrayBuffer, actual: ArrayBuffer): DiffResult {
-  const method = 'text content'
-  const differences: string[] = []
-  const expectedLines = readTextLines(expected)
-  const actualLines = readTextLines(actual)
+function diffText(
+  prefix: string,
+  expectedBytes: ArrayBuffer,
+  actualBytes: ArrayBuffer,
+): DiffResult {
+  const method = 'text lines'
+  const out = createCollector()
+  const expectedLines = readTextLines(expectedBytes)
+  const actualLines = readTextLines(actualBytes)
 
   if (expectedLines.length !== actualLines.length) {
-    differences.push(
-      `${prefix}expected ${expectedLines.length} lines, got ${actualLines.length}`,
-    )
+    out.add(`${prefix}expected ${count(expectedLines.length, 'line')}, got ${actualLines.length}`)
   }
 
   const lineCount = Math.max(expectedLines.length, actualLines.length)
@@ -263,35 +377,35 @@ function diffText(prefix: string, expected: ArrayBuffer, actual: ArrayBuffer): D
     const expectedLine = expectedLines[i] ?? ''
     const actualLine = actualLines[i] ?? ''
     if (expectedLine === actualLine) continue
-    differences.push(
-      `${prefix}line ${i + 1}: expected ${quote(expectedLine)}, got ${quote(actualLine)}`,
-    )
-    if (differences.length >= MAX_DIFFERENCES) break
+    out.add(`${prefix}line ${i + 1}: expected ${quote(expectedLine)}, got ${quote(actualLine)}`)
+    if (out.full()) break
   }
 
-  return { method, differences }
+  return { method, differences: out.differences }
 }
 
-function diffBytes(prefix: string, expected: ArrayBuffer, actual: ArrayBuffer): DiffResult {
+function diffBytes(
+  prefix: string,
+  expectedBytes: ArrayBuffer,
+  actualBytes: ArrayBuffer,
+): DiffResult {
   const method = 'raw bytes'
-  const differences: string[] = []
-  const expectedBytes = new Uint8Array(expected)
-  const actualBytes = new Uint8Array(actual)
+  const out = createCollector()
+  const expected = new Uint8Array(expectedBytes)
+  const actual = new Uint8Array(actualBytes)
 
-  if (expectedBytes.length !== actualBytes.length) {
-    differences.push(
-      `${prefix}expected ${expectedBytes.length} bytes, got ${actualBytes.length}`,
-    )
+  if (expected.length !== actual.length) {
+    out.add(`${prefix}expected ${count(expected.length, 'byte')}, got ${actual.length}`)
   }
 
-  const limit = Math.min(expectedBytes.length, actualBytes.length)
+  const limit = Math.min(expected.length, actual.length)
   for (let i = 0; i < limit; i += 1) {
-    if (expectedBytes[i] === actualBytes[i]) continue
-    differences.push(`${prefix}first byte difference at offset ${i}`)
+    if (expected[i] === actual[i]) continue
+    out.add(`${prefix}first byte difference at offset ${i}`)
     break
   }
 
-  return { method, differences }
+  return { method, differences: out.differences }
 }
 
 /* -------------------------------------------------------------------- ZIP */
@@ -312,38 +426,36 @@ async function readZipEntries(bytes: ArrayBuffer): Promise<Map<string, ArrayBuff
 
 async function diffZips(
   prefix: string,
-  expected: ArrayBuffer,
-  actual: ArrayBuffer,
+  expectedBytes: ArrayBuffer,
+  actualBytes: ArrayBuffer,
   depth: number,
 ): Promise<DiffResult> {
-  const method = 'ZIP entries'
-  const differences: string[] = []
-  const expectedEntries = await readZipEntries(expected)
-  const actualEntries = await readZipEntries(actual)
+  const method = 'archive entries and their contents'
+  const out = createCollector()
+  const expectedEntries = await readZipEntries(expectedBytes)
+  const actualEntries = await readZipEntries(actualBytes)
 
   for (const name of expectedEntries.keys()) {
-    if (!actualEntries.has(name)) differences.push(`${prefix}missing file ${quote(name)}`)
+    if (!actualEntries.has(name)) out.add(`${prefix}missing file ${quote(name)}`)
   }
   for (const name of actualEntries.keys()) {
-    if (!expectedEntries.has(name)) {
-      differences.push(`${prefix}unexpected extra file ${quote(name)}`)
-    }
+    if (!expectedEntries.has(name)) out.add(`${prefix}unexpected extra file ${quote(name)}`)
   }
 
-  for (const [name, expectedBytes] of expectedEntries) {
-    const actualBytes = actualEntries.get(name)
-    if (!actualBytes) continue
+  for (const [name, expectedEntry] of expectedEntries) {
+    if (out.full()) break
+    const actualEntry = actualEntries.get(name)
+    if (!actualEntry) continue
     const nested = await diffFiles(
       `${prefix}${name}: `,
-      { filename: name, bytes: expectedBytes },
-      { filename: name, bytes: actualBytes },
+      { filename: name, bytes: expectedEntry },
+      { filename: name, bytes: actualEntry },
       depth + 1,
     )
-    differences.push(...nested.differences)
-    if (differences.length >= MAX_DIFFERENCES) break
+    for (const line of nested.differences) out.add(line)
   }
 
-  return { method, differences: differences.slice(0, MAX_DIFFERENCES) }
+  return { method, differences: out.differences }
 }
 
 /* ---------------------------------------------------------------- Dispatch */
@@ -357,7 +469,15 @@ async function diffFiles(
   const ext = extensionOf(expected.filename) || extensionOf(actual.filename)
   try {
     if (WORKBOOK_EXTENSIONS.has(ext)) {
-      return diffWorkbooks(prefix, expected.bytes, actual.bytes)
+      return diffGrids(
+        prefix,
+        'sheets, columns, rows and cell values',
+        expected.bytes,
+        actual.bytes,
+      )
+    }
+    if (TABLE_EXTENSIONS.has(ext)) {
+      return diffGrids(prefix, 'columns, rows and cell values', expected.bytes, actual.bytes)
     }
     if (ext === 'pdf') {
       return await diffPdfs(prefix, expected.bytes, actual.bytes)

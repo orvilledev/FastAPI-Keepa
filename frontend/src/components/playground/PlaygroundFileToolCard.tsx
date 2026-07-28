@@ -380,8 +380,9 @@ export default function PlaygroundFileToolCard({
                   Expected output (optional)
                 </p>
                 <p className="mt-0.5 text-xs text-gray-500 dark:text-content-muted">
-                  Upload the known-correct output file. Each run is compared against it and
-                  reported as SUCCESS or FAILED.
+                  Upload the known-correct output file. Each run is compared against its
+                  contents — columns, rows and cells for Excel, page text and images for PDF,
+                  entry by entry for ZIP — then reported as SUCCESS or FAILED.
                 </p>
               </div>
               <input
