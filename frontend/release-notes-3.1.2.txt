@@ -1,0 +1,32 @@
+MSW Overwatch 3.1.2 — desktop and web release
+
+Feature release since 3.1.1, adding the Testing Playground and Manifest Generator. Installers and auto-update use GitHub Releases; existing desktop users can use **Check for Updates** in the sidebar or About page.
+
+## Testing Playground (new, invite-only)
+- New TESTING → Playground section: a personal sandbox for verifying tools before real work
+- Add tools from a picker — FNSKU Labels, Tracking Extractor, and Manifest Generator
+- Upload the same input files the live tool takes, run a test, then download the output
+- Upload an expected output file to get a SUCCESS or FAILED verdict per run
+- Comparison reads file contents, not bytes: Excel sheets, columns, rows and cells; PDF page text and embedded images; ZIP entries checked one by one
+- Failures list what differed, down to the cell address and column name
+- Each tester has their own view; uploaded files persist across refresh, outputs clear
+
+## Manifest Generator (new tool)
+- Turns a packing sheet into Amazon STA pack-group zips
+- Available from the sidebar and as a Playground tool
+
+## Label Station
+- Product catalog now starts collapsed behind a toggle, so the scan box and printer settings are reachable without scrolling past the table
+- The catalog loads when opened rather than on every page visit
+
+## Audit Log (superadmin)
+- New Audit Log page covering sign-in, sign-out, and Keepa file actions
+- Expanded to record every mutating request and file download, plus browser-only work in the Playground, FNSKU Labels, Tracking Extractor, and Label Station
+- Page views stay excluded
+
+## Navigation
+- Sidebar reorganized: dedicated TESTING section, Keepa Import moved under Menu
+- Feedback From Users is now open to all signed-in users
+
+## Upgrade from 3.1.1
+Windows desktop: open MSW Overwatch → sidebar **Check for Updates**, or About → **Check for Updates**. Web/PWA users get 3.1.2 on the next deploy/refresh.
