@@ -1,9 +1,13 @@
 import { useCallback, useRef, useState, type DragEvent } from 'react'
 import { manifestGeneratorApi } from '../../services/api'
+import { auditAction } from '../../lib/auditEvents'
 
 const ACCEPTED =
   '.xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,' +
   'application/vnd.ms-excel.sheet.macroEnabled.12'
+
+/** Exact packing-sheet template served from `frontend/public/templates/`. */
+export const MANIFEST_GENERATOR_TEMPLATE_FILENAME = 'Manifest Generator Template.xlsx'
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
@@ -14,6 +18,12 @@ function downloadBlob(blob: Blob, filename: string) {
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
+}
+
+function templateUrl(): string {
+  const base = import.meta.env.BASE_URL || '/'
+  const root = base.endsWith('/') ? base : `${base}/`
+  return `${root}templates/${encodeURIComponent(MANIFEST_GENERATOR_TEMPLATE_FILENAME)}`
 }
 
 type GenerateSummary = {
@@ -90,14 +100,42 @@ export default function ManifestGenerator() {
     }
   }, [file, generating])
 
+  const handleDownloadTemplate = useCallback(async () => {
+    setError(null)
+    try {
+      const response = await fetch(templateUrl())
+      if (!response.ok) {
+        throw new Error('Template file could not be downloaded.')
+      }
+      const blob = await response.blob()
+      downloadBlob(blob, MANIFEST_GENERATOR_TEMPLATE_FILENAME)
+      auditAction(
+        'manifest.template_download',
+        `Downloaded ${MANIFEST_GENERATOR_TEMPLATE_FILENAME}`,
+      )
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to download template.'
+      setError(msg)
+    }
+  }, [])
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-gray-900">Manifest Generator</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Upload a packing sheet to build Amazon Send to Amazon FBA manifest workbooks — one file
-          per pack group — packaged as a zip.
-        </p>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Manifest Generator</h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Upload a packing sheet to build Amazon Send to Amazon FBA manifest workbooks — one file
+            per pack group — packaged as a zip.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleDownloadTemplate()}
+          className="shrink-0 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100"
+        >
+          Download Template
+        </button>
       </header>
 
       {error && (

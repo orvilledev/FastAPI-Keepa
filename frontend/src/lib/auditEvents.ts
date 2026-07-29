@@ -30,6 +30,7 @@ export type ClientAuditAction =
   | 'label_station.print'
   | 'label_station.download_pdf'
   | 'label_station.template_download'
+  | 'manifest.template_download'
 
 export async function recordWebAuditEvent(
   action: ClientAuditAction,
