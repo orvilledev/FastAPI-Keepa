@@ -4,7 +4,8 @@ import { isMfaAuthRoute, redirectForIncompleteMfa } from '../lib/mfa'
 import { isElectronDesktop } from '../lib/privatePath'
 import type {
   MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, MicroToolRecord, JobAid, Notification, ComprehensiveReportRow, SellerName, CliChatSession, CliChatMessage, TrackingHistorySummary, TrackingHistoryDetail, TrackingScannerRow,
-  WarehouseProductLookup, WarehouseProductImportResult, WarehouseProduct } from '../types'
+  WarehouseProductLookup, WarehouseProductImportResult, WarehouseProduct,
+  CatalogImportResult, CatalogUpcListResponse, CatalogDimsListResponse } from '../types'
 
 /** All request paths begin with `/api/v1`. Strip a mistaken `/api/v1` suffix from env to avoid doubled paths (404 Not Found). */
 function normalizeApiBaseUrl(raw: string): string {
@@ -1815,6 +1816,60 @@ export const warehouseProductsApi = {
   },
   delete: async (upc: string): Promise<void> => {
     await api.delete(`/api/v1/warehouse-products/${encodeURIComponent(upc.trim())}`)
+  },
+}
+
+export const catalogUpcApi = {
+  list: async (
+    limit = 50,
+    offset = 0,
+    search?: string
+  ): Promise<CatalogUpcListResponse> => {
+    const response = await api.get('/api/v1/catalog-upc', {
+      params: { limit, offset, search: search || undefined },
+    })
+    return response.data
+  },
+  importFile: async (file: File): Promise<CatalogImportResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    const response = await api.post('/api/v1/catalog-upc/import', form, {
+      timeout: 300_000,
+    })
+    return response.data
+  },
+  downloadTemplate: async (): Promise<Blob> => {
+    const response = await api.get('/api/v1/catalog-upc/template', {
+      responseType: 'blob',
+    })
+    return response.data
+  },
+}
+
+export const catalogDimsApi = {
+  list: async (
+    limit = 50,
+    offset = 0,
+    search?: string
+  ): Promise<CatalogDimsListResponse> => {
+    const response = await api.get('/api/v1/catalog-dims', {
+      params: { limit, offset, search: search || undefined },
+    })
+    return response.data
+  },
+  importFile: async (file: File): Promise<CatalogImportResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    const response = await api.post('/api/v1/catalog-dims/import', form, {
+      timeout: 300_000,
+    })
+    return response.data
+  },
+  downloadTemplate: async (): Promise<Blob> => {
+    const response = await api.get('/api/v1/catalog-dims/template', {
+      responseType: 'blob',
+    })
+    return response.data
   },
 }
 

@@ -61,7 +61,12 @@ function buildSearchItems(
   )
 
   if (isSuperadmin) {
-    items.push({ label: 'User Management', path: '/admin/users', section: 'General' })
+    items.push(
+      { label: 'User Management', path: '/admin/users', section: 'General' },
+      { label: 'Audit Log', path: '/admin/audit-log', section: 'General' },
+      { label: 'UPC', path: '/catalog/upc', section: 'General' },
+      { label: 'DIMS', path: '/catalog/dims', section: 'General' },
+    )
   }
 
   return items

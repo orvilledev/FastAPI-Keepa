@@ -319,3 +319,52 @@ export interface WarehouseProductImportResult {
   total_in_file: number
 }
 
+export interface CatalogImportResult {
+  imported: number
+  invalid: number
+  total_in_file: number
+  replaced: boolean
+}
+
+export interface CatalogUpcRecord {
+  id: string
+  upc_code: string
+  scs: string
+  vendor_name: string
+  display_name: string
+  netsuite_style_name: string
+  status: string
+  row_data: Record<string, string>
+  created_at: string
+  updated_at: string
+}
+
+export interface CatalogDimsRecord {
+  id: string
+  upc_number: string
+  sku: string
+  brand: string
+  description: string
+  current_season: string
+  item_status: string
+  row_data: Record<string, string>
+  created_at: string
+  updated_at: string
+}
+
+export interface CatalogUpcListResponse {
+  items: CatalogUpcRecord[]
+  total: number
+  limit: number
+  offset: number
+  columns: string[]
+}
+
+export interface CatalogDimsListResponse {
+  items: CatalogDimsRecord[]
+  total: number
+  limit: number
+  offset: number
+  columns: string[]
+}
+
