@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, type DragEvent } from 'react'
 import { masterSheetApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
+import { canAccessMasterSheet } from '../../lib/masterSheetAccess'
 
 const ACCEPTED =
   '.xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -27,7 +28,8 @@ type GenerateSummary = {
 }
 
 export default function MasterSheetTool() {
-  const { isSuperadmin, userInfoLoading } = useUser()
+  const { isSuperadmin, userInfoLoading, userInfo, authUser } = useUser()
+  const canUse = canAccessMasterSheet(userInfo?.email || authUser?.email, isSuperadmin)
   const [file, setFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -129,13 +131,13 @@ export default function MasterSheetTool() {
     )
   }
 
-  if (!isSuperadmin) {
+  if (!canUse) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <div className="text-4xl mb-4">🔒</div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Restricted</h2>
-          <p className="text-gray-600">Only superadmin can access this page.</p>
+          <p className="text-gray-600">You do not have access to Master Sheet.</p>
         </div>
       </div>
     )

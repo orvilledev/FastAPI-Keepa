@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useUser } from '../../contexts/UserContext'
 import { canAccessPlayground } from '../../lib/playground/access'
+import { canAccessMasterSheet } from '../../lib/masterSheetAccess'
 
 type SearchItem = {
   label: string
@@ -15,6 +16,7 @@ function buildSearchItems(
   isWarehouseOnly: boolean,
   isSuperadmin: boolean,
   showPlayground: boolean,
+  showMasterSheet: boolean,
 ): SearchItem[] {
   if (isWarehouseOnly) {
     return [
@@ -66,8 +68,11 @@ function buildSearchItems(
       { label: 'Audit Log', path: '/admin/audit-log', section: 'General' },
       { label: 'UPC', path: '/catalog/upc', section: 'General' },
       { label: 'DIMS', path: '/catalog/dims', section: 'General' },
-      { label: 'Master Sheet', path: '/catalog/master-sheet', section: 'General' },
     )
+  }
+
+  if (showMasterSheet) {
+    items.push({ label: 'Master Sheet', path: '/catalog/master-sheet', section: 'General' })
   }
 
   return items
@@ -85,6 +90,10 @@ export default function NavbarSearch() {
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
+  const showMasterSheet = canAccessMasterSheet(
+    userInfo?.email || authUser?.email,
+    isSuperadmin,
+  )
 
   const searchItems = useMemo(
     () =>
@@ -93,8 +102,9 @@ export default function NavbarSearch() {
         isWarehouseOnly,
         isSuperadmin,
         showPlayground,
+        showMasterSheet,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showPlayground],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showPlayground, showMasterSheet],
   )
 
   const results = useMemo(() => {

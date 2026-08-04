@@ -7,7 +7,7 @@ from fastapi.responses import Response
 from supabase import Client
 
 from app.database import get_supabase
-from app.dependencies import get_superadmin_user
+from app.dependencies import get_master_sheet_user
 from app.middleware.rate_limiter import RateLimits, limiter
 from app.services.master_sheet_service import (
     build_master_sheet_template_bytes,
@@ -31,7 +31,7 @@ def _validate_xlsx(file: UploadFile) -> None:
 
 @router.get("/master-sheet/template")
 @handle_api_errors("download Master Sheet template")
-def download_master_sheet_template(current_user: dict = Depends(get_superadmin_user)):
+def download_master_sheet_template(current_user: dict = Depends(get_master_sheet_user)):
     path = _TEMPLATE_DIR / "Master_Sheet_Template.xlsx"
     if path.is_file():
         data = path.read_bytes()
@@ -52,7 +52,7 @@ def download_master_sheet_template(current_user: dict = Depends(get_superadmin_u
 async def generate_master_sheet_file(
     request: Request,
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_superadmin_user),
+    current_user: dict = Depends(get_master_sheet_user),
     db: Client = Depends(get_supabase),
 ):
     """Upload Master Sheet input rows; download enriched sheet using UPC + DIMS catalogs."""

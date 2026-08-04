@@ -211,6 +211,30 @@ def get_superadmin_user(
     return current_user
 
 
+def is_master_sheet_allowed_user(current_user: dict, db: Client) -> bool:
+    """True for superadmin or emails on the Master Sheet allowlist."""
+    if is_superadmin_user(current_user, db):
+        return True
+    email = (current_user.get("email") or "").strip().lower()
+    if not email:
+        return False
+    allowed = set(settings.master_sheet_allowed_emails_list)
+    return email in allowed
+
+
+def get_master_sheet_user(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+) -> dict:
+    """Verify user may use the Master Sheet generate/download tool."""
+    if not is_master_sheet_allowed_user(current_user, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Master Sheet is restricted to authorized users",
+        )
+    return current_user
+
+
 def get_keepa_access_user(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)

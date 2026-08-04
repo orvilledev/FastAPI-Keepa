@@ -5,6 +5,7 @@ import { APP_NAME } from '../../constants/app'
 import AppLogo from '../common/AppLogo'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessPlayground } from '../../lib/playground/access'
+import { canAccessMasterSheet } from '../../lib/masterSheetAccess'
 
 // SVG Icon components that inherit text color via currentColor
 const Icons = {
@@ -138,6 +139,10 @@ interface SidebarProps {
 export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps = {}) {
   const location = useLocation()
   const { hasKeepaAccess, isWarehouseOnly, isSuperadmin, userInfo, authUser } = useUser()
+  const canUseMasterSheet = canAccessMasterSheet(
+    userInfo?.email || authUser?.email,
+    isSuperadmin,
+  )
   const isElectron = Boolean(window.desktop?.isElectron)
   const [desktopVersion, setDesktopVersion] = useState<string | null>(null)
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false)
@@ -564,7 +569,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
               <span className="sidebar-link-label">DIMS</span>
             </Link>
           )}
-          {isSuperadmin && (
+          {canUseMasterSheet && (
             <Link
               to="/catalog/master-sheet"
               onMouseEnter={() => setHoveredNav('catalog-master-sheet')}
