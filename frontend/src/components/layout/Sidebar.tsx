@@ -75,6 +75,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V6a2 2 0 012-2h2M4 16v2a2 2 0 002 2h2m8-16h2a2 2 0 012 2v2m0 8v2a2 2 0 01-2 2h-2M8 12h8M12 8v8" />
     </svg>
   ),
+  masterSheet: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z" />
+    </svg>
+  ),
   mail: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8m-18 8h18a2 2 0 002-2V8a2 2 0 00-2-2H3a2 2 0 00-2 2v6a2 2 0 002 2z" />
@@ -557,6 +562,20 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
             >
               <span className="shrink-0">{Icons.dims}</span>
               <span className="sidebar-link-label">DIMS</span>
+            </Link>
+          )}
+          {isSuperadmin && (
+            <Link
+              to="/catalog/master-sheet"
+              onMouseEnter={() => setHoveredNav('catalog-master-sheet')}
+              className={`sidebar-link ${
+                navHighlighted('catalog-master-sheet', isActive('/catalog/master-sheet'))
+                  ? 'sidebar-link-active'
+                  : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="shrink-0">{Icons.masterSheet}</span>
+              <span className="sidebar-link-label">Master Sheet</span>
             </Link>
           )}
         </div>

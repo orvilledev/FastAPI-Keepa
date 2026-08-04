@@ -70,6 +70,7 @@ const OffPriceAnalytics = lazy(() => import('./components/analytics/OffPriceAnal
 const Playground = lazy(() => import('./components/playground/Playground'))
 const CatalogUpcPage = lazy(() => import('./components/catalog/CatalogUpcPage'))
 const CatalogDimsPage = lazy(() => import('./components/catalog/CatalogDimsPage'))
+const MasterSheetTool = lazy(() => import('./components/catalog/MasterSheetTool'))
 
 /** Packaged Electron loads `index.html` over `file:`; BrowserRouter cannot match routes there. */
 function AppRouter({ children }: { children: ReactNode }) {
@@ -449,6 +450,7 @@ function AppRoutes() {
           <Route path="admin/audit-log" element={<AuditLog />} />
           <Route path="catalog/upc" element={<CatalogUpcPage />} />
           <Route path="catalog/dims" element={<CatalogDimsPage />} />
+          <Route path="catalog/master-sheet" element={<MasterSheetTool />} />
           {isWebAnalyticsEnabled() && (
             <Route
               path="analytics"

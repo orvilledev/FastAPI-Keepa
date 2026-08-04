@@ -66,6 +66,7 @@ function buildSearchItems(
       { label: 'Audit Log', path: '/admin/audit-log', section: 'General' },
       { label: 'UPC', path: '/catalog/upc', section: 'General' },
       { label: 'DIMS', path: '/catalog/dims', section: 'General' },
+      { label: 'Master Sheet', path: '/catalog/master-sheet', section: 'General' },
     )
   }
 
