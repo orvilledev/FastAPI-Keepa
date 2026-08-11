@@ -8,11 +8,13 @@ import {
   computeScanStatus,
   detectPrinterDpi,
   getSelectedDpi,
+  getSelectedLabelIdMode,
   getSelectedLabelSize,
   getSelectedPrinter,
   LABEL_SIZES,
   renderWarehouseLabelCanvas,
   saveSelectedDpi,
+  saveSelectedLabelIdMode,
   saveSelectedLabelSize,
   saveSelectedPrinter,
   scanMatchesCatalogProduct,
@@ -20,6 +22,7 @@ import {
   suggestedWarehouseLabelPdfFilename,
   SUPPORTED_DPIS,
   type LabelDpi,
+  type LabelIdMode,
   type LabelSize,
   type ScanPrintStatus,
   type WarehouseCatalogProduct,
@@ -62,21 +65,23 @@ const SAMPLE_PRODUCT: WarehouseCatalogProduct = {
 function LabelPreview({
   product,
   size,
+  idMode,
 }: {
   product: WarehouseCatalogProduct
   size: LabelSize
+  idMode: LabelIdMode
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
     const target = canvasRef.current
     if (!target) return
-    const rendered = renderWarehouseLabelCanvas(product, 203, size)
+    const rendered = renderWarehouseLabelCanvas(product, 203, size, idMode)
     target.width = rendered.width
     target.height = rendered.height
     const ctx = target.getContext('2d')
     if (ctx) ctx.drawImage(rendered, 0, 0)
-  }, [product, size])
+  }, [product, size, idMode])
 
   // 2.25:1.25 aspect ratio keeps the on-screen proof physically proportional.
   return (
@@ -146,6 +151,7 @@ export default function LabelStation() {
   const [selectedPrinter, setSelectedPrinter] = useState('')
   const [selectedDpi, setSelectedDpi] = useState<LabelDpi>(getSelectedDpi())
   const [selectedSize, setSelectedSize] = useState<LabelSize>(getSelectedLabelSize())
+  const [selectedIdMode, setSelectedIdMode] = useState<LabelIdMode>(getSelectedLabelIdMode())
   const [loadingPrinters, setLoadingPrinters] = useState(false)
   const isElectron = Boolean(window.desktop?.isElectron)
 
@@ -215,7 +221,7 @@ export default function LabelStation() {
       setError(null)
       setMessage(null)
 
-      const zpl = buildWarehouseLabelZpl(item, quantity, selectedDpi, selectedSize)
+      const zpl = buildWarehouseLabelZpl(item, quantity, selectedDpi, selectedSize, selectedIdMode)
       let printerName = selectedPrinter.trim()
 
       try {
@@ -228,7 +234,7 @@ export default function LabelStation() {
           auditAction(
             'label_station.print',
             `Printed ${quantity} label(s) for ${item.upc} on ${printerName}`,
-            { upc: item.upc, quantity, printer: printerName },
+            { upc: item.upc, quantity, printer: printerName, idMode: selectedIdMode },
           )
         } else if (isElectron) {
           printerName = (await refreshPrinters()).trim()
@@ -241,19 +247,25 @@ export default function LabelStation() {
             auditAction(
               'label_station.print',
               `Printed ${quantity} label(s) for ${item.upc} on ${printerName}`,
-              { upc: item.upc, quantity, printer: printerName },
+              { upc: item.upc, quantity, printer: printerName, idMode: selectedIdMode },
             )
           } else {
             throw new Error('No printer selected. Connect a Zebra printer and pick it below.')
           }
         } else {
-          const blob = buildWarehouseLabelPdfBlob(item, quantity, selectedDpi, selectedSize)
+          const blob = buildWarehouseLabelPdfBlob(
+            item,
+            quantity,
+            selectedDpi,
+            selectedSize,
+            selectedIdMode
+          )
           const pdfFilename = suggestedWarehouseLabelPdfFilename(item)
           downloadBlob(blob, pdfFilename)
           auditAction(
             'label_station.download_pdf',
             `Downloaded ${quantity} label(s) as ${pdfFilename}`,
-            { upc: item.upc, quantity, filename: pdfFilename },
+            { upc: item.upc, quantity, filename: pdfFilename, idMode: selectedIdMode },
           )
           setMessage(
             `Downloaded PDF (${quantity} label(s)). Open the desktop app for direct Zebra printing.`
@@ -268,7 +280,16 @@ export default function LabelStation() {
         scanInputRef.current?.focus()
       }
     },
-    [quantity, selectedPrinter, selectedDpi, selectedSize, isElectron, clearScan, refreshPrinters]
+    [
+      quantity,
+      selectedPrinter,
+      selectedDpi,
+      selectedSize,
+      selectedIdMode,
+      isElectron,
+      clearScan,
+      refreshPrinters,
+    ]
   )
 
   const lookupUpc = useCallback(
@@ -364,6 +385,11 @@ export default function LabelStation() {
     saveSelectedLabelSize(size)
   }
 
+  const handleSelectIdMode = (mode: LabelIdMode) => {
+    setSelectedIdMode(mode)
+    saveSelectedLabelIdMode(mode)
+  }
+
   const handleImport = async (file: File) => {
     if (!canManageCatalog) {
       setError('MSW Overwatch access is required to import the product catalog.')
@@ -410,8 +436,9 @@ export default function LabelStation() {
       <div>
         <h1 className="text-2xl font-bold text-[#404040]">Label Station</h1>
         <p className="text-sm text-gray-600 mt-1">
-          Scan a product UPC to look up FNSKU and print a warehouse label. A successful scan
-          auto-prints when your scanner sends Enter (matches Scan &amp; Print workbook).
+          Scan a product UPC to look up FNSKU and print a warehouse label. Choose{' '}
+          <span className="font-medium">Print ID</span> below: Short SKU for Amazon, or UPC for DNK
+          carton match. A successful scan auto-prints when your scanner sends Enter.
           {catalogCount !== null && (
             <span className="ml-1 font-medium">{catalogCount.toLocaleString()} products in catalog.</span>
           )}
@@ -519,7 +546,13 @@ export default function LabelStation() {
               className="text-sm text-gray-600 underline hover:text-gray-900"
               onClick={() => {
                 if (!product) return
-                const blob = buildWarehouseLabelPdfBlob(product, quantity, selectedDpi, selectedSize)
+                const blob = buildWarehouseLabelPdfBlob(
+                  product,
+                  quantity,
+                  selectedDpi,
+                  selectedSize,
+                  selectedIdMode
+                )
                 downloadBlob(blob, suggestedWarehouseLabelPdfFilename(product))
               }}
             >
@@ -527,6 +560,56 @@ export default function LabelStation() {
             </button>
           )}
         </div>
+      </section>
+
+      {/* Print ID — Amazon short SKU (default) vs retail UPC for DNK */}
+      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold text-gray-800">Print ID</h2>
+          <p className="text-xs text-gray-500">
+            Text under the barcode. Barcode stays FNSKU in both modes.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Print ID">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={selectedIdMode === 'auto'}
+            onClick={() => handleSelectIdMode('auto')}
+            className={`rounded-lg border-2 px-4 py-2.5 text-left text-sm transition ${
+              selectedIdMode === 'auto'
+                ? 'border-[#404040] ring-1 ring-[#404040] bg-gray-50'
+                : 'border-gray-200 hover:border-gray-400'
+            }`}
+          >
+            <span className="font-medium text-gray-800">Short SKU (Amazon)</span>
+            <span className="mt-0.5 block text-xs text-gray-500">
+              Default — prints short catalog SKU when present
+            </span>
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={selectedIdMode === 'upc'}
+            onClick={() => handleSelectIdMode('upc')}
+            className={`rounded-lg border-2 px-4 py-2.5 text-left text-sm transition ${
+              selectedIdMode === 'upc'
+                ? 'border-[#404040] ring-1 ring-[#404040] bg-gray-50'
+                : 'border-gray-200 hover:border-gray-400'
+            }`}
+          >
+            <span className="font-medium text-gray-800">UPC (DNK)</span>
+            <span className="mt-0.5 block text-xs text-gray-500">
+              Always print retail UPC for carton match
+            </span>
+          </button>
+        </div>
+        {selectedIdMode === 'upc' && (
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+            UPC mode is on — use this when labels go to DNK. Switch back to Short SKU for Amazon
+            jobs.
+          </p>
+        )}
       </section>
 
       {/* Label size picker — three live proofs at the real 2.25" × 1.25" size */}
@@ -560,7 +643,11 @@ export default function LabelStation() {
                   )}
                 </div>
                 <div className="rounded border border-gray-300 overflow-hidden">
-                  <LabelPreview product={product ?? SAMPLE_PRODUCT} size={size} />
+                  <LabelPreview
+                    product={product ?? SAMPLE_PRODUCT}
+                    size={size}
+                    idMode={selectedIdMode}
+                  />
                 </div>
               </button>
             )

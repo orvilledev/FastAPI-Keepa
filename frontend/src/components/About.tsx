@@ -174,8 +174,9 @@ export default function About() {
           <li>
             <span className="font-semibold">Label Station:</span> Scan a product UPC, look up the warehouse catalog, and
             print a Zebra label (desktop app) or download a PDF (web). Catalog managers can import products from Excel.
-            Staff always scan the UPC barcode. Products with a short catalog SKU (7 numeric digits or fewer) print that
-            SKU under the barcode; longer SKUs print the UPC. Choose label size (small, medium, or large) and printer
+            Staff always scan the UPC barcode. Use <span className="font-semibold">Print ID</span>: Short SKU (Amazon)
+            prints a short catalog SKU (7 numeric digits or fewer) under the barcode when present; UPC (DNK) always
+            prints the retail UPC for carton match. Choose label size (small, medium, or large) and printer
             resolution (203 or 300 dpi). On-screen preview matches the physical label.
           </li>
         </ul>

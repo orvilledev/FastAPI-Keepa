@@ -211,9 +211,9 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         Label Station is a scan-and-print tool for warehouse labeling. Staff scan a product <strong>UPC</strong>; the app
         looks up the product in the warehouse catalog and prints a formatted label to a Zebra printer (desktop app) or
         downloads a PDF (web browser). Each label shows FNSKU, a scannable barcode, UPC or SKU, condition, and product
-        name. Choose label size (small, medium, or large) and printer resolution (203 or 300 dpi). The on-screen preview
-        matches the physical label. Catalog managers with Keepa access can import or update products from Excel in the
-        Product Catalog tab.
+        name. Use <strong>Print ID</strong> to choose Short SKU (Amazon) or UPC (DNK). Choose label size (small, medium,
+        or large) and printer resolution (203 or 300 dpi). The on-screen preview matches the physical label. Catalog
+        managers with Keepa access can import or update products from Excel in the Product Catalog tab.
       </>
     ),
   },
@@ -221,9 +221,23 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     q: 'What is the short-SKU rule on Label Station labels?',
     a: (
       <>
-        Staff always scan the <strong>UPC</strong> barcode. If the catalog SKU has <strong>7 numeric digits or fewer</strong>{' '}
+        Staff always scan the <strong>UPC</strong> barcode. With <strong>Print ID</strong> set to{' '}
+        <strong>Short SKU (Amazon)</strong> (the default), if the catalog SKU has{' '}
+        <strong>7 numeric digits or fewer</strong>{' '}
         (for example <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs">9990357</code>), the label prints that{' '}
-        <strong>SKU</strong> under the barcode instead of the UPC. Longer SKUs print the UPC as before.
+        <strong>SKU</strong> under the barcode instead of the UPC. Longer SKUs print the UPC as before. Choose{' '}
+        <strong>UPC (DNK)</strong> when labels go to DNK so the retail UPC always prints under the barcode for carton
+        match (barcode stays FNSKU).
+      </>
+    ),
+  },
+  {
+    q: 'When should I use Print ID UPC (DNK) on Label Station?',
+    a: (
+      <>
+        Use <strong>UPC (DNK)</strong> when sending labels to DNK (or anyone who matches cartons by the retail UPC on
+        the box). Leave <strong>Short SKU (Amazon)</strong> selected for normal Amazon-facing warehouse labels. The
+        choice is saved on this device; switch back to Short SKU after DNK jobs so Amazon labels stay correct.
       </>
     ),
   },

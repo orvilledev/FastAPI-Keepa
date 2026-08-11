@@ -131,6 +131,21 @@ export type WarehouseCatalogProduct = WarehouseLabelProduct & {
 
 export type ScanPrintStatus = 'awaiting' | 'looking_up' | 'not_found' | 'ready'
 
+/**
+ * What to print under the barcode.
+ * - `auto` — short catalog SKU (≤7 digits) when present, otherwise UPC (Amazon default)
+ * - `upc` — always retail UPC (DNK carton match)
+ */
+export const LABEL_ID_MODES = ['auto', 'upc'] as const
+export type LabelIdMode = (typeof LABEL_ID_MODES)[number]
+export const DEFAULT_LABEL_ID_MODE: LabelIdMode = 'auto'
+
+function normalizeLabelIdMode(mode: LabelIdMode | undefined | null): LabelIdMode {
+  return (LABEL_ID_MODES as readonly string[]).includes(mode ?? '')
+    ? (mode as LabelIdMode)
+    : DEFAULT_LABEL_ID_MODE
+}
+
 /** Count numeric digits in a catalog SKU. */
 export function skuDigitCount(sku: string): number {
   return (sku.match(/\d/g) || []).length
@@ -147,8 +162,15 @@ export function getCatalogScanInput(product: { upc: string; sku?: string }): str
   return product.upc
 }
 
-/** Text printed under the barcode: short SKU when applicable, otherwise UPC. */
-export function getLabelScanLine(product: { upc: string; sku?: string }): string {
+/**
+ * Text printed under the barcode.
+ * Default `auto` keeps the short-SKU rule; `upc` always prints the retail UPC for DNK.
+ */
+export function getLabelScanLine(
+  product: { upc: string; sku?: string },
+  mode: LabelIdMode = DEFAULT_LABEL_ID_MODE
+): string {
+  if (normalizeLabelIdMode(mode) === 'upc') return (product.upc ?? '').trim()
   const sku = (product.sku ?? '').trim()
   if (isShortCatalogSku(sku)) return sku
   return product.upc
@@ -299,7 +321,8 @@ function wrapLines(
 export function renderWarehouseLabelCanvas(
   product: WarehouseLabelProduct & { sku?: string },
   dpi: number = DEFAULT_LABEL_DPI,
-  size: LabelSize = DEFAULT_LABEL_SIZE
+  size: LabelSize = DEFAULT_LABEL_SIZE,
+  idMode: LabelIdMode = DEFAULT_LABEL_ID_MODE
 ): HTMLCanvasElement {
   const targetDpi = normalizeDpi(dpi)
   const layout = SIZE_LAYOUTS[normalizeSize(size)]
@@ -364,7 +387,7 @@ export function renderWarehouseLabelCanvas(
 
   // UPC or catalog SKU (centred) + condition (right) on a shared baseline.
   y += upcH
-  const upcLine = formatUpcFnskuLine(getLabelScanLine(product))
+  const upcLine = formatUpcFnskuLine(getLabelScanLine(product, idMode))
   if (upcLine) {
     ctx.textAlign = 'center'
     ctx.font = `${upcH}px ${FONT_FAMILY}`
@@ -409,7 +432,8 @@ export function buildWarehouseLabelPdfBlob(
   product: WarehouseLabelProduct & { sku?: string },
   copies = 1,
   dpi: number = DEFAULT_LABEL_DPI,
-  size: LabelSize = DEFAULT_LABEL_SIZE
+  size: LabelSize = DEFAULT_LABEL_SIZE,
+  idMode: LabelIdMode = DEFAULT_LABEL_ID_MODE
 ): Blob {
   const count = Math.max(1, Math.min(copies, 99))
   const doc = new jsPDF({
@@ -419,7 +443,7 @@ export function buildWarehouseLabelPdfBlob(
     compress: true,
   })
 
-  const dataUrl = renderWarehouseLabelCanvas(product, dpi, size).toDataURL('image/png')
+  const dataUrl = renderWarehouseLabelCanvas(product, dpi, size, idMode).toDataURL('image/png')
   for (let i = 0; i < count; i += 1) {
     if (i > 0) {
       doc.addPage([LABEL_WIDTH_PT, LABEL_HEIGHT_PT], 'landscape')
@@ -476,10 +500,11 @@ export function buildWarehouseLabelZpl(
   product: WarehouseLabelProduct & { sku?: string },
   copies = 1,
   dpi: number = DEFAULT_LABEL_DPI,
-  size: LabelSize = DEFAULT_LABEL_SIZE
+  size: LabelSize = DEFAULT_LABEL_SIZE,
+  idMode: LabelIdMode = DEFAULT_LABEL_ID_MODE
 ): string {
   const count = Math.max(1, Math.min(copies, 99))
-  const canvas = renderWarehouseLabelCanvas(product, dpi, size)
+  const canvas = renderWarehouseLabelCanvas(product, dpi, size, idMode)
   const { hex, totalBytes, bytesPerRow } = canvasToZplGraphic(canvas)
 
   return `^XA
@@ -499,6 +524,7 @@ export function suggestedWarehouseLabelPdfFilename(product: WarehouseLabelProduc
 export const PRINTER_NAME_KEY = 'warehouse_printer_name'
 export const PRINTER_DPI_KEY = 'warehouse_printer_dpi'
 export const LABEL_SIZE_KEY = 'warehouse_label_size'
+export const LABEL_ID_MODE_KEY = 'warehouse_label_id_mode'
 
 /** Last print size (small/medium/large) the user selected. */
 export function getSelectedLabelSize(): LabelSize {
@@ -512,6 +538,25 @@ export function getSelectedLabelSize(): LabelSize {
 export function saveSelectedLabelSize(size: LabelSize): void {
   try {
     localStorage.setItem(LABEL_SIZE_KEY, normalizeSize(size))
+  } catch {
+    // ignore
+  }
+}
+
+/** Last Print ID mode (auto = short SKU rule, upc = always UPC for DNK). */
+export function getSelectedLabelIdMode(): LabelIdMode {
+  try {
+    return normalizeLabelIdMode(
+      (localStorage.getItem(LABEL_ID_MODE_KEY) || '') as LabelIdMode
+    )
+  } catch {
+    return DEFAULT_LABEL_ID_MODE
+  }
+}
+
+export function saveSelectedLabelIdMode(mode: LabelIdMode): void {
+  try {
+    localStorage.setItem(LABEL_ID_MODE_KEY, normalizeLabelIdMode(mode))
   } catch {
     // ignore
   }
