@@ -75,6 +75,12 @@ export default function UserManagement() {
   const [maintenanceDurationHours, setMaintenanceDurationHours] = useState<number>(0)
   const [maintenanceExpectedEndAt, setMaintenanceExpectedEndAt] = useState<string | null>(null)
   const [maintenanceSaving, setMaintenanceSaving] = useState(false)
+  const [upcDnkEmails, setUpcDnkEmails] = useState<string[]>([])
+  const [upcDnkDraftEmail, setUpcDnkDraftEmail] = useState('')
+  const [upcDnkLoading, setUpcDnkLoading] = useState(false)
+  const [upcDnkSaving, setUpcDnkSaving] = useState(false)
+  const [upcDnkMessage, setUpcDnkMessage] = useState<string | null>(null)
+  const [upcDnkError, setUpcDnkError] = useState<string | null>(null)
   const [presence, setPresence] = useState<PresenceSnapshot | null>(null)
   const [presenceLoading, setPresenceLoading] = useState(false)
   const [presenceError, setPresenceError] = useState('')
@@ -135,12 +141,76 @@ export default function UserManagement() {
     }
   }
 
+  const loadUpcDnkAllowlist = async () => {
+    try {
+      setUpcDnkError(null)
+      setUpcDnkLoading(true)
+      const data = await authApi.getUpcDnkPrintIdAllowlist()
+      setUpcDnkEmails(data.emails || [])
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined
+      setUpcDnkError(
+        typeof msg === 'string'
+          ? msg
+          : 'Failed to load UPC (DNK) allowlist. Run the create_upc_dnk_print_id_allowlist migration if needed.',
+      )
+    } finally {
+      setUpcDnkLoading(false)
+    }
+  }
+
+  const saveUpcDnkAllowlist = async (emails: string[]) => {
+    try {
+      setUpcDnkSaving(true)
+      setUpcDnkError(null)
+      setUpcDnkMessage(null)
+      const data = await authApi.updateUpcDnkPrintIdAllowlist(emails)
+      setUpcDnkEmails(data.emails || [])
+      setUpcDnkMessage('UPC (DNK) allowlist saved.')
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined
+      setUpcDnkError(typeof msg === 'string' ? msg : 'Failed to save UPC (DNK) allowlist')
+    } finally {
+      setUpcDnkSaving(false)
+    }
+  }
+
+  const handleAddUpcDnkEmail = async () => {
+    const email = upcDnkDraftEmail.trim().toLowerCase()
+    if (!email) return
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      setUpcDnkError('Enter a valid email address.')
+      return
+    }
+    if (upcDnkEmails.some((e) => e.toLowerCase() === email)) {
+      setUpcDnkError('That email is already on the allowlist.')
+      return
+    }
+    setUpcDnkDraftEmail('')
+    await saveUpcDnkAllowlist([...upcDnkEmails, email])
+  }
+
+  const handleRemoveUpcDnkEmail = async (email: string) => {
+    const confirmed = window.confirm(
+      `Remove ${email} from UPC (DNK) Print ID access? They will only be able to use Short SKU (Amazon).`,
+    )
+    if (!confirmed) return
+    await saveUpcDnkAllowlist(upcDnkEmails.filter((e) => e.toLowerCase() !== email.toLowerCase()))
+  }
+
   useEffect(() => {
     if (userInfoLoading) return
     if (!isSuperadmin) return
     void loadUsers()
     void loadMaintenanceMode()
     void loadPresence()
+    void loadUpcDnkAllowlist()
   }, [userInfoLoading, isSuperadmin])
 
   useEffect(() => {
@@ -619,6 +689,73 @@ export default function UserManagement() {
             {maintenanceSaving ? 'Saving...' : 'Save Maintenance Details'}
           </button>
         </div>
+      </div>
+
+      <div className="card p-4 space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Label Station — UPC (DNK) Print ID</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            Short SKU (Amazon) is available to everyone with Label Station access. Only emails on this
+            list can switch Print ID to <span className="font-medium">UPC (DNK)</span>.
+          </p>
+        </div>
+        {upcDnkLoading ? (
+          <p className="text-sm text-gray-500">Loading allowlist…</p>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-2">
+              {upcDnkEmails.length === 0 ? (
+                <p className="text-sm text-gray-500">No emails allowlisted — UPC (DNK) is off for everyone.</p>
+              ) : (
+                upcDnkEmails.map((email) => (
+                  <span
+                    key={email}
+                    className="inline-flex items-center gap-2 rounded-full border border-teal-300 bg-teal-50 px-3 py-1 text-sm text-teal-950"
+                  >
+                    {email}
+                    <button
+                      type="button"
+                      disabled={upcDnkSaving}
+                      onClick={() => void handleRemoveUpcDnkEmail(email)}
+                      className="rounded-full px-1.5 text-teal-800 hover:bg-teal-200 disabled:opacity-50"
+                      aria-label={`Remove ${email}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))
+              )}
+            </div>
+            <form
+              className="flex flex-wrap items-end gap-2"
+              onSubmit={(e) => {
+                e.preventDefault()
+                void handleAddUpcDnkEmail()
+              }}
+            >
+              <label className="block text-sm font-medium text-gray-700 flex-1 min-w-[16rem]">
+                Add email
+                <input
+                  type="email"
+                  value={upcDnkDraftEmail}
+                  onChange={(e) => setUpcDnkDraftEmail(e.target.value)}
+                  className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  placeholder="name@metroshoewarehouse.com"
+                  autoComplete="off"
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={upcDnkSaving || !upcDnkDraftEmail.trim()}
+                className="px-4 py-2 rounded-lg bg-teal-700 text-white text-sm font-medium hover:bg-teal-800 disabled:opacity-50"
+              >
+                {upcDnkSaving ? 'Saving…' : 'Add'}
+              </button>
+            </form>
+            {upcDnkMessage && <p className="text-sm text-emerald-700">{upcDnkMessage}</p>}
+            {upcDnkError && <p className="text-sm text-red-700">{upcDnkError}</p>}
+          </>
+        )}
       </div>
 
       <div className="card p-4 flex flex-wrap items-center gap-3">

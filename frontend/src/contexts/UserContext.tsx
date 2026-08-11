@@ -16,6 +16,7 @@ export interface UserInfo {
   has_label_station_access?: boolean
   can_manage_tools: boolean
   is_superadmin?: boolean
+  can_use_upc_dnk_print_id?: boolean
   mfa_enabled?: boolean
   mfa_exempt?: boolean
   created_at?: string

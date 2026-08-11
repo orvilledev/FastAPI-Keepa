@@ -29,6 +29,7 @@ export const DEV_BYPASS_USER_INFO = {
   has_label_station_access: true,
   can_manage_tools: true,
   is_superadmin: true,
+  can_use_upc_dnk_print_id: true,
   mfa_enabled: true,
   mfa_exempt: true,
   created_at: new Date().toISOString(),

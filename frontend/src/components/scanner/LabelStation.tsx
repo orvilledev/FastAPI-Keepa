@@ -132,7 +132,7 @@ export default function LabelStation() {
   const { hasKeepaAccess, isSuperadmin, isWarehouseOnly, userInfo, authUser } = useUser()
   const canManageCatalog = hasKeepaAccess || isSuperadmin
   const accountEmail = userInfo?.email || authUser?.email
-  const canSelectUpcDnk = canUseUpcDnkPrintId(accountEmail)
+  const canSelectUpcDnk = canUseUpcDnkPrintId(accountEmail, userInfo?.can_use_upc_dnk_print_id)
   const scanInputRef = useRef<HTMLInputElement>(null)
   const pendingPrintUpcRef = useRef<string | null>(null)
   const printingRef = useRef(false)

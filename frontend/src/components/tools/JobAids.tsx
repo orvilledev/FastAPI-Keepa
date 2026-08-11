@@ -236,7 +236,8 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         Use <strong>UPC (DNK)</strong> when sending labels to DNK (or anyone who matches cartons by the retail UPC on
-        the box). This option is limited to selected accounts; everyone else stays on{' '}
+        the box). This option is limited to emails on the allowlist in{' '}
+        <strong>User Management → Label Station — UPC (DNK) Print ID</strong>. Everyone else stays on{' '}
         <strong>Short SKU (Amazon)</strong>, which remains the default. Allowed users: switch back to Short SKU after
         DNK jobs so Amazon labels stay correct.
       </>

@@ -21,6 +21,11 @@ from pydantic import BaseModel
 from typing import List, Optional
 from app.maintenance import get_maintenance_state, set_maintenance_state
 from fastapi.security import HTTPAuthorizationCredentials
+from app.services.upc_dnk_print_id_allowlist import (
+    is_upc_dnk_print_id_allowed,
+    list_upc_dnk_print_id_emails,
+    replace_upc_dnk_print_id_emails,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +162,7 @@ def get_current_user_info(
     mfa_exempt = is_mfa_exempt_user(current_user)
     has_keepa_access = bool(row.get("has_keepa_access", False))
     is_warehouse_only = is_warehouse_role(row)
+    user_email = current_user.get("email") or row.get("email")
 
     return {
         "id": current_user.get("id"),
@@ -169,6 +175,7 @@ def get_current_user_info(
         "can_manage_tools": can_manage_tools,
         "can_assign_tasks": can_assign_tasks,
         "is_superadmin": is_superadmin,
+        "can_use_upc_dnk_print_id": is_upc_dnk_print_id_allowed(db, user_email),
         "mfa_enabled": bool(row.get("mfa_enabled", False)),
         "mfa_exempt": mfa_exempt,
         "user_metadata": current_user.get("user_metadata", {}),
@@ -344,6 +351,10 @@ class MaintenanceUpdate(BaseModel):
     duration_hours: Optional[float] = None
 
 
+class UpcDnkPrintIdAllowlistUpdate(BaseModel):
+    emails: List[str]
+
+
 class CreateUserRequest(BaseModel):
     email: str
     password: str
@@ -512,6 +523,30 @@ def update_maintenance_mode(
 ):
     """Update runtime maintenance mode state (superadmin only)."""
     return set_maintenance_state(payload.maintenance_mode, payload.message, payload.duration_hours)
+
+
+@router.get("/upc-dnk-print-id-allowlist")
+@handle_api_errors("get upc dnk print id allowlist")
+def get_upc_dnk_print_id_allowlist(
+    current_user: dict = Depends(get_superadmin_user),
+    db: Client = Depends(get_supabase),
+):
+    """List emails allowed to use Label Station Print ID → UPC (DNK)."""
+    return {"emails": list_upc_dnk_print_id_emails(db)}
+
+
+@router.put("/upc-dnk-print-id-allowlist")
+@limiter.limit(RateLimits.ADMIN_OPERATIONS)
+@handle_api_errors("update upc dnk print id allowlist")
+def update_upc_dnk_print_id_allowlist(
+    request: Request,
+    payload: UpcDnkPrintIdAllowlistUpdate,
+    current_user: dict = Depends(get_superadmin_user),
+    db: Client = Depends(get_supabase),
+):
+    """Replace the UPC (DNK) Print ID allowlist (superadmin only)."""
+    emails = replace_upc_dnk_print_id_emails(db, payload.emails or [])
+    return {"emails": emails}
 
 
 @router.put("/users/{user_id}/keepa-access")

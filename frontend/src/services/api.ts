@@ -259,6 +259,17 @@ export const authApi = {
     }>('/api/v1/auth/maintenance', { maintenance_mode, message, duration_hours })
     return response.data
   },
+  getUpcDnkPrintIdAllowlist: async () => {
+    const response = await api.get<{ emails: string[] }>('/api/v1/auth/upc-dnk-print-id-allowlist')
+    return response.data
+  },
+  updateUpcDnkPrintIdAllowlist: async (emails: string[]) => {
+    const response = await api.put<{ emails: string[] }>(
+      '/api/v1/auth/upc-dnk-print-id-allowlist',
+      { emails },
+    )
+    return response.data
+  },
   presenceHeartbeat: async (payload: {
     session_id: string
     client_type: 'web' | 'electron'
