@@ -305,7 +305,7 @@ export default function LabelStation() {
       selectedPrinter,
       selectedDpi,
       selectedSize,
-      selectedIdMode: effectiveIdMode,
+      effectiveIdMode,
       isElectron,
       clearScan,
       refreshPrinters,
