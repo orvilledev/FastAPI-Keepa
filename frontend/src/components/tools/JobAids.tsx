@@ -236,8 +236,9 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         Use <strong>UPC (DNK)</strong> when sending labels to DNK (or anyone who matches cartons by the retail UPC on
-        the box). Leave <strong>Short SKU (Amazon)</strong> selected for normal Amazon-facing warehouse labels. The
-        choice is saved on this device; switch back to Short SKU after DNK jobs so Amazon labels stay correct.
+        the box). This option is limited to selected accounts; everyone else stays on{' '}
+        <strong>Short SKU (Amazon)</strong>, which remains the default. Allowed users: switch back to Short SKU after
+        DNK jobs so Amazon labels stay correct.
       </>
     ),
   },

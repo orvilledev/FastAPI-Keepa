@@ -33,6 +33,7 @@ import {
   WAREHOUSE_PRODUCTS_TEMPLATE_FILENAME,
 } from '../../utils/warehouseProductTemplate'
 import { auditAction } from '../../lib/auditEvents'
+import { canUseUpcDnkPrintId } from '../../lib/labelStationPrintIdAccess'
 
 const ACCEPTED_IMPORT =
   '.csv,.xlsx,.xls,.xlsm,text/csv,application/vnd.ms-excel,' +
@@ -128,8 +129,10 @@ function statusBadgeClass(status: ScanPrintStatus): string {
 }
 
 export default function LabelStation() {
-  const { hasKeepaAccess, isSuperadmin, isWarehouseOnly } = useUser()
+  const { hasKeepaAccess, isSuperadmin, isWarehouseOnly, userInfo, authUser } = useUser()
   const canManageCatalog = hasKeepaAccess || isSuperadmin
+  const accountEmail = userInfo?.email || authUser?.email
+  const canSelectUpcDnk = canUseUpcDnkPrintId(accountEmail)
   const scanInputRef = useRef<HTMLInputElement>(null)
   const pendingPrintUpcRef = useRef<string | null>(null)
   const printingRef = useRef(false)
@@ -154,6 +157,17 @@ export default function LabelStation() {
   const [selectedIdMode, setSelectedIdMode] = useState<LabelIdMode>(getSelectedLabelIdMode())
   const [loadingPrinters, setLoadingPrinters] = useState(false)
   const isElectron = Boolean(window.desktop?.isElectron)
+
+  // Non-allowlisted users always print with Short SKU (Amazon), even if localStorage had UPC.
+  const effectiveIdMode: LabelIdMode =
+    selectedIdMode === 'upc' && canSelectUpcDnk ? 'upc' : 'auto'
+
+  useEffect(() => {
+    if (!canSelectUpcDnk && selectedIdMode === 'upc') {
+      setSelectedIdMode('auto')
+      saveSelectedLabelIdMode('auto')
+    }
+  }, [canSelectUpcDnk, selectedIdMode])
 
   const refreshPrinters = useCallback(async (): Promise<string> => {
     if (!window.desktop?.listPrinters) return ''
@@ -221,7 +235,13 @@ export default function LabelStation() {
       setError(null)
       setMessage(null)
 
-      const zpl = buildWarehouseLabelZpl(item, quantity, selectedDpi, selectedSize, selectedIdMode)
+      const zpl = buildWarehouseLabelZpl(
+        item,
+        quantity,
+        selectedDpi,
+        selectedSize,
+        effectiveIdMode
+      )
       let printerName = selectedPrinter.trim()
 
       try {
@@ -234,7 +254,7 @@ export default function LabelStation() {
           auditAction(
             'label_station.print',
             `Printed ${quantity} label(s) for ${item.upc} on ${printerName}`,
-            { upc: item.upc, quantity, printer: printerName, idMode: selectedIdMode },
+            { upc: item.upc, quantity, printer: printerName, idMode: effectiveIdMode },
           )
         } else if (isElectron) {
           printerName = (await refreshPrinters()).trim()
@@ -247,7 +267,7 @@ export default function LabelStation() {
             auditAction(
               'label_station.print',
               `Printed ${quantity} label(s) for ${item.upc} on ${printerName}`,
-              { upc: item.upc, quantity, printer: printerName, idMode: selectedIdMode },
+              { upc: item.upc, quantity, printer: printerName, idMode: effectiveIdMode },
             )
           } else {
             throw new Error('No printer selected. Connect a Zebra printer and pick it below.')
@@ -258,14 +278,14 @@ export default function LabelStation() {
             quantity,
             selectedDpi,
             selectedSize,
-            selectedIdMode
+            effectiveIdMode
           )
           const pdfFilename = suggestedWarehouseLabelPdfFilename(item)
           downloadBlob(blob, pdfFilename)
           auditAction(
             'label_station.download_pdf',
             `Downloaded ${quantity} label(s) as ${pdfFilename}`,
-            { upc: item.upc, quantity, filename: pdfFilename, idMode: selectedIdMode },
+            { upc: item.upc, quantity, filename: pdfFilename, idMode: effectiveIdMode },
           )
           setMessage(
             `Downloaded PDF (${quantity} label(s)). Open the desktop app for direct Zebra printing.`
@@ -285,7 +305,7 @@ export default function LabelStation() {
       selectedPrinter,
       selectedDpi,
       selectedSize,
-      selectedIdMode,
+      selectedIdMode: effectiveIdMode,
       isElectron,
       clearScan,
       refreshPrinters,
@@ -386,6 +406,7 @@ export default function LabelStation() {
   }
 
   const handleSelectIdMode = (mode: LabelIdMode) => {
+    if (mode === 'upc' && !canSelectUpcDnk) return
     setSelectedIdMode(mode)
     saveSelectedLabelIdMode(mode)
   }
@@ -551,7 +572,7 @@ export default function LabelStation() {
                   quantity,
                   selectedDpi,
                   selectedSize,
-                  selectedIdMode
+                  effectiveIdMode
                 )
                 downloadBlob(blob, suggestedWarehouseLabelPdfFilename(product))
               }}
@@ -574,24 +595,24 @@ export default function LabelStation() {
           <button
             type="button"
             role="radio"
-            aria-checked={selectedIdMode === 'auto'}
+            aria-checked={effectiveIdMode === 'auto'}
             onClick={() => handleSelectIdMode('auto')}
             className={`min-w-[12rem] flex-1 rounded-lg border-2 px-4 py-3 text-left text-sm transition ${
-              selectedIdMode === 'auto'
+              effectiveIdMode === 'auto'
                 ? 'border-sky-900 bg-sky-700 text-white shadow-md ring-2 ring-sky-900/40'
                 : 'border-sky-300 bg-sky-100 text-sky-950 hover:bg-sky-200'
             }`}
           >
             <span
               className={`font-semibold ${
-                selectedIdMode === 'auto' ? 'text-white' : 'text-sky-950'
+                effectiveIdMode === 'auto' ? 'text-white' : 'text-sky-950'
               }`}
             >
               Short SKU (Amazon)
             </span>
             <span
               className={`mt-0.5 block text-xs ${
-                selectedIdMode === 'auto' ? 'text-sky-100' : 'text-sky-800'
+                effectiveIdMode === 'auto' ? 'text-sky-100' : 'text-sky-800'
               }`}
             >
               Default — prints short catalog SKU when present
@@ -600,34 +621,59 @@ export default function LabelStation() {
           <button
             type="button"
             role="radio"
-            aria-checked={selectedIdMode === 'upc'}
+            aria-checked={effectiveIdMode === 'upc'}
+            aria-disabled={!canSelectUpcDnk}
+            disabled={!canSelectUpcDnk}
+            title={
+              canSelectUpcDnk
+                ? undefined
+                : 'UPC (DNK) is limited to selected accounts. Short SKU remains available for everyone.'
+            }
             onClick={() => handleSelectIdMode('upc')}
             className={`min-w-[12rem] flex-1 rounded-lg border-2 px-4 py-3 text-left text-sm transition ${
-              selectedIdMode === 'upc'
-                ? 'border-teal-950 bg-teal-700 text-white shadow-md ring-2 ring-teal-950/40'
-                : 'border-teal-300 bg-teal-100 text-teal-950 hover:bg-teal-200'
+              !canSelectUpcDnk
+                ? 'cursor-not-allowed border-gray-300 bg-gray-200 text-gray-500 opacity-70'
+                : effectiveIdMode === 'upc'
+                  ? 'border-teal-950 bg-teal-700 text-white shadow-md ring-2 ring-teal-950/40'
+                  : 'border-teal-300 bg-teal-100 text-teal-950 hover:bg-teal-200'
             }`}
           >
             <span
               className={`font-semibold ${
-                selectedIdMode === 'upc' ? 'text-white' : 'text-teal-950'
+                !canSelectUpcDnk
+                  ? 'text-gray-500'
+                  : effectiveIdMode === 'upc'
+                    ? 'text-white'
+                    : 'text-teal-950'
               }`}
             >
               UPC (DNK)
             </span>
             <span
               className={`mt-0.5 block text-xs ${
-                selectedIdMode === 'upc' ? 'text-teal-100' : 'text-teal-800'
+                !canSelectUpcDnk
+                  ? 'text-gray-500'
+                  : effectiveIdMode === 'upc'
+                    ? 'text-teal-100'
+                    : 'text-teal-800'
               }`}
             >
-              Always print retail UPC for carton match
+              {canSelectUpcDnk
+                ? 'Always print retail UPC for carton match'
+                : 'Restricted — selected accounts only'}
             </span>
           </button>
         </div>
-        {selectedIdMode === 'upc' && (
+        {effectiveIdMode === 'upc' && canSelectUpcDnk && (
           <p className="text-xs font-medium text-teal-950 bg-teal-100 border border-teal-300 rounded-lg px-3 py-2">
             UPC mode is on — use this when labels go to DNK. Switch back to Short SKU for Amazon
             jobs.
+          </p>
+        )}
+        {!canSelectUpcDnk && (
+          <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+            Short SKU (Amazon) is the default for all users. UPC (DNK) is available only to
+            selected accounts.
           </p>
         )}
       </section>
@@ -666,7 +712,7 @@ export default function LabelStation() {
                   <LabelPreview
                     product={product ?? SAMPLE_PRODUCT}
                     size={size}
-                    idMode={selectedIdMode}
+                    idMode={effectiveIdMode}
                   />
                 </div>
               </button>
