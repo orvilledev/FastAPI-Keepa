@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 TABLE = "upc_dnk_print_id_allowlist"
 
-# Used when the table is missing / unreachable so Label Station keeps working pre-migration.
+# Seed reference only (migration). Never used to grant access at runtime.
 DEFAULT_UPC_DNK_PRINT_ID_EMAILS = [
     "marquez@metroshoewarehouse.com",
     "orvillebarba@gmail.com",
@@ -47,22 +47,22 @@ def normalize_email_list(emails: Iterable[str]) -> List[str]:
 
 
 def list_upc_dnk_print_id_emails(db: Client) -> List[str]:
-    """Return sorted allowlisted emails. Falls back to defaults if the table is unavailable."""
-    try:
-        result = db.table(TABLE).select("email").execute()
-        rows = result.data or []
-        emails = normalize_email_list(row.get("email") or "" for row in rows)
-        return emails
-    except Exception as exc:
-        logger.warning("UPC DNK allowlist read failed; using defaults: %s", exc)
-        return list(DEFAULT_UPC_DNK_PRINT_ID_EMAILS)
+    """Return sorted allowlisted emails from the database (no hardcoded grant fallback)."""
+    result = db.table(TABLE).select("email").execute()
+    rows = result.data or []
+    return normalize_email_list(row.get("email") or "" for row in rows)
 
 
 def is_upc_dnk_print_id_allowed(db: Client, email: str | None) -> bool:
+    """True only when the email is in the DB allowlist. Fail closed on errors."""
     normalized = normalize_email(email)
     if not normalized:
         return False
-    return normalized in set(list_upc_dnk_print_id_emails(db))
+    try:
+        return normalized in set(list_upc_dnk_print_id_emails(db))
+    except Exception as exc:
+        logger.warning("UPC DNK allowlist access check failed; denying: %s", exc)
+        return False
 
 
 def replace_upc_dnk_print_id_emails(db: Client, emails: Iterable[str]) -> List[str]:
@@ -78,8 +78,6 @@ def replace_upc_dnk_print_id_emails(db: Client, emails: Iterable[str]) -> List[s
         )
 
     normalized = normalize_email_list(raw_list)
-    existing = list_upc_dnk_print_id_emails(db)
-    # Only delete rows that actually exist in DB (avoid treating fallback defaults as rows).
     try:
         existing_rows = db.table(TABLE).select("email").execute().data or []
         existing = normalize_email_list(row.get("email") or "" for row in existing_rows)
@@ -102,6 +100,4 @@ def replace_upc_dnk_print_id_emails(db: Client, emails: Iterable[str]) -> List[s
             on_conflict="email",
         ).execute()
 
-    return normalize_email_list(
-        row.get("email") or "" for row in (db.table(TABLE).select("email").execute().data or [])
-    )
+    return list_upc_dnk_print_id_emails(db)

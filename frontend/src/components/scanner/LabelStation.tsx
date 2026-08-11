@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { warehouseProductsApi } from '../../services/api'
+import { warehouseProductsApi, authApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
 import WarehouseProductCatalog from './WarehouseProductCatalog'
 import {
@@ -129,10 +129,11 @@ function statusBadgeClass(status: ScanPrintStatus): string {
 }
 
 export default function LabelStation() {
-  const { hasKeepaAccess, isSuperadmin, isWarehouseOnly, userInfo, authUser } = useUser()
+  const { hasKeepaAccess, isSuperadmin, isWarehouseOnly, userInfo } = useUser()
   const canManageCatalog = hasKeepaAccess || isSuperadmin
-  const accountEmail = userInfo?.email || authUser?.email
-  const canSelectUpcDnk = canUseUpcDnkPrintId(accountEmail, userInfo?.can_use_upc_dnk_print_id)
+  const [canSelectUpcDnk, setCanSelectUpcDnk] = useState(() =>
+    canUseUpcDnkPrintId(userInfo?.can_use_upc_dnk_print_id),
+  )
   const scanInputRef = useRef<HTMLInputElement>(null)
   const pendingPrintUpcRef = useRef<string | null>(null)
   const printingRef = useRef(false)
@@ -162,13 +163,29 @@ export default function LabelStation() {
   const effectiveIdMode: LabelIdMode =
     selectedIdMode === 'upc' && canSelectUpcDnk ? 'upc' : 'auto'
 
+  const refreshUpcDnkAccess = useCallback(async () => {
+    try {
+      const result = await authApi.getUpcDnkPrintIdAccess()
+      setCanSelectUpcDnk(canUseUpcDnkPrintId(result.allowed))
+    } catch {
+      // Fail closed if the live check fails; never trust a stale allow.
+      setCanSelectUpcDnk(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshUpcDnkAccess()
+    const onFocus = () => void refreshUpcDnkAccess()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [refreshUpcDnkAccess])
+
   useEffect(() => {
     if (!canSelectUpcDnk && selectedIdMode === 'upc') {
       setSelectedIdMode('auto')
       saveSelectedLabelIdMode('auto')
     }
   }, [canSelectUpcDnk, selectedIdMode])
-
   const refreshPrinters = useCallback(async (): Promise<string> => {
     if (!window.desktop?.listPrinters) return ''
     setLoadingPrinters(true)

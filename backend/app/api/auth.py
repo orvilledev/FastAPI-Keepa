@@ -535,6 +535,18 @@ def get_upc_dnk_print_id_allowlist(
     return {"emails": list_upc_dnk_print_id_emails(db)}
 
 
+@router.get("/upc-dnk-print-id-access")
+@handle_api_errors("check upc dnk print id access")
+def get_upc_dnk_print_id_access(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Live check: whether the current user may use Print ID → UPC (DNK)."""
+    return {
+        "allowed": is_upc_dnk_print_id_allowed(db, current_user.get("email")),
+    }
+
+
 @router.put("/upc-dnk-print-id-allowlist")
 @limiter.limit(RateLimits.ADMIN_OPERATIONS)
 @handle_api_errors("update upc dnk print id allowlist")
