@@ -576,14 +576,24 @@ export default function LabelStation() {
             role="radio"
             aria-checked={selectedIdMode === 'auto'}
             onClick={() => handleSelectIdMode('auto')}
-            className={`rounded-lg border-2 px-4 py-2.5 text-left text-sm transition ${
+            className={`min-w-[12rem] flex-1 rounded-lg border-2 px-4 py-3 text-left text-sm transition ${
               selectedIdMode === 'auto'
-                ? 'border-[#404040] ring-1 ring-[#404040] bg-gray-50'
-                : 'border-gray-200 hover:border-gray-400'
+                ? 'border-sky-900 bg-sky-700 text-white shadow-md ring-2 ring-sky-900/40'
+                : 'border-sky-300 bg-sky-100 text-sky-950 hover:bg-sky-200'
             }`}
           >
-            <span className="font-medium text-gray-800">Short SKU (Amazon)</span>
-            <span className="mt-0.5 block text-xs text-gray-500">
+            <span
+              className={`font-semibold ${
+                selectedIdMode === 'auto' ? 'text-white' : 'text-sky-950'
+              }`}
+            >
+              Short SKU (Amazon)
+            </span>
+            <span
+              className={`mt-0.5 block text-xs ${
+                selectedIdMode === 'auto' ? 'text-sky-100' : 'text-sky-800'
+              }`}
+            >
               Default — prints short catalog SKU when present
             </span>
           </button>
@@ -592,20 +602,30 @@ export default function LabelStation() {
             role="radio"
             aria-checked={selectedIdMode === 'upc'}
             onClick={() => handleSelectIdMode('upc')}
-            className={`rounded-lg border-2 px-4 py-2.5 text-left text-sm transition ${
+            className={`min-w-[12rem] flex-1 rounded-lg border-2 px-4 py-3 text-left text-sm transition ${
               selectedIdMode === 'upc'
-                ? 'border-[#404040] ring-1 ring-[#404040] bg-gray-50'
-                : 'border-gray-200 hover:border-gray-400'
+                ? 'border-teal-950 bg-teal-700 text-white shadow-md ring-2 ring-teal-950/40'
+                : 'border-teal-300 bg-teal-100 text-teal-950 hover:bg-teal-200'
             }`}
           >
-            <span className="font-medium text-gray-800">UPC (DNK)</span>
-            <span className="mt-0.5 block text-xs text-gray-500">
+            <span
+              className={`font-semibold ${
+                selectedIdMode === 'upc' ? 'text-white' : 'text-teal-950'
+              }`}
+            >
+              UPC (DNK)
+            </span>
+            <span
+              className={`mt-0.5 block text-xs ${
+                selectedIdMode === 'upc' ? 'text-teal-100' : 'text-teal-800'
+              }`}
+            >
               Always print retail UPC for carton match
             </span>
           </button>
         </div>
         {selectedIdMode === 'upc' && (
-          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          <p className="text-xs font-medium text-teal-950 bg-teal-100 border border-teal-300 rounded-lg px-3 py-2">
             UPC mode is on — use this when labels go to DNK. Switch back to Short SKU for Amazon
             jobs.
           </p>
