@@ -14,7 +14,7 @@ interface ImportMetaEnv {
   readonly VITE_DESKTOP_APP_DOWNLOAD_URL?: string
   /** Optional comma-separated emails that skip TOTP MFA (password-only sign-in). */
   readonly VITE_MFA_EXEMPT_EMAILS?: string
-  /** Optional idle MFA re-verify window in minutes (default 15 hours). */
+  /** Optional idle MFA re-verify window in minutes (default 48 hours). */
   readonly VITE_MFA_IDLE_MINUTES?: string
 }
 

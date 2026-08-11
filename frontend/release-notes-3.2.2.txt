@@ -1,0 +1,24 @@
+MSW Overwatch 3.2.2 — desktop and web release
+
+Feature release since 3.1.2. Installers and auto-update use GitHub Releases; existing desktop users can use **Check for Updates** in the sidebar or About page.
+
+## Label Station — Print ID (Short SKU / UPC)
+- New **Print ID** control: Short SKU (Amazon) remains the default for everyone
+- **UPC (DNK)** mode always prints the retail UPC under the barcode for carton matching (barcode stays FNSKU)
+- High-contrast button colors so the active mode is obvious at a glance
+- UPC (DNK) is allowlisted: only selected emails can turn it on; others see it greyed out
+- Allowlist is managed in **User Management → Label Station — UPC (DNK) Print ID** (add/remove emails without a redeploy)
+- Label Station re-checks allowlist access live on open/focus so removals apply immediately
+
+## Authentication
+- MFA idle re-verify window extended from 15 hours to **48 hours** (override with VITE_MFA_IDLE_MINUTES if needed)
+
+## Catalog tools (superadmin)
+- UPC and DIMS catalog record pages with spreadsheet import
+- Master Sheet tool that fills UPC and MC dims from those catalogs
+- Selected accounts can use Master Sheet; Download Template on Manifest Generator
+
+## Upgrade from 3.1.2
+Windows desktop: open MSW Overwatch → sidebar **Check for Updates**, or About → **Check for Updates**. Web/PWA users get 3.2.2 on the next deploy/refresh.
+
+Note: Run the Supabase migration `create_upc_dnk_print_id_allowlist.sql` if you have not already, so the UPC (DNK) allowlist UI can save.

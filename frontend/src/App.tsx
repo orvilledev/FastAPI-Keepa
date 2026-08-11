@@ -200,7 +200,7 @@ function UploadedVendorRedirect() {
  */
 /**
  * Tracks user activity inside the authenticated app and forces a TOTP re-verify
- * after the idle limit (default 15h). Only mounted once MFA has fully passed.
+ * after the idle limit (default 48h). Only mounted once MFA has fully passed.
  */
 function IdleMfaGuard() {
   const navigate = useNavigate()
@@ -219,7 +219,7 @@ function IdleMfaGuard() {
       let lastWrite = 0
       const onActivity = () => {
         const now = Date.now()
-        // Throttle writes; we only need minute-level resolution for a 15h window.
+        // Throttle writes; we only need minute-level resolution for a 48h window.
         if (now - lastWrite > 30_000) {
           lastWrite = now
           recordMfaActivity(now)
