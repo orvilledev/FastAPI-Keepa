@@ -64,10 +64,11 @@ export default function About() {
         <p className="mt-2 text-sm text-gray-600 max-w-4xl">
           <span className="font-semibold">Keepa access</span> unlocks the full Menu and Label Station in
           Tools. <span className="font-semibold">Warehouse-only</span> accounts see Label Station and
-          General. <span className="font-semibold">Superadmins</span> also get User Management and
+          General.           <span className="font-semibold">Superadmins</span> also get User Management, Audit Log, catalog tools, and
           maintenance controls. Most staff accounts use{' '}
           <span className="font-semibold">two-factor authentication</span> (authenticator app) at sign-in;
-          shared warehouse stations are exempt.
+          shared warehouse stations are exempt. After MFA, idle sessions ask for a fresh code after{' '}
+          <span className="font-semibold">48 hours</span> without activity.
         </p>
 
         {!isElectron && (
@@ -140,10 +141,15 @@ export default function About() {
             <span className="font-semibold">Email List:</span> Shared directory of named email recipients for express jobs
             and daily runs.
           </li>
+          <li>
+            <span className="font-semibold">Keepa Import File:</span> Build Keepa Excel files from Manage UPCs for Daily
+            Run import mode. Pick a vendor, download on demand, or schedule automatic builds and optional off-price MAP
+            reports with email delivery. Build history can be downloaded, reviewed, or cleared.
+          </li>
         </ul>
         <p className="mt-4 text-sm text-gray-600">
-          Express Jobs, Daily Runs, Manage UPCs, Manage MAP, Seller List, and Email List require Keepa access on your
-          account.
+          Express Jobs, Daily Runs, Manage UPCs, Manage MAP, Seller List, Email List, and Keepa Import File require Keepa
+          access on your account.
         </p>
       </div>
 
@@ -167,22 +173,38 @@ export default function About() {
             or clear the full history.
           </li>
           <li>
-            <span className="font-semibold">Keepa Import File:</span> Build Keepa Excel files from Manage UPCs for Daily
-            Run import mode. Pick a vendor, download on demand, or schedule automatic builds and optional off-price MAP
-            reports with email delivery. Build history can be downloaded, reviewed, or cleared.
+            <span className="font-semibold">Manifest Generator:</span> Turn a packing sheet into Amazon STA pack-group ZIP
+            files for outbound shipments.
           </li>
           <li>
             <span className="font-semibold">Label Station:</span> Scan a product UPC, look up the warehouse catalog, and
             print a Zebra label (desktop app) or download a PDF (web). Catalog managers can import products from Excel.
-            Staff always scan the UPC barcode. Use <span className="font-semibold">Print ID</span>: Short SKU (Amazon)
-            prints a short catalog SKU (7 numeric digits or fewer) under the barcode when present; UPC (DNK) always
-            prints the retail UPC for carton match. Choose label size (small, medium, or large) and printer
-            resolution (203 or 300 dpi). On-screen preview matches the physical label.
+            Staff always scan the UPC barcode. Use <span className="font-semibold">Print ID</span>:{' '}
+            <span className="font-semibold">Short SKU (Amazon)</span> is the default for everyone and prints a short
+            catalog SKU (7 numeric digits or fewer) under the barcode when present;{' '}
+            <span className="font-semibold">UPC (DNK)</span> always prints the retail UPC for carton match and is limited
+            to emails on the allowlist in User Management. Barcode stays FNSKU in both modes. Choose label size (small,
+            medium, or large) and printer resolution (203 or 300 dpi). On-screen preview matches the physical label.
           </li>
         </ul>
         <p className="mt-4 text-sm text-gray-600">
-          Keepa Import File and Label Station in Tools require Keepa access or a warehouse-only account.
+          Label Station requires Keepa access or a warehouse-only account. Micro Tools, Tracking Extractor, FNSKU Labels,
+          and Manifest Generator are available to all signed-in users.
         </p>
+      </div>
+
+      <div className="card p-8">
+        <h2 className="text-2xl font-semibold text-gray-900">Testing</h2>
+        <p className="mt-3 text-gray-700">
+          Invite-only sandbox for verifying tools before real work.
+        </p>
+        <ul className="mt-4 list-disc space-y-2 pl-6 text-gray-700">
+          <li>
+            <span className="font-semibold">Playground:</span> Upload the same input files as live tools (FNSKU Labels,
+            Tracking Extractor, Manifest Generator), run a test, download output, and optionally compare against an
+            expected file for a SUCCESS or FAILED verdict. Available to allowlisted testers and superadmins.
+          </li>
+        </ul>
       </div>
 
       <div className="card p-8">
@@ -200,7 +222,9 @@ export default function About() {
           <li>
             <span className="font-semibold">Two-factor authentication:</span> After password sign-in, enter a 6-digit code
             from your authenticator app (Google Authenticator, Authy, 1Password, etc.). Use{' '}
-            <span className="font-semibold">Reset authenticator</span> in the profile menu to enroll a new device.
+            <span className="font-semibold">Reset authenticator</span> in the profile menu to enroll a new device. After
+            you are fully signed in, <span className="font-semibold">48 hours</span> without activity asks for a fresh
+            TOTP code (warehouse-only stations remain MFA-exempt).
           </li>
         </ul>
       </div>
@@ -224,8 +248,18 @@ export default function About() {
             all feedback; everyone else sees their own submissions.
           </li>
           <li>
-            <span className="font-semibold">User Management:</span> Superadmin only — manage accounts, permissions, and
-            maintenance mode (when enabled, only superadmins and allowlisted emails can use the API).
+            <span className="font-semibold">User Management:</span> Superadmin only — manage accounts, permissions,
+            maintenance mode, and the <span className="font-semibold">Label Station — UPC (DNK) Print ID</span>{' '}
+            email allowlist (who may switch Print ID to UPC for DNK carton labels).
+          </li>
+          <li>
+            <span className="font-semibold">Audit Log:</span> Superadmin only — sign-in, sign-out, Keepa file actions,
+            and other mutating requests and downloads.
+          </li>
+          <li>
+            <span className="font-semibold">UPC / DIMS / Master Sheet:</span> Superadmin catalog tools — import UPC and
+            DIMS spreadsheets, then fill Master Sheet UPC and carton dims from those catalogs (Master Sheet also
+            available to selected allowlisted accounts).
           </li>
         </ul>
       </div>

@@ -23,10 +23,10 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         Menu includes <strong>Dashboard</strong>, <strong>Notifications</strong>, <strong>Express Jobs</strong>,{' '}
-        <strong>Daily Runs</strong>, <strong>Manage UPCs</strong>, <strong>Manage MAP</strong>,{' '}
-        <strong>Seller List</strong>, and <strong>Email List</strong>. Express Jobs through Email List require Keepa
-        access on your account; Dashboard and Notifications are available to all signed-in users (warehouse-only accounts
-        do not see the notifications bell).
+        <strong>Daily Runs</strong>, <strong>Keepa Import File</strong>, <strong>Manage UPCs</strong>,{' '}
+        <strong>Manage MAP</strong>, <strong>Seller List</strong>, and <strong>Email List</strong>. Express Jobs through
+        Email List and Keepa Import File require Keepa access; Dashboard and Notifications are available to all signed-in
+        users (warehouse-only accounts do not see the notifications bell).
       </>
     ),
   },
@@ -170,9 +170,9 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         Tools includes <strong>Micro Tools</strong>, <strong>Tracking Extractor</strong>, <strong>FNSKU Labels</strong>,{' '}
-        <strong>Keepa Import File</strong>, and <strong>Label Station</strong>. Micro Tools, Tracking Extractor, and
-        FNSKU Labels are available to all signed-in users. <strong>Keepa Import File</strong> and{' '}
-        <strong>Label Station</strong> require Keepa access or a warehouse-only account.
+        <strong>Manifest Generator</strong>, and <strong>Label Station</strong>. Micro Tools, Tracking Extractor, FNSKU
+        Labels, and Manifest Generator are available to all signed-in users. <strong>Label Station</strong> requires Keepa
+        access or a warehouse-only account. <strong>Keepa Import File</strong> lives under Menu.
       </>
     ),
   },
@@ -205,15 +205,26 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     ),
   },
   {
+    q: 'What is Manifest Generator?',
+    a: (
+      <>
+        Manifest Generator turns a packing sheet into Amazon STA pack-group ZIP files for outbound shipments. Download
+        the template from the tool, fill it in, then generate the pack-group archives. Available to all signed-in users
+        under Tools.
+      </>
+    ),
+  },
+  {
     q: 'What is Label Station?',
     a: (
       <>
         Label Station is a scan-and-print tool for warehouse labeling. Staff scan a product <strong>UPC</strong>; the app
         looks up the product in the warehouse catalog and prints a formatted label to a Zebra printer (desktop app) or
         downloads a PDF (web browser). Each label shows FNSKU, a scannable barcode, UPC or SKU, condition, and product
-        name. Use <strong>Print ID</strong> to choose Short SKU (Amazon) or UPC (DNK). Choose label size (small, medium,
-        or large) and printer resolution (203 or 300 dpi). The on-screen preview matches the physical label. Catalog
-        managers with Keepa access can import or update products from Excel in the Product Catalog tab.
+        name. Use <strong>Print ID</strong> to choose <strong>Short SKU (Amazon)</strong> (default for everyone) or{' '}
+        <strong>UPC (DNK)</strong> (allowlisted accounts only). Choose label size (small, medium, or large) and printer
+        resolution (203 or 300 dpi). The on-screen preview matches the physical label. Catalog managers with Keepa access
+        can import or update products from Excel in the Product Catalog tab.
       </>
     ),
   },
@@ -237,9 +248,20 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
       <>
         Use <strong>UPC (DNK)</strong> when sending labels to DNK (or anyone who matches cartons by the retail UPC on
         the box). This option is limited to emails on the allowlist in{' '}
-        <strong>User Management → Label Station — UPC (DNK) Print ID</strong>. Everyone else stays on{' '}
-        <strong>Short SKU (Amazon)</strong>, which remains the default. Allowed users: switch back to Short SKU after
-        DNK jobs so Amazon labels stay correct.
+        <strong>User Management → Label Station — UPC (DNK) Print ID</strong>. Everyone else sees UPC (DNK) greyed out and
+        stays on <strong>Short SKU (Amazon)</strong>. Allowed users: switch back to Short SKU after DNK jobs so Amazon
+        labels stay correct. Allowlist changes apply when Label Station is opened or the window is focused again.
+      </>
+    ),
+  },
+  {
+    q: 'What is Testing Playground?',
+    a: (
+      <>
+        Playground is an invite-only sandbox under <strong>TESTING</strong>. Allowlisted testers upload the same file
+        types as live tools (FNSKU Labels, Tracking Extractor, Manifest Generator), run a snapshot test, and download
+        output — optionally compared to an expected file for SUCCESS or FAILED. It does not change Daily Runs, MAP, or
+        live warehouse data.
       </>
     ),
   },
@@ -283,8 +305,9 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
       <>
         Most staff accounts sign in with email, password, and a 6-digit code from an authenticator app (Google
         Authenticator, Authy, 1Password, etc.). On first login you scan a QR code labeled <strong>MSW Overwatch</strong>.
-        Shared <strong>warehouse-only</strong> station logins skip MFA. To replace a lost phone, open the profile menu in
-        the top bar and choose <strong>Reset authenticator</strong>, then scan the new QR code.
+        Shared <strong>warehouse-only</strong> station logins skip MFA. After you are fully authenticated,{' '}
+        <strong>48 hours</strong> without activity asks for a fresh TOTP code. To replace a lost phone, open the profile
+        menu in the top bar and choose <strong>Reset authenticator</strong>, then scan the new QR code.
       </>
     ),
   },
@@ -293,8 +316,8 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         Use the <strong>search box</strong> in the top bar. Type part of a page name (for example &quot;Express&quot;,
-        &quot;MAP&quot;, or &quot;FAQ&quot;) and pick from the grouped results under Menu, Tools, or General. Warehouse-only
-        accounts see a shorter list focused on Label Station and General pages.
+        &quot;MAP&quot;, or &quot;FAQ&quot;) and pick from the grouped results under Menu, Tools, Testing, or General.
+        Warehouse-only accounts see a shorter list focused on Label Station and General pages.
       </>
     ),
   },
@@ -313,8 +336,20 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         General includes <strong>About</strong> (version and feature overview), <strong>FAQ</strong> (this page),{' '}
-        <strong>Feedback From Users</strong> (submit and review suggestions), and{' '}
-        <strong>User Management</strong> (superadmin only — accounts, permissions, and maintenance mode).
+        <strong>Feedback From Users</strong> (submit and review suggestions), and for superadmins{' '}
+        <strong>User Management</strong> (accounts, permissions, maintenance, and the UPC DNK Print ID allowlist),{' '}
+        <strong>Audit Log</strong>, and catalog tools (<strong>UPC</strong>, <strong>DIMS</strong>,{' '}
+        <strong>Master Sheet</strong>).
+      </>
+    ),
+  },
+  {
+    q: 'Who can manage the UPC (DNK) Print ID allowlist?',
+    a: (
+      <>
+        Superadmins edit the list under <strong>User Management → Label Station — UPC (DNK) Print ID</strong>. Add or
+        remove emails there; Short SKU (Amazon) stays available to everyone with Label Station access. Removals take
+        effect when the user next opens or focuses Label Station.
       </>
     ),
   },
@@ -385,8 +420,8 @@ export default function JobAids() {
       </div>
 
       <p className="text-xs text-gray-400">
-        Keepa-related Menu items, Keepa Import File, and Label Station require the right account access; other Tools are
-        available to all signed-in users. Warehouse-only accounts see Label Station and General only.
+        Keepa-related Menu items and Label Station require the right account access; other Tools are available to all
+        signed-in users. Warehouse-only accounts see Label Station and General only.
       </p>
     </div>
   )
