@@ -743,6 +743,7 @@ def get_scheduler_calendar(
 @router.put("/scheduler/settings")
 @handle_api_errors("update scheduler settings")
 def update_scheduler_settings_endpoint(
+    request: Request,
     settings_data: SchedulerSettingsUpdate,
     category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha|jfs)$'),
     current_user: dict = Depends(get_current_user),
@@ -879,6 +880,42 @@ def update_scheduler_settings_endpoint(
     except Exception as e:
         logger.error(f"Failed to update {category.upper()} scheduler: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to update scheduler: {str(e)}")
+
+    changed_fields = [
+        key for key in update_data.keys()
+        if key not in ("updated_by", "updated_at", "category")
+    ]
+    cat = category.upper()
+    if changed_fields:
+        detail = f"Updated {cat} Daily Run scheduler settings ({', '.join(changed_fields)})"
+    else:
+        detail = f"Updated {cat} Daily Run scheduler settings"
+    record_audit_event(
+        db,
+        action="scheduler.settings_update",
+        category="settings",
+        current_user=current_user,
+        request=request,
+        detail=detail,
+        metadata={
+            "category": category,
+            "changed_fields": changed_fields,
+            **{
+                key: update_data[key]
+                for key in changed_fields
+                if key in (
+                    "timezone",
+                    "hour",
+                    "minute",
+                    "enabled",
+                    "run_mode",
+                    "input_mode",
+                    "anchor_date",
+                    "uploaded_wait_timeout_seconds",
+                )
+            },
+        },
+    )
 
     return {
         "timezone": updated_settings.get("timezone", "America/Chicago"),
@@ -1036,6 +1073,7 @@ def get_uploaded_report_status(
 @router.delete("/scheduler/uploaded-report/{report_id}")
 @handle_api_errors("delete uploaded scheduler report")
 def delete_uploaded_report(
+    request: Request,
     report_id: str,
     category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha|jfs)$'),
     current_user: dict = Depends(get_current_user),
@@ -1044,7 +1082,7 @@ def delete_uploaded_report(
     """Delete one uploaded scheduler report by id for a category."""
     lookup = (
         db.table("scheduler_uploaded_reports")
-        .select("id")
+        .select("id, filename, category")
         .eq("id", report_id)
         .eq("category", category)
         .limit(1)
@@ -1053,13 +1091,30 @@ def delete_uploaded_report(
     if not lookup.data:
         raise HTTPException(status_code=404, detail="Uploaded report not found for this category")
 
+    report = lookup.data[0]
+    filename = (report.get("filename") or "").strip() or "unknown file"
     db.table("scheduler_uploaded_reports").delete().eq("id", report_id).eq("category", category).execute()
+    cat = category.upper()
+    record_audit_event(
+        db,
+        action="scheduler.upload_delete",
+        category="data",
+        current_user=current_user,
+        request=request,
+        detail=f"Deleted uploaded Keepa report for {cat}: {filename}",
+        metadata={
+            "category": category,
+            "filename": filename,
+            "report_id": report_id,
+        },
+    )
     return {"message": "Uploaded report deleted", "id": report_id, "category": category}
 
 
 @router.post("/scheduler/uploaded-report/rerun")
 @handle_api_errors("rerun uploaded scheduler report")
 async def rerun_uploaded_report(
+    request: Request,
     category: str = Query(default='dnk', regex='^(dnk|clk|obz|ref|bor|sff|tev|cha|jfs)$'),
     current_user: dict = Depends(get_current_user),
 ):
@@ -1067,7 +1122,7 @@ async def rerun_uploaded_report(
     db = get_supabase()
     latest = await asyncio.to_thread(
         lambda: db.table("scheduler_uploaded_reports")
-        .select("id, parse_status, created_at")
+        .select("id, filename, parse_status, created_at")
         .eq("category", category)
         .order("created_at", desc=True)
         .limit(1)
@@ -1087,6 +1142,26 @@ async def rerun_uploaded_report(
         )
 
     asyncio.create_task(run_daily_job_for_category(category, forced_input_mode="uploaded"))
+    cat = category.upper()
+    filename = (report.get("filename") or "").strip()
+    detail = (
+        f"Re-ran {cat} Import Mode Daily Run from uploaded Keepa report: {filename}"
+        if filename
+        else f"Re-ran {cat} Import Mode Daily Run from the uploaded Keepa report"
+    )
+    record_audit_event(
+        db,
+        action="scheduler.upload_rerun",
+        category="tool",
+        current_user=current_user,
+        request=request,
+        detail=detail,
+        metadata={
+            "category": category,
+            "filename": filename or None,
+            "report_id": report.get("id"),
+        },
+    )
     return {"message": f"{category.upper()} import run queued"}
 
 

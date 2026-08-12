@@ -1,5 +1,5 @@
 """Off-price analytics API (web app; independent of dashboard/reports)."""
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from pydantic import BaseModel, Field
 from typing import List, Literal, Optional
 
@@ -14,6 +14,7 @@ from app.repositories.off_price_analytics_download_log_repository import (
 from app.repositories.off_price_analytics_user_tracking_repository import (
     OffPriceAnalyticsUserTrackingRepository,
 )
+from app.services.audit_log_service import record_audit_event
 from app.services.email_service import EmailService
 from app.services.off_price_analytics_service import OffPriceAnalyticsService
 from app.services.off_price_analytics_vendors import VENDOR_CODES
@@ -184,36 +185,111 @@ def seed_demo_off_price_history(
 @router.delete("/analytics/off-price/demo-snapshots")
 @handle_api_errors("delete demo off-price analytics snapshots")
 def delete_demo_off_price_snapshots(
+    request: Request,
     current_user: dict = Depends(require_analytics_access),
     db: Client = Depends(get_supabase),
 ):
     """Remove fabricated ``source=demo`` snapshot rows. Live archives are kept."""
     service = OffPriceAnalyticsService(db)
-    return service.delete_demo_snapshots()
+    result = service.delete_demo_snapshots()
+    deleted = int(result.get("deleted") or 0)
+    record_audit_event(
+        db,
+        action="analytics.demo_delete",
+        category="data",
+        current_user=current_user,
+        request=request,
+        detail=(
+            f"Removed {deleted} Analytics demo snapshot{'s' if deleted != 1 else ''}"
+            if result.get("available", True)
+            else "Tried to remove Analytics demo snapshots (unavailable)"
+        ),
+        metadata={"deleted": deleted, "available": result.get("available")},
+    )
+    return result
 
 
 @router.post("/analytics/off-price/mismatch-test")
 @handle_api_errors("run off-price analytics mismatch test")
 def run_off_price_mismatch_test(
+    request: Request,
     offset: int = Query(0, ge=0, le=120),
     current_user: dict = Depends(require_analytics_access),
     db: Client = Depends(get_supabase),
 ):
     """Compare Daily Run price_alerts counts vs Analytics for a UTC calendar day."""
     service = OffPriceAnalyticsService(db)
-    return service.run_daily_mismatch_test(offset=offset)
+    result = service.run_daily_mismatch_test(offset=offset)
+    period_label = result.get("period_label") or "the selected day"
+    message = (result.get("message") or "").strip()
+    mismatch_count = len(result.get("mismatches") or [])
+    if result.get("has_mismatch"):
+        detail = (
+            f"Ran Analytics mismatch test for {period_label}: found {mismatch_count} "
+            f"vendor mismatch{'es' if mismatch_count != 1 else ''}"
+        )
+    else:
+        detail = f"Ran Analytics mismatch test for {period_label}: no mismatch found"
+    if message and message not in detail:
+        detail = f"{detail} — {message}"
+    record_audit_event(
+        db,
+        action="analytics.mismatch_test",
+        category="tool",
+        current_user=current_user,
+        request=request,
+        detail=detail,
+        metadata={
+            "offset": offset,
+            "period_key": result.get("period_key"),
+            "period_label": period_label,
+            "has_mismatch": bool(result.get("has_mismatch")),
+            "mismatch_count": mismatch_count,
+            "actual_total": result.get("actual_total"),
+            "analytics_total": result.get("analytics_total"),
+        },
+    )
+    return result
 
 
 @router.post("/analytics/off-price/mismatch-fix")
 @handle_api_errors("fix off-price analytics mismatch")
 def fix_off_price_mismatch(
+    request: Request,
     offset: int = Query(0, ge=0, le=120),
     current_user: dict = Depends(require_analytics_access),
     db: Client = Depends(get_supabase),
 ):
     """Recompute and force-persist daily (and current week/month/year) Analytics."""
     service = OffPriceAnalyticsService(db)
-    return service.fix_daily_mismatch(offset=offset)
+    result = service.fix_daily_mismatch(offset=offset)
+    before = result.get("before") or {}
+    period_label = before.get("period_label") or result.get("daily", {}).get("period_label") or "the selected day"
+    message = (result.get("message") or "").strip()
+    if result.get("fixed") and before.get("has_mismatch"):
+        detail = f"Recomputed Analytics to fix a mismatch for {period_label}"
+    elif result.get("fixed"):
+        detail = f"Recomputed Analytics for {period_label} (no mismatch to fix)"
+    else:
+        detail = f"Attempted Analytics mismatch fix for {period_label}"
+    if message and message not in detail:
+        detail = f"{detail} — {message}"
+    record_audit_event(
+        db,
+        action="analytics.mismatch_fix",
+        category="tool",
+        current_user=current_user,
+        request=request,
+        detail=detail,
+        metadata={
+            "offset": offset,
+            "period_key": before.get("period_key") or result.get("daily", {}).get("period_key"),
+            "period_label": period_label,
+            "fixed": bool(result.get("fixed")),
+            "refreshed": result.get("refreshed"),
+        },
+    )
+    return result
 
 
 @router.get("/analytics/off-price/tracking")
@@ -230,6 +306,7 @@ def list_analytics_tracking(
 @router.put("/analytics/off-price/tracking/{vendor_code}")
 @handle_api_errors("update personal analytics tracking setting")
 def update_analytics_tracking(
+    request: Request,
     vendor_code: str,
     enabled: bool = Query(..., description="true = start tracking, false = stop tracking"),
     current_user: dict = Depends(require_analytics_access),
@@ -243,7 +320,7 @@ def update_analytics_tracking(
     """
     repo = OffPriceAnalyticsUserTrackingRepository(db)
     try:
-        return repo.set_tracking(_user_id(current_user), vendor_code, enabled)
+        result = repo.set_tracking(_user_id(current_user), vendor_code, enabled)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except Exception as exc:
@@ -256,6 +333,22 @@ def update_analytics_tracking(
             ),
         ) from exc
 
+    code = (vendor_code or "").strip().upper() or "vendor"
+    detail = (
+        f"Started Analytics tracking for {code}"
+        if enabled
+        else f"Stopped Analytics tracking for {code}"
+    )
+    record_audit_event(
+        db,
+        action="analytics.tracking_update",
+        category="settings",
+        current_user=current_user,
+        request=request,
+        detail=detail,
+        metadata={"vendor_code": vendor_code, "enabled": enabled},
+    )
+    return result
 
 @router.get("/analytics/off-price/download-logs")
 @handle_api_errors("list analytics download logs")

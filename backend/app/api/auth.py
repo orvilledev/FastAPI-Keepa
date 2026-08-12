@@ -26,6 +26,7 @@ from app.services.upc_dnk_print_id_allowlist import (
     list_upc_dnk_print_id_emails,
     replace_upc_dnk_print_id_emails,
 )
+from app.services.audit_log_service import record_audit_event
 
 logger = logging.getLogger(__name__)
 
@@ -558,6 +559,19 @@ def update_upc_dnk_print_id_allowlist(
 ):
     """Replace the UPC (DNK) Print ID allowlist (superadmin only)."""
     emails = replace_upc_dnk_print_id_emails(db, payload.emails or [])
+    count = len(emails)
+    record_audit_event(
+        db,
+        action="admin.upc_dnk_print_id_allowlist",
+        category="admin",
+        current_user=current_user,
+        request=request,
+        detail=(
+            f"Updated the Label Station UPC (DNK) Print ID allowlist "
+            f"({count} email{'s' if count != 1 else ''})"
+        ),
+        metadata={"email_count": count, "emails": emails},
+    )
     return {"emails": emails}
 
 

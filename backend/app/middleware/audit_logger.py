@@ -108,7 +108,14 @@ def _write_audit_row(
         from app.repositories.audit_log_repository import AuditLogRepository
 
         db = get_supabase()
-        descriptor = describe(method, path)
+        # Query params (e.g. category=tev) are already in metadata; pass them so
+        # labels name the vendor/file context instead of a generic phrase.
+        query = {
+            str(k): str(v)
+            for k, v in (metadata or {}).items()
+            if isinstance(k, str) and not isinstance(v, (dict, list))
+        }
+        descriptor = describe(method, path, query)
         label = descriptor.label
         if status_code is not None and status_code >= 400:
             label = f"{label} (failed)"

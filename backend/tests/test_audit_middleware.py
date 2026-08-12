@@ -136,6 +136,14 @@ def test_noise_and_views_are_skipped(method, path):
     "method,path",
     [
         ("POST", "/api/v1/scheduler/uploaded-report"),
+        ("PUT", "/api/v1/scheduler/settings"),
+        ("DELETE", "/api/v1/scheduler/uploaded-report/abc"),
+        ("POST", "/api/v1/scheduler/uploaded-report/rerun"),
+        ("POST", "/api/v1/analytics/off-price/mismatch-test"),
+        ("POST", "/api/v1/analytics/off-price/mismatch-fix"),
+        ("DELETE", "/api/v1/analytics/off-price/demo-snapshots"),
+        ("PUT", "/api/v1/analytics/off-price/tracking/tev"),
+        ("PUT", "/api/v1/auth/upc-dnk-print-id-allowlist"),
         ("GET", "/api/v1/keepa-import-export/dnk/download"),
         ("GET", "/api/v1/keepa-import-export/builds/abc/download"),
         ("GET", "/api/v1/keepa-import-export/builds/history/abc/download"),
@@ -151,7 +159,6 @@ def test_handler_logged_routes_are_not_double_logged(method, path):
         ("POST", "/api/v1/jobs", "job.create", "job"),
         ("GET", "/api/v1/reports/abc/csv", "report.download", "download"),
         ("POST", "/api/v1/email-recipients/pool", "email.pool_add", "email"),
-        ("PUT", "/api/v1/scheduler/settings", "scheduler.settings_update", "settings"),
         ("POST", "/api/v1/manifest-generator/generate", "manifest.generate", "tool"),
         ("POST", "/api/v1/auth/users/abc/approve", "admin.user_approve", "admin"),
     ],
@@ -162,6 +169,36 @@ def test_known_routes_get_friendly_actions(method, path, action, category):
     assert descriptor.action == action
     assert descriptor.category == category
     assert descriptor.label
+
+
+def test_describe_includes_vendor_from_query():
+    descriptor = describe(
+        "PUT",
+        "/api/v1/scheduler/settings",
+        {"category": "tev"},
+    )
+    assert descriptor.action == "scheduler.settings_update"
+    assert descriptor.label == "Updated TEV Daily Run scheduler settings"
+
+
+def test_describe_upload_delete_includes_category():
+    descriptor = describe(
+        "DELETE",
+        "/api/v1/scheduler/uploaded-report/abc",
+        {"category": "clk"},
+    )
+    assert descriptor.action == "scheduler.upload_delete"
+    assert descriptor.label == "Deleted an uploaded Keepa report for CLK"
+
+
+def test_describe_analytics_tracking_from_path_and_query():
+    descriptor = describe(
+        "PUT",
+        "/api/v1/analytics/off-price/tracking/tev",
+        {"enabled": "false"},
+    )
+    assert descriptor.action == "analytics.tracking_update"
+    assert descriptor.label == "Stopped Analytics tracking for TEV"
 
 
 def test_unmapped_route_falls_back_to_derived_action():

@@ -61,6 +61,14 @@ _NEVER_LOGGED: Tuple[Pattern[str], ...] = tuple(
 # skips these to avoid duplicate rows.
 _HANDLER_LOGGED: Tuple[Tuple[Set[str], Pattern[str]], ...] = (
     ({"POST"}, re.compile(r"^/api/v1/scheduler/uploaded-report$")),
+    ({"PUT"}, re.compile(r"^/api/v1/scheduler/settings$")),
+    ({"DELETE"}, re.compile(r"^/api/v1/scheduler/uploaded-report/[^/]+$")),
+    ({"POST"}, re.compile(r"^/api/v1/scheduler/uploaded-report/rerun$")),
+    ({"POST"}, re.compile(r"^/api/v1/analytics/off-price/mismatch-test$")),
+    ({"POST"}, re.compile(r"^/api/v1/analytics/off-price/mismatch-fix$")),
+    ({"DELETE"}, re.compile(r"^/api/v1/analytics/off-price/demo-snapshots$")),
+    ({"PUT"}, re.compile(r"^/api/v1/analytics/off-price/tracking/[^/]+$")),
+    ({"PUT"}, re.compile(r"^/api/v1/auth/upc-dnk-print-id-allowlist$")),
     ({"GET"}, re.compile(r"^/api/v1/keepa-import-export/builds/history/[^/]+/download$")),
     ({"GET"}, re.compile(r"^/api/v1/keepa-import-export/builds/[^/]+/download$")),
     ({"GET"}, re.compile(r"^/api/v1/keepa-import-export/[^/]+/download$")),
@@ -110,7 +118,7 @@ _ROUTES: Tuple[_Route, ...] = (
     _r("PUT", r"^/api/v1/scheduler/settings$",
        "scheduler.settings_update", "settings", "Updated Daily Run scheduler settings"),
     _r("POST", r"^/api/v1/scheduler/uploaded-report/rerun$",
-       "scheduler.upload_rerun", "tool", "Re-ran parsing of an uploaded Keepa report"),
+       "scheduler.upload_rerun", "tool", "Re-ran Import Mode Daily Run from an uploaded Keepa report"),
     _r("DELETE", r"^/api/v1/scheduler/uploaded-report/[^/]+$",
        "scheduler.upload_delete", "data", "Deleted an uploaded Keepa report"),
     _r("POST", r"^/api/v1/scheduler/same-day-run$",
@@ -245,6 +253,9 @@ _ROUTES: Tuple[_Route, ...] = (
     _r("POST", r"^/api/v1/auth/users$", "admin.user_create", "admin", "Created a user account"),
     _r("PUT", r"^/api/v1/auth/maintenance$",
        "admin.maintenance", "admin", "Changed maintenance mode"),
+    _r("PUT", r"^/api/v1/auth/upc-dnk-print-id-allowlist$",
+       "admin.upc_dnk_print_id_allowlist", "admin",
+       "Updated the Label Station UPC (DNK) Print ID allowlist"),
     _r("POST", r"^/api/v1/auth/mfa/confirm-enrollment$",
        "auth.mfa_enrolled", "auth", "Completed two-factor setup"),
     _r("PUT", r"^/api/v1/auth/profile$", "auth.profile_update", "auth", "Updated their profile"),
@@ -262,9 +273,9 @@ _ROUTES: Tuple[_Route, ...] = (
     _r("PUT", r"^/api/v1/quick-access/[^/]+$", "quick_access.update", "settings", "Updated a quick-access link"),
     _r("DELETE", r"^/api/v1/quick-access/[^/]+$", "quick_access.delete", "settings", "Deleted a quick-access link"),
     _r("DELETE", r"^/api/v1/notifications/[^/]+$",
-       "notification.delete", "other", "Deleted a notification"),
+       "notification.delete", "other", "Deleted a completed-run notification"),
     _r("DELETE", r"^/api/v1/notifications$",
-       "notification.clear", "other", "Cleared all notifications"),
+       "notification.clear", "other", "Cleared all completed-run notifications"),
 )
 
 _ID_SEGMENT = re.compile(
@@ -301,25 +312,134 @@ def _fallback_action(method: str, path: str) -> str:
     return f"{method.lower()}.{slug}"[:64] or "other.request"
 
 
-def describe(method: str, path: str) -> AuditDescriptor:
-    """Resolve an action slug, category, and human label for a request."""
+def describe(
+    method: str,
+    path: str,
+    query: Optional[Dict[str, str]] = None,
+) -> AuditDescriptor:
+    """Resolve an action slug, category, and human label for a request.
+
+    When ``query`` includes values the UI already sends (for example ``category``),
+    the label is enriched so Audit Log shows what actually happened.
+    """
     upper = method.upper()
+    query = query or {}
+    matched: Optional[_Route] = None
     for route in _ROUTES:
         if upper in route.methods and route.pattern.search(path):
-            return AuditDescriptor(route.action, route.category, route.label)
+            matched = route
+            break
 
-    verb = {
-        "POST": "Created or ran",
-        "PUT": "Updated",
-        "PATCH": "Updated",
-        "DELETE": "Deleted",
-        "GET": "Downloaded",
-    }.get(upper, "Performed")
-    return AuditDescriptor(
-        _fallback_action(upper, path),
-        "other",
-        f"{verb}: {upper} {path}",
-    )
+    if matched is None:
+        verb = {
+            "POST": "Created or ran",
+            "PUT": "Updated",
+            "PATCH": "Updated",
+            "DELETE": "Deleted",
+            "GET": "Downloaded",
+        }.get(upper, "Performed")
+        return AuditDescriptor(
+            _fallback_action(upper, path),
+            "other",
+            f"{verb}: {upper} {path}",
+        )
+
+    label = _enrich_label(matched.action, matched.label, path, query)
+    return AuditDescriptor(matched.action, matched.category, label)
+
+
+def _enrich_label(
+    action: str,
+    base_label: str,
+    path: str,
+    query: Dict[str, str],
+) -> str:
+    """Attach vendor/category and other path/query identity to a base label."""
+    category = (query.get("category") or "").strip().upper()
+    vendor = (query.get("vendor_code") or "").strip().upper()
+    enabled_raw = (query.get("enabled") or "").strip().lower()
+
+    if action == "scheduler.settings_update" and category:
+        return f"Updated {category} Daily Run scheduler settings"
+    if action == "scheduler.upload_delete" and category:
+        return f"Deleted an uploaded Keepa report for {category}"
+    if action == "scheduler.upload_rerun" and category:
+        return f"Re-ran {category} Import Mode Daily Run from the uploaded Keepa report"
+    if action == "scheduler.same_day_create" and category:
+        return f"Scheduled an extra same-day Daily Run for {category}"
+    if action == "scheduler.same_day_cancel" and category:
+        return f"Cancelled a pending same-day Daily Run for {category}"
+    if action == "keepa.scheduler_update" and category:
+        return f"Updated Keepa Import scheduler settings for {category}"
+    if action.startswith("keepa.") and category and "for " not in base_label.lower():
+        return f"{base_label} for {category}"
+
+    if action == "analytics.tracking_update":
+        # Path: /api/v1/analytics/off-price/tracking/{vendor_code}
+        parts = [p for p in path.split("/") if p]
+        code = (parts[-1] if parts else "").upper()
+        if enabled_raw in ("true", "1", "yes"):
+            return f"Started Analytics tracking for {code}" if code else base_label
+        if enabled_raw in ("false", "0", "no"):
+            return f"Stopped Analytics tracking for {code}" if code else base_label
+        return f"Changed Analytics tracking for {code}" if code else base_label
+
+    if action in ("analytics.mismatch_test", "analytics.mismatch_fix"):
+        offset = (query.get("offset") or "").strip()
+        if offset and offset != "0":
+            return f"{base_label} (UTC day offset {offset})"
+        return base_label
+
+    if action in ("job.trigger", "job.stop", "job.update", "job.delete"):
+        job_id = _last_path_id(path)
+        if job_id:
+            short = job_id if len(job_id) <= 12 else f"{job_id[:8]}…"
+            verb = {
+                "job.trigger": "Manually re-ran job",
+                "job.stop": "Stopped running job",
+                "job.update": "Updated job",
+                "job.delete": "Deleted job",
+            }[action]
+            return f"{verb} {short}"
+
+    if action in ("report.download", "report.email"):
+        job_id = _last_path_id(path, before_last=("csv", "email"))
+        if job_id:
+            short = job_id if len(job_id) <= 12 else f"{job_id[:8]}…"
+            if action == "report.download":
+                return f"Downloaded report file for job {short}"
+            return f"Re-sent report email for job {short}"
+
+    if action == "upc.delete":
+        upc = _last_path_segment(path)
+        if upc:
+            return f"Deleted UPC {upc}"
+
+    if action == "warehouse.delete":
+        upc = _last_path_segment(path)
+        if upc:
+            return f"Deleted warehouse product {upc}"
+
+    if vendor and action.startswith("analytics."):
+        return f"{base_label} ({vendor})"
+
+    if category and action.startswith(("upc.", "map.")) and "for " not in base_label.lower():
+        # Some UPC/MAP endpoints pass category as query.
+        return f"{base_label} ({category})"
+
+    return base_label
+
+
+def _last_path_segment(path: str) -> str:
+    parts = [p for p in path.split("/") if p]
+    return parts[-1] if parts else ""
+
+
+def _last_path_id(path: str, before_last: Tuple[str, ...] = ()) -> str:
+    parts = [p for p in path.split("/") if p]
+    if before_last and parts and parts[-1] in before_last and len(parts) >= 2:
+        return parts[-2]
+    return parts[-1] if parts else ""
 
 
 def safe_query_metadata(query_string: str, limit: int = 8) -> Dict[str, str]:

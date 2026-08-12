@@ -68,8 +68,104 @@ function formatWhen(iso: string | null | undefined): string {
   return parsed.toLocaleString()
 }
 
+function metaString(meta: Record<string, unknown> | null | undefined, key: string): string {
+  const value = meta?.[key]
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return ''
+}
+
+function metaCategory(meta: Record<string, unknown> | null | undefined): string {
+  return metaString(meta, 'category').toUpperCase()
+}
+
+/** Rebuild a precise What happened line from action + metadata when possible. */
+function rebuildDetail(row: AuditLogEntry): string | null {
+  const meta = row.metadata || {}
+  const cat = metaCategory(meta)
+  const filename = metaString(meta, 'filename')
+  const vendor = metaString(meta, 'vendor_code').toUpperCase()
+  const periodLabel = metaString(meta, 'period_label')
+  const enabledRaw = metaString(meta, 'enabled').toLowerCase()
+
+  switch (row.action) {
+    case 'scheduler.settings_update': {
+      if (!cat) return null
+      const fields = Array.isArray(meta.changed_fields)
+        ? meta.changed_fields.filter((f): f is string => typeof f === 'string')
+        : []
+      if (fields.length > 0) {
+        return `Updated ${cat} Daily Run scheduler settings (${fields.join(', ')})`
+      }
+      return `Updated ${cat} Daily Run scheduler settings`
+    }
+    case 'scheduler.upload_delete': {
+      if (cat && filename) return `Deleted uploaded Keepa report for ${cat}: ${filename}`
+      if (cat) return `Deleted an uploaded Keepa report for ${cat}`
+      return null
+    }
+    case 'scheduler.upload_rerun': {
+      if (cat && filename) {
+        return `Re-ran ${cat} Import Mode Daily Run from uploaded Keepa report: ${filename}`
+      }
+      if (cat) return `Re-ran ${cat} Import Mode Daily Run from the uploaded Keepa report`
+      return null
+    }
+    case 'scheduler.same_day_create':
+      return cat ? `Scheduled an extra same-day Daily Run for ${cat}` : null
+    case 'scheduler.same_day_cancel':
+      return cat ? `Cancelled a pending same-day Daily Run for ${cat}` : null
+    case 'keepa.upload': {
+      if (cat && filename) return `Uploaded Keepa report for ${cat}: ${filename}`
+      if (cat) return `Uploaded Keepa report for ${cat}`
+      return null
+    }
+    case 'analytics.tracking_update': {
+      const code = vendor || metaString(meta, 'vendor').toUpperCase()
+      if (!code) return null
+      if (enabledRaw === 'true' || enabledRaw === '1') return `Started Analytics tracking for ${code}`
+      if (enabledRaw === 'false' || enabledRaw === '0') return `Stopped Analytics tracking for ${code}`
+      return `Changed Analytics tracking for ${code}`
+    }
+    case 'analytics.mismatch_test': {
+      if (!periodLabel) return null
+      const hasMismatch = meta.has_mismatch === true
+      const count = typeof meta.mismatch_count === 'number' ? meta.mismatch_count : null
+      if (hasMismatch && count != null) {
+        return `Ran Analytics mismatch test for ${periodLabel}: found ${count} vendor mismatch${count === 1 ? '' : 'es'}`
+      }
+      if (hasMismatch) return `Ran Analytics mismatch test for ${periodLabel}: mismatch found`
+      return `Ran Analytics mismatch test for ${periodLabel}: no mismatch found`
+    }
+    case 'analytics.mismatch_fix': {
+      if (!periodLabel) return null
+      return meta.fixed === false
+        ? `Attempted Analytics mismatch fix for ${periodLabel}`
+        : `Recomputed Analytics to fix a mismatch for ${periodLabel}`
+    }
+    case 'analytics.demo_delete': {
+      if (typeof meta.deleted === 'number') {
+        const n = meta.deleted
+        return `Removed ${n} Analytics demo snapshot${n === 1 ? '' : 's'}`
+      }
+      return null
+    }
+    case 'admin.upc_dnk_print_id_allowlist': {
+      if (typeof meta.email_count === 'number') {
+        const n = meta.email_count
+        return `Updated the Label Station UPC (DNK) Print ID allowlist (${n} email${n === 1 ? '' : 's'})`
+      }
+      return null
+    }
+    case 'notification.clear':
+      return 'Cleared all completed-run notifications'
+    default:
+      return null
+  }
+}
+
 function describeRow(row: AuditLogEntry): string {
-  return row.detail || row.label || row.action
+  return rebuildDetail(row) || row.detail || row.label || row.action
 }
 
 export default function AuditLog() {
