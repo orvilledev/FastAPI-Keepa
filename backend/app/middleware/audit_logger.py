@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional, Set
 
 from app.services.audit_actions import describe, safe_query_metadata, should_audit
 from app.utils.jwt_utils import decode_jwt_payload
+from app.utils.user_display_name import resolve_user_display_name
 
 logger = logging.getLogger(__name__)
 
@@ -75,15 +76,15 @@ def _cached_display_name(db, user_id: str, email: Optional[str]) -> Optional[str
         )
         row = (resp.data or [None])[0]
         if row:
-            name = (row.get("display_name") or "").strip() or None
-            if not name:
-                row_email = (row.get("email") or email or "").strip()
-                name = row_email.split("@")[0] or None
+            name = resolve_user_display_name(
+                display_name=row.get("display_name"),
+                email=row.get("email") or email,
+            )
     except Exception as exc:
         logger.debug("audit display-name lookup failed: %s", exc)
 
     if not name and email:
-        name = email.split("@")[0] or None
+        name = resolve_user_display_name(email=email)
 
     if len(_display_name_cache) >= _DISPLAY_NAME_CACHE_MAX:
         _display_name_cache.clear()

@@ -4,6 +4,13 @@ from __future__ import annotations
 from typing import Any, Mapping, Optional
 
 
+def capitalize_person_name(name: Optional[str]) -> Optional[str]:
+    """Capitalize the first letter of each word (stephanie → Stephanie)."""
+    if not isinstance(name, str) or not name.strip():
+        return None
+    return " ".join(part[:1].upper() + part[1:] for part in name.strip().split() if part)
+
+
 def _title_local_email_part(email: str) -> Optional[str]:
     local_part = email.split("@", 1)[0].strip()
     if not local_part:
@@ -23,7 +30,7 @@ def resolve_user_display_name(
     """Prefer profile names; derive a readable name from email local-part as last resort."""
     for name in (display_name, full_name):
         if isinstance(name, str) and name.strip():
-            return name.strip()
+            return capitalize_person_name(name) or name.strip()
 
     if isinstance(email, str) and email.strip():
         titled = _title_local_email_part(email.strip())
@@ -61,4 +68,4 @@ def format_stored_creator_name(value: Optional[str]) -> Optional[str]:
         return raw
     if "@" in raw:
         return resolve_user_display_name(email=raw) or raw
-    return raw
+    return capitalize_person_name(raw) or raw

@@ -9,6 +9,7 @@ from supabase import Client
 
 from app.repositories.audit_log_repository import AuditLogRepository
 from app.services.audit_actions import category_for
+from app.utils.user_display_name import resolve_user_display_name
 
 logger = logging.getLogger(__name__)
 
@@ -53,19 +54,16 @@ def display_name_for_user(current_user: dict, db: Client) -> Optional[str]:
             )
             row = (profile.data or [None])[0]
             if row:
-                name = (row.get("display_name") or "").strip()
-                if name:
-                    return name
-                email = (row.get("email") or current_user.get("email") or "").strip()
-                if email:
-                    return email.split("@")[0]
+                return resolve_user_display_name(
+                    display_name=row.get("display_name"),
+                    email=row.get("email") or current_user.get("email"),
+                )
         except Exception:
             pass
     meta = current_user.get("user_metadata") or {}
-    return (
-        (meta.get("display_name") or "").strip()
-        or (current_user.get("email") or "").split("@")[0]
-        or None
+    return resolve_user_display_name(
+        display_name=meta.get("display_name"),
+        email=current_user.get("email"),
     )
 
 

@@ -68,6 +68,16 @@ function formatWhen(iso: string | null | undefined): string {
   return parsed.toLocaleString()
 }
 
+/** stephanie → Stephanie; existing Title Case names stay as-is. */
+function formatPersonName(name: string | null | undefined): string {
+  const trimmed = (name || '').trim()
+  if (!trimmed) return '—'
+  return trimmed
+    .split(/\s+/)
+    .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1) : part))
+    .join(' ')
+}
+
 function metaString(meta: Record<string, unknown> | null | undefined, key: string): string {
   const value = meta?.[key]
   if (typeof value === 'string' && value.trim()) return value.trim()
@@ -400,7 +410,7 @@ export default function AuditLog() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="font-medium text-gray-900 dark:text-slate-100">
-                        {row.user_display_name || '—'}
+                        {formatPersonName(row.user_display_name)}
                       </div>
                       <div className="text-xs text-gray-500">{row.user_email || '—'}</div>
                     </td>
