@@ -28,6 +28,7 @@ import {
 import { useUser } from '../../contexts/UserContext'
 import {
   analyticsApi,
+  type DailyKeepaOffPriceListings,
   type OffPriceMismatchFixResult,
   type OffPriceMismatchTestResult,
 } from '../../services/api'
@@ -566,13 +567,31 @@ export default function OffPriceAnalytics() {
   const emailHasReportRanges =
     selectedEmailPeriodList.length > 0 || parsedEmailHistoricalYears.years.length > 0
 
+  const loadDailyKeepaListings = async (
+    codes: string[],
+  ): Promise<DailyKeepaOffPriceListings> => {
+    try {
+      return await analyticsApi.getDailyKeepaOffPriceListings(codes)
+    } catch {
+      return {
+        day: data?.as_of?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+        period_label: data?.period_labels?.daily || '',
+        has_daily_runs: false,
+        empty_message: 'There are no daily runs yet for the day.',
+        runs: [],
+        rows: [],
+      }
+    }
+  }
+
   const handleConfirmDownload = async () => {
     if (!data || selectedDownloadCodes.length === 0) return
     setDownloading(true)
     try {
       const codes =
         selectedDownloadCodes.length >= vendorCodes.length ? vendorCodes : selectedDownloadCodes
-      const blob = buildOffPriceAnalyticsExcelBlob(data, { vendorCodes: codes })
+      const dailyKeepaListings = await loadDailyKeepaListings(codes)
+      const blob = buildOffPriceAnalyticsExcelBlob(data, { vendorCodes: codes, dailyKeepaListings })
       const filename = offPriceAnalyticsExcelFilename(data.as_of, codes, vendorCodes.length)
       downloadBlob(blob, filename)
 
@@ -646,10 +665,12 @@ export default function OffPriceAnalytics() {
         selectedEmailPeriodList,
         parsedEmailHistoricalYears.years,
       )
+      const dailyKeepaListings = await loadDailyKeepaListings(codes)
       const blob = buildOffPriceAnalyticsExcelBlob(data, {
         vendorCodes: codes,
         periods: selectedEmailPeriodList,
         historicalYears: parsedEmailHistoricalYears.years,
+        dailyKeepaListings,
       })
       const filename = offPriceAnalyticsExcelFilename(data.as_of, codes, vendorCodes.length)
       const result = await analyticsApi.emailReport({
@@ -1232,7 +1253,9 @@ export default function OffPriceAnalytics() {
                   Download Excel
                 </h2>
                 <p className="mt-1 text-xs text-gray-500 dark:text-content-muted">
-                  Choose vendors for your personal export. This is logged with your name and the date.
+                  Choose vendors for your personal export. A Daily Keepa Off Price tab is always
+                  included (today's listings, or a note if no daily run has finished yet). This is
+                  logged with your name and the date.
                 </p>
               </div>
               <div className="max-h-72 space-y-1 overflow-y-auto px-5 py-3">
@@ -1329,8 +1352,9 @@ export default function OffPriceAnalytics() {
                   Email Report
                 </h2>
                 <p className="mt-1 text-xs text-gray-500 dark:text-content-muted">
-                  Choose vendors, report ranges, and recipients. Uses Analytics email only — does not
-                  affect Daily Run or Express Job emails.
+                  Choose vendors, report ranges, and recipients. A Daily Keepa Off Price tab is
+                  always included for today. Uses Analytics email only — does not affect Daily Run or
+                  Express Job emails.
                 </p>
               </div>
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
@@ -1418,6 +1442,10 @@ export default function OffPriceAnalytics() {
                         </span>
                       </label>
                     ))}
+                    <p className="px-1 pt-1 text-xs text-gray-500 dark:text-content-muted">
+                      The Daily Keepa Off Price listings tab is always added for today, whether or
+                      not a Daily range is selected.
+                    </p>
                     <label className="flex cursor-pointer items-start gap-3 rounded-lg px-1 py-1 hover:bg-gray-50 dark:hover:bg-surface-hover">
                       <input
                         type="checkbox"

@@ -18,6 +18,7 @@ from calendar import monthrange
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Literal, Optional, Tuple
+from uuid import UUID
 
 from supabase import Client
 
@@ -549,6 +550,107 @@ class OffPriceAnalyticsService:
             "archived": True,
             "personalized": bool(user_id),
             "source": row.get("source"),
+        }
+
+    def get_todays_daily_keepa_listings(
+        self,
+        vendor_codes: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Today's Daily Run off-price listing rows for Analytics Excel.
+
+        Always returns a payload the Excel builder can turn into a tab:
+        - no completed Daily Run yet → ``has_daily_runs=False`` and an empty-state message
+        - completed run(s) → the same listing rows as the Daily Run Price Report
+        """
+        start, end, label, period_key = period_bounds("daily", offset=0)
+        jobs = self._fetch_daily_jobs(start, end)
+
+        if vendor_codes:
+            allowed = {
+                c.strip().lower()
+                for c in vendor_codes
+                if c and c.strip().lower() in VENDOR_CODES
+            }
+            jobs = [job for job in jobs if _vendor_from_job(job) in allowed]
+
+        empty_payload = {
+            "day": period_key,
+            "period_label": label,
+            "has_daily_runs": False,
+            "empty_message": "There are no daily runs yet for the day.",
+            "runs": [],
+            "rows": [],
+        }
+        if not jobs:
+            return empty_payload
+
+        # Imported here to avoid a module-level cycle with report generation.
+        from app.services.report_service import ReportService
+
+        report_service = ReportService(self.db)
+        listing_columns = (
+            "UPC",
+            "ASIN",
+            "Product Title",
+            "Brand",
+            "Off Price Listing",
+            "MSRP",
+            "Current Amazon Price",
+            "Price Difference",
+            "Seller Offer Price",
+            "Seller",
+            "Discount %",
+            "Amazon URL",
+        )
+        runs: List[Dict[str, Any]] = []
+        rows: List[Dict[str, Any]] = []
+
+        for job in jobs:
+            vendor = _vendor_from_job(job) or ""
+            job_id = str(job.get("id") or "")
+            run_meta: Dict[str, Any] = {
+                "vendor_code": vendor,
+                "vendor_name": VENDOR_LABELS.get(vendor, vendor.upper() if vendor else ""),
+                "job_id": job_id,
+                "job_name": job.get("job_name"),
+                "completed_at": job.get("completed_at"),
+                "row_count": 0,
+            }
+            listing_rows: List[Dict[str, Any]] = []
+            if job_id:
+                try:
+                    listing_rows = report_service.get_comprehensive_report_rows_for_job(
+                        UUID(job_id)
+                    )
+                except Exception:
+                    logger.exception(
+                        "Failed to load Daily Keepa off-price rows for job %s", job_id
+                    )
+                    run_meta["error"] = "Could not load listings for this run."
+            vendor_label = vendor.upper() if vendor else ""
+            job_name = str(job.get("job_name") or "")
+            for row in listing_rows:
+                export_row: Dict[str, Any] = {
+                    "Vendor": vendor_label,
+                    "Job": job_name,
+                }
+                for col in listing_columns:
+                    export_row[col] = row.get(col, "")
+                rows.append(export_row)
+            run_meta["row_count"] = len(listing_rows)
+            runs.append(run_meta)
+
+        return {
+            "day": period_key,
+            "period_label": label,
+            "has_daily_runs": True,
+            "empty_message": (
+                None
+                if rows
+                else "Daily run(s) completed — no off-price listings found."
+            ),
+            "runs": runs,
+            "rows": rows,
         }
 
     def get_live_preview_bootstrap(self, user_id: str) -> Dict[str, Any]:

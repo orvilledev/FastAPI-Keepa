@@ -1,11 +1,39 @@
 import XLSX from 'xlsx-js-style'
 import type { AnalyticsPeriod, DemoOffPriceAnalytics } from '../lib/demoOffPriceAnalytics'
+import type { DailyKeepaOffPriceListings } from '../services/api'
 
 const HEADER_STYLE = {
   font: { bold: true, color: { rgb: 'FFFFFF' } },
   fill: { fgColor: { rgb: '404040' } },
   alignment: { horizontal: 'left', vertical: 'center' },
 }
+
+const OFF_PRICE_CELL_STYLE = {
+  font: { bold: true, color: { rgb: 'FFFFFF' } },
+  fill: { fgColor: { rgb: 'FF0000' } },
+  alignment: { horizontal: 'left', vertical: 'center' },
+}
+
+const DAILY_KEEPA_SHEET_NAME = 'Daily Keepa Off Price'
+
+const DAILY_KEEPA_LISTING_COLUMNS = [
+  'Vendor',
+  'Job',
+  'UPC',
+  'ASIN',
+  'Product Title',
+  'Brand',
+  'Off Price Listing',
+  'MSRP',
+  'Current Amazon Price',
+  'Price Difference',
+  'Seller Offer Price',
+  'Seller',
+  'Discount %',
+  'Amazon URL',
+] as const
+
+const DAILY_KEEPA_COL_WIDTHS = [10, 42, 16, 12, 48, 16, 18, 12, 20, 16, 18, 24, 12, 42]
 
 const ALL_PERIODS: AnalyticsPeriod[] = ['daily', 'weekly', 'monthly', 'yearly']
 
@@ -20,6 +48,8 @@ export type OffPriceExcelExportOptions = {
    * - [2024, 2025]: only those years
    */
   historicalYears?: number[]
+  /** Today's Daily Run listing rows (always emitted as its own tab). */
+  dailyKeepaListings?: DailyKeepaOffPriceListings | null
 }
 
 function styleHeaderRow(ws: XLSX.WorkSheet, colCount: number) {
@@ -54,6 +84,88 @@ function sellerHitsForPeriod(
 
 function periodTitle(period: AnalyticsPeriod): string {
   return period.charAt(0).toUpperCase() + period.slice(1)
+}
+
+function appendDailyKeepaOffPriceSheet(
+  wb: XLSX.WorkBook,
+  listings: DailyKeepaOffPriceListings | null | undefined,
+  asOfIso: string,
+) {
+  const day =
+    listings?.day ||
+    asOfIso.slice(0, 10) ||
+    new Date().toISOString().slice(0, 10)
+  const periodLabel = listings?.period_label || day
+  const hasRuns = Boolean(listings?.has_daily_runs)
+  const rows = listings?.rows ?? []
+  const emptyMessage =
+    listings?.empty_message ||
+    (hasRuns
+      ? 'Daily run(s) completed — no off-price listings found.'
+      : 'There are no daily runs yet for the day.')
+
+  const sheetRows: (string | number)[][] = [
+    ['Day', `${periodLabel} (${day})`],
+    ['Tab', "Today's Daily Keepa off-price listings"],
+  ]
+
+  if (!hasRuns || rows.length === 0) {
+    sheetRows.push(['Daily runs', hasRuns ? String(listings?.runs.length ?? 0) : '0'])
+    sheetRows.push([])
+    sheetRows.push([emptyMessage])
+    if (hasRuns && listings?.runs.length) {
+      sheetRows.push([])
+      sheetRows.push(['Vendor', 'Job', 'Completed at', 'Off-price rows'])
+      for (const run of listings.runs) {
+        sheetRows.push([
+          (run.vendor_code || '').toUpperCase(),
+          run.job_name || '',
+          run.completed_at || '',
+          run.row_count,
+        ])
+      }
+    }
+    XLSX.utils.book_append_sheet(
+      wb,
+      aoaToStyledSheet(sheetRows, [18, 48, 28, 16]),
+      DAILY_KEEPA_SHEET_NAME,
+    )
+    return
+  }
+
+  const runLabel = listings!.runs
+    .map((run) => (run.vendor_code || '').toUpperCase())
+    .filter(Boolean)
+    .join(', ')
+  sheetRows.push(['Daily runs', `${listings!.runs.length}${runLabel ? ` (${runLabel})` : ''}`])
+  sheetRows.push(['Off-price rows', rows.length])
+  sheetRows.push([])
+  sheetRows.push([...DAILY_KEEPA_LISTING_COLUMNS])
+  const headerRowIndex = sheetRows.length - 1
+  const offPriceCol = DAILY_KEEPA_LISTING_COLUMNS.indexOf('Off Price Listing')
+
+  for (const row of rows) {
+    sheetRows.push(DAILY_KEEPA_LISTING_COLUMNS.map((col) => row[col] ?? ''))
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(sheetRows)
+  ws['!cols'] = DAILY_KEEPA_COL_WIDTHS.map((wch) => ({ wch }))
+  styleHeaderRow(ws, 2)
+  for (let c = 0; c < DAILY_KEEPA_LISTING_COLUMNS.length; c++) {
+    const ref = XLSX.utils.encode_cell({ r: headerRowIndex, c })
+    const cell = ws[ref]
+    if (cell) cell.s = HEADER_STYLE
+  }
+  if (offPriceCol >= 0) {
+    for (let r = headerRowIndex + 1; r < sheetRows.length; r++) {
+      const ref = XLSX.utils.encode_cell({ r, c: offPriceCol })
+      const cell = ws[ref]
+      if (cell && String(cell.v) === 'Off Price') {
+        cell.s = OFF_PRICE_CELL_STYLE
+      }
+    }
+  }
+  XLSX.utils.book_append_sheet(wb, ws, DAILY_KEEPA_SHEET_NAME)
 }
 
 /** Build a multi-sheet Excel workbook from the analytics demo dataset. */
@@ -103,6 +215,7 @@ export function buildOffPriceAnalyticsExcelBlob(
         : `${vendors.length} vendors: ${vendors.map((v) => v.code.toUpperCase()).join(', ')}`
 
   const rangesLabel = [
+    'Daily Keepa Off Price',
     ...periods.map(periodTitle),
     ...(historicalYears.length
       ? [`Historical years: ${[...historicalYears].sort((a, b) => b - a).join(', ')}`]
@@ -162,6 +275,8 @@ export function buildOffPriceAnalyticsExcelBlob(
 
   const businessWs = aoaToStyledSheet(businessValueRows, [28, 42, 78])
   XLSX.utils.book_append_sheet(wb, businessWs, 'Business Value')
+
+  appendDailyKeepaOffPriceSheet(wb, options?.dailyKeepaListings, data.as_of)
 
   if (periods.length > 0) {
     const summaryHeader = ['Metric', ...periods.map(periodTitle)]
@@ -426,6 +541,7 @@ export function formatEmailReportRangesLabel(
   historicalYears: number[],
 ): string {
   const parts = [
+    'Daily Keepa Off Price',
     ...ALL_PERIODS.filter((p) => periods.includes(p)).map(periodTitle),
     ...(historicalYears.length
       ? [`Years ${[...historicalYears].sort((a, b) => b - a).join(', ')}`]

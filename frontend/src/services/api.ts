@@ -1384,6 +1384,40 @@ export interface OffPriceLiveBootstrapResponse {
   }>
 }
 
+export interface DailyKeepaOffPriceListingRow {
+  Vendor: string
+  Job: string
+  UPC: string
+  ASIN: string
+  'Product Title': string
+  Brand: string
+  'Off Price Listing': string
+  MSRP: string
+  'Current Amazon Price': string
+  'Price Difference': string
+  'Seller Offer Price': string
+  Seller: string
+  'Discount %': string
+  'Amazon URL': string
+}
+
+export interface DailyKeepaOffPriceListings {
+  day: string
+  period_label: string
+  has_daily_runs: boolean
+  empty_message: string | null
+  runs: Array<{
+    vendor_code: string
+    vendor_name: string
+    job_id: string
+    job_name?: string | null
+    completed_at?: string | null
+    row_count: number
+    error?: string
+  }>
+  rows: DailyKeepaOffPriceListingRow[]
+}
+
 export const analyticsApi = {
   getOffPrice: async (params: {
     period: 'daily' | 'weekly' | 'monthly' | 'yearly'
@@ -1405,6 +1439,19 @@ export const analyticsApi = {
     const response = await api.get<OffPriceLiveBootstrapResponse>(
       '/api/v1/analytics/off-price/live-bootstrap',
       { timeout: 30_000 },
+    )
+    return response.data
+  },
+
+  getDailyKeepaOffPriceListings: async (vendorCodes?: string[]) => {
+    const response = await api.get<DailyKeepaOffPriceListings>(
+      '/api/v1/analytics/off-price/daily-listings',
+      {
+        params: {
+          vendor_codes: vendorCodes?.length ? vendorCodes.join(',') : undefined,
+        },
+        timeout: 90_000,
+      },
     )
     return response.data
   },

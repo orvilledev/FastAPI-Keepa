@@ -124,6 +124,26 @@ def get_live_analytics_bootstrap(
     return service.get_live_preview_bootstrap(_user_id(current_user))
 
 
+@router.get("/analytics/off-price/daily-listings")
+@handle_api_errors("get today's daily Keepa off-price listings")
+def get_todays_daily_keepa_listings(
+    vendor_codes: Optional[str] = Query(
+        None,
+        description="Optional comma-separated vendor codes to include (default: all).",
+    ),
+    current_user: dict = Depends(require_analytics_access),
+    db: Client = Depends(get_supabase),
+):
+    """Today's Daily Run listing rows for the Analytics Excel Off Price tab."""
+    codes = [
+        part.strip().lower()
+        for part in (vendor_codes or "").split(",")
+        if part.strip()
+    ]
+    service = OffPriceAnalyticsService(db)
+    return service.get_todays_daily_keepa_listings(codes or None)
+
+
 @router.get("/analytics/off-price/archives")
 @handle_api_errors("list off-price analytics archives")
 def list_off_price_analytics_archives(
