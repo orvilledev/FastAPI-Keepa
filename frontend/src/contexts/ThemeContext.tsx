@@ -26,7 +26,7 @@ export const THEME_OPTIONS: ThemeOption[] = [
   { value: 'stealth', label: 'Stealth', description: 'White UI with red action buttons', swatch: '#9d0208' },
   { value: 'monochrome', label: 'Monochrome', description: 'Black & white', swatch: '#111111' },
   { value: 'dopamine', label: 'Dopamine', description: 'Pink, blue, and green accents', swatch: '#FFA5C8' },
-  { value: 'thunder', label: 'Thunder', description: 'OKC navy, blue, and sunset', swatch: '#007AC1', webOnly: true },
+  { value: 'thunder', label: 'Thunder', description: 'OKC navy, blue, and sunset', swatch: '#F05133', webOnly: true },
 ]
 
 const VALID_THEMES: ReadonlySet<string> = new Set<string>(THEME_OPTIONS.map((option) => option.value))
