@@ -146,12 +146,11 @@ class Settings(BaseSettings):
     # Comma-separated emails that skip TOTP MFA (password-only sign-in for shared stations).
     mfa_exempt_emails: str = "warehouse1@metroshoewarehouse.com,hello@warehouserepublic.com"
 
-    # Comma-separated emails allowed to use Off-Price Analytics (web API).
-    analytics_allowed_emails: str = (
-        "remote@metroshoewarehouse.com,"
-        "stephanie@metroshoewarehouse.com,"
-        "sunshine@metroshoewarehouse.com,"
-        "orvillebarba@gmail.com"
+    # Comma-separated emails blocked from Off-Price Analytics (web API).
+    # Everyone else with Keepa access can use it. Empty falls back to defaults.
+    analytics_blocked_emails: str = (
+        "hello@warehouserepublic.com,"
+        "warehouse1@metroshoewarehouse.com"
     )
 
     # Comma-separated emails allowed to use the Master Sheet tool (plus superadmin).
@@ -224,9 +223,9 @@ class Settings(BaseSettings):
         return [email.strip().lower() for email in raw.split(",") if email.strip()]
 
     @property
-    def analytics_allowed_emails_list(self) -> List[str]:
-        """Normalized emails allowed to use Off-Price Analytics endpoints."""
-        raw = (self.analytics_allowed_emails or "").strip()
+    def analytics_blocked_emails_list(self) -> List[str]:
+        """Normalized emails blocked from Off-Price Analytics endpoints."""
+        raw = (self.analytics_blocked_emails or "").strip()
         if not raw:
             return []
         return [email.strip().lower() for email in raw.split(",") if email.strip()]

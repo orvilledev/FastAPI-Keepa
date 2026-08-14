@@ -5,16 +5,14 @@
 
 import { isElectronDesktop } from './privatePath'
 
-/** Emails allowed to open Off-Price Analytics on the web app. */
-export const ANALYTICS_ALLOWED_EMAILS = [
-  'remote@metroshoewarehouse.com',
-  'stephanie@metroshoewarehouse.com',
-  'sunshine@metroshoewarehouse.com',
-  'orvillebarba@gmail.com',
+/** Shared warehouse station accounts that should not see Off-Price Analytics. */
+export const ANALYTICS_BLOCKED_EMAILS = [
+  'hello@warehouserepublic.com',
+  'warehouse1@metroshoewarehouse.com',
 ] as const
 
-const ANALYTICS_ALLOWED_SET = new Set(
-  ANALYTICS_ALLOWED_EMAILS.map((email) => email.toLowerCase()),
+const ANALYTICS_BLOCKED_SET = new Set(
+  ANALYTICS_BLOCKED_EMAILS.map((email) => email.toLowerCase()),
 )
 
 /**
@@ -30,7 +28,7 @@ export function isWebAnalyticsEnabled(): boolean {
 export function canAccessWebAnalytics(email?: string | null): boolean {
   if (!isWebAnalyticsEnabled()) return false
   const normalized = (email || '').trim().toLowerCase()
-  return Boolean(normalized) && ANALYTICS_ALLOWED_SET.has(normalized)
+  return Boolean(normalized) && !ANALYTICS_BLOCKED_SET.has(normalized)
 }
 
 /** @deprecated Prefer isWebAnalyticsEnabled / canAccessWebAnalytics. */

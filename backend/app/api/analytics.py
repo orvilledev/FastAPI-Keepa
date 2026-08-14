@@ -28,28 +28,26 @@ PeriodParam = Literal["daily", "weekly", "monthly", "yearly"]
 # Cap Analytics email attachments so this endpoint cannot be abused as a bulk mailer.
 _MAX_ANALYTICS_EMAIL_BYTES = 25 * 1024 * 1024
 
-_DEFAULT_ANALYTICS_ALLOWED = frozenset(
+_DEFAULT_ANALYTICS_BLOCKED = frozenset(
     {
-        "remote@metroshoewarehouse.com",
-        "stephanie@metroshoewarehouse.com",
-        "sunshine@metroshoewarehouse.com",
-        "orvillebarba@gmail.com",
+        "hello@warehouserepublic.com",
+        "warehouse1@metroshoewarehouse.com",
     }
 )
 
 
-def _analytics_allowed_emails() -> set[str]:
-    configured = set(settings.analytics_allowed_emails_list)
-    return configured or set(_DEFAULT_ANALYTICS_ALLOWED)
+def _analytics_blocked_emails() -> set[str]:
+    configured = set(settings.analytics_blocked_emails_list)
+    return configured or set(_DEFAULT_ANALYTICS_BLOCKED)
 
 
 def require_analytics_access(current_user: dict = Depends(get_current_user)) -> dict:
-    """Restrict Analytics API to the approved email allowlist."""
+    """Block Analytics API for shared warehouse station accounts."""
     email = (current_user.get("email") or "").strip().lower()
-    if email not in _analytics_allowed_emails():
+    if not email or email in _analytics_blocked_emails():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Off-Price Analytics is restricted to authorized users",
+            detail="Off-Price Analytics is not available for this account",
         )
     return current_user
 
