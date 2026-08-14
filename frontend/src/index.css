@@ -103,6 +103,34 @@
   --color-dopamine-green: 30 123 37;
 }
 
+/* ==================================================================== *
+ * THUNDER THEME — light surfaces with OKC palette. Navy body copy on
+ * white/ice-blue backgrounds for contrast; Thunder Blue chrome; sunset
+ * and yellow used as accents (never as long-form text on light fills).
+ * Web-only — hidden from the Electron theme picker.
+ *   Navy #002D62 · Thunder Blue #007AC1 · Sunset #F05133
+ *   White #FFFFFF · Yellow #FDBB30
+ * ==================================================================== */
+:root[data-theme='thunder'] {
+  --color-surface: 255 255 255;
+  --color-surface-elevated: 255 255 255;
+  --color-surface-muted: 232 243 251;
+  --color-surface-hover: 214 234 247;
+  --color-text-primary: 0 45 98;
+  --color-text-secondary: 26 58 92;
+  --color-text-muted: 61 90 120;
+  --color-border: 186 216 235;
+  --color-border-strong: 0 122 193;
+  --color-page-from: 247 251 254;
+  --color-page-via: 230 243 251;
+  --color-page-to: 255 248 232;
+  --color-thunder-navy: 0 45 98;
+  --color-thunder-blue: 0 122 193;
+  --color-thunder-sunset: 240 81 51;
+  --color-thunder-sunset-deep: 196 58 34;
+  --color-thunder-yellow: 253 187 48;
+}
+
 @layer base {
   html {
     font-size: 16px;
@@ -1341,6 +1369,12 @@ code {
   background: linear-gradient(to bottom right, #fffbfd 0%, #fff1f7 45%, #ecf7fd 100%);
 }
 
+[data-theme='thunder'] body,
+[data-theme='thunder'] .app-page-bg,
+[data-theme='thunder'] .app-shell-bg {
+  background: linear-gradient(to bottom right, #f7fbfe 0%, #e6f3fb 48%, #fff8e8 100%);
+}
+
 /* ==================================================================== *
  * MONOCHROME + STEALTH ACCENTS — neutralize brand green/orange and the
  * purple download button to grayscale. Stealth keeps deep red on
@@ -2024,5 +2058,323 @@ code {
 [data-theme='dopamine'] .to-emerald-600,
 [data-theme='dopamine'] .hover\:to-green-700:hover {
   --tw-gradient-to: #ff8fb7 var(--tw-gradient-to-position) !important;
+}
+
+/* ==================================================================== *
+ * THUNDER — navy chrome + white copy, Thunder Blue hubs, yellow accents
+ * on navy cards, darkened sunset for destructive actions.
+ * Contrast targets: navy/white ~13:1, yellow/navy ~8:1, blue/white ~4.6:1.
+ * ==================================================================== */
+
+/* Soft helper panels */
+[data-theme='thunder'] .bg-\[\#81B81D\]\/10,
+[data-theme='thunder'] .bg-green-50 {
+  background-color: #e6f3fb !important;
+}
+
+[data-theme='thunder'] .border-\[\#81B81D\]\/30,
+[data-theme='thunder'] .border-\[\#81B81D\]\/40,
+[data-theme='thunder'] .border-\[\#81B81D\]\/55,
+[data-theme='thunder'] .border-green-200 {
+  border-color: rgb(0 122 193 / 0.45) !important;
+}
+
+[data-theme='thunder'] .bg-green-50 .text-green-800,
+[data-theme='thunder'] .bg-green-50 .text-green-900,
+[data-theme='thunder'] .bg-\[\#81B81D\]\/10 .text-\[\#111827\] {
+  color: #002d62 !important;
+}
+
+/* Hub icon tiles → Thunder Blue with white glyphs */
+[data-theme='thunder'] .vendor-hub-card-icon {
+  background-color: #007ac1 !important;
+  color: #ffffff !important;
+}
+
+[data-theme='thunder'] .vendor-hub-card:hover {
+  background: #002d62 !important;
+  color: #ffffff !important;
+}
+
+[data-theme='thunder'] .vendor-hub-card:hover .vendor-hub-card-title {
+  color: #ffffff !important;
+}
+
+[data-theme='thunder'] .vendor-hub-card:hover .vendor-hub-card-subtitle {
+  color: #fdbb30 !important;
+}
+
+[data-theme='thunder'] .vendor-hub-card:hover .vendor-hub-card-icon {
+  background-color: #fdbb30 !important;
+  color: #002d62 !important;
+}
+
+/* Navy primary chrome: buttons, sidebar, Active Runs cards */
+[data-theme='thunder'] .btn-primary,
+[data-theme='thunder'] .sidebar-link-active,
+[data-theme='thunder'] button.sidebar-link.sidebar-link-active,
+[data-theme='thunder'] .sidebar-link:hover,
+[data-theme='thunder'] .sidebar-link-inactive:hover,
+[data-theme='thunder'] button.bg-\[\#404040\],
+[data-theme='thunder'] a.bg-\[\#404040\],
+[data-theme='thunder'] .bg-\[\#404040\]:not(.rounded-full):not(.vendor-hub-card-icon),
+[data-theme='thunder'] .bg-\[\#3B3B3B\],
+[data-theme='thunder'] .bg-\[\#81B81D\],
+[data-theme='thunder'] .bg-purple-600,
+[data-theme='thunder'] .bg-black:not(.fixed) {
+  background-color: #002d62 !important;
+  border-color: #002d62 !important;
+}
+
+[data-theme='thunder'] .btn-primary:hover,
+[data-theme='thunder'] .hover\:bg-\[\#3B3B3B\]:hover,
+[data-theme='thunder'] .hover\:bg-\[\#2d2d2d\]:hover,
+[data-theme='thunder'] .hover\:bg-gray-800:hover,
+[data-theme='thunder'] .hover\:bg-purple-700:hover,
+[data-theme='thunder'] .hover\:bg-black:hover {
+  background-color: #007ac1 !important;
+  border-color: #007ac1 !important;
+}
+
+[data-theme='thunder'] .border-purple-600,
+[data-theme='thunder'] .hover\:border-purple-700:hover {
+  border-color: #002d62 !important;
+}
+
+/* White copy on navy fills */
+[data-theme='thunder'] .btn-primary,
+[data-theme='thunder'] .sidebar-link-active,
+[data-theme='thunder'] .sidebar-link-active span,
+[data-theme='thunder'] button.sidebar-link.sidebar-link-active,
+[data-theme='thunder'] button.sidebar-link.sidebar-link-active span,
+[data-theme='thunder'] .sidebar-link:hover,
+[data-theme='thunder'] .sidebar-link:hover span,
+[data-theme='thunder'] .sidebar-link-inactive:hover,
+[data-theme='thunder'] button.bg-\[\#404040\],
+[data-theme='thunder'] a.bg-\[\#404040\],
+[data-theme='thunder'] .bg-\[\#404040\]:not(.rounded-full):not(.vendor-hub-card-icon),
+[data-theme='thunder'] .bg-\[\#81B81D\].text-white,
+[data-theme='thunder'] .bg-purple-600.text-white,
+[data-theme='thunder'] .bg-purple-600 {
+  color: #ffffff !important;
+}
+
+[data-theme='thunder'] .bg-\[\#404040\].text-white,
+[data-theme='thunder'] .bg-\[\#404040\].border-white\/20 {
+  background-color: #002d62 !important;
+  border-color: rgb(253 187 48 / 0.55) !important;
+  color: #ffffff !important;
+}
+
+[data-theme='thunder'] .bg-\[\#404040\] .text-white\/70 {
+  color: rgb(255 255 255 / 0.78) !important;
+}
+
+/* Nested sidebar on navy: yellow hover for readable accent */
+[data-theme='thunder'] .dark-submenu .sidebar-link:hover,
+[data-theme='thunder'] .dark-submenu .sidebar-link:hover span {
+  color: #fdbb30 !important;
+}
+
+/* Brand green/orange text on light surfaces → thunder blue / deepened sunset */
+[data-theme='thunder'] .text-\[\#81B81D\],
+[data-theme='thunder'] .text-\[\#3B82F6\],
+[data-theme='thunder'] .text-\[\#6366F1\] {
+  color: #007ac1 !important;
+}
+
+[data-theme='thunder'] .hover\:text-\[\#81B81D\]:hover {
+  color: #002d62 !important;
+}
+
+[data-theme='thunder'] .text-\[\#F97316\] {
+  color: #c43a22 !important;
+}
+
+/* Navy cards: yellow copy (not blue-on-navy) */
+[data-theme='thunder'] .bg-\[\#404040\] .text-\[\#81B81D\],
+[data-theme='thunder'] .bg-\[\#404040\] .text-\[\#F97316\],
+[data-theme='thunder'] .bg-\[\#404040\] .text-\[\#DDF5B0\],
+[data-theme='thunder'] .bg-\[\#404040\] .text-\[\#E8F8C8\],
+[data-theme='thunder'] .bg-\[\#404040\] .text-\[\#FFD8B0\],
+[data-theme='thunder'] .bg-\[\#404040\] .text-\[\#FFE7CC\] {
+  color: #fdbb30 !important;
+}
+
+[data-theme='thunder'] .bg-\[\#404040\] .bg-\[\#81B81D\]\/20,
+[data-theme='thunder'] .bg-\[\#404040\] .bg-\[\#81B81D\]\/30,
+[data-theme='thunder'] .bg-\[\#404040\] .bg-\[\#F97316\]\/20,
+[data-theme='thunder'] .bg-\[\#404040\] .bg-\[\#F97316\]\/30 {
+  background-color: #fdbb30 !important;
+  color: #002d62 !important;
+}
+
+[data-theme='thunder'] .bg-\[\#404040\] .bg-\[\#81B81D\]\/20.text-\[\#DDF5B0\],
+[data-theme='thunder'] .bg-\[\#404040\] .bg-\[\#81B81D\]\/20.text-\[\#E8F8C8\],
+[data-theme='thunder'] .bg-\[\#404040\] .bg-\[\#81B81D\]\/20.text-\[\#111827\],
+[data-theme='thunder'] .bg-\[\#404040\] .bg-\[\#81B81D\]\/30.text-\[\#E8F8C8\],
+[data-theme='thunder'] .bg-\[\#404040\] .bg-\[\#F97316\]\/20.text-\[\#FFD8B0\],
+[data-theme='thunder'] .bg-\[\#404040\] .bg-\[\#F97316\]\/30.text-\[\#FFE7CC\] {
+  color: #002d62 !important;
+}
+
+[data-theme='thunder'] .bg-\[\#404040\] .ring-\[\#81B81D\]\/80,
+[data-theme='thunder'] .bg-\[\#404040\] .ring-\[\#81B81D\]\/85,
+[data-theme='thunder'] .bg-\[\#404040\] .ring-\[\#F97316\]\/80,
+[data-theme='thunder'] .bg-\[\#404040\] .ring-\[\#F97316\]\/85 {
+  --tw-ring-color: rgb(253 187 48 / 0.85) !important;
+}
+
+/* Light-surface brand fills */
+[data-theme='thunder'] .bg-\[\#81B81D\]\/20 {
+  background-color: rgb(0 122 193 / 0.16) !important;
+}
+
+[data-theme='thunder'] .bg-\[\#81B81D\]\/30 {
+  background-color: rgb(0 122 193 / 0.22) !important;
+}
+
+[data-theme='thunder'] .bg-\[\#F97316\]\/20 {
+  background-color: rgb(240 81 51 / 0.14) !important;
+}
+
+[data-theme='thunder'] .bg-\[\#F97316\]\/30 {
+  background-color: rgb(240 81 51 / 0.2) !important;
+}
+
+[data-theme='thunder'] .border-\[\#81B81D\],
+[data-theme='thunder'] .focus\:border-\[\#81B81D\]:focus {
+  border-color: #007ac1 !important;
+}
+
+[data-theme='thunder'] .ring-\[\#81B81D\]\/80,
+[data-theme='thunder'] .ring-\[\#81B81D\]\/85,
+[data-theme='thunder'] .focus\:ring-\[\#81B81D\]:focus {
+  --tw-ring-color: rgb(0 122 193 / 0.5) !important;
+}
+
+[data-theme='thunder'] .hover\:bg-\[\#81B81D\]\/30:hover,
+[data-theme='thunder'] .hover\:bg-\[\#81B81D\]\/40:hover {
+  background-color: rgb(0 122 193 / 0.18) !important;
+}
+
+[data-theme='thunder'] .from-\[\#81B81D\] {
+  --tw-gradient-from: #002d62 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(0 45 98 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+[data-theme='thunder'] .to-\[\#81B81D\] {
+  --tw-gradient-to: #007ac1 var(--tw-gradient-to-position) !important;
+}
+
+/* Keep status greens readable; shift destructive to deepened sunset */
+[data-theme='thunder'] .text-green-700,
+[data-theme='thunder'] .text-green-800 {
+  color: #1e7b25 !important;
+}
+
+[data-theme='thunder'] .bg-red-600,
+[data-theme='thunder'] .bg-red-700,
+[data-theme='thunder'] .bg-red-800 {
+  background-color: #c43a22 !important;
+  border-color: #c43a22 !important;
+  color: #ffffff !important;
+}
+
+[data-theme='thunder'] .hover\:bg-red-700:hover,
+[data-theme='thunder'] .hover\:bg-red-800:hover {
+  background-color: #a32f1b !important;
+  border-color: #a32f1b !important;
+}
+
+[data-theme='thunder'] .text-red-600,
+[data-theme='thunder'] .text-red-700,
+[data-theme='thunder'] .text-red-800 {
+  color: #c43a22 !important;
+}
+
+[data-theme='thunder'] .border-red-300,
+[data-theme='thunder'] .border-red-200 {
+  border-color: rgb(196 58 34 / 0.45) !important;
+}
+
+[data-theme='thunder'] .bg-\[\#F97316\] {
+  background-color: #c43a22 !important;
+}
+
+[data-theme='thunder'] .hover\:bg-\[\#EA580C\]:hover {
+  background-color: #a32f1b !important;
+}
+
+[data-theme='thunder'] .bg-\[\#F97316\].text-white,
+[data-theme='thunder'] .bg-red-600.text-white,
+[data-theme='thunder'] .bg-red-700.text-white,
+[data-theme='thunder'] .bg-red-800.text-white {
+  color: #ffffff !important;
+}
+
+[data-theme='thunder'] .bg-amber-100,
+[data-theme='thunder'] .bg-yellow-100 {
+  background-color: #fdbb30 !important;
+  color: #002d62 !important;
+}
+
+[data-theme='thunder'] .text-amber-800,
+[data-theme='thunder'] .text-amber-900,
+[data-theme='thunder'] .text-yellow-800,
+[data-theme='thunder'] .text-yellow-900 {
+  color: #002d62 !important;
+}
+
+[data-theme='thunder'] .from-green-500,
+[data-theme='thunder'] .from-emerald-500,
+[data-theme='thunder'] .hover\:from-green-600:hover {
+  --tw-gradient-from: #002d62 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(0 45 98 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+[data-theme='thunder'] .to-green-600,
+[data-theme='thunder'] .to-emerald-600,
+[data-theme='thunder'] .hover\:to-green-700:hover {
+  --tw-gradient-to: #007ac1 var(--tw-gradient-to-position) !important;
+}
+
+/* Gray Tailwind text → navy scale so headings/body stay readable on ice-blue */
+[data-theme='thunder'] .text-gray-900,
+[data-theme='thunder'] .text-gray-800,
+[data-theme='thunder'] .text-gray-700,
+[data-theme='thunder'] .text-\[\#111827\] {
+  color: #002d62 !important;
+}
+
+[data-theme='thunder'] .text-gray-600,
+[data-theme='thunder'] .text-gray-500 {
+  color: #3d5a78 !important;
+}
+
+[data-theme='thunder'] .text-gray-400 {
+  color: #4a6b8a !important;
+}
+
+[data-theme='thunder'] .text-blue-600,
+[data-theme='thunder'] .text-blue-700,
+[data-theme='thunder'] .text-indigo-600 {
+  color: #007ac1 !important;
+}
+
+/* Keep white (or yellow) copy on navy chrome after gray remaps */
+[data-theme='thunder'] .bg-\[\#404040\] .text-gray-900,
+[data-theme='thunder'] .bg-\[\#404040\] .text-gray-800,
+[data-theme='thunder'] .bg-\[\#404040\] .text-gray-700,
+[data-theme='thunder'] .bg-\[\#404040\] .text-gray-600,
+[data-theme='thunder'] .bg-\[\#404040\] .text-gray-500,
+[data-theme='thunder'] .bg-\[\#404040\] .text-gray-400,
+[data-theme='thunder'] .bg-\[\#404040\] .text-\[\#111827\],
+[data-theme='thunder'] .sidebar-link-active .text-gray-900,
+[data-theme='thunder'] .sidebar-link:hover .text-gray-900,
+[data-theme='thunder'] .btn-primary .text-gray-900 {
+  color: #ffffff !important;
 }
 

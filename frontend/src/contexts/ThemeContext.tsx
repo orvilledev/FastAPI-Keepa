@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { isElectronDesktop } from '../lib/privatePath'
 
-export type Theme = 'light' | 'dark' | 'stealth' | 'monochrome' | 'dopamine'
+export type Theme = 'light' | 'dark' | 'stealth' | 'monochrome' | 'dopamine' | 'thunder'
 
 const STORAGE_KEY = 'msw-theme'
 
@@ -15,6 +16,8 @@ export interface ThemeOption {
   description: string
   /** Small swatch color used in the selector UI. */
   swatch: string
+  /** When true, the option is shown only in the browser (not Electron). */
+  webOnly?: boolean
 }
 
 export const THEME_OPTIONS: ThemeOption[] = [
@@ -23,9 +26,27 @@ export const THEME_OPTIONS: ThemeOption[] = [
   { value: 'stealth', label: 'Stealth', description: 'White UI with red action buttons', swatch: '#9d0208' },
   { value: 'monochrome', label: 'Monochrome', description: 'Black & white', swatch: '#111111' },
   { value: 'dopamine', label: 'Dopamine', description: 'Pink, blue, and green accents', swatch: '#FFA5C8' },
+  { value: 'thunder', label: 'Thunder', description: 'OKC navy, blue, and sunset', swatch: '#007AC1', webOnly: true },
 ]
 
 const VALID_THEMES: ReadonlySet<string> = new Set<string>(THEME_OPTIONS.map((option) => option.value))
+
+function isElectronRuntime(): boolean {
+  if (import.meta.env.MODE === 'electron') return true
+  return isElectronDesktop()
+}
+
+function selectableThemeOptions(): ThemeOption[] {
+  const electron = isElectronRuntime()
+  return THEME_OPTIONS.filter((option) => !option.webOnly || !electron)
+}
+
+function isThemeAvailable(theme: Theme): boolean {
+  const option = THEME_OPTIONS.find((item) => item.value === theme)
+  if (!option) return false
+  if (option.webOnly && isElectronRuntime()) return false
+  return true
+}
 
 /** Meta theme-color per theme so the mobile browser chrome matches the app. */
 const META_THEME_COLOR: Record<Theme, string> = {
@@ -34,6 +55,7 @@ const META_THEME_COLOR: Record<Theme, string> = {
   stealth: '#ffffff',
   monochrome: '#ffffff',
   dopamine: '#FFA5C8',
+  thunder: '#002D62',
 }
 
 interface ThemeContextValue {
@@ -53,7 +75,10 @@ function readStoredTheme(): Theme {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored === 'sunset') return 'stealth'
-    if (stored && VALID_THEMES.has(stored)) return stored as Theme
+    if (stored && VALID_THEMES.has(stored)) {
+      const theme = stored as Theme
+      return isThemeAvailable(theme) ? theme : 'light'
+    }
   } catch {
     // localStorage may be unavailable
   }
@@ -80,6 +105,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => readStoredTheme())
 
   useEffect(() => {
+    if (!isThemeAvailable(theme)) {
+      setThemeState('light')
+      return
+    }
     applyThemeClass(theme)
     try {
       localStorage.setItem(STORAGE_KEY, theme)
@@ -88,14 +117,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [theme])
 
+  const options = useMemo(() => selectableThemeOptions(), [])
+
   const setTheme = useCallback((next: Theme) => {
-    if (VALID_THEMES.has(next)) setThemeState(next)
+    if (VALID_THEMES.has(next) && isThemeAvailable(next)) setThemeState(next)
   }, [])
 
   const toggleTheme = useCallback(() => {
     setThemeState((current) => {
-      const index = THEME_OPTIONS.findIndex((option) => option.value === current)
-      const next = THEME_OPTIONS[(index + 1) % THEME_OPTIONS.length]
+      const available = selectableThemeOptions()
+      const index = available.findIndex((option) => option.value === current)
+      const next = available[(index + 1) % available.length]
       return next.value
     })
   }, [])
@@ -104,11 +136,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     () => ({
       theme,
       isDark: DARK_BASED_THEMES.has(theme),
-      options: THEME_OPTIONS,
+      options,
       setTheme,
       toggleTheme,
     }),
-    [theme, setTheme, toggleTheme],
+    [theme, options, setTheme, toggleTheme],
   )
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
