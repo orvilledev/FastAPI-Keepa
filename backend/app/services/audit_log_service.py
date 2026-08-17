@@ -79,12 +79,11 @@ def record_audit_event(
     metadata: Optional[Dict[str, Any]] = None,
     status_code: Optional[int] = None,
     client_type: Optional[str] = None,
-    web_only: bool = True,
+    web_only: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """Insert an audit row. Swallows all errors so callers are never blocked.
 
-    When ``web_only`` is True (default), Electron clients are skipped so the
-    log stays scoped to the web app.
+    When ``web_only`` is True, Electron clients are skipped.
     """
     try:
         resolved_client = client_type or client_type_from_request(request)

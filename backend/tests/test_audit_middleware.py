@@ -106,13 +106,15 @@ def test_unauthenticated_request_is_not_recorded(client, rows):
     assert rows == []
 
 
-def test_electron_client_is_not_recorded(client, rows):
-    client.post(
+def test_electron_client_is_recorded(client, rows):
+    response = client.post(
         "/api/v1/upcs",
         json={"upcs": []},
         headers={"Authorization": f"Bearer {_bearer()}", "X-Client-Type": "electron"},
     )
-    assert rows == []
+    assert response.status_code == 200
+    assert len(rows) == 1
+    assert rows[0]["client_type"] == "electron"
 
 
 @pytest.mark.parametrize(

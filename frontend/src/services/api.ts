@@ -117,7 +117,7 @@ api.interceptors.request.use(async (config) => {
     config.headers.Authorization = `Bearer ${cachedToken}`
   }
 
-  // Distinguish web vs Electron so server-side audit can stay web-app-only.
+  // Distinguish web vs Electron for presence and audit.
   if (config.headers) {
     config.headers['X-Client-Type'] = isElectronDesktop() ? 'electron' : 'web'
   }
@@ -347,7 +347,6 @@ export const authApi = {
         ...(params?.action ? { action: params.action } : {}),
         ...(params?.category ? { category: params.category } : {}),
         ...(params?.search ? { search: params.search } : {}),
-        client_type: 'web',
       },
     })
     return response.data

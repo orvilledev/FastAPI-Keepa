@@ -1,4 +1,4 @@
-"""Superadmin audit log API (web-app actions only)."""
+"""Superadmin audit log API (web and Electron)."""
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -88,7 +88,7 @@ def create_audit_event(
         label=default_label,
         detail=body.detail or default_label,
         metadata=_sanitize_metadata(body.metadata),
-        web_only=True,
+        web_only=False,
     )
     return {"ok": True, "recorded": row is not None, "event": row}
 
@@ -100,11 +100,11 @@ def list_audit_events(
     action: Optional[str] = Query(None, max_length=64),
     category: Optional[str] = Query(None, max_length=32),
     search: Optional[str] = Query(None, max_length=120),
-    client_type: Optional[str] = Query("web"),
+    client_type: Optional[str] = Query(None),
     current_user: dict = Depends(get_superadmin_user),
     db: Client = Depends(get_supabase),
 ):
-    """Superadmin-only list of audit events. Defaults to web-app events only."""
+    """Superadmin-only list of audit events from web and Electron."""
     if category and category.strip().lower() not in CATEGORIES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

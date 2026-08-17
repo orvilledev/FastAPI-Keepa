@@ -95,7 +95,7 @@ class AuditLogRepository:
         limit: int = 100,
         action: Optional[str] = None,
         category: Optional[str] = None,
-        client_type: Optional[str] = "web",
+        client_type: Optional[str] = None,
         search: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         query = self.db.table(self.table).select(_COLUMNS)

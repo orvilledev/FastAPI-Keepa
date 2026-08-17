@@ -146,10 +146,15 @@ export default function About() {
             Run import mode. Pick a vendor, download on demand, or schedule automatic builds and optional off-price MAP
             reports with email delivery. Build history can be downloaded, reviewed, or cleared.
           </li>
+          <li>
+            <span className="font-semibold">Analytics:</span> Off-price hit trends by vendor, seller, and period, with
+            Excel download and email report. Available in the browser and the desktop app. Warehouse station accounts
+            do not see this page.
+          </li>
         </ul>
         <p className="mt-4 text-sm text-gray-600">
-          Express Jobs, Daily Runs, Manage UPCs, Manage MAP, Seller List, Email List, and Keepa Import File require Keepa
-          access on your account.
+          Express Jobs, Daily Runs, Manage UPCs, Manage MAP, Seller List, Email List, Keepa Import File, and Analytics
+          require Keepa access on your account.
         </p>
       </div>
 

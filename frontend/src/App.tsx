@@ -26,7 +26,6 @@ import { fetchMfaStatus, isMfaIdleReverifyDue, recordMfaActivity, shouldShowMfaS
 import { getLastPrivatePath, getCurrentRememberedPath, setLastPrivatePath } from './lib/privatePath'
 import { WAREHOUSE_HOME_PATH, isWarehouseAllowedPath } from './constants/warehouseAccess'
 import { isDevAuthBypass } from './lib/devAuth'
-import { isWebAnalyticsEnabled } from './lib/devFeatures'
 
 // Lazy load page components for code splitting (About is eager so its chunk cannot 404 behind stale CDN/cache)
 const Landing = lazy(() => import('./components/Landing'))
@@ -451,16 +450,14 @@ function AppRoutes() {
           <Route path="catalog/upc" element={<CatalogUpcPage />} />
           <Route path="catalog/dims" element={<CatalogDimsPage />} />
           <Route path="catalog/master-sheet" element={<MasterSheetTool />} />
-          {isWebAnalyticsEnabled() && (
-            <Route
-              path="analytics"
-              element={
-                <ProtectedRoute requireKeepaAccess={true} requireAnalyticsAccess={true}>
-                  <OffPriceAnalytics />
-                </ProtectedRoute>
-              }
-            />
-          )}
+          <Route
+            path="analytics"
+            element={
+              <ProtectedRoute requireKeepaAccess={true} requireAnalyticsAccess={true}>
+                <OffPriceAnalytics />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="playground"
             element={

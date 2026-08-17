@@ -257,9 +257,9 @@ export default function AuditLog() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Audit Log</h1>
         <p className="mt-1 text-sm text-gray-600 dark:text-content-muted">
-          Every action taken in the web app, from sign in to sign out: uploads, downloads, tool
-          runs, testing, email list changes, settings, and deletions. Opening and viewing pages is
-          not recorded.
+          Every action taken in the web app and desktop app, from sign in to sign out: uploads,
+          downloads, tool runs, testing, email list changes, settings, and deletions. Opening and
+          viewing pages is not recorded.
         </p>
       </div>
 
@@ -375,6 +375,9 @@ export default function AuditLog() {
                   User
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-content-secondary">
+                  Client
+                </th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-content-secondary">
                   What happened
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-content-secondary">
@@ -385,13 +388,13 @@ export default function AuditLog() {
             <tbody className="divide-y divide-gray-100 dark:divide-border">
               {loading && logs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                     Loading audit events…
                   </td>
                 </tr>
               ) : logs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                     No audit events match these filters.
                   </td>
                 </tr>
@@ -413,6 +416,9 @@ export default function AuditLog() {
                         {formatPersonName(row.user_display_name)}
                       </div>
                       <div className="text-xs text-gray-500">{row.user_email || '—'}</div>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-600 dark:text-content-muted">
+                      {row.client_type === 'electron' ? 'Desktop' : 'Web'}
                     </td>
                     <td className="max-w-lg px-4 py-3 text-gray-700 dark:text-content-secondary">
                       <div>{describeRow(row)}</div>

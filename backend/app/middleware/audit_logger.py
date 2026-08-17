@@ -182,9 +182,8 @@ class AuditLogMiddleware:
 
         headers = scope.get("headers") or []
         client_type = (_header(headers, b"x-client-type") or "web").strip().lower()
-        # The audit log covers the web app; the desktop build is tracked separately.
-        if client_type != "web":
-            return
+        if client_type not in ("web", "electron"):
+            client_type = "web"
 
         email = claims.get("email")
         query_string = (scope.get("query_string") or b"").decode("latin-1", "ignore")

@@ -2,13 +2,12 @@
  * Best-effort audit events for actions the backend cannot observe.
  *
  * Server-side actions (uploads, downloads, settings, deletes) are recorded by
- * the API's audit middleware. Only browser-only work — Playground runs, in-page
+ * the API's audit middleware. Client-side work — Playground runs, in-page
  * file generation, localStorage history changes, and Supabase login/logout —
- * needs to be reported from here.
+ * is reported from here on both web and Electron.
  *
  * Every call is fire-and-forget: audit failures must never block the user.
  */
-import { isElectronDesktop } from './privatePath'
 import { authApi, invalidateAuthTokenCache } from '../services/api'
 
 /** Must stay in sync with CLIENT_ACTIONS in backend/app/api/audit.py. */
@@ -38,8 +37,6 @@ export async function recordWebAuditEvent(
   metadata?: Record<string, unknown>,
 ): Promise<void> {
   if (typeof window === 'undefined') return
-  // The audit log covers the web app; the desktop build is tracked separately.
-  if (isElectronDesktop()) return
   try {
     if (action === 'login') {
       // The session was just upgraded by password/MFA; use the fresh token.

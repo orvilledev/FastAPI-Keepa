@@ -1,9 +1,6 @@
 /**
- * Feature gates that differ between web and Electron.
- * Electron builds use Vite mode "electron" and expose window.desktop.isElectron.
+ * Feature gates shared by web and Electron.
  */
-
-import { isElectronDesktop } from './privatePath'
 
 /** Shared warehouse station accounts that should not see Off-Price Analytics. */
 export const ANALYTICS_BLOCKED_EMAILS = [
@@ -15,16 +12,12 @@ const ANALYTICS_BLOCKED_SET = new Set(
   ANALYTICS_BLOCKED_EMAILS.map((email) => email.toLowerCase()),
 )
 
-/**
- * Off-price Analytics shell is web-only (hidden from Electron).
- */
+/** Off-price Analytics is available on web and Electron. */
 export function isWebAnalyticsEnabled(): boolean {
-  if (import.meta.env.MODE === 'electron') return false
-  if (isElectronDesktop()) return false
   return true
 }
 
-/** True when this email may use Analytics on the web app. */
+/** True when this email may use Analytics. */
 export function canAccessWebAnalytics(email?: string | null): boolean {
   if (!isWebAnalyticsEnabled()) return false
   const normalized = (email || '').trim().toLowerCase()

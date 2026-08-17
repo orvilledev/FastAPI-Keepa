@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useUser } from '../../contexts/UserContext'
 import { canAccessPlayground } from '../../lib/playground/access'
 import { canAccessMasterSheet } from '../../lib/masterSheetAccess'
+import { canAccessWebAnalytics } from '../../lib/devFeatures'
 
 type SearchItem = {
   label: string
@@ -17,6 +18,7 @@ function buildSearchItems(
   isSuperadmin: boolean,
   showPlayground: boolean,
   showMasterSheet: boolean,
+  showAnalytics: boolean,
 ): SearchItem[] {
   if (isWarehouseOnly) {
     return [
@@ -41,8 +43,11 @@ function buildSearchItems(
       { label: 'Manage MAP', path: '/map', section: 'Menu' },
       { label: 'Seller List', path: '/seller-list', section: 'Menu' },
       { label: 'Email List', path: '/email-list', section: 'Menu' },
-      { label: 'Label Station', path: '/label-station', section: 'Tools' },
     )
+    if (showAnalytics) {
+      items.push({ label: 'Analytics', path: '/analytics', section: 'Menu' })
+    }
+    items.push({ label: 'Label Station', path: '/label-station', section: 'Tools' })
   }
 
   items.push(
@@ -94,6 +99,7 @@ export default function NavbarSearch() {
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
+  const showAnalytics = canAccessWebAnalytics(userInfo?.email || authUser?.email)
 
   const searchItems = useMemo(
     () =>
@@ -103,8 +109,9 @@ export default function NavbarSearch() {
         isSuperadmin,
         showPlayground,
         showMasterSheet,
+        showAnalytics,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showPlayground, showMasterSheet],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showPlayground, showMasterSheet, showAnalytics],
   )
 
   const results = useMemo(() => {
