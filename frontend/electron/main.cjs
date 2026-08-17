@@ -2,7 +2,7 @@ const path = require('node:path')
 const os = require('node:os')
 const fs = require('node:fs')
 const { execFile } = require('node:child_process')
-const { app, BrowserWindow, ipcMain, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, powerMonitor } = require('electron')
 
 const isDev = !app.isPackaged
 
@@ -123,7 +123,7 @@ function getAutoUpdater() {
   if (!autoUpdater) {
     autoUpdater = require('electron-updater').autoUpdater
     autoUpdater.autoDownload = true
-    autoUpdater.autoInstallOnAppQuit = false
+    autoUpdater.autoInstallOnAppQuit = true
     if ('disableNotifications' in autoUpdater) {
       autoUpdater.disableNotifications = true
     }
@@ -201,6 +201,15 @@ function wireAutoUpdaterEvents(updater) {
   })
 }
 
+function isUpdateInFlight() {
+  return (
+    lastUpdateStatus.phase === 'checking' ||
+    lastUpdateStatus.phase === 'downloading' ||
+    lastUpdateStatus.phase === 'ready' ||
+    lastUpdateStatus.phase === 'installing'
+  )
+}
+
 /** GitHub Releases feed is embedded at build time via `build.publish` in package.json. */
 function setupAutoUpdater() {
   if (isDev) return
@@ -208,6 +217,7 @@ function setupAutoUpdater() {
   if (!updater) return
 
   const runBackgroundCheck = () => {
+    if (isUpdateInFlight()) return
     void updater.checkForUpdates().catch((err) => {
       console.error('[autoUpdater] background check failed', err)
     })
@@ -216,8 +226,15 @@ function setupAutoUpdater() {
   // Defer the first check so startup and sign-in are not blocked on GitHub.
   setTimeout(runBackgroundCheck, 8_000)
 
-  const DAY_MS = 24 * 60 * 60 * 1000
-  setInterval(runBackgroundCheck, DAY_MS)
+  const FOUR_HOURS_MS = 4 * 60 * 60 * 1000
+  setInterval(runBackgroundCheck, FOUR_HOURS_MS)
+
+  try {
+    powerMonitor.on('resume', runBackgroundCheck)
+    powerMonitor.on('unlock-screen', runBackgroundCheck)
+  } catch (err) {
+    console.warn('[autoUpdater] could not listen for resume', err)
+  }
 }
 
 const RENDERER_INDEX = path.join(__dirname, '..', 'dist', 'index.html')

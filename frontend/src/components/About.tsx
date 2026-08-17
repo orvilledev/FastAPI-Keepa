@@ -74,8 +74,9 @@ export default function About() {
         {!isElectron && (
           <p className="mt-2 text-sm text-gray-600 max-w-4xl">
             In the browser, use <span className="font-semibold">Download app</span> in the top bar to install
-            the Windows desktop client. The desktop app includes Label Station Zebra printing and in-app
-            update checks.
+            The desktop app includes Label Station Zebra printing and checks for updates
+            automatically. You can also use <span className="font-semibold">Check for Updates</span> in
+            About.
           </p>
         )}
 

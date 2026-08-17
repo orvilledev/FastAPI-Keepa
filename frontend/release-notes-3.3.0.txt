@@ -1,0 +1,16 @@
+MSW Overwatch 3.3.0 — desktop and web release
+
+Feature release since 3.2.2. Installers and auto-update use GitHub Releases. The desktop app now checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Desktop parity
+- Off-Price Analytics is available in the desktop app (same access rules as web; warehouse station accounts stay blocked)
+- Thunder theme is available in the desktop theme picker
+- Audit Log records desktop actions and lists Web vs Desktop
+
+## Auto-update
+- Background update checks run without clicking Check for Updates
+- Downloaded updates install automatically when you quit the app
+- Overlay still lets you install immediately if you want
+
+## Upgrade from 3.2.2
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.3.0, download it, then prompt to install now or later. Web/PWA users get 3.3.0 on the next deploy/refresh.

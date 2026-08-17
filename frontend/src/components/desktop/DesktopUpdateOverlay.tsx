@@ -155,8 +155,8 @@ export default function DesktopUpdateOverlay() {
     case 'ready':
       title = 'Update ready to install'
       body = status.version
-        ? `Version ${status.version} is ready. Install now or continue working and install later.`
-        : 'The update is ready. Install now or continue working and install later.'
+        ? `Version ${status.version} is ready. Install now, or keep working — it will apply when you quit.`
+        : 'The update is ready. Install now, or keep working — it will apply when you quit.'
       showInstall = true
       showInstallLater = true
       break
@@ -210,7 +210,8 @@ export default function DesktopUpdateOverlay() {
         {status.phase === 'ready' && (
           <p className="mt-6 text-center text-sm text-gray-700">
             Choose <strong>Install now</strong> to restart and apply the update, or{' '}
-            <strong>Install later</strong> to keep using the app.
+            <strong>Install later</strong> to keep working. The update still installs the next time
+            you quit the app.
           </p>
         )}
 

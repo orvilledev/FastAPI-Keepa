@@ -85,6 +85,9 @@
       "provider": "github",
       "owner": "orvilledev",
       "repo": "FastAPI-Keepa"
+    },
+    "releaseInfo": {
+      "releaseNotesFile": "release-notes-3.3.0.txt"
     }
   }
 }
