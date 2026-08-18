@@ -1,4 +1,4 @@
-/** Web Analytics: unusual daily-run spike vs yesterday (all vendors). */
+/** Web Analytics: unusual daily-run spike vs the vendor's last completed run. */
 
 export const HIT_ALERT_MIN_DELTA = 100
 
@@ -7,6 +7,9 @@ export type HitAlert = {
   vendor_name: string
   today_hits: number
   yesterday_hits: number
+  last_run_hits?: number
+  last_run_period_key?: string | null
+  last_run_label?: string | null
   delta: number
 }
 
@@ -17,28 +20,29 @@ type VendorHits = {
 }
 
 export function buildHitAlerts(
-  todayVendors: VendorHits[],
-  yesterdayVendors: VendorHits[] | null | undefined,
+  currentVendors: VendorHits[],
+  previousVendors: VendorHits[] | null | undefined,
 ): HitAlert[] {
-  const yesterdayMap = new Map(
-    (yesterdayVendors || []).map((v) => [
+  const previousMap = new Map(
+    (previousVendors || []).map((v) => [
       v.code.trim().toLowerCase(),
       v.off_price_count || 0,
     ]),
   )
   const alerts: HitAlert[] = []
-  for (const v of todayVendors) {
+  for (const v of currentVendors) {
     const code = v.code.trim().toLowerCase()
     if (!code) continue
-    const today = v.off_price_count || 0
-    const yesterday = yesterdayMap.get(code) || 0
-    const delta = today - yesterday
+    const current = v.off_price_count || 0
+    const previous = previousMap.get(code) || 0
+    const delta = current - previous
     if (delta >= HIT_ALERT_MIN_DELTA) {
       alerts.push({
         vendor_code: code,
         vendor_name: v.name,
-        today_hits: today,
-        yesterday_hits: yesterday,
+        today_hits: current,
+        yesterday_hits: previous,
+        last_run_hits: previous,
         delta,
       })
     }
@@ -48,6 +52,7 @@ export function buildHitAlerts(
   )
 }
 
-export function utcTodayPeriodKey(now = new Date()): string {
-  return now.toISOString().slice(0, 10)
+export function hitAlertPreviousLabel(alert: HitAlert): string {
+  if (alert.last_run_label) return `last run (${alert.last_run_label})`
+  return 'last run'
 }

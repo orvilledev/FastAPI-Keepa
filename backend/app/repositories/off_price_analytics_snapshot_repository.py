@@ -59,6 +59,30 @@ class OffPriceAnalyticsSnapshotRepository:
         response = query.execute()
         return response.data or []
 
+    def list_daily_payloads_before(
+        self,
+        *,
+        before_key: str,
+        limit: int = 28,
+        exclude_demo: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """Newest daily snapshot rows strictly before ``before_key``, with payloads."""
+        query = (
+            self.db.table(self.table)
+            .select(
+                "period_key, period_label, total_off_price_count, total_run_count, "
+                "payload, source"
+            )
+            .eq("period_type", "daily")
+            .lt("period_key", before_key)
+            .order("period_key", desc=True)
+            .limit(max(1, min(int(limit), 60)))
+        )
+        if exclude_demo:
+            query = query.neq("source", "demo")
+        response = query.execute()
+        return response.data or []
+
     def list_daily_payloads_in_range(
         self,
         *,

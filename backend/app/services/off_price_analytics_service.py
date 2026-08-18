@@ -43,27 +43,41 @@ Period = Literal["daily", "weekly", "monthly", "yearly"]
 # Analytics source-of-truth jobs only. Express Jobs share price_alerts but are excluded.
 _DAILY_JOB_NAME_PREFIX = "Daily %"
 
-# Unusual daily spike vs yesterday (absolute listing count, all vendors).
+# Unusual daily spike vs the vendor's last completed Daily Run (absolute listing count).
 HIT_ALERT_MIN_DELTA = 100
+HIT_ALERT_LOOKBACK_DAYS = 28
+
+
+def _daily_label_from_key(period_key: str) -> str:
+    try:
+        return datetime.strptime(period_key, "%Y-%m-%d").strftime("%b %d, %Y")
+    except ValueError:
+        return period_key
 
 
 def build_hit_alerts(
-    today_counts: Dict[str, int],
-    yesterday_counts: Dict[str, int],
+    current_counts: Dict[str, int],
+    previous_counts: Dict[str, int],
+    previous_keys: Optional[Dict[str, str]] = None,
 ) -> List[Dict[str, Any]]:
-    """Vendors whose today off-price count is at least 100 above yesterday."""
+    """Vendors whose current daily-run count is at least 100 above their last run."""
+    previous_keys = previous_keys or {}
     alerts: List[Dict[str, Any]] = []
     for code, name in VENDOR_DEFS:
-        today = int(today_counts.get(code) or 0)
-        yesterday = int(yesterday_counts.get(code) or 0)
-        delta = today - yesterday
+        current = int(current_counts.get(code) or 0)
+        previous = int(previous_counts.get(code) or 0)
+        delta = current - previous
         if delta >= HIT_ALERT_MIN_DELTA:
+            last_key = str(previous_keys.get(code) or "")
             alerts.append(
                 {
                     "vendor_code": code,
                     "vendor_name": name,
-                    "today_hits": today,
-                    "yesterday_hits": yesterday,
+                    "today_hits": current,
+                    "yesterday_hits": previous,
+                    "last_run_hits": previous,
+                    "last_run_period_key": last_key or None,
+                    "last_run_label": _daily_label_from_key(last_key) if last_key else None,
                     "delta": delta,
                 }
             )
@@ -719,40 +733,121 @@ class OffPriceAnalyticsService:
             for v in vendors_sorted
         }
 
+    def _last_run_hits_before(
+        self,
+        *,
+        current_period_key: str,
+        enabled_map: Dict[str, bool],
+        tracking_map: Dict[str, bool],
+    ) -> Tuple[Dict[str, int], Dict[str, str]]:
+        """Per-vendor hits from the most recent Daily Run strictly before ``current_period_key``."""
+        previous_counts = {code: 0 for code, _ in VENDOR_DEFS}
+        previous_keys: Dict[str, str] = {}
+        found: set[str] = set()
+
+        try:
+            rows = self.snapshots.list_daily_payloads_before(
+                before_key=current_period_key, limit=HIT_ALERT_LOOKBACK_DAYS
+            )
+        except Exception:
+            rows = []
+
+        for row in rows:
+            if str(row.get("source") or "").lower() == "demo":
+                continue
+            key = str(row.get("period_key") or "")
+            if not key or key >= current_period_key:
+                continue
+            vendors_raw = self._strip_excluded_sellers_from_vendors(
+                (row.get("payload") or {}).get("vendors") or []
+            )
+            vendors_sorted, *_rest = self._vendor_stats_from_archive_vendors(
+                vendors_raw,
+                enabled_map=enabled_map,
+                tracking_map=tracking_map,
+            )
+            for vendor in vendors_sorted:
+                code = str(vendor.get("code") or "").lower()
+                if not code or code in found:
+                    continue
+                if int(vendor.get("run_count") or 0) <= 0 and int(
+                    vendor.get("off_price_count") or 0
+                ) <= 0:
+                    continue
+                previous_counts[code] = int(vendor.get("off_price_count") or 0)
+                previous_keys[code] = key
+                found.add(code)
+            if len(found) >= len(VENDOR_DEFS):
+                break
+
+        missing = [code for code, _ in VENDOR_DEFS if code not in found]
+        if missing:
+            try:
+                current_day = datetime.strptime(current_period_key, "%Y-%m-%d").replace(
+                    tzinfo=timezone.utc
+                )
+            except ValueError:
+                current_day = period_bounds("daily", offset=0)[0]
+            start = current_day - timedelta(days=HIT_ALERT_LOOKBACK_DAYS)
+            jobs = self._fetch_daily_jobs(start, current_day)
+            latest_by_vendor: Dict[str, Dict[str, Any]] = {}
+            for job in jobs:
+                vendor = _vendor_from_job(job)
+                run_date = _run_date_for_job(job)
+                if not vendor or vendor not in missing or not run_date:
+                    continue
+                if run_date >= current_period_key:
+                    continue
+                prev = latest_by_vendor.get(vendor)
+                if prev is None or (_run_date_for_job(prev) or "") < run_date:
+                    latest_by_vendor[vendor] = job
+            latest_jobs = list(latest_by_vendor.values())
+            if latest_jobs:
+                alert_counts = self._count_alerts_by_job(
+                    [str(job["id"]) for job in latest_jobs if job.get("id")]
+                )
+                for job in latest_jobs:
+                    vendor = _vendor_from_job(job)
+                    run_date = _run_date_for_job(job)
+                    if not vendor or not run_date:
+                        continue
+                    previous_counts[vendor] = int(alert_counts.get(str(job.get("id") or ""), 0))
+                    previous_keys[vendor] = run_date
+                    found.add(vendor)
+
+        return previous_counts, previous_keys
+
     def get_daily_hit_alerts(
         self,
         *,
         enabled_map: Dict[str, bool],
         tracking_map: Dict[str, bool],
+        current_summary: Optional[Dict[str, Any]] = None,
         today_summary: Optional[Dict[str, Any]] = None,
         today_period_key: Optional[str] = None,
-        yesterday_snapshot: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        """Flag vendors whose today daily-run hits are 100+ above yesterday."""
-        _start, _end, _label, expected_today_key = period_bounds("daily", offset=0)
-        today_key = today_period_key or expected_today_key
-        summary_key = str((today_summary or {}).get("period_key") or "")
-        if today_summary is not None and summary_key and summary_key != today_key:
-            # Live daily view may show a prior day when today has no runs yet.
-            today_counts = {code: 0 for code, _ in VENDOR_DEFS}
-        elif today_summary is not None and summary_key == today_key:
-            today_counts = {
+        """Flag vendors whose current Analytics daily hits are 100+ above their last run."""
+        summary = current_summary if current_summary is not None else today_summary
+        _start, _end, _label, calendar_today_key = period_bounds("daily", offset=0)
+        summary_key = str((summary or {}).get("period_key") or "")
+        current_key = summary_key or today_period_key or calendar_today_key
+        if summary is not None:
+            current_counts = {
                 str(v.get("code") or "").lower(): int(v.get("off_price_count") or 0)
-                for v in (today_summary.get("vendors") or [])
+                for v in (summary.get("vendors") or [])
             }
         else:
-            today_counts = self._vendor_off_price_counts_for_daily_offset(
+            current_counts = self._vendor_off_price_counts_for_daily_offset(
                 offset=0,
                 enabled_map=enabled_map,
                 tracking_map=tracking_map,
             )
-        yesterday_counts = self._vendor_off_price_counts_for_daily_offset(
-            offset=1,
+        previous_counts, previous_keys = self._last_run_hits_before(
+            current_period_key=current_key,
             enabled_map=enabled_map,
             tracking_map=tracking_map,
-            snapshot_row=yesterday_snapshot,
         )
-        return build_hit_alerts(today_counts, yesterday_counts)
+        return build_hit_alerts(current_counts, previous_counts, previous_keys)
 
     def get_live_preview_bootstrap(self, user_id: str) -> Dict[str, Any]:
         """
@@ -768,8 +863,6 @@ class OffPriceAnalyticsService:
             bounds = period_bounds(period, offset=0)  # type: ignore[arg-type]
             period_bounds_map[period] = bounds
             pairs.append((period, bounds[3]))
-        yesterday_bounds = period_bounds("daily", offset=1)
-        pairs.append(("daily", yesterday_bounds[3]))
 
         try:
             snap_by_key = self.snapshots.get_snapshots_by_period_keys(pairs)
@@ -862,9 +955,7 @@ class OffPriceAnalyticsService:
         hit_alerts = self.get_daily_hit_alerts(
             enabled_map=enabled_map,
             tracking_map=tracking_map,
-            today_summary=periods.get("daily"),
-            today_period_key=period_bounds_map["daily"][3],
-            yesterday_snapshot=snap_by_key.get(("daily", yesterday_bounds[3])),
+            current_summary=periods.get("daily"),
         )
 
         return {

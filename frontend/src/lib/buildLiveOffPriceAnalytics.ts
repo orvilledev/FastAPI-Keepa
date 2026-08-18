@@ -18,7 +18,7 @@ import {
   type OffPriceAnalyticsResponse,
   type OffPriceLiveBootstrapResponse,
 } from '../services/api'
-import { buildHitAlerts, utcTodayPeriodKey, type HitAlert } from './hitAlerts'
+import { buildHitAlerts, type HitAlert } from './hitAlerts'
 
 const PERIODS: AnalyticsPeriod[] = ['daily', 'weekly', 'monthly', 'yearly']
 
@@ -349,12 +349,7 @@ function hitAlertsFromDaily(
   daily: OffPriceAnalyticsResponse,
   priorDaily: OffPriceAnalyticsResponse | null,
 ): HitAlert[] {
-  const todayKey = utcTodayPeriodKey()
-  const todayVendors =
-    daily.period_key === todayKey
-      ? daily.vendors || []
-      : (daily.vendors || []).map((v) => ({ ...v, off_price_count: 0 }))
-  return buildHitAlerts(todayVendors, priorDaily?.vendors)
+  return buildHitAlerts(daily.vendors || [], priorDaily?.vendors)
 }
 
 function assembleFromBootstrap(boot: OffPriceLiveBootstrapResponse): DemoOffPriceAnalytics {

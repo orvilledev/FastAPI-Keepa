@@ -150,7 +150,7 @@ export default function About() {
           <li>
             <span className="font-semibold">Analytics:</span> Off-price hit trends by vendor, seller, and period, with
             Excel download and email report. In the browser, Hit Alert flags any vendor whose daily off-price listings
-            jump by 100 or more versus yesterday (shown in red). Available in the browser and the desktop app. Warehouse
+            jump by 100 or more versus that vendor’s last daily run (shown in red). Available in the browser and the desktop app. Warehouse
             station accounts do not see this page.
           </li>
         </ul>

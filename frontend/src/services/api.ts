@@ -1386,6 +1386,9 @@ export interface OffPriceLiveBootstrapResponse {
     vendor_name: string
     today_hits: number
     yesterday_hits: number
+    last_run_hits?: number
+    last_run_period_key?: string | null
+    last_run_label?: string | null
     delta: number
   }>
   hit_alert_threshold?: number

@@ -83,7 +83,7 @@ export interface DemoOffPriceAnalytics {
     yearly_hits: number
     pct_of_yearly_total: number
   }>
-  /** Daily-run spike of 100+ listings vs yesterday (web Analytics). */
+  /** Daily-run spike of 100+ listings vs the vendor's last completed run (web Analytics). */
   hit_alerts: HitAlert[]
   /** Past + current year archives — durable history for download. */
   historical_years: DemoYearArchive[]

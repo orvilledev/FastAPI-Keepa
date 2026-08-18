@@ -25,7 +25,7 @@ import {
   buildLiveOffPriceAnalytics,
   purgeDemoAnalyticsSnapshots,
 } from '../../lib/buildLiveOffPriceAnalytics'
-import { HIT_ALERT_MIN_DELTA } from '../../lib/hitAlerts'
+import { HIT_ALERT_MIN_DELTA, hitAlertPreviousLabel } from '../../lib/hitAlerts'
 import { isElectronDesktop } from '../../lib/privatePath'
 import { useUser } from '../../contexts/UserContext'
 import {
@@ -874,7 +874,7 @@ export default function OffPriceAnalytics() {
             </p>
             <p className="mt-1 text-xs font-medium text-red-700 dark:text-red-300">
               {hitAlerts.length} vendor{hitAlerts.length === 1 ? '' : 's'} with {HIT_ALERT_MIN_DELTA}+ more
-              listings than yesterday
+              listings than last run
             </p>
           </div>
         )}
@@ -930,13 +930,14 @@ export default function OffPriceAnalytics() {
                   {hitAlerts.length === 1
                     ? '1 vendor has '
                     : `${hitAlerts.length} vendors have `}
-                  {HIT_ALERT_MIN_DELTA}+ more off-price listings in today’s daily run than yesterday.
+                  {HIT_ALERT_MIN_DELTA}+ more off-price listings than the last daily run.
                 </p>
                 <ul className="mt-2 space-y-1 text-sm font-medium">
                   {hitAlerts.map((alert) => (
                     <li key={alert.vendor_code}>
-                      {alert.vendor_name}: {alert.today_hits.toLocaleString()} today vs{' '}
-                      {alert.yesterday_hits.toLocaleString()} yesterday{' '}
+                      {alert.vendor_name}: {alert.today_hits.toLocaleString()} now vs{' '}
+                      {(alert.last_run_hits ?? alert.yesterday_hits).toLocaleString()}{' '}
+                      {hitAlertPreviousLabel(alert)}{' '}
                       <span className="tabular-nums">(+{alert.delta.toLocaleString()})</span>
                     </li>
                   ))}
@@ -2072,7 +2073,7 @@ export default function OffPriceAnalytics() {
                                   {vendorHitAlert && (
                                     <span className="font-semibold text-red-600 dark:text-red-400">
                                       {' '}
-                                      · +{vendorHitAlert.delta.toLocaleString()} vs yesterday
+                                      · +{vendorHitAlert.delta.toLocaleString()} vs last run
                                     </span>
                                   )}
                                 </>
@@ -2145,7 +2146,7 @@ export default function OffPriceAnalytics() {
                                 <p className="text-xs text-gray-500 dark:text-content-muted">
                                   {p.pct_of_total.toFixed(1)}% · {formatChange(p.change_vs_prior_pct).text}
                                   {label === 'Daily' && vendorHitAlert
-                                    ? ` · +${vendorHitAlert.delta.toLocaleString()} vs yesterday`
+                                    ? ` · +${vendorHitAlert.delta.toLocaleString()} vs last run`
                                     : ''}
                                 </p>
                               </div>
