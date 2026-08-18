@@ -1381,6 +1381,14 @@ export interface OffPriceLiveBootstrapResponse {
     vendor_name: string
     tracking_enabled: boolean
   }>
+  hit_alerts?: Array<{
+    vendor_code: string
+    vendor_name: string
+    today_hits: number
+    yesterday_hits: number
+    delta: number
+  }>
+  hit_alert_threshold?: number
 }
 
 export interface DailyKeepaOffPriceListingRow {

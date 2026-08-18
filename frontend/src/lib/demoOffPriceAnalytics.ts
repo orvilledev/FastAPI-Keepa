@@ -4,6 +4,10 @@
  * mirroring what the DB table ``off_price_analytics_snapshots`` will store.
  */
 
+import type { HitAlert } from './hitAlerts'
+
+export type { HitAlert } from './hitAlerts'
+
 export type AnalyticsPeriod = 'daily' | 'weekly' | 'monthly' | 'yearly'
 
 export interface SellerHits {
@@ -79,6 +83,8 @@ export interface DemoOffPriceAnalytics {
     yearly_hits: number
     pct_of_yearly_total: number
   }>
+  /** Daily-run spike of 100+ listings vs yesterday (web Analytics). */
+  hit_alerts: HitAlert[]
   /** Past + current year archives — durable history for download. */
   historical_years: DemoYearArchive[]
   /** Month-by-month totals for the Monthly trend chart. */
@@ -594,6 +600,7 @@ export function buildDemoOffPriceAnalytics(): DemoOffPriceAnalytics {
     },
     vendors,
     top_sellers_overall,
+    hit_alerts: [],
     historical_years: buildHistoricalYears(vendors),
     historical_months: buildHistoricalMonths(
       grand.monthly,

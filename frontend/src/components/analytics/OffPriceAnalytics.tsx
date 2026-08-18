@@ -25,6 +25,8 @@ import {
   buildLiveOffPriceAnalytics,
   purgeDemoAnalyticsSnapshots,
 } from '../../lib/buildLiveOffPriceAnalytics'
+import { HIT_ALERT_MIN_DELTA } from '../../lib/hitAlerts'
+import { isElectronDesktop } from '../../lib/privatePath'
 import { useUser } from '../../contexts/UserContext'
 import {
   analyticsApi,
@@ -717,6 +719,12 @@ export default function OffPriceAnalytics() {
   }
 
   const trackedVendorCount = vendorCodes.filter((c) => tracking[c] !== false).length
+  const showHitAlerts = !isElectronDesktop()
+  const hitAlerts = data?.hit_alerts ?? []
+  const hitAlertByCode = useMemo(
+    () => Object.fromEntries(hitAlerts.map((alert) => [alert.vendor_code, alert])),
+    [hitAlerts],
+  )
 
   const totals = data?.totals[period] ?? {
     off_price_count: 0,
@@ -859,6 +867,18 @@ export default function OffPriceAnalytics() {
           })}
         </nav>
 
+        {showHitAlerts && hitAlerts.length > 0 && (
+          <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-3 py-2 dark:border-red-800 dark:bg-red-950/50">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-red-700 dark:text-red-400">
+              Hit Alert
+            </p>
+            <p className="mt-1 text-xs font-medium text-red-700 dark:text-red-300">
+              {hitAlerts.length} vendor{hitAlerts.length === 1 ? '' : 's'} with {HIT_ALERT_MIN_DELTA}+ more
+              listings than yesterday
+            </p>
+          </div>
+        )}
+
         {period === 'yearly' && (
           <div className="mt-4 hidden lg:block">
             <p className="sidebar-section-label mb-2">ARCHIVED YEARS</p>
@@ -901,6 +921,28 @@ export default function OffPriceAnalytics() {
             <p className="mt-1 text-sm text-gray-500 dark:text-content-muted">
               {PERIODS.find((p) => p.id === period)?.description}
             </p>
+            {showHitAlerts && hitAlerts.length > 0 && (
+              <div className="mt-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2.5 text-red-800 dark:border-red-800 dark:bg-red-950/50 dark:text-red-300">
+                <p className="text-sm font-semibold uppercase tracking-wide text-red-700 dark:text-red-400">
+                  Hit Alert
+                </p>
+                <p className="mt-1 text-sm">
+                  {hitAlerts.length === 1
+                    ? '1 vendor has '
+                    : `${hitAlerts.length} vendors have `}
+                  {HIT_ALERT_MIN_DELTA}+ more off-price listings in today’s daily run than yesterday.
+                </p>
+                <ul className="mt-2 space-y-1 text-sm font-medium">
+                  {hitAlerts.map((alert) => (
+                    <li key={alert.vendor_code}>
+                      {alert.vendor_name}: {alert.today_hits.toLocaleString()} today vs{' '}
+                      {alert.yesterday_hits.toLocaleString()} yesterday{' '}
+                      <span className="tabular-nums">(+{alert.delta.toLocaleString()})</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {archiveStatus && (
               <p className="mt-2 text-xs text-gray-500 dark:text-content-muted">{archiveStatus}</p>
             )}
@@ -1967,6 +2009,7 @@ export default function OffPriceAnalytics() {
                     (sum, s) => sum + sellerHitsForPeriod(s, period),
                     0,
                   )
+                  const vendorHitAlert = showHitAlerts ? hitAlertByCode[vendor.code] : undefined
 
                   return (
                     <div
@@ -2015,12 +2058,23 @@ export default function OffPriceAnalytics() {
                               >
                                 Tracking {trackingOn ? 'on' : 'off'}
                               </span>
+                              {showHitAlerts && hitAlertByCode[vendor.code] && (
+                                <span className="inline-flex rounded px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide bg-red-600 text-white dark:bg-red-500">
+                                  Hit Alert
+                                </span>
+                              )}
                             </div>
                             <p className="mt-0.5 text-xs text-gray-500 dark:text-content-muted">
                               {trackingOn ? (
                                 <>
                                   {stats.run_count} run{stats.run_count === 1 ? '' : 's'} · vs prior{' '}
                                   <span className={change.className}>{change.text}</span>
+                                  {vendorHitAlert && (
+                                    <span className="font-semibold text-red-600 dark:text-red-400">
+                                      {' '}
+                                      · +{vendorHitAlert.delta.toLocaleString()} vs yesterday
+                                    </span>
+                                  )}
                                 </>
                               ) : (
                                 'Paused — not included in new analytics totals'
@@ -2033,7 +2087,13 @@ export default function OffPriceAnalytics() {
                           </div>
 
                           <div className="text-right">
-                            <p className="text-lg font-bold tabular-nums text-gray-900 dark:text-content-primary">
+                            <p
+                              className={`text-lg font-bold tabular-nums ${
+                                vendorHitAlert
+                                  ? 'text-red-600 dark:text-red-400'
+                                  : 'text-gray-900 dark:text-content-primary'
+                              }`}
+                            >
                               {trackingOn ? stats.off_price_count.toLocaleString() : '—'}
                             </p>
                           </div>
@@ -2057,16 +2117,36 @@ export default function OffPriceAnalytics() {
                                   label.toLowerCase() === period
                                     ? 'border-[#404040] ring-1 ring-[#404040]/20 dark:border-slate-300'
                                     : 'border-gray-200'
+                                } ${
+                                  label === 'Daily' && vendorHitAlert
+                                    ? 'border-red-400 ring-1 ring-red-400/30 dark:border-red-500'
+                                    : ''
                                 }`}
                               >
-                                <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                                <p
+                                  className={`text-[11px] font-medium uppercase tracking-wide ${
+                                    label === 'Daily' && vendorHitAlert
+                                      ? 'text-red-600 dark:text-red-400'
+                                      : 'text-gray-400'
+                                  }`}
+                                >
                                   {label}
+                                  {label === 'Daily' && vendorHitAlert ? ' · Hit Alert' : ''}
                                 </p>
-                                <p className="mt-1 text-lg font-bold tabular-nums text-gray-900 dark:text-content-primary">
+                                <p
+                                  className={`mt-1 text-lg font-bold tabular-nums ${
+                                    label === 'Daily' && vendorHitAlert
+                                      ? 'text-red-600 dark:text-red-400'
+                                      : 'text-gray-900 dark:text-content-primary'
+                                  }`}
+                                >
                                   {p.off_price_count.toLocaleString()}
                                 </p>
                                 <p className="text-xs text-gray-500 dark:text-content-muted">
                                   {p.pct_of_total.toFixed(1)}% · {formatChange(p.change_vs_prior_pct).text}
+                                  {label === 'Daily' && vendorHitAlert
+                                    ? ` · +${vendorHitAlert.delta.toLocaleString()} vs yesterday`
+                                    : ''}
                                 </p>
                               </div>
                             ))}

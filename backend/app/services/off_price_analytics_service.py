@@ -43,6 +43,33 @@ Period = Literal["daily", "weekly", "monthly", "yearly"]
 # Analytics source-of-truth jobs only. Express Jobs share price_alerts but are excluded.
 _DAILY_JOB_NAME_PREFIX = "Daily %"
 
+# Unusual daily spike vs yesterday (absolute listing count, all vendors).
+HIT_ALERT_MIN_DELTA = 100
+
+
+def build_hit_alerts(
+    today_counts: Dict[str, int],
+    yesterday_counts: Dict[str, int],
+) -> List[Dict[str, Any]]:
+    """Vendors whose today off-price count is at least 100 above yesterday."""
+    alerts: List[Dict[str, Any]] = []
+    for code, name in VENDOR_DEFS:
+        today = int(today_counts.get(code) or 0)
+        yesterday = int(yesterday_counts.get(code) or 0)
+        delta = today - yesterday
+        if delta >= HIT_ALERT_MIN_DELTA:
+            alerts.append(
+                {
+                    "vendor_code": code,
+                    "vendor_name": name,
+                    "today_hits": today,
+                    "yesterday_hits": yesterday,
+                    "delta": delta,
+                }
+            )
+    alerts.sort(key=lambda a: (-int(a["delta"]), str(a["vendor_code"])))
+    return alerts
+
 
 def period_bounds(
     period: Period,
@@ -653,6 +680,80 @@ class OffPriceAnalyticsService:
             "rows": rows,
         }
 
+    def _vendor_off_price_counts_for_daily_offset(
+        self,
+        *,
+        offset: int,
+        enabled_map: Dict[str, bool],
+        tracking_map: Dict[str, bool],
+        snapshot_row: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, int]:
+        """Per-vendor daily hit counts for a calendar offset. Never falls back to another day."""
+        start, end, _label, period_key = period_bounds("daily", offset=offset)
+        row = snapshot_row
+        if row is None:
+            try:
+                row = self.snapshots.get_snapshot("daily", period_key)
+            except Exception:
+                row = None
+        if row and str(row.get("source") or "").lower() != "demo":
+            vendors_raw = self._strip_excluded_sellers_from_vendors(
+                (row.get("payload") or {}).get("vendors") or []
+            )
+            if vendors_raw or int(row.get("total_off_price_count") or 0) > 0:
+                vendors_sorted, *_rest = self._vendor_stats_from_archive_vendors(
+                    vendors_raw,
+                    enabled_map=enabled_map,
+                    tracking_map=tracking_map,
+                )
+                return {
+                    str(v.get("code") or "").lower(): int(v.get("off_price_count") or 0)
+                    for v in vendors_sorted
+                }
+        jobs = self._fetch_daily_jobs(start, end)
+        vendors_sorted, *_rest = self._vendor_stats_from_jobs(
+            jobs, enabled_map=enabled_map, tracking_map=tracking_map
+        )
+        return {
+            str(v.get("code") or "").lower(): int(v.get("off_price_count") or 0)
+            for v in vendors_sorted
+        }
+
+    def get_daily_hit_alerts(
+        self,
+        *,
+        enabled_map: Dict[str, bool],
+        tracking_map: Dict[str, bool],
+        today_summary: Optional[Dict[str, Any]] = None,
+        today_period_key: Optional[str] = None,
+        yesterday_snapshot: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Flag vendors whose today daily-run hits are 100+ above yesterday."""
+        _start, _end, _label, expected_today_key = period_bounds("daily", offset=0)
+        today_key = today_period_key or expected_today_key
+        summary_key = str((today_summary or {}).get("period_key") or "")
+        if today_summary is not None and summary_key and summary_key != today_key:
+            # Live daily view may show a prior day when today has no runs yet.
+            today_counts = {code: 0 for code, _ in VENDOR_DEFS}
+        elif today_summary is not None and summary_key == today_key:
+            today_counts = {
+                str(v.get("code") or "").lower(): int(v.get("off_price_count") or 0)
+                for v in (today_summary.get("vendors") or [])
+            }
+        else:
+            today_counts = self._vendor_off_price_counts_for_daily_offset(
+                offset=0,
+                enabled_map=enabled_map,
+                tracking_map=tracking_map,
+            )
+        yesterday_counts = self._vendor_off_price_counts_for_daily_offset(
+            offset=1,
+            enabled_map=enabled_map,
+            tracking_map=tracking_map,
+            snapshot_row=yesterday_snapshot,
+        )
+        return build_hit_alerts(today_counts, yesterday_counts)
+
     def get_live_preview_bootstrap(self, user_id: str) -> Dict[str, Any]:
         """
         One-shot Live Analytics payload: current daily/week/month/year + recent
@@ -667,6 +768,8 @@ class OffPriceAnalyticsService:
             bounds = period_bounds(period, offset=0)  # type: ignore[arg-type]
             period_bounds_map[period] = bounds
             pairs.append((period, bounds[3]))
+        yesterday_bounds = period_bounds("daily", offset=1)
+        pairs.append(("daily", yesterday_bounds[3]))
 
         try:
             snap_by_key = self.snapshots.get_snapshots_by_period_keys(pairs)
@@ -756,10 +859,20 @@ class OffPriceAnalyticsService:
         except Exception:
             monthly_archives = []
 
+        hit_alerts = self.get_daily_hit_alerts(
+            enabled_map=enabled_map,
+            tracking_map=tracking_map,
+            today_summary=periods.get("daily"),
+            today_period_key=period_bounds_map["daily"][3],
+            yesterday_snapshot=snap_by_key.get(("daily", yesterday_bounds[3])),
+        )
+
         return {
             "periods": periods,
             "yearly_archives": yearly_archives,
             "monthly_archives": monthly_archives,
+            "hit_alerts": hit_alerts,
+            "hit_alert_threshold": HIT_ALERT_MIN_DELTA,
             "tracking_settings": [
                 {
                     "vendor_code": code,

@@ -18,6 +18,7 @@ import {
   type OffPriceAnalyticsResponse,
   type OffPriceLiveBootstrapResponse,
 } from '../services/api'
+import { buildHitAlerts, utcTodayPeriodKey, type HitAlert } from './hitAlerts'
 
 const PERIODS: AnalyticsPeriod[] = ['daily', 'weekly', 'monthly', 'yearly']
 
@@ -146,6 +147,7 @@ function assembleFromPeriods(
   >,
   historical_years: DemoYearArchive[],
   historical_months: DemoMonthPoint[],
+  hitAlerts: HitAlert[] = [],
 ): DemoOffPriceAnalytics {
   const codeSet = new Set<string>()
   for (const p of PERIODS) {
@@ -337,9 +339,22 @@ function assembleFromPeriods(
     totals,
     vendors: finalVendors,
     top_sellers_overall,
+    hit_alerts: hitAlerts,
     historical_years,
     historical_months,
   }
+}
+
+function hitAlertsFromDaily(
+  daily: OffPriceAnalyticsResponse,
+  priorDaily: OffPriceAnalyticsResponse | null,
+): HitAlert[] {
+  const todayKey = utcTodayPeriodKey()
+  const todayVendors =
+    daily.period_key === todayKey
+      ? daily.vendors || []
+      : (daily.vendors || []).map((v) => ({ ...v, off_price_count: 0 }))
+  return buildHitAlerts(todayVendors, priorDaily?.vendors)
 }
 
 function assembleFromBootstrap(boot: OffPriceLiveBootstrapResponse): DemoOffPriceAnalytics {
@@ -378,7 +393,11 @@ function assembleFromBootstrap(boot: OffPriceLiveBootstrapResponse): DemoOffPric
     })
   }
 
-  return assembleFromPeriods(byPeriod, historical_years, historical_months)
+  const hitAlerts = Array.isArray(boot.hit_alerts)
+    ? boot.hit_alerts
+    : hitAlertsFromDaily(byPeriod.daily.current, null)
+
+  return assembleFromPeriods(byPeriod, historical_years, historical_months, hitAlerts)
 }
 
 /** Legacy multi-request path (fallback if bootstrap is unavailable). */
@@ -389,6 +408,12 @@ async function buildLiveOffPriceAnalyticsLegacy(): Promise<DemoOffPriceAnalytics
       return { current, prior: null }
     }),
   )
+  let priorDaily: OffPriceAnalyticsResponse | null = null
+  try {
+    priorDaily = await analyticsApi.getOffPrice({ period: 'daily', offset: 1, persist: false })
+  } catch {
+    priorDaily = null
+  }
   const byPeriod = Object.fromEntries(
     PERIODS.map((p, i) => [p, periodResults[i]]),
   ) as Record<AnalyticsPeriod, { current: OffPriceAnalyticsResponse; prior: OffPriceAnalyticsResponse | null }>
@@ -461,7 +486,8 @@ async function buildLiveOffPriceAnalyticsLegacy(): Promise<DemoOffPriceAnalytics
     })
   }
 
-  return assembleFromPeriods(byPeriod, historical_years, historical_months)
+  const hitAlerts = hitAlertsFromDaily(byPeriod.daily.current, priorDaily)
+  return assembleFromPeriods(byPeriod, historical_years, historical_months, hitAlerts)
 }
 
 export async function buildLiveOffPriceAnalytics(): Promise<DemoOffPriceAnalytics> {
