@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { APP_NAME } from '../../constants/app'
+import { isElectronDesktop } from '../../lib/privatePath'
 
 const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
   {
@@ -401,7 +402,10 @@ export default function JobAids() {
       </div>
 
       <div className="space-y-3">
-        {FAQ_ITEMS.map(({ q, a }) => (
+        {(isElectronDesktop()
+          ? FAQ_ITEMS
+          : FAQ_ITEMS.filter((item) => item.q !== 'What is Testing Playground?')
+        ).map(({ q, a }) => (
           <details
             key={q}
             className="group card border border-gray-200/80 rounded-xl p-0 overflow-hidden shadow-sm open:shadow-md transition-shadow"

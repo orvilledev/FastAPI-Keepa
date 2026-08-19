@@ -200,10 +200,11 @@ export default function About() {
         </p>
       </div>
 
+      {isElectron && (
       <div className="card p-8">
         <h2 className="text-2xl font-semibold text-gray-900">Testing</h2>
         <p className="mt-3 text-gray-700">
-          Invite-only sandbox for verifying tools before real work.
+          Invite-only sandbox for verifying tools before real work (desktop app).
         </p>
         <ul className="mt-4 list-disc space-y-2 pl-6 text-gray-700">
           <li>
@@ -213,6 +214,7 @@ export default function About() {
           </li>
         </ul>
       </div>
+      )}
 
       <div className="card p-8">
         <h2 className="text-2xl font-semibold text-gray-900">Appearance &amp; sign-in</h2>

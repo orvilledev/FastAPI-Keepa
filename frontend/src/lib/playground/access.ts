@@ -1,7 +1,9 @@
 /**
- * Playground access — selected users only.
- * Frontend gate only; playground runners do not write production history.
+ * Playground access — selected users only, desktop app only.
+ * Hidden on the web UI. Frontend gate only; playground runners do not write
+ * production history.
  */
+import { isElectronDesktop } from '../privatePath'
 
 /** Same initial roster as Analytics; expand as more testers are added. */
 export const PLAYGROUND_ALLOWED_EMAILS = [
@@ -15,11 +17,12 @@ const PLAYGROUND_ALLOWED_SET = new Set(
   PLAYGROUND_ALLOWED_EMAILS.map((email) => email.toLowerCase()),
 )
 
-/** True when this signed-in user may open Testing Playground. */
+/** True when this signed-in user may open Testing Playground (Electron only). */
 export function canAccessPlayground(
   email?: string | null,
   isSuperadmin = false,
 ): boolean {
+  if (!isElectronDesktop()) return false
   if (isSuperadmin) return true
   const normalized = (email || '').trim().toLowerCase()
   return Boolean(normalized) && PLAYGROUND_ALLOWED_SET.has(normalized)
