@@ -45,10 +45,12 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     q: 'What are Express Jobs?',
     a: (
       <>
-        Express Jobs are on-demand Keepa checks against managed UPCs. You create a job, choose recipients, and run in{' '}
+        Express Jobs are on-demand Keepa checks. You create a job, choose recipients, pick{' '}
+        <strong>Use Manage UPCs</strong> for the selected vendor or paste a custom list, and run in{' '}
         <strong>API Mode</strong> (live Keepa data) or <strong>Import Mode</strong> (uploaded Keepa report file). Job
-        status, results, and cleanup live under Express Jobs in the sidebar. Delete finished jobs from the job list or
-        detail page when you no longer need them.
+        status, results, and cleanup live under Express Jobs in the sidebar. Use{' '}
+        <strong>Clear all completed runs</strong> to delete every completed Express job at once (Daily Runs and Analytics
+        stay). You can also delete a single job from the list or detail page.
       </>
     ),
   },

@@ -29,7 +29,7 @@ const INITIAL_QUICK_GUIDES: QuickGuide[] = [
       'On the left menu, click Keepa Alert Services, then click Express Jobs.',
       'Click Create New Job.',
       'Type a clear job name (example: DNK Morning Check).',
-      'Add or paste the UPCs you want to check.',
+      'Choose the MAP vendor, then Use Manage UPCs for that vendor, or paste a custom UPC list.',
       'Pick settings and email recipients.',
       'Click Save, then click Trigger to start the run now.',
     ],

@@ -1,5 +1,5 @@
 """Pydantic models for batch jobs."""
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional, Literal
 from datetime import datetime
 from uuid import UUID
@@ -21,7 +21,11 @@ OffPriceScope = Literal[
 class BatchJobCreate(BaseModel):
     """Model for creating a batch job."""
     job_name: str
-    upcs: list[str]  # List of UPCs to process
+    upcs: list[str] = Field(default_factory=list)
+    use_managed_upcs: bool = Field(
+        default=False,
+        description="When true, ignore pasted UPCs and use Manage UPCs for map_vendor_type.",
+    )
     email_recipients: Optional[str] = None
     keepa_offers_limit: int = Field(
         ge=0,
@@ -52,6 +56,16 @@ class BatchJobCreate(BaseModel):
                 "must start with a letter or digit."
             )
         return nv
+
+    @model_validator(mode="after")
+    def require_upc_source(self) -> "BatchJobCreate":
+        if self.use_managed_upcs:
+            return self
+        pasted = [str(u).strip() for u in (self.upcs or []) if str(u).strip()]
+        if not pasted:
+            raise ValueError("Provide at least one UPC, or set use_managed_upcs to use Manage UPCs.")
+        self.upcs = pasted
+        return self
 
 
 class BatchJobUpdate(BaseModel):

@@ -10,6 +10,8 @@ from app.database import get_supabase
 from app.services.batch_processor import BatchProcessor
 from app.services.keepa_client import MultiKeyKeepaClient
 from app.repositories.job_repository import JobRepository
+from app.repositories.upc_repository import UPCRepository
+from app.utils.vendor_code import resolve_map_vendor_type
 from app.services.job_status_service import JobStatusService
 from app.utils.error_handler import handle_api_errors
 from supabase import Client
@@ -40,14 +42,28 @@ async def create_job(
     db: Client = Depends(get_supabase)
 ):
     """Create a new batch job (admin, hub, or users with can_run_jobs)."""
+    vendor = resolve_map_vendor_type(job_data.map_vendor_type)
+    if job_data.use_managed_upcs:
+        upcs = UPCRepository(db).get_all_upc_codes(vendor)
+        if not upcs:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"No Manage UPCs found for {vendor.upper()}. "
+                    "Add them under Manage UPCs first, or paste UPCs instead."
+                ),
+            )
+    else:
+        upcs = [str(u).strip() for u in (job_data.upcs or []) if str(u).strip()]
+
     processor = BatchProcessor()
     job_id = await processor.create_batch_job(
         job_name=job_data.job_name,
-        upcs=job_data.upcs,
+        upcs=upcs,
         created_by=UUID(current_user["id"]),
         email_recipients=job_data.email_recipients,
         keepa_offers_limit=job_data.keepa_offers_limit,
-        map_vendor_type=job_data.map_vendor_type,
+        map_vendor_type=vendor,
         off_price_scope=job_data.off_price_scope,
     )
     

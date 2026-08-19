@@ -373,7 +373,8 @@ export const authApi = {
 export const jobsApi = {
   createJob: async (jobData: {
     job_name: string
-    upcs: string[]
+    upcs?: string[]
+    use_managed_upcs?: boolean
     email_recipients?: string
     map_vendor_type?: MapVendorType
     keepa_offers_limit: number
