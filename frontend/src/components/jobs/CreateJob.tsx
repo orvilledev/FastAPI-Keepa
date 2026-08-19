@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { jobsApi, mapApi, upcsApi } from '../../services/api'
 import EmailRecipientsPicker from './EmailRecipientsPicker'
+import { alertIfApiKeepaRunBusy } from '../../utils/apiErrorMessage'
 
 const SYSTEM_VENDOR_CODES = ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha', 'jfs'] as const
 
@@ -115,7 +116,8 @@ export default function CreateJob() {
 
       navigate(`/jobs/${job.id}`)
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to create job')
+      const busy = alertIfApiKeepaRunBusy(err)
+      setError(busy || err.response?.data?.detail || 'Failed to create job')
     } finally {
       setLoading(false)
     }

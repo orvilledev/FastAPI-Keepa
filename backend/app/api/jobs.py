@@ -13,6 +13,10 @@ from app.repositories.job_repository import JobRepository
 from app.repositories.upc_repository import UPCRepository
 from app.utils.vendor_code import resolve_map_vendor_type
 from app.services.job_status_service import JobStatusService
+from app.services.daily_run_completion import (
+    API_KEEPA_RUN_BLOCKED_MESSAGE,
+    api_keepa_exclusive_start,
+)
 from app.utils.error_handler import handle_api_errors
 from supabase import Client
 
@@ -57,15 +61,18 @@ async def create_job(
         upcs = [str(u).strip() for u in (job_data.upcs or []) if str(u).strip()]
 
     processor = BatchProcessor()
-    job_id = await processor.create_batch_job(
-        job_name=job_data.job_name,
-        upcs=upcs,
-        created_by=UUID(current_user["id"]),
-        email_recipients=job_data.email_recipients,
-        keepa_offers_limit=job_data.keepa_offers_limit,
-        map_vendor_type=vendor,
-        off_price_scope=job_data.off_price_scope,
-    )
+    async with api_keepa_exclusive_start(db) as conflict:
+        if conflict:
+            raise HTTPException(status_code=409, detail=API_KEEPA_RUN_BLOCKED_MESSAGE)
+        job_id = await processor.create_batch_job(
+            job_name=job_data.job_name,
+            upcs=upcs,
+            created_by=UUID(current_user["id"]),
+            email_recipients=job_data.email_recipients,
+            keepa_offers_limit=job_data.keepa_offers_limit,
+            map_vendor_type=vendor,
+            off_price_scope=job_data.off_price_scope,
+        )
     
     # Start processing in background using the restricted 5-key product pool.
     background_tasks.add_task(
@@ -215,7 +222,7 @@ def get_job_status(
 @router.post("/jobs/{job_id}/trigger")
 @limiter.limit(RateLimits.JOB_TRIGGER)
 @handle_api_errors("trigger job")
-def trigger_job(
+async def trigger_job(
     request: Request,
     job_id: UUID,
     background_tasks: BackgroundTasks,
@@ -228,6 +235,10 @@ def trigger_job(
     
     if job["status"] == "processing":
         raise HTTPException(status_code=400, detail="Job is already processing")
+
+    async with api_keepa_exclusive_start(db, exclude_job_id=str(job_id)) as conflict:
+        if conflict:
+            raise HTTPException(status_code=409, detail=API_KEEPA_RUN_BLOCKED_MESSAGE)
     
     # Start processing in background
     processor = BatchProcessor()

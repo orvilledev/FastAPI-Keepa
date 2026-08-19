@@ -14,7 +14,9 @@ from app.repositories.map_repository import MAPRepository
 from app.services.batch_processor import BatchProcessor
 from app.services.keepa_client import MultiKeyKeepaClient
 from app.services.daily_run_completion import (
+    API_KEEPA_RUN_BLOCKED_MESSAGE,
     acquire_category_daily_run_lock,
+    api_keepa_exclusive_start,
     release_category_daily_run_lock,
     scheduled_uploaded_run_completed_today,
     send_daily_run_completion_email_for_job,
@@ -629,6 +631,25 @@ async def _run_daily_job_for_category_impl(category: str = 'dnk', forced_input_m
                 )
                 return
         else:
+            async with api_keepa_exclusive_start(db) as conflict:
+                if conflict:
+                    logger.warning(
+                        "Skipping scheduled API Mode daily run for %s; active API Keepa job %s (%s)",
+                        category.upper(),
+                        conflict.get("id"),
+                        conflict.get("job_name"),
+                    )
+                    await notify_admin(
+                        "run_failed",
+                        f"API Mode skipped: {category.upper()}",
+                        (
+                            f"{API_KEEPA_RUN_BLOCKED_MESSAGE} "
+                            f"Active job: {conflict.get('job_name') or conflict.get('id')}."
+                        ),
+                        "warning",
+                        str(conflict.get("id")) if conflict.get("id") else None,
+                    )
+                    return
             upc_repo = UPCRepository(db)
             upcs = await _run_sync(lambda: upc_repo.get_all_upc_codes(category))
 
@@ -637,16 +658,47 @@ async def _run_daily_job_for_category_impl(category: str = 'dnk', forced_input_m
             job_name_prefix = "Uploaded Report" if input_mode == "uploaded" else "Off Price Report"
             job_name = f"Daily {category.upper()} {job_name_prefix} - {current_time.strftime('%Y-%m-%d')}"
             run_off_price_scope = "buybox_and_non_buybox_below_map"
-            job_id = await processor.create_batch_job(
-                job_name=job_name,
-                upcs=upcs,
-                created_by=admin_uuid,
-                email_recipients=custom_recipients,
-                email_bcc_recipients=custom_bcc_recipients,
-                keepa_offers_limit=settings.keepa_offers_limit,
-                map_vendor_type=category,
-                off_price_scope=run_off_price_scope,
-            )
+            if input_mode != "uploaded":
+                async with api_keepa_exclusive_start(db) as conflict:
+                    if conflict:
+                        logger.warning(
+                            "Skipping scheduled API Mode daily run for %s; active API Keepa job %s (%s)",
+                            category.upper(),
+                            conflict.get("id"),
+                            conflict.get("job_name"),
+                        )
+                        await notify_admin(
+                            "run_failed",
+                            f"API Mode skipped: {category.upper()}",
+                            (
+                                f"{API_KEEPA_RUN_BLOCKED_MESSAGE} "
+                                f"Active job: {conflict.get('job_name') or conflict.get('id')}."
+                            ),
+                            "warning",
+                            str(conflict.get("id")) if conflict.get("id") else None,
+                        )
+                        return
+                    job_id = await processor.create_batch_job(
+                        job_name=job_name,
+                        upcs=upcs,
+                        created_by=admin_uuid,
+                        email_recipients=custom_recipients,
+                        email_bcc_recipients=custom_bcc_recipients,
+                        keepa_offers_limit=settings.keepa_offers_limit,
+                        map_vendor_type=category,
+                        off_price_scope=run_off_price_scope,
+                    )
+            else:
+                job_id = await processor.create_batch_job(
+                    job_name=job_name,
+                    upcs=upcs,
+                    created_by=admin_uuid,
+                    email_recipients=custom_recipients,
+                    email_bcc_recipients=custom_bcc_recipients,
+                    keepa_offers_limit=settings.keepa_offers_limit,
+                    map_vendor_type=category,
+                    off_price_scope=run_off_price_scope,
+                )
             logger.info(f"Created {category.upper()} batch job {job_id} with {len(upcs)} UPCs. Processing...")
             if input_mode == "uploaded":
                 map_repo = MAPRepository(db)

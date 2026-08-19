@@ -57,6 +57,8 @@ class _FakeQuery:
             # Simulate missing report so uploaded-mode exits early without
             # entering downstream processing.
             return SimpleNamespace(data=[])
+        if self.table_name == "batch_jobs" and getattr(self.db, "active_api_jobs", None):
+            return SimpleNamespace(data=list(self.db.active_api_jobs))
         return SimpleNamespace(data=[])
 
 
@@ -323,3 +325,28 @@ async def test_api_mode_daily_run_pins_daily_key_pool():
     processor.process_job.assert_awaited_once()
     kwargs = processor.process_job.await_args.kwargs
     assert kwargs["keepa_api_keys"] == daily_keys
+
+
+@pytest.mark.asyncio
+async def test_api_mode_daily_run_skips_when_express_job_active():
+    api_db = _FakeDB(input_mode="api")
+    api_db.active_api_jobs = [
+        {"id": "express-1", "job_name": "Manual Express", "status": "processing"},
+    ]
+    upc_repo = MagicMock()
+    processor = MagicMock()
+    processor.create_batch_job = AsyncMock()
+    processor.process_job = AsyncMock()
+
+    with patch("app.scheduler.create_notification", return_value=None), patch(
+        "app.scheduler.BatchProcessor", return_value=processor
+    ), patch(
+        "app.scheduler.get_supabase", return_value=api_db
+    ), patch(
+        "app.scheduler.UPCRepository", return_value=upc_repo
+    ):
+        await run_daily_job_for_category("dnk")
+
+    processor.create_batch_job.assert_not_called()
+    processor.process_job.assert_not_called()
+    upc_repo.get_all_upc_codes.assert_not_called()

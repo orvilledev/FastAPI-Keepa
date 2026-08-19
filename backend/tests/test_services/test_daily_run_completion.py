@@ -11,6 +11,7 @@ from app.services.daily_run_completion import (
     claim_completion_email_send,
     claim_daily_run_email_for_vendor_day,
     daily_run_kind_from_job_name,
+    find_active_api_keepa_job,
     release_category_daily_run_lock,
     resolve_daily_run_date,
     scheduled_uploaded_run_completed_today,
@@ -76,6 +77,32 @@ def test_uploaded_daily_run_in_progress_true():
         data=[{"id": "job-1"}]
     )
     assert uploaded_daily_run_in_progress(db, "tev") is True
+
+
+def test_find_active_api_keepa_job_ignores_uploaded_and_excluded():
+    db = MagicMock()
+    db.table.return_value.select.return_value.in_.return_value.order.return_value.limit.return_value.execute.return_value = SimpleNamespace(
+        data=[
+            {"id": "u1", "job_name": "Daily CLK Uploaded Report - 2026-08-19", "status": "processing"},
+            {"id": "e1", "job_name": "Express DNK", "status": "pending"},
+            {"id": "a1", "job_name": "Daily DNK Off Price Report - 2026-08-19", "status": "processing"},
+        ]
+    )
+    found = find_active_api_keepa_job(db)
+    assert found["id"] == "e1"
+
+    found_skip_express = find_active_api_keepa_job(db, exclude_job_id="e1")
+    assert found_skip_express["id"] == "a1"
+
+
+def test_find_active_api_keepa_job_none_when_only_uploaded():
+    db = MagicMock()
+    db.table.return_value.select.return_value.in_.return_value.order.return_value.limit.return_value.execute.return_value = SimpleNamespace(
+        data=[
+            {"id": "u1", "job_name": "Daily TEV Uploaded Report - 2026-08-19", "status": "processing"},
+        ]
+    )
+    assert find_active_api_keepa_job(db) is None
 
 
 @patch("app.services.daily_run_completion.refresh_live_analytics_snapshots")

@@ -18,7 +18,18 @@ export function getApiErrorDetail(err: unknown): string | undefined {
   return undefined
 }
 
-/** User-facing message for failed Feedback list/load calls. */
+/** Popup + message when Express Jobs or API Mode Daily Run is blocked by an active Keepa API run. */
+export function alertIfApiKeepaRunBusy(err: unknown): string | undefined {
+  const status = getApiErrorStatus(err)
+  const detail = getApiErrorDetail(err)
+  if (status === 409 && detail && /API run ongoing/i.test(detail)) {
+    window.alert(detail)
+    return detail
+  }
+  return undefined
+}
+
+/** User-facing message for failed Feedback submit/update/delete. */
 export function formatFeedbackLoadError(err: unknown, apiBaseUrl: string): string {
   const ax = asAxiosError(err)
   const status = ax.response?.status

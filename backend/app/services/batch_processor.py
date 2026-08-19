@@ -8,7 +8,11 @@ from decimal import Decimal
 from fastapi import HTTPException
 from app.config import settings
 from app.database import get_supabase
-from app.services.daily_run_completion import send_daily_run_completion_email_for_job
+from app.services.daily_run_completion import (
+    API_KEEPA_RUN_BLOCKED_MESSAGE,
+    api_keepa_exclusive_start,
+    send_daily_run_completion_email_for_job,
+)
 from app.repositories.map_repository import MAPRepository
 from app.repositories.supabase_read_all import read_all_paginated
 from app.utils.vendor_code import resolve_map_vendor_type
@@ -497,13 +501,29 @@ class BatchProcessor:
             True if job processed successfully, False otherwise
         """
         try:
-            # Update job status
-            await self._execute_with_retry(
-                lambda: self.db.table("batch_jobs").update({
-                    "status": "processing"
-                }).eq("id", str(job_id)).execute(),
-                "mark job processing",
-            )
+            async with api_keepa_exclusive_start(self.db, exclude_job_id=str(job_id)) as conflict:
+                if conflict:
+                    logger.warning(
+                        "Refusing to process job %s; API Keepa job already active: %s (%s)",
+                        job_id,
+                        conflict.get("id"),
+                        conflict.get("job_name"),
+                    )
+                    await self._execute_with_retry(
+                        lambda: self.db.table("batch_jobs").update({
+                            "status": "failed",
+                            "error_message": API_KEEPA_RUN_BLOCKED_MESSAGE,
+                            "completed_at": datetime.utcnow().isoformat(),
+                        }).eq("id", str(job_id)).execute(),
+                        "fail job blocked by concurrent API Keepa run",
+                    )
+                    return False
+                await self._execute_with_retry(
+                    lambda: self.db.table("batch_jobs").update({
+                        "status": "processing"
+                    }).eq("id", str(job_id)).execute(),
+                    "mark job processing",
+                )
 
             # Get all batches (paginate past PostgREST ~1000 row default)
             batches = await asyncio.to_thread(

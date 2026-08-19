@@ -4,8 +4,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Optional
+from typing import AsyncIterator, Optional
 from uuid import UUID
 
 from supabase import Client
@@ -17,7 +18,13 @@ from app.utils.email_recipient_utils import parse_recipient_csv
 
 logger = logging.getLogger(__name__)
 
+API_KEEPA_RUN_BLOCKED_MESSAGE = (
+    "You are not allowed to use this feature as there is an API run ongoing. "
+    "Wait until the current Express Job or API Mode Daily Run finishes."
+)
+
 _category_daily_run_locks: dict[str, asyncio.Lock] = {}
+_api_keepa_start_lock = asyncio.Lock()
 _JOB_DATE_RE = re.compile(r"(20\d{2}-\d{2}-\d{2})\s*$")
 
 
@@ -34,6 +41,70 @@ def daily_run_kind_from_job_name(job_name: Optional[str]) -> str:
     if "Uploaded Report" in name:
         return "uploaded"
     return "api"
+
+
+def _is_uploaded_daily_job_name(job_name: Optional[str]) -> bool:
+    return "uploaded report" in (job_name or "").lower()
+
+
+def find_active_api_keepa_job(
+    db: Client,
+    *,
+    exclude_job_id: Optional[str] = None,
+) -> Optional[dict]:
+    """Return the first pending/processing Keepa API job (Express or API Daily Run).
+
+    Import Mode daily jobs (Uploaded Report) are ignored so they can overlap.
+    """
+    exclude = str(exclude_job_id).strip() if exclude_job_id else ""
+    try:
+        resp = (
+            db.table("batch_jobs")
+            .select("id, job_name, status")
+            .in_("status", ["pending", "processing"])
+            .order("created_at")
+            .limit(200)
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning("Could not check active API Keepa jobs: %s", exc)
+        return None
+
+    for row in resp.data or []:
+        if not isinstance(row, dict):
+            continue
+        if exclude and str(row.get("id") or "") == exclude:
+            continue
+        if _is_uploaded_daily_job_name(row.get("job_name")):
+            continue
+        return row
+    return None
+
+
+@asynccontextmanager
+async def api_keepa_exclusive_start(
+    db: Client,
+    *,
+    exclude_job_id: Optional[str] = None,
+) -> AsyncIterator[Optional[dict]]:
+    """Hold the start lock while checking (and, for callers, creating) an API Keepa job."""
+    async with _api_keepa_start_lock:
+        conflict = await asyncio.to_thread(
+            find_active_api_keepa_job,
+            db,
+            exclude_job_id=exclude_job_id,
+        )
+        yield conflict
+
+
+async def api_keepa_job_conflict(
+    db: Client,
+    *,
+    exclude_job_id: Optional[str] = None,
+) -> Optional[dict]:
+    """Serialize start checks so two API Keepa jobs cannot slip through together."""
+    async with api_keepa_exclusive_start(db, exclude_job_id=exclude_job_id) as conflict:
+        return conflict
 
 
 def resolve_daily_run_date(job_data: dict) -> Optional[str]:

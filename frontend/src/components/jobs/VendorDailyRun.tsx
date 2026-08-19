@@ -12,6 +12,7 @@ import {
   type ReminderVendorCode,
 } from '../../lib/dailyRunReminderPrefs'
 import { ensureReminderNotificationPermission } from '../../lib/dailyRunReminderNotify'
+import { alertIfApiKeepaRunBusy } from '../../utils/apiErrorMessage'
 
 type VendorCode = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' | 'jfs'
 
@@ -228,8 +229,9 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
       void ensureReminderNotificationPermission()
       setSuccess('')
     } catch (err: any) {
+      const busy = alertIfApiKeepaRunBusy(err)
       setSameDayError(
-        err?.response?.data?.detail || err?.message || 'Failed to schedule Same Day Run',
+        busy || err?.response?.data?.detail || err?.message || 'Failed to schedule Same Day Run',
       )
     } finally {
       setSameDayBusy(false)

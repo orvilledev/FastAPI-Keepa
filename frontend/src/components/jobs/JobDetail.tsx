@@ -6,6 +6,7 @@ import BatchStatus from '../dashboard/BatchStatus'
 import EmailRecipientsPicker from './EmailRecipientsPicker'
 import { getStatusColor } from '../../utils/statusColors'
 import { formatRunDuration } from '../../utils/timeUtils'
+import { alertIfApiKeepaRunBusy } from '../../utils/apiErrorMessage'
 
 type SchedulerCategory = 'dnk' | 'clk' | 'obz' | 'ref' | 'bor' | 'sff' | 'tev' | 'cha' | 'jfs'
 const SCHEDULER_CATEGORIES: SchedulerCategory[] = ['dnk', 'clk', 'obz', 'ref', 'bor', 'sff', 'tev', 'cha', 'jfs']
@@ -127,6 +128,7 @@ export default function JobDetail() {
       loadJob()
       loadStatus()
     } catch (error) {
+      alertIfApiKeepaRunBusy(error)
       console.error('Failed to trigger job:', error)
     }
   }

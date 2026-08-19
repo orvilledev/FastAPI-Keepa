@@ -14,7 +14,11 @@ from app.scheduler import (
 )
 from app.database import get_supabase
 from app.services.audit_log_service import record_audit_event
-from app.services.daily_run_completion import uploaded_daily_run_in_progress
+from app.services.daily_run_completion import (
+    API_KEEPA_RUN_BLOCKED_MESSAGE,
+    api_keepa_job_conflict,
+    uploaded_daily_run_in_progress,
+)
 from app.utils.error_handler import handle_api_errors
 from datetime import datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal, InvalidOperation
@@ -1195,6 +1199,21 @@ async def create_same_day_run(
             status_code=409,
             detail=f"A {category.upper()} run is already in progress. Wait until it finishes.",
         )
+
+    settings_resp = await asyncio.to_thread(
+        lambda: db.table("scheduler_settings")
+        .select("input_mode")
+        .eq("category", category)
+        .limit(1)
+        .execute()
+    )
+    input_mode = "api"
+    if settings_resp.data:
+        raw_mode = str(settings_resp.data[0].get("input_mode") or "").strip().lower()
+        if raw_mode in {"api", "uploaded"}:
+            input_mode = raw_mode
+    if input_mode != "uploaded" and await api_keepa_job_conflict(db):
+        raise HTTPException(status_code=409, detail=API_KEEPA_RUN_BLOCKED_MESSAGE)
 
     try:
         result = schedule_same_day_run(
