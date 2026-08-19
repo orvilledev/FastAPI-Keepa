@@ -2,7 +2,7 @@
 import app.scheduler as scheduler_module
 from types import SimpleNamespace
 from uuid import uuid4
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -294,3 +294,32 @@ async def test_last_toggled_mode_is_used_when_settings_read_fails(category: str)
     ]
     assert failed_run_inserts
     assert f"Daily {category.upper()} Uploaded Report" in failed_run_inserts[0]["job_name"]
+
+
+@pytest.mark.asyncio
+async def test_api_mode_daily_run_pins_daily_key_pool():
+    """API Mode Daily Run must use the dedicated 5-TPM key pool, not all keys."""
+    api_db = _FakeDB(input_mode="api")
+    upc_repo = MagicMock()
+    upc_repo.get_all_upc_codes.return_value = ["012345678905"]
+    processor = MagicMock()
+    job_id = uuid4()
+    processor.create_batch_job = AsyncMock(return_value=job_id)
+    processor.process_job = AsyncMock(return_value=True)
+    daily_keys = ["daily-key-a", "daily-key-b"]
+
+    with patch("app.scheduler.create_notification", return_value=None), patch(
+        "app.scheduler.BatchProcessor", return_value=processor
+    ), patch(
+        "app.scheduler.get_supabase", return_value=api_db
+    ), patch(
+        "app.scheduler.UPCRepository", return_value=upc_repo
+    ), patch(
+        "app.scheduler.MultiKeyKeepaClient.product_request_api_keys",
+        return_value=daily_keys,
+    ):
+        await run_daily_job_for_category("dnk")
+
+    processor.process_job.assert_awaited_once()
+    kwargs = processor.process_job.await_args.kwargs
+    assert kwargs["keepa_api_keys"] == daily_keys

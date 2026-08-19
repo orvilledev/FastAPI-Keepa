@@ -12,6 +12,7 @@ from app.database import get_supabase
 from app.repositories.upc_repository import UPCRepository
 from app.repositories.map_repository import MAPRepository
 from app.services.batch_processor import BatchProcessor
+from app.services.keepa_client import MultiKeyKeepaClient
 from app.services.daily_run_completion import (
     acquire_category_daily_run_lock,
     release_category_daily_run_lock,
@@ -855,10 +856,12 @@ async def _run_daily_job_for_category_impl(category: str = 'dnk', forced_input_m
                         exc_info=True,
                     )
             else:
+                daily_keys = MultiKeyKeepaClient.product_request_api_keys()
                 await processor.process_job(
                     job_id,
                     email_subject_template=email_subject_template,
                     email_body_template=email_body_template,
+                    keepa_api_keys=daily_keys,
                 )
             logger.info(f"Daily {category.upper()} batch job {job_id} completed successfully")
         else:

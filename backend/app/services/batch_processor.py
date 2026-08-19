@@ -313,7 +313,11 @@ class BatchProcessor:
             )
             return True  # Count as processed (attempted)
 
-    async def process_batch(self, batch_id: UUID) -> bool:
+    async def process_batch(
+        self,
+        batch_id: UUID,
+        keepa_api_keys: Optional[List[str]] = None,
+    ) -> bool:
         """
         Process a single UPC batch using multiple API keys in parallel.
         
@@ -418,7 +422,12 @@ class BatchProcessor:
                 batch_id,
             )
 
-            multi_client = MultiKeyKeepaClient()
+            pinned_keys = MultiKeyKeepaClient._dedupe_keys(keepa_api_keys or [])
+            multi_client = (
+                MultiKeyKeepaClient(api_keys=pinned_keys)
+                if pinned_keys
+                else MultiKeyKeepaClient()
+            )
             
             async def process_fn(keepa_client, item):
                 return await self._process_single_item(
@@ -476,6 +485,7 @@ class BatchProcessor:
         *,
         email_subject_template: Optional[str] = None,
         email_body_template: Optional[str] = None,
+        keepa_api_keys: Optional[List[str]] = None,
     ) -> bool:
         """
         Process all batches in a job sequentially.
@@ -515,7 +525,10 @@ class BatchProcessor:
                     break
 
                 batch_id = UUID(batch["id"])
-                success = await self.process_batch(batch_id)
+                success = await self.process_batch(
+                    batch_id,
+                    keepa_api_keys=keepa_api_keys,
+                )
                 
                 if success:
                     completed_batches += 1

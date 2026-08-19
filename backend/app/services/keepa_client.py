@@ -328,6 +328,22 @@ class MultiKeyKeepaClient:
         return cls._dedupe_keys(csv_keys)
 
     @classmethod
+    def _load_named_csv_keys(cls, env_name: str, settings_keys: List[str]) -> List[str]:
+        """Merge comma-separated keys from .env, process env, and settings."""
+        file_values = cls._read_env_file_values()
+        file_keys = [
+            k.strip()
+            for k in file_values.get(env_name, "").split(",")
+            if k.strip()
+        ]
+        env_keys = [
+            k.strip()
+            for k in os.getenv(env_name, "").split(",")
+            if k.strip()
+        ]
+        return cls._dedupe_keys(file_keys + env_keys + list(settings_keys or []))
+
+    @classmethod
     def load_import_api_keys(cls) -> List[str]:
         """Load the Keepa Import File dedicated key pool, or [] when unset.
 
@@ -336,19 +352,10 @@ class MultiKeyKeepaClient:
         empty list when the variable is not configured anywhere, so the caller
         can fall back to the full key pool.
         """
-        file_values = cls._read_env_file_values()
-        file_keys = [
-            k.strip()
-            for k in file_values.get("KEEPA_IMPORT_API_KEYS", "").split(",")
-            if k.strip()
-        ]
-        env_keys = [
-            k.strip()
-            for k in os.getenv("KEEPA_IMPORT_API_KEYS", "").split(",")
-            if k.strip()
-        ]
-        settings_keys = list(settings.keepa_import_api_keys_list)
-        merged = cls._dedupe_keys(file_keys + env_keys + settings_keys)
+        merged = cls._load_named_csv_keys(
+            "KEEPA_IMPORT_API_KEYS",
+            settings.keepa_import_api_keys_list,
+        )
         if merged:
             logger.info(
                 "Keepa Import File using dedicated key pool: %s key(s) [%s]",
@@ -356,6 +363,40 @@ class MultiKeyKeepaClient:
                 ", ".join(cls._key_fingerprints(merged)),
             )
         return merged
+
+    @classmethod
+    def load_daily_api_keys(cls) -> List[str]:
+        """Load the restricted product-API key pool, or [] when unset.
+
+        Used by API Mode Daily Run, Same Day Run, and Express Jobs.
+        Prefers ``KEEPA_DAILY_API_KEYS``. If that is empty, reuses the Import
+        File high-refill pool. Empty means the caller should use the full pool.
+        """
+        dedicated = cls._load_named_csv_keys(
+            "KEEPA_DAILY_API_KEYS",
+            settings.keepa_daily_api_keys_list,
+        )
+        if dedicated:
+            logger.info(
+                "Product-API jobs using dedicated key pool: %s key(s) [%s]",
+                len(dedicated),
+                ", ".join(cls._key_fingerprints(dedicated)),
+            )
+            return dedicated
+        import_keys = cls.load_import_api_keys()
+        if import_keys:
+            logger.info(
+                "Product-API jobs falling back to Import File key pool: %s key(s) [%s]",
+                len(import_keys),
+                ", ".join(cls._key_fingerprints(import_keys)),
+            )
+        return import_keys
+
+    @classmethod
+    def product_request_api_keys(cls) -> Optional[List[str]]:
+        """Restricted keys for Express / Daily API jobs, or None for the full pool."""
+        keys = cls.load_daily_api_keys()
+        return keys or None
 
     @classmethod
     def _load_runtime_api_keys(cls) -> List[str]:

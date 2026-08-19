@@ -25,10 +25,13 @@ class Settings(BaseSettings):
     keepa_api_keys: str = ""
     # Optional dedicated key pool for the Keepa Import File tool only. When set
     # (comma-separated), that tool uses ONLY these keys instead of the full
-    # keepa_api_keys pool; Express Jobs and daily runs are unaffected. Use this
-    # to point Import File at the few high-refill keys so large vendor builds
-    # finish in one pass. Leave empty to fall back to the full key pool.
+    # keepa_api_keys pool. Leave empty to fall back to the full key pool for
+    # Import File.
     keepa_import_api_keys: str = ""
+    # Optional dedicated key pool for API Mode Daily Run, Same Day Run, and
+    # Express Jobs. When set, those product-API jobs use ONLY these keys.
+    # Leave empty to reuse KEEPA_IMPORT_API_KEYS, then the full pool.
+    keepa_daily_api_keys: str = ""
     keepa_api_url: str = "https://api.keepa.com/"
     # Keepa request-shape tuning for performance
     keepa_domain: str = "1"
@@ -90,6 +93,18 @@ class Settings(BaseSettings):
         keys: List[str] = []
         seen = set()
         for raw in (self.keepa_import_api_keys or "").split(","):
+            key = raw.strip()
+            if key and key not in seen:
+                seen.add(key)
+                keys.append(key)
+        return keys
+
+    @property
+    def keepa_daily_api_keys_list(self) -> List[str]:
+        """Dedicated API Mode Daily Run keys, or [] when not configured."""
+        keys: List[str] = []
+        seen = set()
+        for raw in (self.keepa_daily_api_keys or "").split(","):
             key = raw.strip()
             if key and key not in seen:
                 seen.add(key)

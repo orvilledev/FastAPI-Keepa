@@ -8,6 +8,7 @@ from app.middleware.rate_limiter import limiter, RateLimits
 from app.models.batch import BatchJobCreate, BatchJobUpdate, BatchJobResponse
 from app.database import get_supabase
 from app.services.batch_processor import BatchProcessor
+from app.services.keepa_client import MultiKeyKeepaClient
 from app.repositories.job_repository import JobRepository
 from app.services.job_status_service import JobStatusService
 from app.utils.error_handler import handle_api_errors
@@ -50,8 +51,12 @@ async def create_job(
         off_price_scope=job_data.off_price_scope,
     )
     
-    # Start processing in background
-    background_tasks.add_task(processor.process_job, job_id)
+    # Start processing in background using the restricted 5-key product pool.
+    background_tasks.add_task(
+        processor.process_job,
+        job_id,
+        keepa_api_keys=MultiKeyKeepaClient.product_request_api_keys(),
+    )
     
     # Return job data
     job_repo = JobRepository(db)
@@ -201,7 +206,11 @@ def trigger_job(
     
     # Start processing in background
     processor = BatchProcessor()
-    background_tasks.add_task(processor.process_job, job_id)
+    background_tasks.add_task(
+        processor.process_job,
+        job_id,
+        keepa_api_keys=MultiKeyKeepaClient.product_request_api_keys(),
+    )
     
     return {"message": "Job triggered successfully", "job_id": str(job_id)}
 
