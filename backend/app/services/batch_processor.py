@@ -470,7 +470,13 @@ class BatchProcessor:
             )
             return False
     
-    async def process_job(self, job_id: UUID) -> bool:
+    async def process_job(
+        self,
+        job_id: UUID,
+        *,
+        email_subject_template: Optional[str] = None,
+        email_body_template: Optional[str] = None,
+    ) -> bool:
         """
         Process all batches in a job sequentially.
         
@@ -587,6 +593,8 @@ class BatchProcessor:
                     send_daily_run_completion_email_for_job,
                     self.db,
                     job_id,
+                    email_subject_template=email_subject_template,
+                    email_body_template=email_body_template,
                 )
             except Exception as email_err:
                 logger.error(

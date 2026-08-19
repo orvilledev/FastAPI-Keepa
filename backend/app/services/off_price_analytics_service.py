@@ -164,6 +164,11 @@ def _run_date_for_job(job: Dict[str, Any]) -> Optional[str]:
                 return tail
             except ValueError:
                 pass
+    return _utc_day_from_job_timestamp(job)
+
+
+def _utc_day_from_job_timestamp(job: Dict[str, Any]) -> Optional[str]:
+    """UTC calendar day from completed_at, else created_at."""
     for key in ("completed_at", "created_at"):
         raw = job.get(key)
         if not raw:
@@ -179,6 +184,17 @@ def _run_date_for_job(job: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+def _analytics_day_for_job(job: Dict[str, Any]) -> Optional[str]:
+    """
+    Day bucket for Live Analytics.
+
+    Jobs are fetched by ``completed_at`` UTC windows, so counting must use that
+    same UTC day. Job-name dates can differ (timezone / Trigger Import) and
+    would otherwise keep two OBZ runs in one Analytics day.
+    """
+    return _utc_day_from_job_timestamp(job) or _run_date_for_job(job)
+
+
 def _job_sort_key(job: Dict[str, Any]) -> Tuple[str, str, str]:
     return (
         str(job.get("completed_at") or ""),
@@ -189,7 +205,7 @@ def _job_sort_key(job: Dict[str, Any]) -> Tuple[str, str, str]:
 
 def dedupe_one_job_per_vendor_day(jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Keep a single Daily Run per vendor per calendar day.
+    Keep a single Daily Run per vendor per Analytics calendar day (UTC completed_at).
 
     The earliest completed job wins (scheduled countdown before Trigger Import Now).
     Later same-day triggers still email, but must not double-count in Analytics.
@@ -197,7 +213,7 @@ def dedupe_one_job_per_vendor_day(jobs: List[Dict[str, Any]]) -> List[Dict[str, 
     chosen: Dict[Tuple[str, str], Dict[str, Any]] = {}
     for job in jobs:
         vendor = _vendor_from_job(job)
-        run_date = _run_date_for_job(job)
+        run_date = _analytics_day_for_job(job)
         if not vendor or not run_date:
             continue
         key = (vendor, run_date)
@@ -205,6 +221,25 @@ def dedupe_one_job_per_vendor_day(jobs: List[Dict[str, Any]]) -> List[Dict[str, 
         if prev is None or _job_sort_key(job) < _job_sort_key(prev):
             chosen[key] = job
     return sorted(chosen.values(), key=_job_sort_key)
+
+
+def clamp_daily_vendor_run_counts(vendors: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """A daily snapshot is one calendar day: at most one counted run per vendor."""
+    out: List[Dict[str, Any]] = []
+    for vendor in vendors:
+        cloned = dict(vendor)
+        runs = int(cloned.get("run_count") or 0)
+        cloned["run_count"] = 1 if runs > 0 else 0
+        out.append(cloned)
+    return out
+
+
+def daily_snapshot_has_inflated_run_counts(row: Optional[Dict[str, Any]]) -> bool:
+    """True when a daily archive stored more than one run for any vendor."""
+    if not row:
+        return False
+    vendors = (row.get("payload") or {}).get("vendors") or row.get("vendors") or []
+    return any(int((v or {}).get("run_count") or 0) > 1 for v in vendors)
 
 
 class OffPriceAnalyticsService:
@@ -362,16 +397,29 @@ class OffPriceAnalyticsService:
         start_out = start.isoformat()
         end_out = end.isoformat()
         served_from_archive = False
+        heal_inflated_daily = False
 
         # Fast path for Live Preview (persist=false): serve existing snapshots for
         # daily/week/month/year instead of recounting price_alerts (slow path).
-        if not persist and not force_persist and source == "live":
-            existing_snap = snapshot_row
-            if existing_snap is None:
-                try:
-                    existing_snap = self.snapshots.get_snapshot(period, period_key)
-                except Exception:
-                    existing_snap = None
+        existing_snap = snapshot_row
+        if (
+            existing_snap is None
+            and not persist
+            and not force_persist
+            and source == "live"
+        ):
+            try:
+                existing_snap = self.snapshots.get_snapshot(period, period_key)
+            except Exception:
+                existing_snap = None
+        if period == "daily":
+            heal_inflated_daily = daily_snapshot_has_inflated_run_counts(existing_snap)
+        if (
+            not persist
+            and not force_persist
+            and source == "live"
+            and not heal_inflated_daily
+        ):
             if (
                 existing_snap
                 and str(existing_snap.get("source") or "").lower() != "demo"
@@ -464,6 +512,13 @@ class OffPriceAnalyticsService:
                         enabled_map=enabled_map,
                         tracking_map=tracking_map,
                     )
+                    vendors_sorted = clamp_daily_vendor_run_counts(vendors_sorted)
+                    total_runs = sum(int(v.get("run_count") or 0) for v in vendors_sorted)
+                    personal_runs = sum(
+                        int(v.get("run_count") or 0)
+                        for v in vendors_sorted
+                        if v.get("tracking_enabled")
+                    )
         else:
             # Week / month / year: sum one-record-per-vendor-day building blocks.
             (
@@ -499,9 +554,24 @@ class OffPriceAnalyticsService:
             "archived": False,
         }
 
-        if persist:
+        if period == "daily":
+            archive_summary["vendors"] = clamp_daily_vendor_run_counts(
+                archive_summary.get("vendors") or []
+            )
+            archive_summary["total_run_count"] = sum(
+                int(v.get("run_count") or 0) for v in archive_summary["vendors"]
+            )
+            vendors_sorted = clamp_daily_vendor_run_counts(vendors_sorted)
+            total_runs = sum(int(v.get("run_count") or 0) for v in vendors_sorted)
+            personal_runs = sum(
+                int(v.get("run_count") or 0)
+                for v in vendors_sorted
+                if v.get("tracking_enabled")
+            )
+
+        if persist or (heal_inflated_daily and not served_from_archive):
             archive_summary["archived"] = self._persist_summary(
-                archive_summary, source=source, force=force_persist
+                archive_summary, source=source, force=force_persist or heal_inflated_daily
             )
 
         return {
@@ -560,6 +630,14 @@ class OffPriceAnalyticsService:
             enabled_map=enabled_map,
             tracking_map=tracking_map,
         )
+        if period == "daily":
+            vendors_sorted = clamp_daily_vendor_run_counts(vendors_sorted)
+            total_runs = sum(int(v.get("run_count") or 0) for v in vendors_sorted)
+            personal_runs = sum(
+                int(v.get("run_count") or 0)
+                for v in vendors_sorted
+                if v.get("tracking_enabled")
+            )
         start_out = str(row.get("period_start") or "")
         end_out = str(row.get("period_end") or "")
         return {
@@ -570,9 +648,7 @@ class OffPriceAnalyticsService:
             "start": start_out,
             "end": end_out,
             "total_off_price_count": personal_off_price if user_id else total_off_price,
-            "total_run_count": (
-                personal_runs if user_id else int(row.get("total_run_count") or total_runs)
-            ),
+            "total_run_count": personal_runs if user_id else total_runs,
             "distinct_sellers": (
                 len(personal_sellers) if user_id else len(all_sellers)
             ),
@@ -770,6 +846,9 @@ class OffPriceAnalyticsService:
                 code = str(vendor.get("code") or "").lower()
                 if not code or code in found:
                     continue
+                if int(vendor.get("run_count") or 0) > 1:
+                    # Stale same-day double-count; recount from jobs instead.
+                    continue
                 if int(vendor.get("run_count") or 0) <= 0 and int(
                     vendor.get("off_price_count") or 0
                 ) <= 0:
@@ -793,13 +872,13 @@ class OffPriceAnalyticsService:
             latest_by_vendor: Dict[str, Dict[str, Any]] = {}
             for job in jobs:
                 vendor = _vendor_from_job(job)
-                run_date = _run_date_for_job(job)
+                run_date = _analytics_day_for_job(job)
                 if not vendor or vendor not in missing or not run_date:
                     continue
                 if run_date >= current_period_key:
                     continue
                 prev = latest_by_vendor.get(vendor)
-                if prev is None or (_run_date_for_job(prev) or "") < run_date:
+                if prev is None or (_analytics_day_for_job(prev) or "") < run_date:
                     latest_by_vendor[vendor] = job
             latest_jobs = list(latest_by_vendor.values())
             if latest_jobs:
@@ -808,7 +887,7 @@ class OffPriceAnalyticsService:
                 )
                 for job in latest_jobs:
                     vendor = _vendor_from_job(job)
-                    run_date = _run_date_for_job(job)
+                    run_date = _analytics_day_for_job(job)
                     if not vendor or not run_date:
                         continue
                     previous_counts[vendor] = int(alert_counts.get(str(job.get("id") or ""), 0))
@@ -978,7 +1057,15 @@ class OffPriceAnalyticsService:
         """Shape a snapshot DB row like ``get_archive`` without another round-trip."""
         payload = row.get("payload") or {}
         vendors = self._strip_excluded_sellers_from_vendors(payload.get("vendors") or [])
+        period_type = str(row.get("period_type") or "")
+        if period_type == "daily":
+            vendors = clamp_daily_vendor_run_counts(vendors)
         total_off = sum(int(v.get("off_price_count") or 0) for v in vendors)
+        total_runs = (
+            sum(int(v.get("run_count") or 0) for v in vendors)
+            if period_type == "daily"
+            else int(row.get("total_run_count") or 0)
+        )
         distinct = {
             str(s.get("seller_name") or "").strip().lower()
             for v in vendors
@@ -992,7 +1079,7 @@ class OffPriceAnalyticsService:
             "start": row.get("period_start"),
             "end": row.get("period_end"),
             "total_off_price_count": total_off,
-            "total_run_count": row.get("total_run_count", 0),
+            "total_run_count": total_runs,
             "distinct_sellers": len(distinct),
             "vendors_with_hits": sum(1 for v in vendors if int(v.get("off_price_count") or 0) > 0),
             "vendors": vendors,
@@ -1251,7 +1338,12 @@ class OffPriceAnalyticsService:
             tracking_enabled = tracking_map.get(code, True)
             vendor_jobs = jobs_by_vendor.get(code, [])
             off_price_count = sum(alert_counts.get(str(j["id"]), 0) for j in vendor_jobs)
-            run_count = len(vendor_jobs)
+            run_days = {
+                day
+                for j in vendor_jobs
+                if (day := _analytics_day_for_job(j))
+            }
+            run_count = len(run_days)
             seller_counts: Dict[str, int] = defaultdict(int)
             for j in vendor_jobs:
                 for seller, count in sellers_by_job.get(str(j["id"]), {}).items():
@@ -1416,7 +1508,7 @@ class OffPriceAnalyticsService:
         live_day_keys = {
             d
             for j in live_jobs
-            if (d := _run_date_for_job(j))
+            if (d := _analytics_day_for_job(j))
         }
         if live_jobs:
             day_vendors = self._vendor_stats_from_jobs(
@@ -1460,6 +1552,7 @@ class OffPriceAnalyticsService:
                 enabled_map=enabled_map,
                 tracking_map=identity_tracking,
             )[0]
+            day_vendors = clamp_daily_vendor_run_counts(day_vendors)
             for v in day_vendors:
                 code = str(v.get("code") or "").lower()
                 if not code:
@@ -1547,6 +1640,11 @@ class OffPriceAnalyticsService:
         try:
             period_type = summary["period"]
             period_key = summary["period_key"]
+            vendors = summary.get("vendors") or []
+            total_run_count = int(summary.get("total_run_count") or 0)
+            if period_type == "daily":
+                vendors = clamp_daily_vendor_run_counts(vendors)
+                total_run_count = sum(int(v.get("run_count") or 0) for v in vendors)
             new_hits = int(summary.get("total_off_price_count") or 0)
             existing = self.snapshots.get_snapshot(period_type, period_key)
             existing_hits = int((existing or {}).get("total_off_price_count") or 0)
@@ -1574,13 +1672,13 @@ class OffPriceAnalyticsService:
                     "period_start": summary["start"],
                     "period_end": summary["end"],
                     "total_off_price_count": summary["total_off_price_count"],
-                    "total_run_count": summary["total_run_count"],
+                    "total_run_count": total_run_count,
                     "distinct_sellers": summary.get("distinct_sellers", 0),
                     "vendors_with_hits": summary.get("vendors_with_hits", 0),
                     "payload": {
-                        "vendors": summary.get("vendors", []),
+                        "vendors": vendors,
                         "total_off_price_count": summary["total_off_price_count"],
-                        "total_run_count": summary["total_run_count"],
+                        "total_run_count": total_run_count,
                         "distinct_sellers": summary.get("distinct_sellers", 0),
                         "vendors_with_hits": summary.get("vendors_with_hits", 0),
                     },
@@ -1628,31 +1726,7 @@ class OffPriceAnalyticsService:
             return None
         if not row:
             return None
-        payload = row.get("payload") or {}
-        vendors = self._strip_excluded_sellers_from_vendors(payload.get("vendors") or [])
-        total_off = sum(int(v.get("off_price_count") or 0) for v in vendors)
-        distinct = {
-            str(s.get("seller_name") or "").strip().lower()
-            for v in vendors
-            for s in (v.get("sellers") or [])
-            if str(s.get("seller_name") or "").strip()
-        }
-        return {
-            "period": row.get("period_type"),
-            "period_key": row.get("period_key"),
-            "period_label": row.get("period_label"),
-            "start": row.get("period_start"),
-            "end": row.get("period_end"),
-            "total_off_price_count": total_off,
-            "total_run_count": row.get("total_run_count", 0),
-            "distinct_sellers": len(distinct),
-            "vendors_with_hits": sum(1 for v in vendors if int(v.get("off_price_count") or 0) > 0),
-            "vendors": vendors,
-            "source": row.get("source"),
-            "archived": True,
-            "created_at": row.get("created_at"),
-            "updated_at": row.get("updated_at"),
-        }
+        return self._archive_dict_from_row(row)
 
     @staticmethod
     def _strip_excluded_sellers_from_vendors(vendors: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

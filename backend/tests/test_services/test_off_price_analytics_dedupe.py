@@ -3,7 +3,10 @@ from unittest.mock import MagicMock, patch
 
 from app.services.off_price_analytics_service import (
     OffPriceAnalyticsService,
+    clamp_daily_vendor_run_counts,
+    daily_snapshot_has_inflated_run_counts,
     dedupe_one_job_per_vendor_day,
+    _analytics_day_for_job,
     _run_date_for_job,
     _vendor_from_job,
 )
@@ -138,3 +141,83 @@ def test_todays_listings_completed_run_with_no_hits():
     assert result["empty_message"] == "Daily run(s) completed — no off-price listings found."
     assert result["rows"] == []
     assert result["runs"][0]["row_count"] == 0
+
+
+def test_analytics_day_uses_utc_completed_at_not_job_name_date():
+    job = {
+        "id": "obz-late",
+        "job_name": "Daily OBZ Uploaded Report - 2026-08-16",
+        "map_vendor_type": "obz",
+        "completed_at": "2026-08-17T11:05:00+00:00",
+        "created_at": "2026-08-17T11:00:00+00:00",
+    }
+    assert _run_date_for_job(job) == "2026-08-16"
+    assert _analytics_day_for_job(job) == "2026-08-17"
+
+
+def test_dedupe_collapses_same_utc_day_with_different_job_name_dates():
+    """Scheduled 6am Chicago + Trigger Import can land on one UTC day with two name dates."""
+    jobs = [
+        {
+            "id": "obz-scheduled",
+            "job_name": "Daily OBZ Off Price Report - 2026-08-16",
+            "map_vendor_type": "obz",
+            "completed_at": "2026-08-17T11:05:00+00:00",
+            "created_at": "2026-08-17T11:00:00+00:00",
+        },
+        {
+            "id": "obz-trigger",
+            "job_name": "Daily OBZ Uploaded Report - 2026-08-17",
+            "map_vendor_type": "obz",
+            "completed_at": "2026-08-17T14:30:00+00:00",
+            "created_at": "2026-08-17T14:20:00+00:00",
+        },
+    ]
+    kept = dedupe_one_job_per_vendor_day(jobs)
+    assert [j["id"] for j in kept] == ["obz-scheduled"]
+
+
+def test_dedupe_keeps_obz_runs_on_consecutive_utc_days():
+    jobs = [
+        {
+            "id": "obz-mon",
+            "job_name": "Daily OBZ Off Price Report - 2026-08-16",
+            "map_vendor_type": "obz",
+            "completed_at": "2026-08-16T11:05:00+00:00",
+            "created_at": "2026-08-16T11:00:00+00:00",
+        },
+        {
+            "id": "obz-tue",
+            "job_name": "Daily OBZ Off Price Report - 2026-08-17",
+            "map_vendor_type": "obz",
+            "completed_at": "2026-08-17T11:05:00+00:00",
+            "created_at": "2026-08-17T11:00:00+00:00",
+        },
+    ]
+    kept = dedupe_one_job_per_vendor_day(jobs)
+    assert {j["id"] for j in kept} == {"obz-mon", "obz-tue"}
+
+
+def test_clamp_daily_vendor_run_counts_caps_at_one():
+    vendors = [
+        {"code": "obz", "run_count": 2, "off_price_count": 400},
+        {"code": "clk", "run_count": 0, "off_price_count": 0},
+        {"code": "sff", "run_count": 1, "off_price_count": 12},
+    ]
+    clamped = clamp_daily_vendor_run_counts(vendors)
+    assert [v["run_count"] for v in clamped] == [1, 0, 1]
+    assert clamped[0]["off_price_count"] == 400
+
+
+def test_daily_snapshot_has_inflated_run_counts():
+    row = {
+        "payload": {
+            "vendors": [
+                {"code": "clk", "run_count": 1},
+                {"code": "obz", "run_count": 2},
+            ]
+        }
+    }
+    assert daily_snapshot_has_inflated_run_counts(row) is True
+    assert daily_snapshot_has_inflated_run_counts({"payload": {"vendors": [{"run_count": 1}]}}) is False
+    assert daily_snapshot_has_inflated_run_counts(None) is False

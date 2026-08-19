@@ -13,6 +13,7 @@ from app.repositories.upc_repository import UPCRepository
 from app.repositories.map_repository import MAPRepository
 from app.services.batch_processor import BatchProcessor
 from app.services.daily_run_completion import (
+    acquire_category_daily_run_lock,
     release_category_daily_run_lock,
     scheduled_uploaded_run_completed_today,
     send_daily_run_completion_email_for_job,
@@ -375,7 +376,11 @@ _scheduler_configs = {
 
 async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: Optional[str] = None):
     """Execute daily batch job for a specific category (DNK or CLK)."""
-    if not await try_acquire_category_daily_run_lock(category):
+    forced = bool((forced_input_mode or "").strip())
+    if forced:
+        # Trigger Import / rerun must still run and email after the in-progress job.
+        await acquire_category_daily_run_lock(category)
+    elif not await try_acquire_category_daily_run_lock(category):
         logger.warning(
             "%s daily run already in progress on this worker; skipping duplicate invocation",
             category.upper(),
@@ -842,9 +847,19 @@ async def _run_daily_job_for_category_impl(category: str = 'dnk', forced_input_m
                         )
                     )
                 except Exception as email_err:
-                    logger.warning("Uploaded daily run email/report step failed for %s: %s", category.upper(), email_err)
+                    logger.error(
+                        "Uploaded daily run email/report step failed for %s job %s: %s",
+                        category.upper(),
+                        job_id,
+                        email_err,
+                        exc_info=True,
+                    )
             else:
-                await processor.process_job(job_id)
+                await processor.process_job(
+                    job_id,
+                    email_subject_template=email_subject_template,
+                    email_body_template=email_body_template,
+                )
             logger.info(f"Daily {category.upper()} batch job {job_id} completed successfully")
         else:
             logger.info(f"No {category.upper()} UPCs found to process")
