@@ -112,6 +112,24 @@ export interface BatchJob {
   off_price_scope?: 'buybox_only' | 'buybox_and_non_buybox_below_map'
   /** MAP vendor (map_prices.vendor_type) used for off-price detection for this job */
   map_vendor_type?: MapVendorType
+  keepa_token_summary?: {
+    tokens_used?: number
+    tokens_source?: string
+    tokens_per_upc?: number | null
+    upc_count?: number
+    products_returned?: number
+    keepa_requests?: number
+    duration_seconds?: number
+    duration_minutes?: number
+    spend_tpm?: number
+    pool_tpm?: number
+    pool_keys?: number
+    token_load_percent?: number | null
+    token_load_degree?: number
+    token_load_label?: string
+    offers_limit?: number | null
+    challenge_note?: string
+  } | null
 }
 
 export interface UPCBatch {

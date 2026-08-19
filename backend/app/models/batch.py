@@ -93,6 +93,7 @@ class BatchJobResponse(BaseModel):
     keepa_offers_limit: Optional[int] = None
     map_vendor_type: str = Field(default=DEFAULT_MAP_VENDOR_TYPE)
     off_price_scope: OffPriceScope = "buybox_and_non_buybox_below_map"
+    keepa_token_summary: Optional[dict] = None
 
     @field_validator("map_vendor_type", mode="before")
     @classmethod

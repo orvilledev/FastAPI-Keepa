@@ -116,6 +116,7 @@ class EmailService:
         email_body_template: Optional[str] = None,
         bcc_emails: Optional[List[str]] = None,
         use_default_recipients: bool = True,
+        summary_footer: Optional[str] = None,
     ) -> bool:
         """
         Send email with CSV attachment.
@@ -138,6 +139,7 @@ class EmailService:
             bcc_emails: Optional list of addresses to BCC instead of To.
             use_default_recipients: When recipient_email is empty, whether to use
                 EMAIL_TO. Daily runs set this to False so empty lists send nothing.
+            summary_footer: Optional Keepa token / Token Load recap appended after the body.
 
         Returns:
             True if email sent successfully, False otherwise
@@ -224,6 +226,9 @@ class EmailService:
 
             subject = rendered_subject if rendered_subject is not None else default_subject
             body = rendered_body if rendered_body is not None else default_body
+            footer = (summary_footer or "").strip()
+            if footer:
+                body = f"{body.rstrip()}\n\n---\nKeepa API run summary\n{footer}\n"
 
             if rendered_subject is not None or rendered_body is not None:
                 logger.info(

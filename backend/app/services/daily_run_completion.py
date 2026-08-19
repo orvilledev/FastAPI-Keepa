@@ -13,6 +13,7 @@ from supabase import Client
 
 from app.repositories.job_repository import JobRepository
 from app.services.email_service import EmailService
+from app.services.keepa_token_summary import format_keepa_run_completion_message
 from app.services.report_service import ReportService
 from app.utils.email_recipient_utils import parse_recipient_csv
 
@@ -397,6 +398,10 @@ def send_daily_run_completion_email_for_job(
         total_upcs = report_service.get_total_upcs_for_job(job_id)
 
         mailer = EmailService()
+        summary_raw = job_data.get("keepa_token_summary")
+        summary_footer = None
+        if isinstance(summary_raw, dict) and summary_raw.get("tokens_used") is not None:
+            summary_footer = format_keepa_run_completion_message(summary_raw)
         send_kwargs = dict(
             csv_bytes=csv_bytes,
             filename=filename,
@@ -409,6 +414,7 @@ def send_daily_run_completion_email_for_job(
             use_default_recipients=not is_daily_run,
             email_subject_template=email_subject_template,
             email_body_template=email_body_template,
+            summary_footer=summary_footer,
         )
         sent = mailer.send_csv_report(**send_kwargs)
         if not sent:

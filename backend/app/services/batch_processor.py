@@ -13,6 +13,12 @@ from app.services.daily_run_completion import (
     api_keepa_exclusive_start,
     send_daily_run_completion_email_for_job,
 )
+from app.services.keepa_token_summary import (
+    KeepaUsageStats,
+    build_keepa_run_summary,
+    format_keepa_run_completion_message,
+    pool_tpm_from_meters,
+)
 from app.repositories.map_repository import MAPRepository
 from app.repositories.supabase_read_all import read_all_paginated
 from app.utils.vendor_code import resolve_map_vendor_type
@@ -321,7 +327,7 @@ class BatchProcessor:
         self,
         batch_id: UUID,
         keepa_api_keys: Optional[List[str]] = None,
-    ) -> bool:
+    ) -> tuple[bool, KeepaUsageStats]:
         """
         Process a single UPC batch using multiple API keys in parallel.
         
@@ -329,8 +335,9 @@ class BatchProcessor:
             batch_id: UUID of the UPC batch
             
         Returns:
-            True if batch processed successfully, False otherwise
+            (success, keepa usage for this batch)
         """
+        empty = KeepaUsageStats()
         try:
             batch_response = await self._execute_with_retry(
                 lambda: self.db.table("upc_batches").select("*").eq("id", str(batch_id)).execute(),
@@ -338,7 +345,7 @@ class BatchProcessor:
             )
             if not batch_response.data:
                 logger.error(f"Batch {batch_id} not found")
-                return False
+                return False, empty
             
             batch_data = batch_response.data[0]
 
@@ -382,7 +389,7 @@ class BatchProcessor:
 
             if batch_data.get("status") == "cancelled":
                 logger.info(f"Batch {batch_id} is already cancelled, skipping processing")
-                return False
+                return False, empty
             
             await self._execute_with_retry(
                 lambda: self.db.table("upc_batches").update({
@@ -409,7 +416,7 @@ class BatchProcessor:
                     }).eq("id", str(batch_id)).execute(),
                     "mark batch failed no items",
                 )
-                return False
+                return False, empty
             
             logger.info(f"Starting to process {len(items)} UPCs in batch {batch_id} using multiple API keys")
             
@@ -443,13 +450,14 @@ class BatchProcessor:
                     map_prices_by_upc=map_prices_by_upc,
                 )
             
-            processed_count = await multi_client.process_items_parallel(
+            usage = await multi_client.process_items_parallel(
                 items=items,
                 process_fn=process_fn,
                 batch_id=batch_id,
                 db=self.db,
                 offers_limit=job_offers_limit,
             )
+            processed_count = usage.processed
 
             final_batch_status = await self._execute_with_retry(
                 lambda: self.db.table("upc_batches").select("status").eq("id", str(batch_id)).limit(1).execute(),
@@ -457,7 +465,7 @@ class BatchProcessor:
             )
             if final_batch_status.data and final_batch_status.data[0].get("status") == "cancelled":
                 logger.info(f"Batch {batch_id} was cancelled during processing; skipping completion update")
-                return False
+                return False, usage
 
             await self._execute_with_retry(
                 lambda: self.db.table("upc_batches").update({
@@ -469,7 +477,7 @@ class BatchProcessor:
             )
             
             logger.info(f"Batch {batch_id} processed successfully ({processed_count} items)")
-            return True
+            return True, usage
             
         except Exception as e:
             logger.error(f"Error processing batch {batch_id}: {e}")
@@ -481,7 +489,7 @@ class BatchProcessor:
                 }).eq("id", str(batch_id)).execute(),
                 "mark batch failed",
             )
-            return False
+            return False, empty
     
     async def process_job(
         self,
@@ -525,6 +533,9 @@ class BatchProcessor:
                     "mark job processing",
                 )
 
+            run_started_at = datetime.utcnow()
+            job_usage = KeepaUsageStats()
+
             # Get all batches (paginate past PostgREST ~1000 row default)
             batches = await asyncio.to_thread(
                 read_all_paginated,
@@ -545,10 +556,11 @@ class BatchProcessor:
                     break
 
                 batch_id = UUID(batch["id"])
-                success = await self.process_batch(
+                success, batch_usage = await self.process_batch(
                     batch_id,
                     keepa_api_keys=keepa_api_keys,
                 )
+                job_usage.merge(batch_usage)
                 
                 if success:
                     completed_batches += 1
@@ -618,8 +630,51 @@ class BatchProcessor:
             job_data = job_response.data[0]
             job_name = job_data["job_name"]
             job_creator = job_data.get("created_by")
-            total_upcs = sum(batch["upc_count"] for batch in batches)
+            total_upcs = sum(int(batch.get("upc_count") or 0) for batch in batches)
             job_off_price_scope = job_data.get("off_price_scope") or "buybox_only"
+            duration_seconds = max(1.0, (datetime.utcnow() - run_started_at).total_seconds())
+            pool_tpm = 0
+            pool_keys = 0
+            try:
+                meters_payload = await MultiKeyKeepaClient.fetch_product_pool_token_status()
+                pool_tpm, pool_keys = pool_tpm_from_meters(meters_payload.get("keys") or [])
+            except Exception as meter_err:
+                logger.warning("Could not read Keepa pool TPM for run summary: %s", meter_err)
+            if pool_tpm <= 0:
+                pinned = MultiKeyKeepaClient._dedupe_keys(keepa_api_keys or [])
+                pool_keys = pool_keys or len(pinned) or 5
+                samples = job_usage.refill_rate_samples
+                if samples:
+                    pool_tpm = int(round((sum(samples) / len(samples)) * pool_keys))
+                else:
+                    pool_tpm = 5 * pool_keys
+            offers_raw = job_data.get("keepa_offers_limit")
+            try:
+                offers_limit = int(offers_raw) if offers_raw is not None else None
+            except (TypeError, ValueError):
+                offers_limit = None
+            keepa_summary = build_keepa_run_summary(
+                usage=job_usage,
+                upc_count=total_upcs,
+                duration_seconds=duration_seconds,
+                pool_tpm=pool_tpm,
+                pool_keys=pool_keys,
+                offers_limit=offers_limit,
+            )
+            completion_message = format_keepa_run_completion_message(keepa_summary)
+            try:
+                await self._execute_with_retry(
+                    lambda: self.db.table("batch_jobs").update({
+                        "keepa_token_summary": keepa_summary,
+                    }).eq("id", str(job_id)).execute(),
+                    "store keepa token summary",
+                )
+            except Exception as summary_err:
+                logger.warning(
+                    "Could not persist keepa_token_summary for job %s (run the JSONB migration?): %s",
+                    job_id,
+                    summary_err,
+                )
 
             try:
                 email_sent = await asyncio.to_thread(
@@ -646,6 +701,7 @@ class BatchProcessor:
                 "completed_batches": completed_batches,
                 "off_price_scope": job_off_price_scope,
                 "created_by": str(job_creator) if job_creator else None,
+                "keepa_token_summary": keepa_summary,
             }
             initiated = job_data.get("initiated_by")
             if initiated:
@@ -654,7 +710,7 @@ class BatchProcessor:
                 self.db,
                 notification_type="run_completed",
                 title=f"Run completed: {job_name}",
-                message=f"Run finished successfully ({total_upcs} UPCs processed). Visible to the whole team.",
+                message=completion_message,
                 priority="info",
                 related_id=job_id,
                 related_type="job",

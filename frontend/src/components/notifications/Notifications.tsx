@@ -318,7 +318,7 @@ export default function Notifications() {
                           <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-600 mb-2">{notification.message}</p>
+                      <p className="text-sm text-gray-600 mb-2 whitespace-pre-line">{notification.message}</p>
                       {notification.action_label && notification.action_url && (
                         <div className="mb-2">
                           {/^https?:\/\//i.test(notification.action_url) ? (

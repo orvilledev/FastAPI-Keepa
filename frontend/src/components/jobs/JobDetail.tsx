@@ -397,6 +397,51 @@ export default function JobDetail() {
             <div className="text-sm text-red-800">{job.error_message}</div>
           </div>
         )}
+
+        {job.status === 'completed' && job.keepa_token_summary && (
+          <div className="mt-4 rounded-md border border-[#81B81D]/40 bg-[#81B81D]/5 p-4">
+            <div className="text-sm font-semibold text-gray-900">Keepa API run summary</div>
+            <div className="mt-2 grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div>
+                <div className="text-xs font-medium text-gray-500">Tokens used</div>
+                <div className="font-mono text-sm text-gray-900">
+                  {(job.keepa_token_summary.tokens_used ?? 0).toLocaleString()}
+                  {job.keepa_token_summary.tokens_source === 'estimate' ? ' (est.)' : ''}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-gray-500">Token cost / UPC</div>
+                <div className="font-mono text-sm text-gray-900">
+                  {job.keepa_token_summary.tokens_per_upc != null
+                    ? `${job.keepa_token_summary.tokens_per_upc}`
+                    : '—'}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-gray-500">Pool generation</div>
+                <div className="font-mono text-sm text-gray-900">
+                  {job.keepa_token_summary.pool_tpm ?? '—'} /min
+                  {job.keepa_token_summary.pool_keys
+                    ? ` · ${job.keepa_token_summary.pool_keys} keys`
+                    : ''}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-gray-500">Token Load</div>
+                <div className="text-sm font-semibold text-gray-900">
+                  Degree {job.keepa_token_summary.token_load_degree ?? '—'}{' '}
+                  {job.keepa_token_summary.token_load_label || ''}
+                  {job.keepa_token_summary.token_load_percent != null
+                    ? ` (${job.keepa_token_summary.token_load_percent}%)`
+                    : ''}
+                </div>
+              </div>
+            </div>
+            <p className="mt-3 whitespace-pre-line text-sm text-gray-700">
+              {job.keepa_token_summary.challenge_note || ''}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Progress */}

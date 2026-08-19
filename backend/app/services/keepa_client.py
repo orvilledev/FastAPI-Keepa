@@ -9,6 +9,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Optional, Dict, Any, List
 from app.config import settings
+from app.services.keepa_token_summary import KeepaUsageStats, estimate_tokens_for_product_request
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,11 @@ class KeepaClient:
         self.cooldown_max_delay = max(0.0, float(settings.keepa_429_cooldown_max_delay_seconds))
         self.dynamic_delay_penalty = 0.0
         self.tokens_left: Optional[int] = None
+        self.keepa_tokens_consumed = 0
+        self.keepa_tokens_estimated = 0
+        self.keepa_requests = 0
+        self.keepa_products_returned = 0
+        self.keepa_refill_rate_samples: List[int] = []
         logger.info(
             "[Key %s] Keepa pacing configured: offers=%s, delay=%.3fs, retries=%s, retry_delay=%.2fs, retry_max=%.2fs, jitter=%.2fs",
             self.key_index,
@@ -121,6 +127,7 @@ class KeepaClient:
             
             if isinstance(data, dict):
                 self.tokens_left = data.get("tokensLeft", self.tokens_left)
+                self._record_keepa_usage(data)
                 if self.tokens_left is not None:
                     logger.info(f"[Key {self.key_index}] Tokens remaining: {self.tokens_left}")
             self._on_success_decay_penalty()
@@ -170,6 +177,42 @@ class KeepaClient:
         except Exception as e:
             logger.error(f"[Key {self.key_index}] Unexpected error in Keepa API request: {e}")
             raise
+
+    def _record_keepa_usage(self, data: Dict[str, Any]) -> None:
+        """Accumulate tokensConsumed / refillRate from a Keepa JSON body."""
+        self.keepa_requests += 1
+        products = data.get("products")
+        n_products = len(products) if isinstance(products, list) else 0
+        self.keepa_products_returned += n_products
+        refill_rate = data.get("refillRate")
+        try:
+            rate_int = int(refill_rate)
+        except (TypeError, ValueError):
+            rate_int = None
+        if rate_int and rate_int > 0:
+            self.keepa_refill_rate_samples.append(rate_int)
+
+        consumed_raw = data.get("tokensConsumed")
+        if consumed_raw is not None:
+            try:
+                self.keepa_tokens_consumed += max(0, int(consumed_raw))
+                return
+            except (TypeError, ValueError):
+                pass
+        self.keepa_tokens_estimated += estimate_tokens_for_product_request(
+            product_count=n_products,
+            offers_limit=self._resolved_offers_limit(),
+            include_buybox=bool(settings.keepa_include_buybox),
+        )
+
+    def usage_stats(self) -> KeepaUsageStats:
+        return KeepaUsageStats(
+            tokens_consumed=self.keepa_tokens_consumed,
+            tokens_estimated=self.keepa_tokens_estimated,
+            requests=self.keepa_requests,
+            products_returned=self.keepa_products_returned,
+            refill_rate_samples=list(self.keepa_refill_rate_samples),
+        )
     
     async def fetch_product_data(self, upc: str) -> Optional[Dict[str, Any]]:
         """Fetch product data for a single UPC."""
@@ -558,7 +601,7 @@ class MultiKeyKeepaClient:
         batch_id=None,
         db=None,
         offers_limit: Optional[int] = None,
-    ) -> int:
+    ) -> KeepaUsageStats:
         """
         Process batch items in parallel across all API keys.
         
@@ -569,16 +612,17 @@ class MultiKeyKeepaClient:
             db: Optional database client for cancellation checks
             
         Returns:
-            Total number of processed items
+            Usage stats including processed item count and Keepa tokens consumed
         """
+        usage = KeepaUsageStats()
         chunks = self.distribute_items(items)
         
         for i, chunk in enumerate(chunks):
             logger.info(f"Key {i}: assigned {len(chunk)} UPCs")
         
-        async def worker(key_index: int, api_key: str, worker_items: list) -> int:
+        async def worker(key_index: int, api_key: str, worker_items: list) -> KeepaUsageStats:
             """Worker that processes its assigned items using one API key."""
-            processed = 0
+            worker_usage = KeepaUsageStats()
             check_every = max(1, int(settings.keepa_cancel_check_every_items))
             async with KeepaClient(
                 api_key=api_key,
@@ -594,8 +638,9 @@ class MultiKeyKeepaClient:
                     
                     success = await process_fn(client, item)
                     if success:
-                        processed += 1
-            return processed
+                        worker_usage.processed += 1
+                worker_usage.merge(client.usage_stats())
+            return worker_usage
         
         tasks = []
         for i, (api_key, chunk) in enumerate(zip(self.api_keys, chunks)):
@@ -604,16 +649,15 @@ class MultiKeyKeepaClient:
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        total_processed = 0
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 logger.error(f"[Key {i}] Worker failed with error: {result}")
             else:
-                total_processed += result
-                logger.info(f"[Key {i}] Processed {result} items")
+                usage.merge(result)
+                logger.info(f"[Key {i}] Processed {result.processed} items")
         
-        logger.info(f"Total processed across {self.num_keys} keys: {total_processed}")
-        return total_processed
+        logger.info(f"Total processed across {self.num_keys} keys: {usage.processed}")
+        return usage
 
 
 _keepa_client: Optional[KeepaClient] = None
