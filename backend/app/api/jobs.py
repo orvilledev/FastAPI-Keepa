@@ -131,6 +131,15 @@ def get_jobs_stats(
     }
 
 
+@router.get("/jobs/keepa-tokens", response_model=dict)
+@handle_api_errors("get Keepa token meters")
+async def get_keepa_token_meters(
+    _current_user: dict = Depends(get_job_runner_user),
+):
+    """Live token-bucket status for the 5 Express Job Keepa keys. Costs 0 tokens."""
+    return await MultiKeyKeepaClient.fetch_product_pool_token_status()
+
+
 @router.delete("/jobs/completed")
 @handle_api_errors("delete completed jobs")
 def delete_completed_jobs(

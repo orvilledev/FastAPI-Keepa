@@ -59,3 +59,18 @@ def test_product_request_api_keys_returns_restricted_pool():
             "k4",
             "k5",
         ]
+
+
+def test_parse_token_status_payload_uses_hourly_bucket():
+    parsed = MultiKeyKeepaClient.parse_token_status_payload(
+        {"tokensLeft": 180, "refillRate": 5, "refillIn": 12000}
+    )
+    assert parsed["tokens_left"] == 180
+    assert parsed["refill_rate"] == 5
+    assert parsed["refill_in_ms"] == 12000
+    assert parsed["bucket_max"] == 300
+
+
+def test_product_pool_keys_quiet_does_not_fall_back_to_full_pool():
+    with patch.object(MultiKeyKeepaClient, "_load_named_csv_keys", return_value=[]):
+        assert MultiKeyKeepaClient._product_pool_keys_quiet() == []

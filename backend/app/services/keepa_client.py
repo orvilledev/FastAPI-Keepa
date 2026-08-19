@@ -399,6 +399,81 @@ class MultiKeyKeepaClient:
         return keys or None
 
     @classmethod
+    def _product_pool_keys_quiet(cls) -> List[str]:
+        """Same 5-key product pool as Express/Daily API, without INFO logs."""
+        dedicated = cls._load_named_csv_keys(
+            "KEEPA_DAILY_API_KEYS",
+            settings.keepa_daily_api_keys_list,
+        )
+        if dedicated:
+            return dedicated
+        return cls._load_named_csv_keys(
+            "KEEPA_IMPORT_API_KEYS",
+            settings.keepa_import_api_keys_list,
+        )
+
+    @staticmethod
+    def parse_token_status_payload(data: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize Keepa /token fields for the Express Jobs meters."""
+        def _as_int(raw: Any) -> Optional[int]:
+            if raw is None:
+                return None
+            try:
+                return int(raw)
+            except (TypeError, ValueError):
+                return None
+
+        refill_rate = _as_int(data.get("refillRate"))
+        if refill_rate is None or refill_rate <= 0:
+            refill_rate = 5
+        bucket_max = max(60, refill_rate * 60)
+        return {
+            "tokens_left": _as_int(data.get("tokensLeft")),
+            "refill_rate": refill_rate,
+            "refill_in_ms": _as_int(data.get("refillIn")),
+            "bucket_max": bucket_max,
+        }
+
+    @classmethod
+    async def fetch_product_pool_token_status(cls) -> Dict[str, Any]:
+        """Poll Keepa /token (0 cost) for the Express/Daily 5-key pool only."""
+        keys = cls._product_pool_keys_quiet()
+        fingerprints = cls._key_fingerprints(keys)
+        api_url = settings.keepa_api_url.rstrip("/")
+
+        async def _one(index: int, api_key: str) -> Dict[str, Any]:
+            row: Dict[str, Any] = {
+                "index": index,
+                "label": f"Key {index + 1}",
+                "fingerprint": fingerprints[index],
+                "ok": False,
+                "tokens_left": None,
+                "refill_rate": None,
+                "refill_in_ms": None,
+                "bucket_max": None,
+            }
+            try:
+                async with httpx.AsyncClient(timeout=12.0) as client:
+                    resp = await client.get(f"{api_url}/token", params={"key": api_key})
+                    resp.raise_for_status()
+                    payload = resp.json()
+                if not isinstance(payload, dict):
+                    return row
+                if payload.get("error"):
+                    logger.debug("Keepa /token error for key %s: %s", index, payload.get("error"))
+                    return row
+                parsed = cls.parse_token_status_payload(payload)
+                row.update(parsed)
+                row["ok"] = parsed.get("tokens_left") is not None
+                return row
+            except Exception as exc:
+                logger.debug("Keepa token status failed for key %s: %s", index, exc)
+                return row
+
+        meters = list(await asyncio.gather(*[_one(i, key) for i, key in enumerate(keys)]))
+        return {"keys": meters, "pool_size": len(keys)}
+
+    @classmethod
     def _load_runtime_api_keys(cls) -> List[str]:
         """
         Load Keepa keys at runtime by merging all known sources:

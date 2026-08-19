@@ -406,6 +406,23 @@ export const jobsApi = {
     }>('/api/v1/jobs/stats')
     return response.data
   },
+
+  getKeepaTokenMeters: async () => {
+    const response = await api.get<{
+      pool_size: number
+      keys: Array<{
+        index: number
+        label: string
+        fingerprint: string
+        ok: boolean
+        tokens_left: number | null
+        refill_rate: number | null
+        refill_in_ms: number | null
+        bucket_max: number | null
+      }>
+    }>('/api/v1/jobs/keepa-tokens')
+    return response.data
+  },
   
   getJob: async (jobId: string) => {
     const response = await api.get<BatchJob>(`/api/v1/jobs/${jobId}`)

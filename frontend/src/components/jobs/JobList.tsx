@@ -4,6 +4,7 @@ import { jobsApi, schedulerApi } from '../../services/api'
 import type { BatchJob } from '../../types'
 import { getStatusColor } from '../../utils/statusColors'
 import { formatRunDuration } from '../../utils/timeUtils'
+import KeepaTokenBatteries from './KeepaTokenBatteries'
 
 const JOBS_PER_PAGE = 15
 const POLL_INTERVAL_BUSY_MS = 10000
@@ -241,14 +242,19 @@ export default function JobList() {
     }
   }
 
+  const listedExpressCompleted = jobs.filter((job) => {
+    const synthetic = (job as BatchJob & Partial<SyntheticScheduledJob>).is_synthetic === true
+    return !synthetic && job.status === 'completed' && !extractDailyCategory(job.job_name || '')
+  }).length
+  const expressCompleted = Math.max(stats.express_completed ?? 0, listedExpressCompleted)
+
   const handleClearCompletedJobs = async () => {
-    const expressCompleted = stats.express_completed ?? 0
     if (expressCompleted === 0) return
 
-    const noun = expressCompleted === 1 ? 'job' : 'jobs'
+    const noun = expressCompleted === 1 ? 'run' : 'runs'
     if (
       !window.confirm(
-        `Remove all ${expressCompleted} completed Express ${noun}? Daily Runs are kept for Off-Price Analytics. This cannot be undone and deletes related Express batches, items, and alerts.`,
+        `Clear all ${expressCompleted} completed Express ${noun} at once? Daily Runs stay for Off-Price Analytics. This cannot be undone and deletes related Express batches, items, and alerts.`,
       )
     ) {
       return
@@ -293,15 +299,19 @@ export default function JobList() {
           <button
             type="button"
             onClick={() => void handleClearCompletedJobs()}
-            disabled={(stats.express_completed ?? 0) === 0 || clearingCompleted || loading}
-            className="inline-flex items-center rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-medium text-red-700 shadow-sm transition-all hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-500/40 dark:bg-surface dark:text-red-400 dark:hover:bg-red-500/10"
+            disabled={expressCompleted === 0 || clearingCompleted}
+            className="inline-flex items-center rounded-lg border border-red-600 bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-red-700 disabled:cursor-not-allowed disabled:border-red-300 disabled:bg-red-300 disabled:text-white dark:disabled:border-red-900 dark:disabled:bg-red-950"
             title={
-              (stats.express_completed ?? 0) === 0
-                ? 'No completed Express jobs to remove'
-                : 'Remove completed Express jobs (Daily Runs kept for analytics)'
+              expressCompleted === 0
+                ? 'No completed Express runs to clear'
+                : 'Clear every completed Express job at once. Daily Runs are kept for Analytics.'
             }
           >
-            {clearingCompleted ? 'Removing…' : 'Clear completed'}
+            {clearingCompleted
+              ? 'Clearing…'
+              : expressCompleted > 0
+                ? `Clear all completed runs (${expressCompleted})`
+                : 'Clear all completed runs'}
           </button>
           <Link
             to="/jobs/new"
@@ -311,6 +321,8 @@ export default function JobList() {
           </Link>
         </div>
       </div>
+
+      <KeepaTokenBatteries />
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -325,6 +337,16 @@ export default function JobList() {
         <div className="stat-card border-green-200/50 bg-gradient-to-br from-green-50/50 to-white dark:border-green-500/30 dark:from-green-500/15 dark:to-surface">
           <div className="text-sm font-medium text-gray-500 dark:text-slate-400 mb-1">Completed</div>
           <div className="text-3xl font-bold text-green-600 dark:text-green-400">{stats.completed}</div>
+          {expressCompleted > 0 && (
+            <button
+              type="button"
+              onClick={() => void handleClearCompletedJobs()}
+              disabled={clearingCompleted}
+              className="mt-2 text-xs font-semibold text-red-700 underline-offset-2 hover:underline disabled:opacity-50 dark:text-red-400"
+            >
+              {clearingCompleted ? 'Clearing Express runs…' : `Clear all ${expressCompleted} Express runs`}
+            </button>
+          )}
         </div>
         <div className="stat-card border-red-200/50 bg-gradient-to-br from-red-50/50 to-white dark:border-red-500/30 dark:from-red-500/15 dark:to-surface">
           <div className="text-sm font-medium text-gray-500 dark:text-slate-400 mb-1">Failed</div>
