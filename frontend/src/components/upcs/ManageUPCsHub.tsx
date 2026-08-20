@@ -1,4 +1,8 @@
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import VendorDownloadModal from '../common/VendorDownloadModal'
+import { upcsApi } from '../../services/api'
+import { downloadBlob, parseMicroToolDownloadResponse } from '../../utils/downloadLinkedFile'
 
 const VENDORS = [
   { code: 'dnk', label: 'DNK (Dansko)' },
@@ -12,15 +16,75 @@ const VENDORS = [
   { code: 'jfs', label: 'JFS (Josef Siebel)' },
 ] as const
 
+function initialSelection(): Record<string, boolean> {
+  return Object.fromEntries(VENDORS.map((v) => [v.code, true]))
+}
+
 export default function ManageUPCsHub() {
+  const [showDownloadModal, setShowDownloadModal] = useState(false)
+  const [downloadSelection, setDownloadSelection] = useState<Record<string, boolean>>(initialSelection)
+  const [downloading, setDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState('')
+
+  const vendorOptions = useMemo(
+    () => VENDORS.map((v) => ({ code: v.code, label: v.label })),
+    [],
+  )
+
+  const openDownloadModal = () => {
+    setDownloadError('')
+    setDownloadSelection(initialSelection())
+    setShowDownloadModal(true)
+  }
+
+  const handleConfirmDownload = async () => {
+    const selected = VENDORS.map((v) => v.code).filter((c) => downloadSelection[c])
+    if (selected.length === 0) return
+
+    setDownloading(true)
+    setDownloadError('')
+    try {
+      const allSelected = selected.length >= VENDORS.length
+      const response = await upcsApi.exportUPCs(allSelected ? undefined : selected)
+      const { blob, filename } = parseMicroToolDownloadResponse(
+        response.data,
+        response.headers as Record<string, string | undefined>,
+        allSelected ? 'upcs_all_vendors.csv' : `upcs_${selected.join('_')}.csv`,
+      )
+      downloadBlob(blob, filename)
+      setShowDownloadModal(false)
+    } catch (err: any) {
+      const detail =
+        err?.response?.data instanceof Blob
+          ? 'Failed to download UPCs'
+          : err?.response?.data?.detail || err?.message || 'Failed to download UPCs'
+      setDownloadError(typeof detail === 'string' ? detail : 'Failed to download UPCs')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Manage UPCs</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Select a vendor to view, add, or remove UPCs for its daily scheduler processing.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Manage UPCs</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Select a vendor to view, add, or remove UPCs for its daily scheduler processing.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={openDownloadModal}
+          className="shrink-0 rounded-md bg-[#404040] px-4 py-2 text-sm font-medium text-white hover:bg-[#2e2e2e]"
+        >
+          Download UPCs
+        </button>
       </div>
+
+      {downloadError && !showDownloadModal && (
+        <div className="rounded-md bg-red-50 p-3 text-sm text-red-800">{downloadError}</div>
+      )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
         {VENDORS.map(({ code, label }) => (
@@ -43,6 +107,18 @@ export default function ManageUPCsHub() {
           </Link>
         ))}
       </div>
+
+      <VendorDownloadModal
+        open={showDownloadModal}
+        title="Download UPCs"
+        description="Choose vendors to include in the CSV export. Select all for every vendor, or pick a subset."
+        vendors={vendorOptions}
+        selection={downloadSelection}
+        downloading={downloading}
+        onSelectionChange={setDownloadSelection}
+        onClose={() => !downloading && setShowDownloadModal(false)}
+        onConfirm={() => void handleConfirmDownload()}
+      />
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { upcsApi } from '../../services/api'
 import type { UPC } from '../../types'
+import { downloadBlob, parseMicroToolDownloadResponse } from '../../utils/downloadLinkedFile'
 
 const VENDOR_CODE_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/
 
@@ -40,6 +41,7 @@ export default function UPCManagement() {
   const [queueInput, setQueueInput] = useState('')
   const [queueBulkText, setQueueBulkText] = useState('')
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [downloading, setDownloading] = useState(false)
 
   const displayTitle = `Manage ${category.toUpperCase()} UPCs`
   const displayDescription = `Manage UPCs for vendor "${category.toUpperCase()}" for daily scheduler processing. Total: ${totalCount} UPCs`
@@ -284,25 +286,54 @@ export default function UPCManagement() {
     }
   }
 
+  const handleDownloadUPCs = async () => {
+    setDownloading(true)
+    setError('')
+    try {
+      const response = await upcsApi.exportUPCs([category])
+      const { blob, filename } = parseMicroToolDownloadResponse(
+        response.data,
+        response.headers as Record<string, string | undefined>,
+        `upcs_${category}.csv`,
+      )
+      downloadBlob(blob, filename)
+      setSuccess(`Downloaded ${category.toUpperCase()} UPCs`)
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Failed to download UPCs')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   const totalPages = Math.ceil(totalCount / limit)
 
   return (
     <div className="space-y-6">
-      <div className="app-page-header flex justify-between items-center">
+      <div className="app-page-header flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-3">
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">{displayTitle}</h1>
           <p className="mt-2 text-sm text-gray-600">
             {displayDescription}
           </p>
         </div>
-        {totalCount > 0 && (
+        <div className="flex flex-wrap gap-2">
           <button
-            onClick={handleDeleteAll}
-            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+            type="button"
+            onClick={() => void handleDownloadUPCs()}
+            disabled={downloading}
+            className="rounded-md bg-[#404040] px-4 py-2 text-sm font-medium text-white hover:bg-[#2e2e2e] disabled:bg-gray-400"
           >
-            Delete All UPCs
+            {downloading ? 'Downloading…' : 'Download UPCs'}
           </button>
-        )}
+          {totalCount > 0 && (
+            <button
+              onClick={handleDeleteAll}
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+            >
+              Delete All UPCs
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Add UPCs Form */}

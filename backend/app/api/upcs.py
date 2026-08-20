@@ -1,5 +1,6 @@
 """UPC management API endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from app.dependencies import get_current_user, get_keepa_access_user
 from app.models.upc import UPCResponse, UPCsCreateRequest
@@ -8,7 +9,10 @@ from app.repositories.upc_repository import UPCRepository
 from app.utils.error_handler import handle_api_errors
 from app.utils.vendor_code import validate_vendor_code
 from supabase import Client
+import csv
+import io
 import logging
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +24,28 @@ def _parse_optional_category(category: Optional[str]) -> Optional[str]:
     if category is None or not str(category).strip():
         return None
     return validate_vendor_code(category, default=None)
+
+
+def _parse_categories_csv(categories: Optional[str]) -> Optional[List[str]]:
+    """Parse comma-separated vendor codes; None/empty means all vendors."""
+    if categories is None or not str(categories).strip():
+        return None
+    parts = [p.strip() for p in str(categories).split(",") if p.strip()]
+    if not parts:
+        return None
+    return [validate_vendor_code(p, default=None) for p in parts]
+
+
+def _upc_export_filename(categories: Optional[List[str]]) -> str:
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d")
+    if not categories:
+        return f"upcs_all_vendors_{stamp}.csv"
+    if len(categories) == 1:
+        return f"upcs_{categories[0]}_{stamp}.csv"
+    joined = "_".join(categories[:6])
+    if len(categories) > 6:
+        joined += f"_plus{len(categories) - 6}"
+    return f"upcs_{joined}_{stamp}.csv"
 
 
 @router.post("/upcs", response_model=dict, status_code=201)
@@ -134,6 +160,46 @@ def list_upc_categories(
     return {"categories": merged}
 
 
+@router.get("/upcs/export")
+@handle_api_errors("export UPCs")
+def export_upcs(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+    categories: Optional[str] = Query(
+        None,
+        description="Comma-separated vendor category codes. Omit for all vendors.",
+    ),
+):
+    """
+    Download UPCs as CSV for all vendors or a selected subset.
+
+    Multi-vendor files include a header row: upc,category.
+    Single-vendor files are one UPC per line (matches the Add UPCs paste format).
+    """
+    parsed = _parse_categories_csv(categories)
+    upc_repo = UPCRepository(db)
+    rows = upc_repo.get_all_upcs_for_export(categories=parsed)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    single_vendor = parsed is not None and len(parsed) == 1
+    if single_vendor:
+        for row in rows:
+            writer.writerow([row["upc"]])
+    else:
+        writer.writerow(["upc", "category"])
+        for row in rows:
+            writer.writerow([row["upc"], row["category"]])
+
+    csv_bytes = buf.getvalue().encode("utf-8")
+    filename = _upc_export_filename(parsed)
+    return StreamingResponse(
+        io.BytesIO(csv_bytes),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/upcs", response_model=List[UPCResponse])
 @handle_api_errors("list UPCs")
 def list_upcs(
@@ -224,4 +290,3 @@ def delete_all_upcs(
     upc_repo.delete_all_upcs(category=category)
     category_msg = f" for category {category}" if category else ""
     return {"message": f"All UPCs{category_msg} deleted successfully"}
-

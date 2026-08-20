@@ -1,6 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { mapApi } from '../../services/api'
 import type { MAP, MapVendorType } from '../../types'
+import VendorDownloadModal from '../common/VendorDownloadModal'
+import { downloadBlob, parseMicroToolDownloadResponse } from '../../utils/downloadLinkedFile'
 
 /** Matches backend app.utils.vendor_code (1–32 chars, lowercase alnum + _ -, starts with alnum). */
 const VENDOR_CODE_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/
@@ -86,7 +88,20 @@ export default function MAPManagement() {
     variant: 'success' | 'error'
   } | null>(null)
 
+  const [showDownloadModal, setShowDownloadModal] = useState(false)
+  const [downloadSelection, setDownloadSelection] = useState<Record<string, boolean>>({})
+  const [downloading, setDownloading] = useState(false)
+
   const vendorForApi = vendorFilter || undefined
+
+  const downloadVendorOptions = useMemo(
+    () =>
+      vendorOptions.map((code) => ({
+        code,
+        label: code.toUpperCase(),
+      })),
+    [vendorOptions],
+  )
 
   const loadVendorOptions = async () => {
     try {
@@ -456,15 +471,58 @@ export default function MAPManagement() {
     }
   }
 
+  const openDownloadModal = () => {
+    setError('')
+    setDownloadSelection(Object.fromEntries(vendorOptions.map((c) => [c, true])))
+    setShowDownloadModal(true)
+  }
+
+  const handleConfirmDownload = async () => {
+    const selected = vendorOptions.filter((c) => downloadSelection[c])
+    if (selected.length === 0) return
+
+    setDownloading(true)
+    setError('')
+    try {
+      const allSelected = selected.length >= vendorOptions.length
+      const response = await mapApi.exportMAPs(allSelected ? undefined : selected)
+      const { blob, filename } = parseMicroToolDownloadResponse(
+        response.data,
+        response.headers as Record<string, string | undefined>,
+        allSelected ? 'map_all_vendors.csv' : `map_${selected.join('_')}.csv`,
+      )
+      downloadBlob(blob, filename)
+      setShowDownloadModal(false)
+      setSuccess(
+        allSelected
+          ? 'Downloaded MAP entries for all vendors'
+          : `Downloaded MAP entries for ${selected.map((c) => c.toUpperCase()).join(', ')}`,
+      )
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Failed to download MAP entries')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   const totalPages = Math.ceil(totalCount / limit)
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Manage MAP (Minimum Advertised Price)</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Manage Minimum Advertised Prices for UPCs. Total: {totalCount} entries
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Manage MAP (Minimum Advertised Price)</h1>
+          <p className="mt-2 text-sm text-gray-600">
+            Manage Minimum Advertised Prices for UPCs. Total: {totalCount} entries
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={openDownloadModal}
+          className="shrink-0 rounded-md bg-[#404040] px-4 py-2 text-sm font-medium text-white hover:bg-[#2e2e2e]"
+        >
+          Download MAP
+        </button>
       </div>
 
       {/* Add MAPs Form */}
@@ -847,6 +905,18 @@ export default function MAPManagement() {
           </>
         )}
       </div>
+
+      <VendorDownloadModal
+        open={showDownloadModal}
+        title="Download MAP"
+        description="Choose vendors to include in the CSV export (UPC, price, vendor — same format as upload). Select all for every vendor, or pick a subset."
+        vendors={downloadVendorOptions}
+        selection={downloadSelection}
+        downloading={downloading}
+        onSelectionChange={setDownloadSelection}
+        onClose={() => !downloading && setShowDownloadModal(false)}
+        onConfirm={() => void handleConfirmDownload()}
+      />
     </div>
   )
 }

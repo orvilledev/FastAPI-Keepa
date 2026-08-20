@@ -386,3 +386,53 @@ class MAPRepository:
                 break
             offset += batch_size
         return sorted(seen)
+
+    def get_all_maps_for_export(
+        self, vendor_types: Optional[List[str]] = None
+    ) -> List[dict]:
+        """
+        Fetch upc, map_price, vendor_type for CSV export.
+
+        Keyset pagination on id avoids PostgREST's ~1000 row cap.
+        When vendor_types is None or empty, returns every vendor.
+        """
+        page_size = 1000
+        out: List[dict] = []
+        last_id: Optional[str] = None
+        vendors = [_validate_vendor_type(v) for v in (vendor_types or []) if v and str(v).strip()]
+        while True:
+            q = (
+                self.db.table(self.table)
+                .select("id, upc, map_price, vendor_type")
+                .order("id")
+                .limit(page_size)
+            )
+            if vendors:
+                q = q.in_("vendor_type", vendors)
+            if last_id is not None:
+                q = q.gt("id", str(last_id))
+            response = q.execute()
+            rows = response.data or []
+            if not rows:
+                break
+            for row in rows:
+                upc = row.get("upc")
+                if not upc:
+                    continue
+                vt = (row.get("vendor_type") or "").strip().lower() or DEFAULT_MAP_VENDOR_TYPE
+                out.append(
+                    {
+                        "upc": upc,
+                        "map_price": row.get("map_price"),
+                        "vendor_type": vt,
+                    }
+                )
+            if len(rows) < page_size:
+                break
+            last_id = rows[-1]["id"]
+        self.logger.info(
+            "Loaded %s MAP rows for export (vendors=%s)",
+            len(out),
+            vendors if vendors else "all",
+        )
+        return out

@@ -587,6 +587,20 @@ export const upcsApi = {
     const response = await api.delete(`/api/v1/upcs${categoryParam}`)
     return response.data
   },
+
+  /** Download UPCs CSV. Pass categories for a subset; omit/empty for all vendors. */
+  exportUPCs: async (categories?: string[]) => {
+    const params: Record<string, string> = {}
+    if (categories?.length) {
+      params.categories = categories.join(',')
+    }
+    const response = await api.get('/api/v1/upcs/export', {
+      params,
+      responseType: 'blob',
+      timeout: 5 * 60 * 1000,
+    })
+    return response
+  },
 }
 
 // Keepa Import Export tool API (standalone)
@@ -933,6 +947,20 @@ export const mapApi = {
       upcs_not_found: string[]
     }>('/api/v1/map/delete-by-upcs', { upcs })
     return response.data
+  },
+
+  /** Download MAP CSV. Pass vendorTypes for a subset; omit/empty for all vendors. */
+  exportMAPs: async (vendorTypes?: string[]) => {
+    const params: Record<string, string> = {}
+    if (vendorTypes?.length) {
+      params.vendor_types = vendorTypes.join(',')
+    }
+    const response = await api.get('/api/v1/map/export', {
+      params,
+      responseType: 'blob',
+      timeout: 5 * 60 * 1000,
+    })
+    return response
   },
 }
 

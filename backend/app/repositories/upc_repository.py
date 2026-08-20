@@ -89,6 +89,50 @@ class UPCRepository:
         logger.info(f"Loaded {len(codes)} UPCs for category {category} (paginated)")
         return codes
 
+    def get_all_upcs_for_export(
+        self, categories: Optional[List[str]] = None
+    ) -> List[dict]:
+        """
+        Fetch upc + category rows for CSV export.
+
+        Keyset pagination on id avoids PostgREST's ~1000 row cap.
+        When categories is None or empty, returns every category.
+        """
+        page_size = 1000
+        out: List[dict] = []
+        last_id: Optional[str] = None
+        cats = [c for c in (categories or []) if c]
+        while True:
+            q = (
+                self.db.table(self.table)
+                .select("id, upc, category")
+                .order("id")
+                .limit(page_size)
+            )
+            if cats:
+                q = q.in_("category", cats)
+            if last_id is not None:
+                q = q.gt("id", str(last_id))
+            response = q.execute()
+            rows = response.data or []
+            if not rows:
+                break
+            for row in rows:
+                upc = row.get("upc")
+                if not upc:
+                    continue
+                cat = (row.get("category") or "").strip().lower() or "dnk"
+                out.append({"upc": upc, "category": cat})
+            if len(rows) < page_size:
+                break
+            last_id = rows[-1]["id"]
+        logger.info(
+            "Loaded %s UPCs for export (categories=%s)",
+            len(out),
+            cats if cats else "all",
+        )
+        return out
+
     def upc_exists(self, upc: str, category: str) -> bool:
         """Check if a UPC already exists in the database for the given category."""
         response = self.db.table(self.table).select("id").eq("upc", upc).eq("category", category).limit(1).execute()

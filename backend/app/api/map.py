@@ -1,7 +1,11 @@
 """MAP (Minimum Advertised Price) management API endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from decimal import Decimal
+from datetime import datetime, timezone
+import csv
+import io
 from app.dependencies import get_current_user, get_keepa_access_user
 from app.models.map import (
     DEFAULT_MAP_VENDOR_TYPE,
@@ -214,6 +218,66 @@ def list_map_vendors(
     found = map_repo.list_distinct_vendor_types()
     merged = sorted(set(found) | {"dnk", "clk", "obz"})
     return {"vendors": merged}
+
+
+def _parse_vendor_types_csv(vendor_types: Optional[str]) -> Optional[List[str]]:
+    """Parse comma-separated vendor codes; None/empty means all vendors."""
+    if vendor_types is None or not str(vendor_types).strip():
+        return None
+    parts = [p.strip() for p in str(vendor_types).split(",") if p.strip()]
+    if not parts:
+        return None
+    return [_validate_vendor_type(p) for p in parts]
+
+
+def _map_export_filename(vendors: Optional[List[str]]) -> str:
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d")
+    if not vendors:
+        return f"map_all_vendors_{stamp}.csv"
+    if len(vendors) == 1:
+        return f"map_{vendors[0]}_{stamp}.csv"
+    joined = "_".join(vendors[:6])
+    if len(vendors) > 6:
+        joined += f"_plus{len(vendors) - 6}"
+    return f"map_{joined}_{stamp}.csv"
+
+
+@router.get("/map/export")
+@handle_api_errors("export MAP entries")
+def export_maps(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+    vendor_types: Optional[str] = Query(
+        None,
+        description="Comma-separated vendor codes. Omit for all vendors.",
+    ),
+):
+    """
+    Download MAP entries as CSV for all vendors or a selected subset.
+
+    Format matches upload: UPC,PRICE,VENDOR (no header) for round-trip re-import.
+    """
+    parsed = _parse_vendor_types_csv(vendor_types)
+    map_repo = MAPRepository(db)
+    rows = map_repo.get_all_maps_for_export(vendor_types=parsed)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    for row in rows:
+        price = row.get("map_price")
+        try:
+            price_str = f"{float(price):.2f}" if price is not None else ""
+        except (TypeError, ValueError):
+            price_str = str(price) if price is not None else ""
+        writer.writerow([row["upc"], price_str, row["vendor_type"]])
+
+    csv_bytes = buf.getvalue().encode("utf-8")
+    filename = _map_export_filename(parsed)
+    return StreamingResponse(
+        io.BytesIO(csv_bytes),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/map/{upc}", response_model=MAPResponse)
