@@ -59,24 +59,35 @@ class PriceAnalyzer:
             "current_sellers": product.get("current_sellers", []),
             "stats": product.get("stats", {}),
             "csv": product.get("csv", []),
+            # Keep raw products so dual-scope detection can rebuild offers with
+            # Keepa's real New condition code without changing buy-box-only merge.
+            "products": products,
             "unified_sellers": build_unified_seller_list(keepa_response),
         }
 
         return parsed_data
 
     @staticmethod
-    def get_current_prices(keepa_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def get_current_prices(
+        keepa_data: Dict[str, Any],
+        *,
+        use_keepa_new_condition: bool = False,
+    ) -> List[Dict[str, Any]]:
         """
         Extract current seller prices from Keepa data (dollars).
 
         Args:
             keepa_data: Parsed Keepa product data
-
-        Returns:
-            List of current seller prices
+            use_keepa_new_condition: API/Express dual-scope only. Rebuilds the
+                seller list using Keepa condition 1 = New. Buy-box-only stays
+                on the default merge.
         """
         current_prices = []
-        if keepa_data.get("unified_sellers") is not None:
+        if use_keepa_new_condition and keepa_data.get("products"):
+            sellers = build_unified_seller_list(
+                keepa_data, use_keepa_new_condition=True
+            )
+        elif keepa_data.get("unified_sellers") is not None:
             sellers = keepa_data["unified_sellers"]
         elif keepa_data.get("products"):
             sellers = build_unified_seller_list(keepa_data)
@@ -126,7 +137,12 @@ class PriceAnalyzer:
             return off_price_sellers
 
         try:
-            current_prices = self.get_current_prices(keepa_data)
+            current_prices = self.get_current_prices(
+                keepa_data,
+                use_keepa_new_condition=(
+                    off_price_scope == "buybox_and_non_buybox_below_map"
+                ),
+            )
             if not current_prices:
                 return off_price_sellers
 
@@ -250,7 +266,12 @@ class PriceAnalyzer:
             result["upc"] = keepa_data.get("asin")
             result["product_title"] = keepa_data.get("title")
 
-            current_prices = self.get_current_prices(keepa_data)
+            current_prices = self.get_current_prices(
+                keepa_data,
+                use_keepa_new_condition=(
+                    off_price_scope == "buybox_and_non_buybox_below_map"
+                ),
+            )
             result["total_sellers"] = len(current_prices)
 
             off_price_sellers = self.detect_off_price_sellers(

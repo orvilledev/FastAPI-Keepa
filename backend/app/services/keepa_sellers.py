@@ -23,10 +23,12 @@ logger = logging.getLogger(__name__)
 # Keepa minute timestamps count minutes since 2011-01-01T00:00:00Z.
 _KEEPA_EPOCH_UNIX_SECONDS = 1293840000
 
-# Keepa condition codes: 0 = New. Anything else (used, refurb, collectible,
-# unknown) cannot meaningfully violate New-product MAP and routinely produces
-# false-positive "off-price" rows for non-listings.
+# Default (buy-box-only / Import): historical code 0 = New. Do not change this;
+# buy-box-only reports rely on the existing filter plus stats.buyBoxPrice fallback.
 _NEW_CONDITION_CODE = 0
+# Keepa Offer.condition: 0 Unknown, 1 New, 2+ used/refurb/collectible.
+# Used only when API/Express jobs scan buy-box and non-buy-box offers.
+_KEEPA_NEW_CONDITION_CODES = frozenset({0, 1})
 
 # Boolean offer flags that disqualify an offer from off-price comparison.
 _DISQUALIFYING_OFFER_FLAGS = ("isPreorder", "isAddonItem", "isScam")
@@ -37,15 +39,24 @@ def _now_keepa_minutes() -> int:
     return int((time.time() - _KEEPA_EPOCH_UNIX_SECONDS) // 60)
 
 
-def _offer_condition_is_new(offer: Dict[str, Any]) -> bool:
+def _offer_condition_is_new(
+    offer: Dict[str, Any],
+    *,
+    new_condition_codes: Optional[set] = None,
+) -> bool:
     """Treat missing condition as New so offers without the field are not lost."""
+    codes = (
+        new_condition_codes
+        if new_condition_codes is not None
+        else {_NEW_CONDITION_CODE}
+    )
     cond = offer.get("condition")
     if cond is None:
         return True
     if isinstance(cond, str):
         return cond.strip().lower() == "new"
     try:
-        return int(cond) == _NEW_CONDITION_CODE
+        return int(cond) in codes
     except (TypeError, ValueError):
         return False
 
@@ -92,9 +103,12 @@ def _offer_is_currently_active(
     drop_zero_stock: bool,
     max_age_minutes: int,
     now_keepa_minutes: Optional[int] = None,
+    new_condition_codes: Optional[set] = None,
 ) -> bool:
     """Apply per-gate offer eligibility checks. Each gate is independently toggleable."""
-    if require_new_condition and not _offer_condition_is_new(offer):
+    if require_new_condition and not _offer_condition_is_new(
+        offer, new_condition_codes=new_condition_codes
+    ):
         return False
     if drop_disqualifying_flags and _offer_has_disqualifying_flag(offer):
         return False
@@ -176,12 +190,19 @@ def _row_dedupe_key(row: Dict[str, Any]) -> Optional[Tuple[str, int]]:
     return (str(sid) if sid is not None else "", cents)
 
 
-def build_unified_seller_list(keepa_response: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def build_unified_seller_list(
+    keepa_response: Optional[Dict[str, Any]],
+    *,
+    use_keepa_new_condition: bool = False,
+) -> List[Dict[str, Any]]:
     """
     Union current_sellers and live competitive offers.
 
     Deduplicates only exact (sellerId, price_cents) pairs so two different prices
     for the same seller remain two rows.
+
+    ``use_keepa_new_condition`` is for API/Express dual-scope jobs only. Default
+    False keeps buy-box-only / Import merge behavior unchanged.
     """
     if not keepa_response or not isinstance(keepa_response, dict):
         return []
@@ -222,6 +243,9 @@ def build_unified_seller_list(keepa_response: Optional[Dict[str, Any]]) -> List[
         max_age_minutes = 0
 
     now_keepa = _now_keepa_minutes() if max_age_minutes > 0 else None
+    new_condition_codes = (
+        set(_KEEPA_NEW_CONDITION_CODES) if use_keepa_new_condition else None
+    )
 
     for idx in live_order:
         try:
@@ -240,6 +264,7 @@ def build_unified_seller_list(keepa_response: Optional[Dict[str, Any]]) -> List[
             drop_zero_stock=drop_zero_stock,
             max_age_minutes=max_age_minutes,
             now_keepa_minutes=now_keepa,
+            new_condition_codes=new_condition_codes,
         ):
             logger.debug(
                 "Filtered offer sellerId=%s condition=%r flags=%s stock=%s lastSeen=%s",

@@ -387,3 +387,82 @@ def test_comprehensive_report_seller_sort_case_insensitive():
     seller_col = headers.index("Seller") + 1
     sellers_in_file = [ws.cell(row=r, column=seller_col).value for r in range(2, 4)]
     assert sellers_in_file == ["beta retail", "Charlie Store"]
+
+
+def _keepa_condition_one_offers():
+    return {
+        "products": [
+            {
+                "asin": "B00TEST",
+                "title": "T",
+                "brand": "B",
+                "stats": {
+                    "buyBoxSellerId": "WINNER",
+                    "buyBoxPrice": 2500,
+                },
+                "current_sellers": [],
+                "offers": [
+                    {
+                        "offerCSV": [1, 2500, 0],
+                        "sellerId": "WINNER",
+                        "sellerName": "Winner Co",
+                        "condition": 1,
+                    },
+                    {
+                        "offerCSV": [1, 2000, 0],
+                        "sellerId": "CHEAP",
+                        "sellerName": "Cheapo",
+                        "condition": 1,
+                    },
+                    {
+                        "offerCSV": [1, 1000, 0],
+                        "sellerId": "USED",
+                        "sellerName": "Used Shop",
+                        "condition": 2,
+                    },
+                ],
+                "liveOffersOrder": [0, 1, 2],
+            }
+        ]
+    }
+
+
+@pytest.mark.unit
+def test_dual_scope_report_includes_keepa_new_non_buy_box_offers():
+    items = [{"upc": "123", "keepa_data": _keepa_condition_one_offers(), "status": "completed"}]
+    excel_bytes, count = CSVGenerator.generate_comprehensive_report_csv(
+        items,
+        {"123": Decimal("50.00")},
+        seller_name_map={},
+        excluded_seller_substrings=[],
+        off_price_scope="buybox_and_non_buybox_below_map",
+    )
+    assert count == 2
+    wb = load_workbook(io.BytesIO(excel_bytes))
+    ws = wb.active
+    headers = [c.value for c in ws[1]]
+    seller_col = headers.index("Seller") + 1
+    sellers = {ws.cell(row=r, column=seller_col).value for r in range(2, 2 + count)}
+    assert sellers == {"Winner Co", "Cheapo"}
+
+
+@pytest.mark.unit
+def test_buybox_only_report_falls_back_when_condition_one_offers_filtered():
+    """Buy-box-only still flags via stats.buyBoxPrice when offers[] are dropped."""
+    items = [{"upc": "123", "keepa_data": _keepa_condition_one_offers(), "status": "completed"}]
+    excel_bytes, count = CSVGenerator.generate_comprehensive_report_csv(
+        items,
+        {"123": Decimal("50.00")},
+        seller_name_map={},
+        excluded_seller_substrings=[],
+        off_price_scope="buybox_only",
+    )
+    assert count == 1
+    wb = load_workbook(io.BytesIO(excel_bytes))
+    ws = wb.active
+    headers = [c.value for c in ws[1]]
+    seller_col = headers.index("Seller") + 1
+    price_col = headers.index("Seller Offer Price") + 1
+    # Offers were filtered; fallback uses stats.buyBoxPrice and seller id.
+    assert ws.cell(row=2, column=seller_col).value == "WINNER"
+    assert ws.cell(row=2, column=price_col).value == "$25.00"

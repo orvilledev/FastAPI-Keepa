@@ -329,6 +329,60 @@ def test_offer_condition_is_new_rejects_used_codes():
 
 
 @pytest.mark.unit
+def test_keepa_new_condition_accepts_code_one():
+    """API dual-scope: Keepa 1 = New (and 0 = Unknown still allowed)."""
+    from app.services.keepa_sellers import _KEEPA_NEW_CONDITION_CODES
+
+    assert _offer_condition_is_new(
+        {"condition": 1}, new_condition_codes=set(_KEEPA_NEW_CONDITION_CODES)
+    )
+    assert _offer_condition_is_new(
+        {"condition": 0}, new_condition_codes=set(_KEEPA_NEW_CONDITION_CODES)
+    )
+    assert not _offer_condition_is_new(
+        {"condition": 2}, new_condition_codes=set(_KEEPA_NEW_CONDITION_CODES)
+    )
+
+
+@pytest.mark.unit
+def test_build_unified_default_filters_keepa_new_condition_one():
+    """Buy-box-only merge still drops Keepa condition 1 (legacy 0 = New)."""
+    resp = {
+        "products": [
+            {
+                "current_sellers": [],
+                "offers": [
+                    {"offerCSV": [1, 3000, 0], "sellerId": "S1", "condition": 1},
+                ],
+                "liveOffersOrder": [0],
+            }
+        ]
+    }
+    assert build_unified_seller_list(resp) == []
+
+
+@pytest.mark.unit
+def test_build_unified_keepa_new_condition_keeps_code_one():
+    """API dual-scope merge keeps Keepa condition 1 = New."""
+    resp = {
+        "products": [
+            {
+                "current_sellers": [],
+                "offers": [
+                    {"offerCSV": [1, 3000, 0], "sellerId": "S1", "condition": 1},
+                    {"offerCSV": [1, 2000, 0], "sellerId": "S2", "condition": 2},
+                ],
+                "liveOffersOrder": [0, 1],
+            }
+        ]
+    }
+    rows = build_unified_seller_list(resp, use_keepa_new_condition=True)
+    assert len(rows) == 1
+    assert rows[0]["sellerId"] == "S1"
+    assert int(rows[0]["price"]) == 3000
+
+
+@pytest.mark.unit
 def test_offer_has_disqualifying_flag_detects_each_flag():
     assert _offer_has_disqualifying_flag({"isPreorder": True})
     assert _offer_has_disqualifying_flag({"isAddonItem": True})

@@ -498,17 +498,25 @@ class CSVGenerator:
         }
 
     @staticmethod
-    def _seller_offers_from_keepa(keepa_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _seller_offers_from_keepa(
+        keepa_data: Dict[str, Any],
+        *,
+        use_keepa_new_condition: bool = False,
+    ) -> List[Dict[str, Any]]:
         """
         All seller offers from unified Keepa sources (current_sellers + live offers).
 
         One entry per row (duplicate sellerIds at different prices each become a row).
         Each dict: price (float dollars), seller_name (str), seller_id (str).
+
+        ``use_keepa_new_condition`` is only for API/Express dual-scope reports.
         """
         offers: List[Dict[str, Any]] = []
         if not keepa_data or not isinstance(keepa_data, dict):
             return offers
-        for seller in build_unified_seller_list(keepa_data):
+        for seller in build_unified_seller_list(
+            keepa_data, use_keepa_new_condition=use_keepa_new_condition
+        ):
             raw = seller.get("price")
             if raw is None:
                 continue
@@ -892,7 +900,12 @@ class CSVGenerator:
             if msrp is None:
                 continue
 
-            offers = CSVGenerator._seller_offers_from_keepa(keepa_data)
+            offers = CSVGenerator._seller_offers_from_keepa(
+                keepa_data,
+                use_keepa_new_condition=(
+                    off_price_scope == "buybox_and_non_buybox_below_map"
+                ),
+            )
             if off_price_scope == "buybox_and_non_buybox_below_map":
                 seen_sellers: set[str] = set()
                 for off in offers:
