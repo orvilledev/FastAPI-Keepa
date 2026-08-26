@@ -1,0 +1,25 @@
+MSW Overwatch 3.3.1 — desktop and web release
+
+Patch release since 3.3.0. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Catalog downloads
+- **Download UPCs** on Manage UPCs (hub and per-vendor) exports CSV for all or selected vendors
+- **Download MAP** on Manage MAP exports vendor MAP data in the same format used for upload
+
+## Express Jobs & API Mode
+- Express Jobs can use a vendor’s stored Manage UPCs list instead of only pasted UPCs
+- Express Jobs and API Mode Daily Run use the high-refill Keepa key pool
+- Live Keepa token batteries for the five Express Job API keys
+- Only one Express Job or API Mode Daily Run can run at a time
+- Keepa Token Load summary after each API run
+
+## Analytics
+- Analytics Hit Alert when a vendor has 100+ more daily off-price listings than their last daily run
+- One Analytics Daily Run counted per vendor-day, with email on every completed job
+- Dual-scope off-price hits treat Keepa condition 1 as New
+
+## Desktop / web
+- Testing Playground stays available in the desktop app; it is hidden on the web app
+
+## Upgrade from 3.3.0
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.3.1, download it, then prompt to install now or later. Web/PWA users get 3.3.1 on the next deploy/refresh.
