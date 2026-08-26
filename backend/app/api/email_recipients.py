@@ -1,4 +1,4 @@
-"""Email recipient directory (registered profiles), shared pool, and per-user saved lists."""
+"""Email recipient directory (registered profiles), shared pool, and shared email groups."""
 import logging
 import re
 from datetime import datetime, timezone
@@ -12,6 +12,7 @@ from app.config import settings
 from app.database import get_supabase
 from app.dependencies import get_job_runner_user
 from app.models.email_recipients import (
+    EmailGroupMember,
     EmailListCreate,
     EmailListResponse,
     EmailListUpdate,
@@ -22,6 +23,7 @@ from app.models.email_recipients import (
 )
 from app.repositories.job_repository import JobRepository
 from app.repositories.supabase_read_all import read_all_paginated
+from app.utils.email_group_members import members_from_create_payload, normalize_group_members
 from app.utils.email_recipient_pool_db import (
     fetch_pool_rows,
     insert_pool_entry,
@@ -319,119 +321,107 @@ def delete_email_from_pool(
     return {"ok": True}
 
 
+def _group_response(row: dict) -> EmailListResponse:
+    members = normalize_group_members(row.get("emails") or [])
+    return EmailListResponse(
+        id=str(row["id"]),
+        name=row["name"],
+        members=[EmailGroupMember(email=m["email"], role=m["role"]) for m in members],  # type: ignore[arg-type]
+        emails=[m["email"] for m in members],
+    )
+
+
+def _clean_members_from_body(body_members, body_emails) -> List[dict]:
+    def _safe_validate(email: str) -> str:
+        return _validate_email(email)
+
+    return members_from_create_payload(body_members, body_emails, validate_email=_safe_validate)
+
+
 @router.get("/email-recipients/lists", response_model=List[EmailListResponse])
-@handle_api_errors("list saved email lists")
+@handle_api_errors("list email groups")
 def list_email_lists(
-    current_user: dict = Depends(get_job_runner_user),
+    _current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase),
 ):
-    uid = str(current_user["id"])
-    response = db.table("email_recipient_lists").select("*").eq("user_id", uid).order("name").execute()
-    out: List[EmailListResponse] = []
-    for row in response.data or []:
-        raw = row.get("emails") or []
-        if isinstance(raw, str):
-            emails = []
-        else:
-            emails = [str(x).strip().lower() for x in raw if str(x).strip()]
-        out.append(
-            EmailListResponse(
-                id=str(row["id"]),
-                name=row["name"],
-                emails=emails,
-            )
-        )
-    return out
+    """Shared email groups visible to all job-runners."""
+    response = db.table("email_recipient_lists").select("*").order("name").execute()
+    return [_group_response(row) for row in (response.data or [])]
 
 
 @router.post("/email-recipients/lists", response_model=EmailListResponse, status_code=201)
-@handle_api_errors("create saved email list")
+@handle_api_errors("create email group")
 def create_email_list(
     body: EmailListCreate,
     current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase),
 ):
     uid = str(current_user["id"])
-    cleaned: List[str] = []
-    seen = set()
-    for e in body.emails:
-        try:
-            n = _validate_email(e)
-        except HTTPException:
-            continue
-        if n not in seen:
-            seen.add(n)
-            cleaned.append(n)
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Group name is required")
+    members = _clean_members_from_body(body.members, body.emails)
     ins = (
         db.table("email_recipient_lists")
         .insert(
             {
                 "user_id": uid,
-                "name": body.name.strip(),
-                "emails": cleaned,
+                "name": name,
+                "emails": members,
             }
         )
         .execute()
     )
     if not ins.data:
-        raise HTTPException(status_code=500, detail="Failed to save list")
-    row = ins.data[0]
-    return EmailListResponse(id=str(row["id"]), name=row["name"], emails=cleaned)
+        raise HTTPException(status_code=500, detail="Failed to save group")
+    return _group_response(ins.data[0])
 
 
 @router.patch("/email-recipients/lists/{list_id}", response_model=EmailListResponse)
-@handle_api_errors("update saved email list")
+@handle_api_errors("update email group")
 def update_email_list(
     list_id: UUID,
     body: EmailListUpdate,
     current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase),
 ):
-    if body.name is None and body.emails is None:
+    if body.name is None and body.members is None and body.emails is None:
         raise HTTPException(status_code=400, detail="No fields to update")
-    uid = str(current_user["id"])
+
     check = (
         db.table("email_recipient_lists")
         .select("id")
-        .eq("user_id", uid)
         .eq("id", str(list_id))
+        .limit(1)
         .execute()
     )
     if not check.data:
-        raise HTTPException(status_code=404, detail="List not found")
+        raise HTTPException(status_code=404, detail="Group not found")
 
-    update_payload = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    update_payload = {
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "user_id": str(current_user["id"]),
+    }
     if body.name is not None:
-        update_payload["name"] = body.name.strip()
-    if body.emails is not None:
-        cleaned: List[str] = []
-        seen = set()
-        for e in body.emails:
-            try:
-                n = _validate_email(e)
-            except HTTPException:
-                continue
-            if n not in seen:
-                seen.add(n)
-                cleaned.append(n)
-        update_payload["emails"] = cleaned
+        name = body.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Group name is required")
+        update_payload["name"] = name
+    if body.members is not None or body.emails is not None:
+        update_payload["emails"] = _clean_members_from_body(body.members, body.emails)
 
-    res = db.table("email_recipient_lists").update(update_payload).eq("user_id", uid).eq("id", str(list_id)).execute()
+    res = db.table("email_recipient_lists").update(update_payload).eq("id", str(list_id)).execute()
     if not res.data:
-        raise HTTPException(status_code=500, detail="Failed to update list")
-    row = res.data[0]
-    raw = row.get("emails") or []
-    emails = [str(x).strip().lower() for x in raw if str(x).strip()] if not isinstance(raw, str) else []
-    return EmailListResponse(id=str(row["id"]), name=row["name"], emails=emails)
+        raise HTTPException(status_code=500, detail="Failed to update group")
+    return _group_response(res.data[0])
 
 
 @router.delete("/email-recipients/lists/{list_id}")
-@handle_api_errors("delete saved email list")
+@handle_api_errors("delete email group")
 def delete_email_list(
     list_id: UUID,
-    current_user: dict = Depends(get_job_runner_user),
+    _current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase),
 ):
-    uid = str(current_user["id"])
-    db.table("email_recipient_lists").delete().eq("user_id", uid).eq("id", str(list_id)).execute()
+    db.table("email_recipient_lists").delete().eq("id", str(list_id)).execute()
     return {"ok": True}

@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { emailRecipientsApi, type EmailPoolEntry } from '../../services/api'
+import {
+  emailRecipientsApi,
+  type EmailGroupMember,
+  type EmailPoolEntry,
+  type EmailSavedList,
+} from '../../services/api'
 
 function parseUploadContent(content: string): Array<{ email: string; display_name?: string }> {
   const rows = content.split(/\r?\n/).map((r) => r.trim()).filter(Boolean)
@@ -24,8 +29,15 @@ function parseUploadContent(content: string): Array<{ email: string; display_nam
   return out
 }
 
+type DraftMember = EmailGroupMember
+
+function emptyDraftMembers(pool: EmailPoolEntry[]): DraftMember[] {
+  return pool.map((p) => ({ email: p.email.toLowerCase(), role: 'to' as const }))
+}
+
 export default function EmailList() {
   const [rows, setRows] = useState<EmailPoolEntry[]>([])
+  const [groups, setGroups] = useState<EmailSavedList[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [syncingUsedRecipients, setSyncingUsedRecipients] = useState(false)
@@ -36,12 +48,23 @@ export default function EmailList() {
 
   const [uploading, setUploading] = useState(false)
 
+  const [groupEditorOpen, setGroupEditorOpen] = useState(false)
+  const [groupName, setGroupName] = useState('')
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
+  const [draftMembers, setDraftMembers] = useState<DraftMember[]>([])
+  const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set())
+  const [savingGroup, setSavingGroup] = useState(false)
+
   const loadPool = async () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await emailRecipientsApi.getPool()
-      setRows(data)
+      const [poolData, groupData] = await Promise.all([
+        emailRecipientsApi.getPool(),
+        emailRecipientsApi.getLists(),
+      ])
+      setRows(poolData)
+      setGroups(groupData)
     } catch {
       setError('Could not load email list')
     } finally {
@@ -78,6 +101,20 @@ export default function EmailList() {
         return a.email.localeCompare(b.email)
       }),
     [rows]
+  )
+
+  const labelByEmail = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const p of rows) {
+      const label = (p.display_name || '').trim()
+      if (label) map.set(p.email.toLowerCase(), label)
+    }
+    return map
+  }, [rows])
+
+  const sortedGroups = useMemo(
+    () => [...groups].sort((a, b) => a.name.localeCompare(b.name)),
+    [groups]
   )
 
   const handleAdd = async () => {
@@ -142,6 +179,104 @@ export default function EmailList() {
     }
   }
 
+  const startCreateGroup = () => {
+    setGroupEditorOpen(true)
+    setEditingGroupId(null)
+    setGroupName('')
+    setDraftMembers(emptyDraftMembers(sorted))
+    setSelectedEmails(new Set())
+  }
+
+  const startEditGroup = (group: EmailSavedList) => {
+    setGroupEditorOpen(true)
+    setEditingGroupId(group.id)
+    setGroupName(group.name)
+    const memberMap = new Map(group.members.map((m) => [m.email.toLowerCase(), m.role]))
+    const drafts = emptyDraftMembers(sorted).map((m) => ({
+      email: m.email,
+      role: (memberMap.get(m.email) || 'to') as 'to' | 'bcc',
+    }))
+    // Keep group members that may have been removed from the pool.
+    for (const m of group.members) {
+      const key = m.email.toLowerCase()
+      if (!drafts.some((d) => d.email === key)) {
+        drafts.push({ email: key, role: m.role })
+      }
+    }
+    setDraftMembers(drafts)
+    setSelectedEmails(new Set(group.members.map((m) => m.email.toLowerCase())))
+  }
+
+  const cancelGroupEdit = () => {
+    setGroupEditorOpen(false)
+    setEditingGroupId(null)
+    setGroupName('')
+    setDraftMembers([])
+    setSelectedEmails(new Set())
+  }
+
+  const toggleDraftEmail = (emailAddr: string) => {
+    const key = emailAddr.toLowerCase()
+    setSelectedEmails((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const setDraftRole = (emailAddr: string, role: 'to' | 'bcc') => {
+    const key = emailAddr.toLowerCase()
+    setDraftMembers((prev) => {
+      const exists = prev.some((m) => m.email === key)
+      if (!exists) return [...prev, { email: key, role }]
+      return prev.map((m) => (m.email === key ? { ...m, role } : m))
+    })
+  }
+
+  const handleSaveGroup = async () => {
+    const trimmed = groupName.trim()
+    if (!trimmed) {
+      alert('Enter a group name')
+      return
+    }
+    if (selectedEmails.size === 0) {
+      alert('Select at least one recipient for the group')
+      return
+    }
+    const roleByEmail = new Map(draftMembers.map((m) => [m.email, m.role]))
+    const members: EmailGroupMember[] = [...selectedEmails].map((e) => ({
+      email: e,
+      role: roleByEmail.get(e) === 'bcc' ? 'bcc' : 'to',
+    }))
+    setSavingGroup(true)
+    try {
+      if (editingGroupId) {
+        const updated = await emailRecipientsApi.updateList(editingGroupId, { name: trimmed, members })
+        setGroups((prev) => prev.map((g) => (g.id === updated.id ? updated : g)))
+      } else {
+        const created = await emailRecipientsApi.createList(trimmed, members)
+        setGroups((prev) => [...prev, created])
+      }
+      cancelGroupEdit()
+    } catch {
+      alert('Could not save email group')
+    } finally {
+      setSavingGroup(false)
+    }
+  }
+
+  const handleDeleteGroup = async (group: EmailSavedList) => {
+    if (!window.confirm(`Delete email group "${group.name}"? This removes it for everyone.`)) return
+    try {
+      await emailRecipientsApi.deleteList(group.id)
+      setGroups((prev) => prev.filter((g) => g.id !== group.id))
+      if (editingGroupId === group.id) cancelGroupEdit()
+    } catch {
+      alert('Could not delete email group')
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -194,6 +329,150 @@ export default function EmailList() {
           />
           {uploading && <span className="text-gray-500">Importing...</span>}
         </div>
+      </div>
+
+      <div className="card p-4 sm:p-5 space-y-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-semibold text-gray-900">Email groups</h2>
+            <p className="text-sm text-gray-600 mt-0.5">
+              Named sets with main recipients and BCC. Tick a group when updating run recipients to apply it.
+            </p>
+          </div>
+          {!groupEditorOpen && (
+            <button
+              type="button"
+              onClick={startCreateGroup}
+              className="px-3 py-2 rounded-lg bg-[#404040] text-white text-sm font-medium"
+            >
+              Create group
+            </button>
+          )}
+        </div>
+
+        {groupEditorOpen && (
+          <div className="border border-gray-200 rounded-lg p-3 sm:p-4 space-y-3 bg-gray-50">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                placeholder="Group name (e.g. Daily report team)"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-white"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleSaveGroup()}
+                  disabled={savingGroup}
+                  className="px-3 py-2 rounded-lg bg-[#404040] text-white text-sm font-medium disabled:opacity-60"
+                >
+                  {savingGroup ? 'Saving...' : editingGroupId ? 'Save changes' : 'Save group'}
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelGroupEdit}
+                  disabled={savingGroup}
+                  className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 bg-white"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+            {sorted.length === 0 ? (
+              <p className="text-sm text-gray-500">Add recipients to the directory first, then build a group.</p>
+            ) : (
+              <ul className="space-y-2 max-h-72 overflow-y-auto">
+                {sorted.map((entry) => {
+                  const key = entry.email.toLowerCase()
+                  const included = selectedEmails.has(key)
+                  const role = draftMembers.find((m) => m.email === key)?.role || 'to'
+                  return (
+                    <li key={entry.id} className="flex items-center gap-2 bg-white border border-gray-100 rounded-lg px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={included}
+                        onChange={() => toggleDraftEmail(key)}
+                        className="shrink-0 rounded border-gray-300 text-[#81B81D] focus:ring-indigo-500"
+                      />
+                      <div className="min-w-0 flex-1 text-sm">
+                        {entry.display_name ? (
+                          <span>
+                            <span className="font-medium">{entry.display_name}</span>
+                            <span className="text-gray-400"> ({entry.email})</span>
+                          </span>
+                        ) : (
+                          <span className="text-gray-800">{entry.email}</span>
+                        )}
+                      </div>
+                      {included && (
+                        <label className="inline-flex items-center gap-1.5 text-xs text-gray-600 shrink-0">
+                          <input
+                            type="checkbox"
+                            checked={role === 'bcc'}
+                            onChange={(e) => setDraftRole(key, e.target.checked ? 'bcc' : 'to')}
+                            className="rounded border-gray-300 text-[#81B81D] focus:ring-indigo-500"
+                          />
+                          BCC
+                        </label>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {sortedGroups.length === 0 && !groupEditorOpen && (
+          <p className="text-sm text-gray-500">No email groups yet.</p>
+        )}
+
+        {sortedGroups.length > 0 && (
+          <ul className="space-y-2">
+            {sortedGroups.map((group) => {
+              const toCount = group.members.filter((m) => m.role !== 'bcc').length
+              const bccCount = group.members.filter((m) => m.role === 'bcc').length
+              return (
+                <li
+                  key={group.id}
+                  className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border border-gray-200 rounded-lg px-3 py-3"
+                >
+                  <div className="min-w-0">
+                    <div className="font-medium text-gray-900">{group.name}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      {group.members.length} member{group.members.length === 1 ? '' : 's'}
+                      {bccCount > 0 ? ` · ${toCount} To · ${bccCount} BCC` : null}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1 break-all">
+                      {group.members
+                        .map((m) => {
+                          const label = labelByEmail.get(m.email) || m.email
+                          return m.role === 'bcc' ? `${label} (BCC)` : label
+                        })
+                        .join(', ')}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => startEditGroup(group)}
+                      className="px-2.5 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteGroup(group)}
+                      className="px-2.5 py-1 rounded border border-red-300 text-red-700 hover:bg-red-50 text-sm"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </div>
 
       <div className="card p-4 sm:p-5">

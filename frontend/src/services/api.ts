@@ -463,7 +463,14 @@ export const jobsApi = {
 }
 
 export type EmailPoolEntry = { id: string; email: string; display_name?: string | null }
-export type EmailSavedList = { id: string; name: string; emails: string[] }
+export type EmailGroupMemberRole = 'to' | 'bcc'
+export type EmailGroupMember = { email: string; role: EmailGroupMemberRole }
+export type EmailSavedList = {
+  id: string
+  name: string
+  members: EmailGroupMember[]
+  emails: string[]
+}
 
 export const emailRecipientsApi = {
   syncUsedToPool: async (): Promise<{ ok: boolean; discovered: number; inserted: number }> => {
@@ -496,15 +503,37 @@ export const emailRecipientsApi = {
   },
   getLists: async (): Promise<EmailSavedList[]> => {
     const response = await api.get<EmailSavedList[]>('/api/v1/email-recipients/lists')
-    return response.data
+    return response.data.map(normalizeEmailGroup)
   },
-  createList: async (name: string, emails: string[]): Promise<EmailSavedList> => {
-    const response = await api.post<EmailSavedList>('/api/v1/email-recipients/lists', { name, emails })
-    return response.data
+  createList: async (name: string, members: EmailGroupMember[]): Promise<EmailSavedList> => {
+    const response = await api.post<EmailSavedList>('/api/v1/email-recipients/lists', { name, members })
+    return normalizeEmailGroup(response.data)
+  },
+  updateList: async (
+    listId: string,
+    updates: { name?: string; members?: EmailGroupMember[] }
+  ): Promise<EmailSavedList> => {
+    const response = await api.patch<EmailSavedList>(`/api/v1/email-recipients/lists/${listId}`, updates)
+    return normalizeEmailGroup(response.data)
   },
   deleteList: async (listId: string): Promise<void> => {
     await api.delete(`/api/v1/email-recipients/lists/${listId}`)
   },
+}
+
+function normalizeEmailGroup(raw: EmailSavedList | (Omit<EmailSavedList, 'members'> & { members?: EmailGroupMember[] })): EmailSavedList {
+  const members: EmailGroupMember[] = Array.isArray(raw.members)
+    ? raw.members.map((m) => ({
+        email: String(m.email || '').trim().toLowerCase(),
+        role: m.role === 'bcc' ? 'bcc' : 'to',
+      })).filter((m) => m.email)
+    : (raw.emails || []).map((email) => ({ email: String(email).trim().toLowerCase(), role: 'to' as const }))
+  return {
+    id: raw.id,
+    name: raw.name,
+    members,
+    emails: members.map((m) => m.email),
+  }
 }
 
 // Batches API

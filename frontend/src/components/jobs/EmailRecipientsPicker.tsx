@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { emailRecipientsApi, type EmailPoolEntry } from '../../services/api'
+import {
+  emailRecipientsApi,
+  type EmailPoolEntry,
+  type EmailSavedList,
+} from '../../services/api'
 
 function parseEmails(value: string): string[] {
   return value
@@ -24,6 +28,21 @@ export function exclusiveSelection(toRaw: string, bccRaw: string): { to: Set<str
 export function normalizeRecipientPair(toRaw: string, bccRaw: string): { to: string; bcc: string } {
   const { to, bcc } = exclusiveSelection(toRaw, bccRaw)
   return { to: joinEmails(to), bcc: joinEmails(bcc) }
+}
+
+/** Whether every group member is present with the intended role (BCC only when allowed). */
+export function isGroupFullyApplied(
+  group: EmailSavedList,
+  selectedTo: Set<string>,
+  selectedBcc: Set<string>,
+  allowVendorBcc: boolean,
+): boolean {
+  if (!group.members.length) return false
+  return group.members.every((m) => {
+    const email = m.email.toLowerCase()
+    if (allowVendorBcc && m.role === 'bcc') return selectedBcc.has(email)
+    return selectedTo.has(email) || selectedBcc.has(email)
+  })
 }
 
 type Props = {
@@ -63,6 +82,7 @@ export default function EmailRecipientsPicker({
   const skipValueSyncRef = useRef(0)
   const [panelOpen, setPanelOpen] = useState(false)
   const [pool, setPool] = useState<EmailPoolEntry[]>([])
+  const [groups, setGroups] = useState<EmailSavedList[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const initial = exclusiveSelection(value, bccValue)
@@ -72,11 +92,16 @@ export default function EmailRecipientsPicker({
   const refreshData = useCallback(async () => {
     setLoadError(null)
     try {
-      const poolRows = await emailRecipientsApi.getPool()
+      const [poolRows, groupRows] = await Promise.all([
+        emailRecipientsApi.getPool(),
+        emailRecipientsApi.getLists(),
+      ])
       setPool(poolRows)
+      setGroups(groupRows)
     } catch {
       setLoadError('Could not load email directory')
       setPool([])
+      setGroups([])
     } finally {
       setLoading(false)
     }
@@ -130,6 +155,11 @@ export default function EmailRecipientsPicker({
       return aLabel.localeCompare(bLabel)
     })
   }, [pool, selectedTo, selectedBcc, labelByEmail])
+
+  const sortedGroups = useMemo(
+    () => [...groups].sort((a, b) => a.name.localeCompare(b.name)),
+    [groups],
+  )
 
   const commitSelection = useCallback(
     (nextTo: Set<string>, nextBcc: Set<string>) => {
@@ -191,6 +221,32 @@ export default function EmailRecipientsPicker({
     commitSelection(nextTo, nextBcc)
   }
 
+  const toggleGroup = (group: EmailSavedList) => {
+    const applied = isGroupFullyApplied(group, selectedTo, selectedBcc, allowVendorBcc)
+    const nextTo = new Set(selectedTo)
+    const nextBcc = new Set(selectedBcc)
+
+    if (applied) {
+      for (const m of group.members) {
+        const email = m.email.toLowerCase()
+        nextTo.delete(email)
+        nextBcc.delete(email)
+      }
+    } else {
+      for (const m of group.members) {
+        const email = m.email.toLowerCase()
+        if (allowVendorBcc && m.role === 'bcc') {
+          nextTo.delete(email)
+          nextBcc.add(email)
+        } else {
+          nextBcc.delete(email)
+          nextTo.add(email)
+        }
+      }
+    }
+    commitSelection(nextTo, nextBcc)
+  }
+
   const totalCount = selectedTo.size + selectedBcc.size
   const summary = (() => {
     if (totalCount === 0) {
@@ -221,7 +277,7 @@ export default function EmailRecipientsPicker({
         >
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs text-gray-500">
-              Recipients are managed in{' '}
+              Recipients and groups are managed in{' '}
               <Link to="/email-list" className="text-[#81B81D] underline">
                 Email List
               </Link>
@@ -240,48 +296,86 @@ export default function EmailRecipientsPicker({
             </p>
           )}
 
-          {!loading && options.length === 0 && <p className="text-sm text-gray-400">No email options available yet.</p>}
+          {!loading && sortedGroups.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Email groups</p>
+              <ul className="space-y-2">
+                {sortedGroups.map((group) => {
+                  const checked = isGroupFullyApplied(group, selectedTo, selectedBcc, allowVendorBcc)
+                  const bccCount = group.members.filter((m) => m.role === 'bcc').length
+                  return (
+                    <li key={group.id} className="flex items-start gap-2 border-b border-gray-100 pb-2">
+                      <input
+                        type="checkbox"
+                        id={`eg-${group.id}`}
+                        checked={checked}
+                        onChange={() => toggleGroup(group)}
+                        className="mt-0.5 shrink-0 rounded border-gray-300 text-[#81B81D] focus:ring-indigo-500"
+                      />
+                      <label htmlFor={`eg-${group.id}`} className="min-w-0 flex-1 cursor-pointer text-sm text-gray-800">
+                        <span className="font-medium">{group.name}</span>
+                        <span className="text-gray-400">
+                          {' '}
+                          ({group.members.length} member{group.members.length === 1 ? '' : 's'}
+                          {allowVendorBcc && bccCount > 0 ? `, ${bccCount} BCC` : ''})
+                        </span>
+                      </label>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
+
+          {!loading && options.length === 0 && sortedGroups.length === 0 && (
+            <p className="text-sm text-gray-400">No email options available yet.</p>
+          )}
 
           {!loading && options.length > 0 && (
-            <ul className="space-y-2">
-              {options.map((email) => {
-                const label = labelByEmail.get(email)
-                const included = selectedTo.has(email) || selectedBcc.has(email)
-                const isBcc = selectedBcc.has(email)
-                return (
-                  <li key={email} className="flex items-center gap-2 border-b border-gray-100 pb-2 last:border-0 last:pb-0">
-                    <input
-                      type="checkbox"
-                      id={`er-${email}`}
-                      checked={included}
-                      onChange={() => toggleEmail(email)}
-                      className="shrink-0 rounded border-gray-300 text-[#81B81D] focus:ring-indigo-500"
-                    />
-                    <label htmlFor={`er-${email}`} className="min-w-0 flex-1 cursor-pointer text-sm text-gray-800">
-                      {label ? (
-                        <span>
-                          <span className="font-medium">{label}</span>
-                          <span className="text-gray-400"> ({email})</span>
-                        </span>
-                      ) : (
-                        email
-                      )}
-                    </label>
-                    {allowVendorBcc && included && (
-                      <label className="inline-flex items-center gap-1.5 text-xs text-gray-600 shrink-0">
-                        <input
-                          type="checkbox"
-                          checked={isBcc}
-                          onChange={() => toggleBcc(email)}
-                          className="rounded border-gray-300 text-[#81B81D] focus:ring-indigo-500"
-                        />
-                        BCC
+            <div className="space-y-2">
+              {sortedGroups.length > 0 && (
+                <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Individual recipients</p>
+              )}
+              <ul className="space-y-2">
+                {options.map((email) => {
+                  const label = labelByEmail.get(email)
+                  const included = selectedTo.has(email) || selectedBcc.has(email)
+                  const isBcc = selectedBcc.has(email)
+                  return (
+                    <li key={email} className="flex items-center gap-2 border-b border-gray-100 pb-2 last:border-0 last:pb-0">
+                      <input
+                        type="checkbox"
+                        id={`er-${email}`}
+                        checked={included}
+                        onChange={() => toggleEmail(email)}
+                        className="shrink-0 rounded border-gray-300 text-[#81B81D] focus:ring-indigo-500"
+                      />
+                      <label htmlFor={`er-${email}`} className="min-w-0 flex-1 cursor-pointer text-sm text-gray-800">
+                        {label ? (
+                          <span>
+                            <span className="font-medium">{label}</span>
+                            <span className="text-gray-400"> ({email})</span>
+                          </span>
+                        ) : (
+                          email
+                        )}
                       </label>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
+                      {allowVendorBcc && included && (
+                        <label className="inline-flex items-center gap-1.5 text-xs text-gray-600 shrink-0">
+                          <input
+                            type="checkbox"
+                            checked={isBcc}
+                            onChange={() => toggleBcc(email)}
+                            className="rounded border-gray-300 text-[#81B81D] focus:ring-indigo-500"
+                          />
+                          BCC
+                        </label>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
           )}
         </div>
       )}
@@ -289,9 +383,9 @@ export default function EmailRecipientsPicker({
       <p className="text-sm text-gray-500">
         {emptyMeansNoRecipients
           ? allowVendorBcc
-            ? 'Leave empty to send no email. BCC is configured per vendor here.'
-            : 'Leave empty to send no email.'
-          : 'Leave empty to use default report recipients.'}
+            ? 'Leave empty to send no email. Tick a group or pick addresses. BCC is configured per vendor here.'
+            : 'Leave empty to send no email. Tick a group or pick addresses.'
+          : 'Leave empty to use default report recipients. Tick a group or pick addresses.'}
       </p>
     </div>
   )

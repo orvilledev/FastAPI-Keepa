@@ -1,4 +1,4 @@
--- Saved email addresses (shared team pool) and per-user named recipient lists.
+-- Saved email addresses (shared team pool) and shared named email groups.
 -- Run in Supabase SQL Editor after profiles exists.
 
 CREATE TABLE IF NOT EXISTS email_recipient_pool (
@@ -13,9 +13,12 @@ CREATE TABLE IF NOT EXISTS email_recipient_pool (
 CREATE UNIQUE INDEX IF NOT EXISTS email_recipient_pool_email_uidx
   ON email_recipient_pool (email);
 
+-- Shared named email groups. emails JSONB: [{email, role}] role=to|bcc
+-- (legacy flat string arrays are treated as role=to by the API).
 CREATE TABLE IF NOT EXISTS email_recipient_lists (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  -- Audit: who created/saved. Visibility is not scoped by user_id.
+  user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
   emails JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -48,10 +51,19 @@ CREATE POLICY "Authenticated users manage shared email pool"
   USING (auth.role() = 'authenticated')
   WITH CHECK (auth.role() = 'authenticated');
 
-CREATE POLICY "Users manage own email lists"
+DROP POLICY IF EXISTS "Users manage own email lists" ON email_recipient_lists;
+DROP POLICY IF EXISTS "Authenticated users manage shared email groups" ON email_recipient_lists;
+CREATE POLICY "Authenticated users manage shared email groups"
   ON email_recipient_lists FOR ALL
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING (auth.role() = 'authenticated')
+  WITH CHECK (auth.role() = 'authenticated');
+
+COMMENT ON COLUMN email_recipient_lists.user_id IS
+  'User who created/last saved this shared group (audit); not used for visibility.';
+COMMENT ON COLUMN email_recipient_lists.emails IS
+  'Members as JSON array of {email, role} where role is to|bcc. Legacy flat string arrays are treated as to.';
+COMMENT ON TABLE email_recipient_lists IS
+  'Shared named email groups for applying To/BCC recipients on runs.';
 
 DROP POLICY IF EXISTS "Users manage own email pool exclusions" ON email_recipient_pool_exclusions;
 DROP POLICY IF EXISTS "Authenticated users manage shared email pool exclusions" ON email_recipient_pool_exclusions;
