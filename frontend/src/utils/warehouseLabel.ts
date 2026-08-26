@@ -18,8 +18,8 @@ import { jsPDF } from 'jspdf'
  * vertically centred inside the margins so nothing is ever clipped.
  *
  * A fourth size, `custom`, is a 3" × 3" label with its own layout: an editable
- * notice ("SOLD AS SET / DO NOT SEPARATE" by default) above a dashed rule, then
- * the barcode, product title, and a bottom row with the print ID and condition.
+ * notice ("SOLD AS SET / DO NOT SEPARATE" by default), then the barcode, product
+ * title, and a bottom row with the print ID and condition.
  */
 
 /** Base design grid at 203 dpi. All layout numbers below are in these units. */
@@ -174,11 +174,8 @@ const CUSTOM_LAYOUT = {
   noticeMaxFont: 76,
   noticeMinFont: 12,
   noticeLineGap: 10,
-  /** Dashed rule under the notice. */
-  gapNoticeRule: 44,
-  ruleInset: 8,
-  ruleDash: 6,
-  gapRuleBarcode: 80,
+  /** Space between the notice block and the barcode. */
+  gapNoticeBarcode: 124,
   barcodeHeight: 134,
   gapBarcodeTitle: 26,
   titleFont: 20,
@@ -497,8 +494,8 @@ function drawStandardLabel(
 }
 
 /**
- * 3" × 3" custom notice label: editable headline, dashed rule, barcode, wrapped
- * title, then print ID (lower left) and condition (lower right).
+ * 3" × 3" custom notice label: editable headline, barcode, wrapped title, then
+ * print ID (lower left) and condition (lower right).
  */
 function drawCustomLabel(
   ctx: CanvasRenderingContext2D,
@@ -530,19 +527,7 @@ function drawCustomLabel(
     ctx.fillText(line, W / 2, y)
     y += d(layout.noticeLineGap)
   }
-  y += d(layout.gapNoticeRule)
-
-  // Dashed rule separating the notice from the product block.
-  ctx.save()
-  ctx.strokeStyle = '#000000'
-  ctx.lineWidth = Math.max(1, d(1.5))
-  ctx.setLineDash([d(layout.ruleDash), d(layout.ruleDash)])
-  ctx.beginPath()
-  ctx.moveTo(d(layout.ruleInset), y + 0.5)
-  ctx.lineTo(W - d(layout.ruleInset), y + 0.5)
-  ctx.stroke()
-  ctx.restore()
-  y += d(layout.gapRuleBarcode)
+  y += d(layout.gapNoticeBarcode)
 
   const barcode = renderBarcodeCanvas(product.fnsku, W, scale, layout.pad, layout.barcodeHeight)
   if (barcode) {
