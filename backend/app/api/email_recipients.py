@@ -1,4 +1,4 @@
-"""Email recipient directory (registered profiles), per-user pool, and saved lists."""
+"""Email recipient directory (registered profiles), shared pool, and per-user saved lists."""
 import logging
 import re
 from datetime import datetime, timezone
@@ -65,8 +65,8 @@ def _chunk_list(items: List[str], size: int) -> List[List[str]]:
     return [items[i:i + size] for i in range(0, len(items), size)]
 
 
-def _insert_pool_emails_for_user(db: Client, user_id: str, emails: Set[str]) -> int:
-    """Insert validated emails into pool with batched lookups/inserts."""
+def _insert_shared_pool_emails(db: Client, added_by_user_id: str, emails: Set[str]) -> int:
+    """Insert validated emails into the shared pool with batched lookups/inserts."""
     if not emails:
         return 0
 
@@ -78,7 +78,6 @@ def _insert_pool_emails_for_user(db: Client, user_id: str, emails: Set[str]) -> 
         existing = (
             db.table("email_recipient_pool")
             .select("email")
-            .eq("user_id", user_id)
             .in_("email", chunk)
             .execute()
         )
@@ -89,7 +88,11 @@ def _insert_pool_emails_for_user(db: Client, user_id: str, emails: Set[str]) -> 
                 if n:
                     existing_emails.add(n)
 
-    missing_rows = [{"user_id": user_id, "email": email} for email in ordered_emails if email not in existing_emails]
+    missing_rows = [
+        {"user_id": added_by_user_id, "email": email}
+        for email in ordered_emails
+        if email not in existing_emails
+    ]
     if not missing_rows:
         return 0
 
@@ -101,14 +104,10 @@ def _insert_pool_emails_for_user(db: Client, user_id: str, emails: Set[str]) -> 
     return inserted
 
 
-def _get_excluded_emails_for_user(db: Client, user_id: str) -> Set[str]:
+def _get_excluded_emails(db: Client) -> Set[str]:
+    """Shared exclusions: deleted addresses that sync should not re-add."""
     try:
-        response = (
-            db.table("email_recipient_pool_exclusions")
-            .select("email")
-            .eq("user_id", user_id)
-            .execute()
-        )
+        response = db.table("email_recipient_pool_exclusions").select("email").execute()
     except Exception as exc:
         logger.warning("Could not load email pool exclusions: %s", exc)
         return set()
@@ -179,24 +178,23 @@ def sync_used_recipients_to_pool(
     db: Client = Depends(get_supabase),
 ):
     """
-    Populate the user's pool from recipients used in:
-    - Express Jobs (batch_jobs.email_recipients for current user)
-    - Daily Run settings (scheduler_settings.email_recipients)
+    Populate the shared pool from recipients used in:
+    - Express Jobs (batch_jobs.email_recipients for any user)
+    - Daily Run settings (scheduler_settings.email_recipients / BCC)
     """
     uid = str(current_user["id"])
     discovered: Set[str] = set()
 
-    def fetch_user_jobs_with_recipients(start: int, end: int):
+    def fetch_jobs_with_recipients(start: int, end: int):
         return (
             db.table("batch_jobs")
             .select("email_recipients")
-            .eq("created_by", uid)
             .not_.is_("email_recipients", "null")
             .range(start, end)
             .execute()
         )
 
-    for row in read_all_paginated(fetch_user_jobs_with_recipients):
+    for row in read_all_paginated(fetch_jobs_with_recipients):
         raw = row.get("email_recipients")
         for email in _parse_recipient_string(raw):
             discovered.add(email)
@@ -215,9 +213,9 @@ def sync_used_recipients_to_pool(
     except Exception as exc:
         logger.warning("Could not merge scheduler settings recipients into pool sync: %s", exc)
 
-    excluded = _get_excluded_emails_for_user(db, uid)
+    excluded = _get_excluded_emails(db)
     eligible = {email for email in discovered if email not in excluded}
-    inserted = _insert_pool_emails_for_user(db, uid, eligible)
+    inserted = _insert_shared_pool_emails(db, uid, eligible)
     return {"ok": True, "discovered": len(discovered), "eligible": len(eligible), "inserted": inserted}
 
 
@@ -232,11 +230,10 @@ def _pool_entry_response(row: dict) -> EmailPoolEntryResponse:
 @router.get("/email-recipients/pool", response_model=List[EmailPoolEntryResponse])
 @handle_api_errors("list email pool")
 def list_email_pool(
-    current_user: dict = Depends(get_job_runner_user),
+    _current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase),
 ):
-    uid = str(current_user["id"])
-    return [_pool_entry_response(row) for row in fetch_pool_rows(db, uid)]
+    return [_pool_entry_response(row) for row in fetch_pool_rows(db)]
 
 
 @router.post("/email-recipients/pool", response_model=EmailPoolEntryResponse, status_code=201)
@@ -251,15 +248,15 @@ def add_email_to_pool(
     display_name = (body.display_name or "").strip() or None
 
     # Manual add re-enables previously deleted addresses for sync/list usage.
-    db.table("email_recipient_pool_exclusions").delete().eq("user_id", uid).eq("email", email).execute()
+    db.table("email_recipient_pool_exclusions").delete().eq("email", email).execute()
 
-    existing = select_pool_entry(db, uid, email=email)
+    existing = select_pool_entry(db, email=email)
     if existing:
         update_payload = {}
         if display_name and existing.get("display_name") != display_name:
             update_payload["display_name"] = display_name
         if update_payload:
-            updated = update_pool_entry(db, uid, str(existing["id"]), update_payload)
+            updated = update_pool_entry(db, str(existing["id"]), update_payload)
             if updated:
                 existing = updated
         return _pool_entry_response(existing)
@@ -273,14 +270,13 @@ def add_email_to_pool(
 def update_email_pool_entry(
     entry_id: UUID,
     body: EmailPoolEntryUpdate,
-    current_user: dict = Depends(get_job_runner_user),
+    _current_user: dict = Depends(get_job_runner_user),
     db: Client = Depends(get_supabase),
 ):
-    uid = str(current_user["id"])
     if body.display_name is None:
         raise HTTPException(status_code=400, detail="No fields to update")
     display_name = (body.display_name or "").strip() or None
-    row = update_pool_entry(db, uid, str(entry_id), {"display_name": display_name})
+    row = update_pool_entry(db, str(entry_id), {"display_name": display_name})
     if not row:
         raise HTTPException(status_code=404, detail="Email entry not found")
     return _pool_entry_response(row)
@@ -297,7 +293,6 @@ def delete_email_from_pool(
     row = (
         db.table("email_recipient_pool")
         .select("email")
-        .eq("user_id", uid)
         .eq("id", str(entry_id))
         .limit(1)
         .execute()
@@ -306,19 +301,20 @@ def delete_email_from_pool(
     if row.data:
         deleted_email = _normalize_email(str(row.data[0].get("email", "")))
 
-    db.table("email_recipient_pool").delete().eq("user_id", uid).eq("id", str(entry_id)).execute()
+    db.table("email_recipient_pool").delete().eq("id", str(entry_id)).execute()
 
     if deleted_email:
         existing_exclusion = (
             db.table("email_recipient_pool_exclusions")
             .select("id")
-            .eq("user_id", uid)
             .eq("email", deleted_email)
             .limit(1)
             .execute()
         )
         if not existing_exclusion.data:
-            db.table("email_recipient_pool_exclusions").insert({"user_id": uid, "email": deleted_email}).execute()
+            db.table("email_recipient_pool_exclusions").insert(
+                {"user_id": uid, "email": deleted_email}
+            ).execute()
 
     return {"ok": True}
 

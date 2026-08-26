@@ -109,14 +109,11 @@ def _parse_recipients_csv(raw: Optional[str]) -> List[str]:
     return out
 
 
-def _load_allowed_pool_emails(db: Client, user_id: str) -> set[str]:
+def _load_allowed_pool_emails(db: Client, user_id: Optional[str] = None) -> set[str]:
+    """Emails from the shared recipient pool (user_id kept for call-site compat; unused)."""
+    del user_id  # shared directory — not scoped per user
     try:
-        response = (
-            db.table("email_recipient_pool")
-            .select("email")
-            .eq("user_id", user_id)
-            .execute()
-        )
+        response = db.table("email_recipient_pool").select("email").execute()
     except Exception:
         return set()
     allowed = set()

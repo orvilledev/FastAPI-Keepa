@@ -12,8 +12,7 @@ class TestEmailRecipientPoolDb:
         db = MagicMock()
         table = db.table.return_value
         select = table.select.return_value
-        eq = select.eq.return_value
-        ordered = eq.order.return_value
+        ordered = select.order.return_value
         ordered.execute.return_value = MagicMock(
             data=[
                 {
@@ -24,7 +23,7 @@ class TestEmailRecipientPoolDb:
             ]
         )
 
-        rows = fetch_pool_rows(db, "user-1")
+        rows = fetch_pool_rows(db)
         assert rows == [
             {
                 "id": "1",
@@ -32,3 +31,5 @@ class TestEmailRecipientPoolDb:
                 "display_name": "User",
             }
         ]
+        # Shared directory: do not filter by user_id
+        select.eq.assert_not_called()

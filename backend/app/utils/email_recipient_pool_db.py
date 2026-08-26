@@ -1,4 +1,4 @@
-"""Database helpers for email_recipient_pool queries."""
+"""Database helpers for email_recipient_pool queries (shared team directory)."""
 from typing import Any, Dict, List, Optional
 
 from supabase import Client
@@ -14,11 +14,11 @@ def _normalize_pool_row(row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def fetch_pool_rows(db: Client, user_id: str) -> List[Dict[str, Any]]:
+def fetch_pool_rows(db: Client) -> List[Dict[str, Any]]:
+    """Return all shared pool rows (not scoped by user)."""
     response = (
         db.table("email_recipient_pool")
         .select(_POOL_SELECT)
-        .eq("user_id", user_id)
         .order("email")
         .execute()
     )
@@ -27,12 +27,11 @@ def fetch_pool_rows(db: Client, user_id: str) -> List[Dict[str, Any]]:
 
 def select_pool_entry(
     db: Client,
-    user_id: str,
     *,
     email: Optional[str] = None,
     entry_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    query = db.table("email_recipient_pool").select(_POOL_SELECT).eq("user_id", user_id)
+    query = db.table("email_recipient_pool").select(_POOL_SELECT)
     if email is not None:
         query = query.eq("email", email)
     if entry_id is not None:
@@ -49,6 +48,7 @@ def insert_pool_entry(
     email: str,
     display_name: Optional[str],
 ) -> Dict[str, Any]:
+    """Insert a shared pool row; user_id is audit-only (who added)."""
     payload: Dict[str, Any] = {
         "user_id": user_id,
         "email": email,
@@ -62,16 +62,14 @@ def insert_pool_entry(
 
 def update_pool_entry(
     db: Client,
-    user_id: str,
     entry_id: str,
     update_payload: Dict[str, Any],
 ) -> Optional[Dict[str, Any]]:
     if not update_payload:
-        return select_pool_entry(db, user_id, entry_id=entry_id)
+        return select_pool_entry(db, entry_id=entry_id)
     response = (
         db.table("email_recipient_pool")
         .update(update_payload)
-        .eq("user_id", user_id)
         .eq("id", entry_id)
         .execute()
     )

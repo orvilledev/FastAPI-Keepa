@@ -100,7 +100,13 @@ export default function EmailList() {
   }
 
   const handleDelete = async (entry: EmailPoolEntry) => {
-    if (!window.confirm(`Delete ${entry.display_name || entry.email}?`)) return
+    if (
+      !window.confirm(
+        `Delete ${entry.display_name || entry.email} from the shared list? This removes it for everyone.`
+      )
+    ) {
+      return
+    }
     try {
       await emailRecipientsApi.deletePoolEntry(entry.id)
       setRows((prev) => prev.filter((r) => r.id !== entry.id))
@@ -141,7 +147,8 @@ export default function EmailList() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Email List</h1>
         <p className="text-sm text-gray-600 mt-1">
-          Manage recipient names and addresses used by Express Jobs and Daily Runs.
+          Shared team directory of recipient names and addresses for Express Jobs and Daily Runs.
+          Changes here are visible to everyone.
         </p>
         {syncingUsedRecipients && (
           <p className="text-xs text-gray-500 mt-1">Syncing used recipients in background...</p>
