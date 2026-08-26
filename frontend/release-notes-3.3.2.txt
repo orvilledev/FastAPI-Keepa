@@ -1,0 +1,11 @@
+MSW Overwatch 3.3.2 — desktop and web release
+
+Patch release since 3.3.1. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Label Station — Custom (3″ × 3″)
+- New **Custom** label size: 3″ × 3″ square notice label with editable headline text (default: SOLD AS SET / DO NOT SEPARATE)
+- Custom labels print notice, barcode, product title, then print ID and condition — no dashed separator line between the notice and barcode
+- Leave the custom text blank to use the default wording; each line auto-shrinks to fit
+
+## Upgrade from 3.3.1
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.3.2, download it, then prompt to install now or later. Web/PWA users get 3.3.2 on the next deploy/refresh.
