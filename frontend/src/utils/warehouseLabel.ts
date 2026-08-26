@@ -16,20 +16,23 @@ import { jsPDF } from 'jspdf'
  * size keeps the SAME physical 2.25" × 1.25" label and a margin on all sides;
  * only the barcode, text, and spacing grow. The assembled content block is
  * vertically centred inside the margins so nothing is ever clipped.
+ *
+ * A fourth size, `custom`, is a 3" × 3" label with its own layout: an editable
+ * notice ("SOLD AS SET / DO NOT SEPARATE" by default) above a dashed rule, then
+ * the barcode, product title, and a bottom row with the print ID and condition.
  */
 
-/** Base design grid: 2.25" × 1.25" at 203 dpi. All layout numbers below are in these units. */
+/** Base design grid at 203 dpi. All layout numbers below are in these units. */
 const BASE_DPI = 203
-const BASE_W = 457 // 2.25" × 203 dpi (rounded)
-const BASE_H = 254 // 1.25" × 203 dpi (rounded)
 
 /** Pixels darker than this become solid black; lighter become white. */
 const MONO_THRESHOLD = 150
 const FONT_FAMILY = 'Helvetica, Arial, sans-serif'
 
-/** PDF page size in points (72 pt/in): 2.25" × 1.25". Physical size is dpi-independent. */
+/** PDF page size in points (72 pt/in) for the standard 2.25" × 1.25" label. */
 export const LABEL_WIDTH_PT = 162
 export const LABEL_HEIGHT_PT = 90
+const PT_PER_INCH = 72
 
 /** Supported Zebra print-head resolutions. */
 export const SUPPORTED_DPIS = [203, 300, 600] as const
@@ -37,13 +40,63 @@ export type LabelDpi = (typeof SUPPORTED_DPIS)[number]
 export const DEFAULT_LABEL_DPI: LabelDpi = 203
 
 /**
- * Print sizes. The label stays 2.25" × 1.25" for all three; the numbers below
- * (in base 203-dpi units) only change how large the content prints inside it.
- * `small` leaves the most whitespace; `large` fills the label up to the margin.
+ * Standard print sizes. The label stays 2.25" × 1.25" for all three; the numbers
+ * below (in base 203-dpi units) only change how large the content prints inside
+ * it. `small` leaves the most whitespace; `large` fills the label up to the margin.
  */
-export const LABEL_SIZES = ['small', 'medium', 'large'] as const
+export const STANDARD_LABEL_SIZES = ['small', 'medium', 'large'] as const
+
+/** Every selectable size, including the 3" × 3" custom notice label. */
+export const LABEL_SIZES = [...STANDARD_LABEL_SIZES, 'custom'] as const
 export type LabelSize = (typeof LABEL_SIZES)[number]
 export const DEFAULT_LABEL_SIZE: LabelSize = 'large'
+
+/**
+ * Physical stock each size prints on, plus its base 203-dpi pixel grid (the
+ * canvas is this grid scaled to the printer's dpi).
+ */
+export const LABEL_DIMENSIONS_IN: Record<
+  LabelSize,
+  { widthIn: number; heightIn: number; baseW: number; baseH: number }
+> = {
+  small: { widthIn: 2.25, heightIn: 1.25, baseW: 457, baseH: 254 },
+  medium: { widthIn: 2.25, heightIn: 1.25, baseW: 457, baseH: 254 },
+  large: { widthIn: 2.25, heightIn: 1.25, baseW: 457, baseH: 254 },
+  custom: { widthIn: 3, heightIn: 3, baseW: 609, baseH: 609 },
+}
+
+/** e.g. `2.25" × 1.25"` — for pickers and help text. */
+export function labelSizeDimensionsLabel(size: LabelSize): string {
+  const { widthIn, heightIn } = LABEL_DIMENSIONS_IN[normalizeSize(size)]
+  return `${widthIn}" × ${heightIn}"`
+}
+
+/** PDF page size in points for a given label size. */
+export function getLabelPageSizePt(size: LabelSize): { width: number; height: number } {
+  const { widthIn, heightIn } = LABEL_DIMENSIONS_IN[normalizeSize(size)]
+  return {
+    width: Math.round(widthIn * PT_PER_INCH),
+    height: Math.round(heightIn * PT_PER_INCH),
+  }
+}
+
+/** Editable notice printed at the top of the 3" × 3" custom label. */
+export const DEFAULT_CUSTOM_LABEL_TEXT = 'SOLD AS SET\nDO NOT SEPARATE'
+export const CUSTOM_LABEL_TEXT_KEY = 'warehouse_custom_label_text'
+const MAX_CUSTOM_LABEL_LINES = 4
+
+/**
+ * Notice lines actually printed. An empty/blank entry falls back to the default
+ * so the placeholder shown in the editor is always what comes off the printer.
+ */
+export function customLabelLines(text: string | undefined | null): string[] {
+  const source = (text ?? '').replace(/\r\n?/g, '\n').trim() || DEFAULT_CUSTOM_LABEL_TEXT
+  return source
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, MAX_CUSTOM_LABEL_LINES)
+}
 
 type SizeLayout = {
   /** Margin kept clear on every side (base units). */
@@ -64,7 +117,9 @@ type SizeLayout = {
   maxTitleLines: number
 }
 
-const SIZE_LAYOUTS: Record<LabelSize, SizeLayout> = {
+type StandardLabelSize = (typeof STANDARD_LABEL_SIZES)[number]
+
+const SIZE_LAYOUTS: Record<StandardLabelSize, SizeLayout> = {
   small: {
     pad: 16,
     skuFont: 13,
@@ -104,6 +159,38 @@ const SIZE_LAYOUTS: Record<LabelSize, SizeLayout> = {
     titleLineHeight: 20,
     maxTitleLines: 2,
   },
+}
+
+/**
+ * 3" × 3" custom label (base 203-dpi units, 609 × 609). The notice at the top
+ * is auto-shrunk per line to fit the margins, so longer wording stays on the
+ * label; the print ID / condition row is anchored to the bottom edge.
+ */
+const CUSTOM_LAYOUT = {
+  pad: 24,
+  /** Notice block. Each line is capped at `noticeMaxFont` and shrunk to fit. */
+  noticeTop: 34,
+  noticeInset: 34,
+  noticeMaxFont: 76,
+  noticeMinFont: 12,
+  noticeLineGap: 10,
+  /** Dashed rule under the notice. */
+  gapNoticeRule: 44,
+  ruleInset: 8,
+  ruleDash: 6,
+  gapRuleBarcode: 80,
+  barcodeHeight: 134,
+  gapBarcodeTitle: 26,
+  titleFont: 20,
+  titleLineHeight: 26,
+  maxTitleLines: 2,
+  /** Bottom row: print ID on the left, condition on the right. */
+  conditionFont: 24,
+  conditionBottom: 34,
+  conditionInset: 44,
+  idFont: 25,
+  idIndent: 104,
+  idRise: 28,
 }
 
 function normalizeSize(size: LabelSize | undefined): LabelSize {
@@ -313,33 +400,31 @@ function wrapLines(
   return lines
 }
 
-/**
- * Draw the label into a monochrome canvas sized for the target dpi, then
- * threshold to pure black/white so the preview and the thermal print match.
- * This is the single source of truth for the label layout.
- */
-export function renderWarehouseLabelCanvas(
+/** Largest font size (device px) at which `text` still fits `maxWidth`. */
+function fitFontSize(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxFont: number,
+  minFont: number
+): number {
+  ctx.font = `${maxFont}px ${FONT_FAMILY}`
+  const width = ctx.measureText(text).width
+  if (width <= maxWidth || width <= 0) return maxFont
+  return Math.max(minFont, Math.floor((maxFont * maxWidth) / width))
+}
+
+/** Standard 2.25" × 1.25" layout (small / medium / large). */
+function drawStandardLabel(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  scale: number,
+  layout: SizeLayout,
   product: WarehouseLabelProduct & { sku?: string },
-  dpi: number = DEFAULT_LABEL_DPI,
-  size: LabelSize = DEFAULT_LABEL_SIZE,
-  idMode: LabelIdMode = DEFAULT_LABEL_ID_MODE
-): HTMLCanvasElement {
-  const targetDpi = normalizeDpi(dpi)
-  const layout = SIZE_LAYOUTS[normalizeSize(size)]
-  const scale = targetDpi / BASE_DPI
+  idMode: LabelIdMode
+): void {
   const d = (value: number) => Math.round(value * scale)
-
-  const W = Math.round(BASE_W * scale)
-  const H = Math.round(BASE_H * scale)
-
-  const canvas = document.createElement('canvas')
-  canvas.width = W
-  canvas.height = H
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return canvas
-
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, W, H)
 
   // Thin label border (marks the 2.25" × 1.25" edge; content stays inside the margin).
   ctx.strokeStyle = '#000000'
@@ -409,6 +494,124 @@ export function renderWarehouseLabelCanvas(
       y += d(layout.titleLineHeight)
     }
   }
+}
+
+/**
+ * 3" × 3" custom notice label: editable headline, dashed rule, barcode, wrapped
+ * title, then print ID (lower left) and condition (lower right).
+ */
+function drawCustomLabel(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  scale: number,
+  product: WarehouseLabelProduct & { sku?: string },
+  idMode: LabelIdMode,
+  customText: string | undefined | null
+): void {
+  const layout = CUSTOM_LAYOUT
+  const d = (value: number) => Math.round(value * scale)
+
+  ctx.fillStyle = '#000000'
+  ctx.textBaseline = 'alphabetic'
+  ctx.textAlign = 'center'
+
+  const pad = d(layout.pad)
+  const innerWidth = W - pad * 2
+
+  // Notice — each line fills the width up to a cap, so the shorter line prints
+  // larger (matching the "SOLD AS SET / DO NOT SEPARATE" proof).
+  const noticeWidth = W - d(layout.noticeInset) * 2
+  let y = d(layout.noticeTop)
+  for (const line of customLabelLines(customText)) {
+    const font = fitFontSize(ctx, line, noticeWidth, d(layout.noticeMaxFont), d(layout.noticeMinFont))
+    y += font
+    ctx.font = `${font}px ${FONT_FAMILY}`
+    ctx.fillText(line, W / 2, y)
+    y += d(layout.noticeLineGap)
+  }
+  y += d(layout.gapNoticeRule)
+
+  // Dashed rule separating the notice from the product block.
+  ctx.save()
+  ctx.strokeStyle = '#000000'
+  ctx.lineWidth = Math.max(1, d(1.5))
+  ctx.setLineDash([d(layout.ruleDash), d(layout.ruleDash)])
+  ctx.beginPath()
+  ctx.moveTo(d(layout.ruleInset), y + 0.5)
+  ctx.lineTo(W - d(layout.ruleInset), y + 0.5)
+  ctx.stroke()
+  ctx.restore()
+  y += d(layout.gapRuleBarcode)
+
+  const barcode = renderBarcodeCanvas(product.fnsku, W, scale, layout.pad, layout.barcodeHeight)
+  if (barcode) {
+    ctx.imageSmoothingEnabled = false
+    ctx.drawImage(barcode, Math.round((W - barcode.width) / 2), y)
+  }
+  y += barcode ? barcode.height : d(layout.barcodeHeight)
+
+  const titleFont = d(layout.titleFont)
+  ctx.font = `${titleFont}px ${FONT_FAMILY}`
+  const titleLines = wrapLines(ctx, product.style_name || '', innerWidth, layout.maxTitleLines)
+  y += d(layout.gapBarcodeTitle)
+  for (const line of titleLines) {
+    y += titleFont
+    ctx.fillText(line, W / 2, y)
+    y += d(layout.titleLineHeight) - titleFont
+  }
+
+  // Bottom row is anchored to the label edge so it never drifts with the notice.
+  const conditionBaseline = H - d(layout.conditionBottom)
+  const idBaseline = conditionBaseline - d(layout.idRise)
+
+  const idLine = formatUpcFnskuLine(getLabelScanLine(product, idMode))
+  if (idLine) {
+    ctx.textAlign = 'left'
+    ctx.font = `${d(layout.idFont)}px ${FONT_FAMILY}`
+    ctx.fillText(idLine, d(layout.idIndent), idBaseline)
+  }
+  if (product.condition) {
+    ctx.textAlign = 'right'
+    ctx.font = `${d(layout.conditionFont)}px ${FONT_FAMILY}`
+    ctx.fillText(product.condition, W - d(layout.conditionInset), conditionBaseline)
+  }
+}
+
+/**
+ * Draw the label into a monochrome canvas sized for the target dpi, then
+ * threshold to pure black/white so the preview and the thermal print match.
+ * This is the single source of truth for the label layout.
+ */
+export function renderWarehouseLabelCanvas(
+  product: WarehouseLabelProduct & { sku?: string },
+  dpi: number = DEFAULT_LABEL_DPI,
+  size: LabelSize = DEFAULT_LABEL_SIZE,
+  idMode: LabelIdMode = DEFAULT_LABEL_ID_MODE,
+  customText?: string | null
+): HTMLCanvasElement {
+  const targetDpi = normalizeDpi(dpi)
+  const resolvedSize = normalizeSize(size)
+  const scale = targetDpi / BASE_DPI
+
+  const { baseW, baseH } = LABEL_DIMENSIONS_IN[resolvedSize]
+  const W = Math.round(baseW * scale)
+  const H = Math.round(baseH * scale)
+
+  const canvas = document.createElement('canvas')
+  canvas.width = W
+  canvas.height = H
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return canvas
+
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, W, H)
+
+  if (resolvedSize === 'custom') {
+    drawCustomLabel(ctx, W, H, scale, product, idMode, customText)
+  } else {
+    drawStandardLabel(ctx, W, H, scale, SIZE_LAYOUTS[resolvedSize], product, idMode)
+  }
 
   // Threshold to pure black/white so preview === thermal print.
   const image = ctx.getImageData(0, 0, W, H)
@@ -433,22 +636,27 @@ export function buildWarehouseLabelPdfBlob(
   copies = 1,
   dpi: number = DEFAULT_LABEL_DPI,
   size: LabelSize = DEFAULT_LABEL_SIZE,
-  idMode: LabelIdMode = DEFAULT_LABEL_ID_MODE
+  idMode: LabelIdMode = DEFAULT_LABEL_ID_MODE,
+  customText?: string | null
 ): Blob {
   const count = Math.max(1, Math.min(copies, 99))
+  const { width: pageW, height: pageH } = getLabelPageSizePt(size)
+  const orientation = pageW >= pageH ? 'landscape' : 'portrait'
   const doc = new jsPDF({
     unit: 'pt',
-    format: [LABEL_WIDTH_PT, LABEL_HEIGHT_PT],
-    orientation: 'landscape',
+    format: [pageW, pageH],
+    orientation,
     compress: true,
   })
 
-  const dataUrl = renderWarehouseLabelCanvas(product, dpi, size, idMode).toDataURL('image/png')
+  const dataUrl = renderWarehouseLabelCanvas(product, dpi, size, idMode, customText).toDataURL(
+    'image/png'
+  )
   for (let i = 0; i < count; i += 1) {
     if (i > 0) {
-      doc.addPage([LABEL_WIDTH_PT, LABEL_HEIGHT_PT], 'landscape')
+      doc.addPage([pageW, pageH], orientation)
     }
-    doc.addImage(dataUrl, 'PNG', 0, 0, LABEL_WIDTH_PT, LABEL_HEIGHT_PT)
+    doc.addImage(dataUrl, 'PNG', 0, 0, pageW, pageH)
   }
 
   return doc.output('blob')
@@ -501,10 +709,11 @@ export function buildWarehouseLabelZpl(
   copies = 1,
   dpi: number = DEFAULT_LABEL_DPI,
   size: LabelSize = DEFAULT_LABEL_SIZE,
-  idMode: LabelIdMode = DEFAULT_LABEL_ID_MODE
+  idMode: LabelIdMode = DEFAULT_LABEL_ID_MODE,
+  customText?: string | null
 ): string {
   const count = Math.max(1, Math.min(copies, 99))
-  const canvas = renderWarehouseLabelCanvas(product, dpi, size, idMode)
+  const canvas = renderWarehouseLabelCanvas(product, dpi, size, idMode, customText)
   const { hex, totalBytes, bytesPerRow } = canvasToZplGraphic(canvas)
 
   return `^XA
@@ -526,7 +735,29 @@ export const PRINTER_DPI_KEY = 'warehouse_printer_dpi'
 export const LABEL_SIZE_KEY = 'warehouse_label_size'
 export const LABEL_ID_MODE_KEY = 'warehouse_label_id_mode'
 
-/** Last print size (small/medium/large) the user selected. */
+/**
+ * Notice text the user last typed for the custom label. Never set means "use the
+ * default"; an explicitly blank value still prints the default (see
+ * `customLabelLines`) but keeps the editor showing its placeholder.
+ */
+export function getStoredCustomLabelText(): string {
+  try {
+    const stored = localStorage.getItem(CUSTOM_LABEL_TEXT_KEY)
+    return stored === null ? DEFAULT_CUSTOM_LABEL_TEXT : stored
+  } catch {
+    return DEFAULT_CUSTOM_LABEL_TEXT
+  }
+}
+
+export function saveCustomLabelText(text: string): void {
+  try {
+    localStorage.setItem(CUSTOM_LABEL_TEXT_KEY, (text ?? '').replace(/\r\n?/g, '\n'))
+  } catch {
+    // ignore
+  }
+}
+
+/** Last print size (small/medium/large/custom) the user selected. */
 export function getSelectedLabelSize(): LabelSize {
   try {
     return normalizeSize((localStorage.getItem(LABEL_SIZE_KEY) || '') as LabelSize)

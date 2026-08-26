@@ -6,19 +6,24 @@ import {
   buildWarehouseLabelPdfBlob,
   buildWarehouseLabelZpl,
   computeScanStatus,
+  DEFAULT_CUSTOM_LABEL_TEXT,
   detectPrinterDpi,
   getSelectedDpi,
   getSelectedLabelIdMode,
   getSelectedLabelSize,
   getSelectedPrinter,
-  LABEL_SIZES,
+  getStoredCustomLabelText,
+  LABEL_DIMENSIONS_IN,
+  labelSizeDimensionsLabel,
   renderWarehouseLabelCanvas,
+  saveCustomLabelText,
   saveSelectedDpi,
   saveSelectedLabelIdMode,
   saveSelectedLabelSize,
   saveSelectedPrinter,
   scanMatchesCatalogProduct,
   scanStatusLabel,
+  STANDARD_LABEL_SIZES,
   suggestedWarehouseLabelPdfFilename,
   SUPPORTED_DPIS,
   type LabelDpi,
@@ -61,35 +66,38 @@ const SAMPLE_PRODUCT: WarehouseCatalogProduct = {
 
 /**
  * Renders the actual label bitmap (the same canvas that is printed) at 203 dpi
- * and scales it to fit the card, so the preview is a true 2.25" × 1.25" proof.
+ * and scales it to fit the card, so the preview is a true physical proof.
  */
 function LabelPreview({
   product,
   size,
   idMode,
+  customText,
 }: {
   product: WarehouseCatalogProduct
   size: LabelSize
   idMode: LabelIdMode
+  customText?: string
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
     const target = canvasRef.current
     if (!target) return
-    const rendered = renderWarehouseLabelCanvas(product, 203, size, idMode)
+    const rendered = renderWarehouseLabelCanvas(product, 203, size, idMode, customText)
     target.width = rendered.width
     target.height = rendered.height
     const ctx = target.getContext('2d')
     if (ctx) ctx.drawImage(rendered, 0, 0)
-  }, [product, size, idMode])
+  }, [product, size, idMode, customText])
 
-  // 2.25:1.25 aspect ratio keeps the on-screen proof physically proportional.
+  // Matching the stock's aspect ratio keeps the on-screen proof proportional.
+  const { widthIn, heightIn } = LABEL_DIMENSIONS_IN[size]
   return (
     <canvas
       ref={canvasRef}
       className="w-full bg-white"
-      style={{ aspectRatio: '2.25 / 1.25' }}
+      style={{ aspectRatio: `${widthIn} / ${heightIn}` }}
     />
   )
 }
@@ -156,6 +164,7 @@ export default function LabelStation() {
   const [selectedDpi, setSelectedDpi] = useState<LabelDpi>(getSelectedDpi())
   const [selectedSize, setSelectedSize] = useState<LabelSize>(getSelectedLabelSize())
   const [selectedIdMode, setSelectedIdMode] = useState<LabelIdMode>(getSelectedLabelIdMode())
+  const [customText, setCustomText] = useState<string>(getStoredCustomLabelText)
   const [loadingPrinters, setLoadingPrinters] = useState(false)
   const isElectron = Boolean(window.desktop?.isElectron)
 
@@ -257,7 +266,8 @@ export default function LabelStation() {
         quantity,
         selectedDpi,
         selectedSize,
-        effectiveIdMode
+        effectiveIdMode,
+        customText
       )
       let printerName = selectedPrinter.trim()
 
@@ -295,7 +305,8 @@ export default function LabelStation() {
             quantity,
             selectedDpi,
             selectedSize,
-            effectiveIdMode
+            effectiveIdMode,
+            customText
           )
           const pdfFilename = suggestedWarehouseLabelPdfFilename(item)
           downloadBlob(blob, pdfFilename)
@@ -323,6 +334,7 @@ export default function LabelStation() {
       selectedDpi,
       selectedSize,
       effectiveIdMode,
+      customText,
       isElectron,
       clearScan,
       refreshPrinters,
@@ -420,6 +432,11 @@ export default function LabelStation() {
   const handleSelectSize = (size: LabelSize) => {
     setSelectedSize(size)
     saveSelectedLabelSize(size)
+  }
+
+  const handleCustomTextChange = (text: string) => {
+    setCustomText(text)
+    saveCustomLabelText(text)
   }
 
   const handleSelectIdMode = (mode: LabelIdMode) => {
@@ -589,7 +606,8 @@ export default function LabelStation() {
                   quantity,
                   selectedDpi,
                   selectedSize,
-                  effectiveIdMode
+                  effectiveIdMode,
+                  customText
                 )
                 downloadBlob(blob, suggestedWarehouseLabelPdfFilename(product))
               }}
@@ -695,17 +713,17 @@ export default function LabelStation() {
         )}
       </section>
 
-      {/* Label size picker — three live proofs at the real 2.25" × 1.25" size */}
+      {/* Label size picker — live proofs at each stock's real physical size */}
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-sm font-semibold text-gray-800">Label size</h2>
           <p className="text-xs text-gray-500">
-            All sizes print on the same 2.25&quot; × 1.25&quot; label with a margin — pick how large
-            the content prints.
+            Small, Medium and Large all print on the same 2.25&quot; × 1.25&quot; label with a
+            margin — pick how large the content prints.
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {LABEL_SIZES.map((size) => {
+          {STANDARD_LABEL_SIZES.map((size) => {
             const active = selectedSize === size
             return (
               <button
@@ -736,6 +754,85 @@ export default function LabelStation() {
             )
           })}
         </div>
+
+        {/* Custom 3" × 3" notice label with editable headline */}
+        <div
+          className={`rounded-lg border-2 p-3 transition ${
+            selectedSize === 'custom'
+              ? 'border-[#404040] ring-1 ring-[#404040] bg-gray-50'
+              : 'border-gray-200'
+          }`}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => handleSelectSize('custom')}
+                aria-pressed={selectedSize === 'custom'}
+                className={`w-full rounded-lg border-2 px-3 py-2 text-left text-sm transition ${
+                  selectedSize === 'custom'
+                    ? 'border-[#404040] bg-[#404040] text-white'
+                    : 'border-gray-300 bg-white text-gray-800 hover:border-gray-500'
+                }`}
+              >
+                <span className="flex items-center justify-between gap-2">
+                  <span className="font-semibold">
+                    Custom ({labelSizeDimensionsLabel('custom')})
+                  </span>
+                  {selectedSize === 'custom' && (
+                    <span className="text-xs font-semibold">Selected</span>
+                  )}
+                </span>
+                <span
+                  className={`mt-0.5 block text-xs ${
+                    selectedSize === 'custom' ? 'text-gray-200' : 'text-gray-500'
+                  }`}
+                >
+                  Square notice label — headline, barcode, title, then print ID and condition
+                </span>
+              </button>
+
+              <label className="block text-xs text-gray-600" htmlFor="custom-label-text">
+                Custom text (one line per row)
+              </label>
+              <textarea
+                id="custom-label-text"
+                rows={3}
+                value={customText}
+                onChange={(e) => handleCustomTextChange(e.target.value)}
+                placeholder={DEFAULT_CUSTOM_LABEL_TEXT}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm uppercase focus:border-[#404040] focus:ring-1 focus:ring-[#404040]"
+              />
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleCustomTextChange(DEFAULT_CUSTOM_LABEL_TEXT)}
+                  className="text-xs text-gray-600 underline hover:text-gray-900"
+                >
+                  Reset to default
+                </button>
+                <p className="text-xs text-gray-500">
+                  Leave blank to print the default wording. Each line auto-shrinks to fit.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded border border-gray-300 overflow-hidden self-start max-w-[16rem] w-full mx-auto">
+              <LabelPreview
+                product={product ?? SAMPLE_PRODUCT}
+                size="custom"
+                idMode={effectiveIdMode}
+                customText={customText}
+              />
+            </div>
+          </div>
+        </div>
+
+        {selectedSize === 'custom' && (
+          <p className="text-xs font-medium text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Custom is selected — load {labelSizeDimensionsLabel('custom')} stock before printing.
+          </p>
+        )}
         {!product && (
           <p className="text-xs text-gray-400">Showing a sample label; scan a UPC to preview the real one.</p>
         )}
