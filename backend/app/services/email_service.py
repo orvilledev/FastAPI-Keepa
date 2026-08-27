@@ -23,6 +23,12 @@ MAX_BODY_TEMPLATE_LENGTH = 10000
 DEFAULT_FROM_DISPLAY_NAME = "MSW Overwatch"
 EMAIL_PREHEADER = "Daily marketplace monitoring report from MetroShoe Warehouse."
 EMAIL_SIGNATURE_ADDRESS = "overwatch@metroshoewarehouse.com"
+EMAIL_WEBSITE = "metroshoewarehouse.com"
+EMAIL_DISCLAIMER = (
+    "MSW Overwatch is a proprietary marketplace monitoring system developed by "
+    "MetroShoe Warehouse. Marketplace pricing and seller information are based on "
+    "available third-party marketplace data and may change over time."
+)
 
 # {token} placeholders are replaced with values from the rendering context.
 # Unknown tokens are left as-is so users can freely write arbitrary `{...}`
@@ -92,23 +98,23 @@ def _default_map_email_body(
     alerts_count: int,
     report_date_long: str,
 ) -> str:
-    """Production MAP pricing exceptions email body (all vendors)."""
+    """Production MAP Pricing exceptions email body (all vendors)."""
     return (
         f"Hello {vendor_name},\n"
         "\n"
-        f"MSW Overwatch has completed today's marketplace MAP pricing review for {brand_name}.\n"
+        f"MSW Overwatch has completed today's MAP Pricing review for {brand_name}.\n"
         "\n"
         "The attached report identifies Amazon listings where the current advertised price "
         "is below the applicable MAP price, along with the seller and listing information "
         "for your review.\n"
         "\n"
         "Today's Report\n"
-        f"• MAP Pricing Exceptions: {alerts_count}\n"
-        f"• Report Date: {report_date_long}\n"
-        f"• Brand: {brand_name}\n"
+        f"• {alerts_count} — MAP Pricing Exceptions\n"
+        f"• {report_date_long} — Report Date\n"
+        f"• {brand_name} — Brand\n"
         "\n"
         "Please review the attached report for the affected products, sellers, current "
-        "advertised prices, and applicable MAP pricing.\n"
+        "advertised prices, and applicable MAP Pricing.\n"
         "\n"
         "If you have questions regarding any listing or would like our team to investigate "
         "an exception further, please reply directly to this email.\n"
@@ -117,28 +123,64 @@ def _default_map_email_body(
         "MSW Overwatch\n"
         "MAP Pricing & Marketplace Monitoring\n"
         "MetroShoe Warehouse\n"
-        f"{EMAIL_SIGNATURE_ADDRESS}"
+        f"{EMAIL_SIGNATURE_ADDRESS}\n"
+        f"{EMAIL_WEBSITE}\n"
+        "\n"
+        f"{EMAIL_DISCLAIMER}"
     )
 
 
+def _format_report_bullet_html(item: str) -> str:
+    """Bold the value before an em dash: '133 — Label' → <strong>133</strong> — Label."""
+    if " — " in item:
+        value, label = item.split(" — ", 1)
+        return (
+            f"<strong>{html_lib.escape(value)}</strong>"
+            f" — {html_lib.escape(label)}"
+        )
+    return f"<strong>{html_lib.escape(item)}</strong>"
+
+
 def _plain_body_to_html(plain_body: str) -> str:
-    """Convert plain body to HTML; lines starting with '• ' become bold list items."""
+    """Convert plain body to HTML with bold report bullets and muted disclaimer."""
     lines = plain_body.split("\n")
     parts: list[str] = []
     i = 0
     while i < len(lines):
-        if lines[i].startswith("• "):
-            parts.append('<ul style="margin:8px 0;padding-left:22px;">')
+        line = lines[i]
+        if line == "Today's Report":
+            parts.append(
+                '<p style="margin:12px 0 6px 0;font-size:12px;letter-spacing:0.06em;'
+                'text-transform:uppercase;font-weight:700;color:#111;">'
+                "Today's Report"
+                "</p>"
+            )
+            i += 1
+            continue
+        if line.startswith("• "):
+            parts.append(
+                '<ul style="margin:4px 0 12px 0;padding-left:22px;'
+                'list-style-type:disc;">'
+            )
             while i < len(lines) and lines[i].startswith("• "):
-                item = html_lib.escape(lines[i][2:])
-                parts.append(f"<li style=\"margin:4px 0;\"><strong>{item}</strong></li>")
+                item_html = _format_report_bullet_html(lines[i][2:])
+                parts.append(
+                    f'<li style="margin:6px 0;font-size:14px;color:#222;">{item_html}</li>'
+                )
                 i += 1
             parts.append("</ul>")
             continue
-        if lines[i] == "":
+        if line == EMAIL_DISCLAIMER:
+            parts.append(
+                '<p style="margin:16px 0 0 0;font-size:11px;line-height:1.45;'
+                f'color:#666;">{html_lib.escape(line)}</p>'
+            )
+            i += 1
+            continue
+        if line == "":
             parts.append("<br>")
         else:
-            parts.append(f"{html_lib.escape(lines[i])}<br>")
+            parts.append(f"{html_lib.escape(line)}<br>")
         i += 1
     return "".join(parts)
 
@@ -153,7 +195,8 @@ def _build_html_body(plain_body: str, preheader: str = EMAIL_PREHEADER) -> str:
         'max-height:0;max-width:0;opacity:0;overflow:hidden;">'
         f"{safe_preheader}"
         "</div>"
-        '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;">'
+        '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;'
+        'line-height:1.5;color:#222;">'
         f"{safe_body}"
         "</div>"
         "</body></html>"

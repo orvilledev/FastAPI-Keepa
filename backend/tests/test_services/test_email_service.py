@@ -6,7 +6,9 @@ from datetime import datetime
 from unittest.mock import patch, MagicMock
 from app.services.email_service import (
     EmailService,
+    EMAIL_DISCLAIMER,
     EMAIL_PREHEADER,
+    EMAIL_WEBSITE,
     _build_html_body,
     _format_long_date,
     _format_mdyy_date,
@@ -157,19 +159,22 @@ class TestEmailTemplateRendering:
         subject, body = _extract_subject_and_body(mock_server.send_message)
         assert subject == "MSW Overwatch | MAP Pricing Exceptions — May 27, 2026"
         assert "Hello Dansko," in body
-        assert "marketplace MAP pricing review for Dansko." in body
-        assert "• MAP Pricing Exceptions: 3" in body
-        assert "• Report Date: May 27, 2026" in body
-        assert "• Brand: Dansko" in body
+        assert "today's MAP Pricing review for Dansko." in body
+        assert "• 3 — MAP Pricing Exceptions" in body
+        assert "• May 27, 2026 — Report Date" in body
+        assert "• Dansko — Brand" in body
         assert "overwatch@metroshoewarehouse.com" in body
-        assert body.strip().endswith("overwatch@metroshoewarehouse.com")
+        assert EMAIL_WEBSITE in body
+        assert EMAIL_DISCLAIMER in body
+        assert body.strip().endswith(EMAIL_DISCLAIMER)
 
         html = _extract_html_body(mock_server.send_message)
         assert EMAIL_PREHEADER in html
-        assert "<strong>MAP Pricing Exceptions: 3</strong>" in html
-        assert "<strong>Report Date: May 27, 2026</strong>" in html
-        assert "<strong>Brand: Dansko</strong>" in html
+        assert "<strong>3</strong> — MAP Pricing Exceptions" in html
+        assert "<strong>May 27, 2026</strong> — Report Date" in html
+        assert "<strong>Dansko</strong> — Brand" in html
         assert "<li" in html and "</ul>" in html
+        assert EMAIL_DISCLAIMER in html
         assert _extract_attachment_filename(mock_server.send_message) == (
             "MSW_Overwatch_MAP_Report_2026-05-27.xlsx"
         )
@@ -200,7 +205,7 @@ class TestEmailTemplateRendering:
         assert subject.startswith("DNK report - ")
         # default body still applied
         assert "Hello Dansko," in body
-        assert "• MAP Pricing Exceptions: 3" in body
+        assert "• 3 — MAP Pricing Exceptions" in body
 
     @pytest.mark.unit
     @patch("app.services.email_service.smtplib.SMTP")
@@ -282,8 +287,10 @@ class TestEmailTemplateRendering:
         subject, body = _extract_subject_and_body(mock_server.send_message)
         assert subject == "MSW Overwatch | MAP Pricing Exceptions — August 27, 2026"
         assert "Hello Dansko," in body
-        assert "• MAP Pricing Exceptions: 0" in body
-        assert "• Brand: Dansko" in body
+        assert "• 0 — MAP Pricing Exceptions" in body
+        assert "• Dansko — Brand" in body
+        assert EMAIL_WEBSITE in body
+        assert EMAIL_DISCLAIMER in body
 
     @pytest.mark.unit
     def test_format_mdyy_date_shape(self):
@@ -325,14 +332,20 @@ class TestEmailTemplateRendering:
     def test_build_html_body_bolds_bullet_lines(self):
         html = _build_html_body(
             "Today's Report\n"
-            "• MAP Pricing Exceptions: 133\n"
-            "• Report Date: August 27, 2026\n"
-            "• Brand: Chaco\n"
+            "• 133 — MAP Pricing Exceptions\n"
+            "• August 27, 2026 — Report Date\n"
+            "• Chaco — Brand\n"
+            "\n"
+            f"{EMAIL_DISCLAIMER}"
         )
-        assert "<strong>MAP Pricing Exceptions: 133</strong>" in html
-        assert "<strong>Report Date: August 27, 2026</strong>" in html
-        assert "<strong>Brand: Chaco</strong>" in html
+        assert "Today's Report" in html
+        assert "text-transform:uppercase" in html
+        assert "<strong>133</strong> — MAP Pricing Exceptions" in html
+        assert "<strong>August 27, 2026</strong> — Report Date" in html
+        assert "<strong>Chaco</strong> — Brand" in html
         assert html.count("<li") == 3
+        assert EMAIL_DISCLAIMER in html
+        assert "color:#666" in html
 
     @pytest.mark.unit
     @patch("app.services.email_service.smtplib.SMTP")
