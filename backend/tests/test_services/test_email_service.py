@@ -158,14 +158,18 @@ class TestEmailTemplateRendering:
         assert subject == "MSW Overwatch | MAP Pricing Exceptions — May 27, 2026"
         assert "Hello Dansko," in body
         assert "marketplace MAP pricing review for Dansko." in body
-        assert "MAP Pricing Exceptions: 3" in body
-        assert "Report Date: May 27, 2026" in body
-        assert "Brand: Dansko" in body
+        assert "• MAP Pricing Exceptions: 3" in body
+        assert "• Report Date: May 27, 2026" in body
+        assert "• Brand: Dansko" in body
         assert "overwatch@metroshoewarehouse.com" in body
         assert body.strip().endswith("overwatch@metroshoewarehouse.com")
 
         html = _extract_html_body(mock_server.send_message)
         assert EMAIL_PREHEADER in html
+        assert "<strong>MAP Pricing Exceptions: 3</strong>" in html
+        assert "<strong>Report Date: May 27, 2026</strong>" in html
+        assert "<strong>Brand: Dansko</strong>" in html
+        assert "<li" in html and "</ul>" in html
         assert _extract_attachment_filename(mock_server.send_message) == (
             "MSW_Overwatch_MAP_Report_2026-05-27.xlsx"
         )
@@ -196,7 +200,7 @@ class TestEmailTemplateRendering:
         assert subject.startswith("DNK report - ")
         # default body still applied
         assert "Hello Dansko," in body
-        assert "MAP Pricing Exceptions: 3" in body
+        assert "• MAP Pricing Exceptions: 3" in body
 
     @pytest.mark.unit
     @patch("app.services.email_service.smtplib.SMTP")
@@ -278,8 +282,8 @@ class TestEmailTemplateRendering:
         subject, body = _extract_subject_and_body(mock_server.send_message)
         assert subject == "MSW Overwatch | MAP Pricing Exceptions — August 27, 2026"
         assert "Hello Dansko," in body
-        assert "MAP Pricing Exceptions: 0" in body
-        assert "Brand: Dansko" in body
+        assert "• MAP Pricing Exceptions: 0" in body
+        assert "• Brand: Dansko" in body
 
     @pytest.mark.unit
     def test_format_mdyy_date_shape(self):
@@ -314,7 +318,21 @@ class TestEmailTemplateRendering:
     def test_build_html_body_includes_preheader(self):
         html = _build_html_body("Hello\nWorld")
         assert EMAIL_PREHEADER in html
-        assert "Hello<br>\nWorld" in html
+        assert "Hello<br>" in html
+        assert "World<br>" in html
+
+    @pytest.mark.unit
+    def test_build_html_body_bolds_bullet_lines(self):
+        html = _build_html_body(
+            "Today's Report\n"
+            "• MAP Pricing Exceptions: 133\n"
+            "• Report Date: August 27, 2026\n"
+            "• Brand: Chaco\n"
+        )
+        assert "<strong>MAP Pricing Exceptions: 133</strong>" in html
+        assert "<strong>Report Date: August 27, 2026</strong>" in html
+        assert "<strong>Brand: Chaco</strong>" in html
+        assert html.count("<li") == 3
 
     @pytest.mark.unit
     @patch("app.services.email_service.smtplib.SMTP")

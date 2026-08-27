@@ -103,9 +103,9 @@ def _default_map_email_body(
         "for your review.\n"
         "\n"
         "Today's Report\n"
-        f"MAP Pricing Exceptions: {alerts_count}\n"
-        f"Report Date: {report_date_long}\n"
-        f"Brand: {brand_name}\n"
+        f"• MAP Pricing Exceptions: {alerts_count}\n"
+        f"• Report Date: {report_date_long}\n"
+        f"• Brand: {brand_name}\n"
         "\n"
         "Please review the attached report for the affected products, sellers, current "
         "advertised prices, and applicable MAP pricing.\n"
@@ -121,10 +121,32 @@ def _default_map_email_body(
     )
 
 
+def _plain_body_to_html(plain_body: str) -> str:
+    """Convert plain body to HTML; lines starting with '• ' become bold list items."""
+    lines = plain_body.split("\n")
+    parts: list[str] = []
+    i = 0
+    while i < len(lines):
+        if lines[i].startswith("• "):
+            parts.append('<ul style="margin:8px 0;padding-left:22px;">')
+            while i < len(lines) and lines[i].startswith("• "):
+                item = html_lib.escape(lines[i][2:])
+                parts.append(f"<li style=\"margin:4px 0;\"><strong>{item}</strong></li>")
+                i += 1
+            parts.append("</ul>")
+            continue
+        if lines[i] == "":
+            parts.append("<br>")
+        else:
+            parts.append(f"{html_lib.escape(lines[i])}<br>")
+        i += 1
+    return "".join(parts)
+
+
 def _build_html_body(plain_body: str, preheader: str = EMAIL_PREHEADER) -> str:
     """HTML alternative with a hidden inbox preheader, then the plain body."""
     safe_preheader = html_lib.escape(preheader)
-    safe_body = html_lib.escape(plain_body).replace("\n", "<br>\n")
+    safe_body = _plain_body_to_html(plain_body)
     return (
         "<!DOCTYPE html><html><body>"
         '<div style="display:none;font-size:1px;color:#ffffff;line-height:1px;'
