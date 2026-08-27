@@ -2,8 +2,18 @@
 
 import pytest
 import re
+from datetime import datetime
 from unittest.mock import patch, MagicMock
-from app.services.email_service import EmailService, _render_email_template, _format_mdyy_date
+from app.services.email_service import (
+    EmailService,
+    EMAIL_PREHEADER,
+    _build_html_body,
+    _format_long_date,
+    _format_mdyy_date,
+    _render_email_template,
+    _resolve_email_datetime,
+)
+from app.services.csv_generator import CSVGenerator
 
 
 def _extract_subject_and_body(send_message_call) -> tuple[str, str]:
@@ -21,6 +31,30 @@ def _extract_subject_and_body(send_message_call) -> tuple[str, str]:
     )
     body = body_part.get_payload(decode=True).decode("utf-8") if body_part else ""
     return subject, body
+
+
+def _extract_html_body(send_message_call) -> str:
+    args, _ = send_message_call.call_args
+    msg = args[0]
+    html_part = next(
+        (
+            part
+            for part in msg.walk()
+            if part.get_content_type() == "text/html"
+        ),
+        None,
+    )
+    return html_part.get_payload(decode=True).decode("utf-8") if html_part else ""
+
+
+def _extract_attachment_filename(send_message_call) -> str:
+    args, _ = send_message_call.call_args
+    msg = args[0]
+    for part in msg.walk():
+        disposition = part.get("Content-Disposition") or ""
+        if "attachment" in disposition.lower():
+            return part.get_filename() or ""
+    return ""
 
 
 class TestEmailService:
@@ -102,17 +136,18 @@ class TestEmailTemplateRendering:
     @pytest.mark.unit
     @patch("app.services.email_service.smtplib.SMTP")
     def test_send_csv_report_falls_back_to_default_when_no_templates(self, mock_smtp):
-        """Without templates, the default subject/body must be used."""
+        """Without templates, the branded MAP default subject/body/preheader must be used."""
         mock_server = MagicMock()
         mock_smtp.return_value.__enter__.return_value = mock_server
 
         service = EmailService()
         # Force a known recipient regardless of env config
         service.email_to = "recipient@example.com"
+        service.email_from_name = "MSW Overwatch"
 
         result = service.send_csv_report(
             csv_bytes=b"col1,col2\n1,2\n",
-            filename="report.csv",
+            filename="MSW_Overwatch_MAP_Report_2026-05-27.xlsx",
             job_name="Daily DNK Off Price Report - 2026-05-27",
             total_upcs=10,
             alerts_count=3,
@@ -120,12 +155,22 @@ class TestEmailTemplateRendering:
         assert result is True
 
         subject, body = _extract_subject_and_body(mock_server.send_message)
-        assert subject == "Keepa Off Price Report - Daily DNK Off Price Report - 2026-05-27"
-        expected_date = _format_mdyy_date()
-        assert f"Hi, attached are the listings that are off price as of today {expected_date}." in body
-        assert f"- Job Name: Daily DNK Uploaded Report - {expected_date}" in body
-        assert "- Price Alerts Found: 3" in body
-        assert body.strip().endswith("Thank you!")
+        assert subject == "MSW Overwatch | MAP Pricing Exceptions — May 27, 2026"
+        assert "Hello Dansko," in body
+        assert "marketplace MAP pricing review for Dansko." in body
+        assert "MAP Pricing Exceptions: 3" in body
+        assert "Report Date: May 27, 2026" in body
+        assert "Brand: Dansko" in body
+        assert "overwatch@metroshoewarehouse.com" in body
+        assert body.strip().endswith("overwatch@metroshoewarehouse.com")
+
+        html = _extract_html_body(mock_server.send_message)
+        assert EMAIL_PREHEADER in html
+        assert _extract_attachment_filename(mock_server.send_message) == (
+            "MSW_Overwatch_MAP_Report_2026-05-27.xlsx"
+        )
+        args, _ = mock_server.send_message.call_args
+        assert "MSW Overwatch" in args[0]["From"]
 
     @pytest.mark.unit
     @patch("app.services.email_service.smtplib.SMTP")
@@ -150,7 +195,8 @@ class TestEmailTemplateRendering:
         subject, body = _extract_subject_and_body(mock_server.send_message)
         assert subject.startswith("DNK report - ")
         # default body still applied
-        assert "Hi, attached are the listings that are off price as of today" in body
+        assert "Hello Dansko," in body
+        assert "MAP Pricing Exceptions: 3" in body
 
     @pytest.mark.unit
     @patch("app.services.email_service.smtplib.SMTP")
@@ -165,7 +211,7 @@ class TestEmailTemplateRendering:
         service.send_csv_report(
             csv_bytes=b"x",
             filename="r.csv",
-            job_name="Daily CLK",
+            job_name="Daily CLK Off Price Report - 2026-08-27",
             total_upcs=99,
             alerts_count=7,
             vendor="clk",
@@ -173,9 +219,10 @@ class TestEmailTemplateRendering:
             email_body_template="Team,\n\nPlease see attached.",
         )
         subject, body = _extract_subject_and_body(mock_server.send_message)
-        # default subject still applied
-        assert subject == "Keepa Off Price Report - Daily CLK"
+        # default subject still applied (branded MAP line with run date from job name)
+        assert subject == "MSW Overwatch | MAP Pricing Exceptions — August 27, 2026"
         assert body == "Team,\n\nPlease see attached."
+        assert EMAIL_PREHEADER in _extract_html_body(mock_server.send_message)
 
     @pytest.mark.unit
     @patch("app.services.email_service.smtplib.SMTP")
@@ -221,7 +268,7 @@ class TestEmailTemplateRendering:
         service.send_csv_report(
             csv_bytes=b"x",
             filename="r.csv",
-            job_name="Daily DNK",
+            job_name="Daily DNK Off Price Report - 2026-08-27",
             total_upcs=1,
             alerts_count=0,
             vendor="dnk",
@@ -229,14 +276,45 @@ class TestEmailTemplateRendering:
             email_body_template="\n\n\t",
         )
         subject, body = _extract_subject_and_body(mock_server.send_message)
-        assert subject == "Keepa Off Price Report - Daily DNK"
-        assert "Hi, attached are the listings that are off price as of today" in body
+        assert subject == "MSW Overwatch | MAP Pricing Exceptions — August 27, 2026"
+        assert "Hello Dansko," in body
+        assert "MAP Pricing Exceptions: 0" in body
+        assert "Brand: Dansko" in body
 
     @pytest.mark.unit
     def test_format_mdyy_date_shape(self):
         """Date helper emits M.D.YY with no leading zeros for month/day."""
         text = _format_mdyy_date()
         assert re.fullmatch(r"\d{1,2}\.\d{1,2}\.\d{2}", text)
+
+    @pytest.mark.unit
+    def test_format_long_date_and_resolve_from_job_name(self):
+        dt = _resolve_email_datetime("Daily SFF Off Price Report - 2026-08-27")
+        assert _format_long_date(dt) == "August 27, 2026"
+        assert _format_long_date(datetime(2026, 1, 5)) == "January 5, 2026"
+
+    @pytest.mark.unit
+    def test_map_report_filename_format(self):
+        assert (
+            CSVGenerator.generate_csv_filename(
+                "Daily TEV Off Price Report - 2026-08-27", extension="xlsx"
+            )
+            == "MSW_Overwatch_MAP_Report_2026-08-27.xlsx"
+        )
+
+    @pytest.mark.unit
+    def test_brand_name_for_vendor(self):
+        from app.services.email_service import _brand_name_for_vendor
+
+        assert _brand_name_for_vendor("dnk") == "Dansko"
+        assert _brand_name_for_vendor("CLK") == "Clarks"
+        assert _brand_name_for_vendor("jfs") == "Josef Siebel"
+
+    @pytest.mark.unit
+    def test_build_html_body_includes_preheader(self):
+        html = _build_html_body("Hello\nWorld")
+        assert EMAIL_PREHEADER in html
+        assert "Hello<br>\nWorld" in html
 
     @pytest.mark.unit
     @patch("app.services.email_service.smtplib.SMTP")

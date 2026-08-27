@@ -1,4 +1,5 @@
 """Email service for sending CSV reports."""
+import html as html_lib
 import re
 import smtplib
 import logging
@@ -19,12 +20,28 @@ SMTP_TIMEOUT = 30  # seconds
 MAX_SUBJECT_TEMPLATE_LENGTH = 300
 MAX_BODY_TEMPLATE_LENGTH = 10000
 
+DEFAULT_FROM_DISPLAY_NAME = "MSW Overwatch"
+EMAIL_PREHEADER = "Daily marketplace monitoring report from MetroShoe Warehouse."
+EMAIL_SIGNATURE_ADDRESS = "overwatch@metroshoewarehouse.com"
+
 # {token} placeholders are replaced with values from the rendering context.
 # Unknown tokens are left as-is so users can freely write arbitrary `{...}`
 # text without crashing the send.
 _TEMPLATE_TOKEN_RE = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
+_JOB_ISO_DATE_RE = re.compile(r"(20\d{2}-\d{2}-\d{2})")
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_email_datetime(job_name: str = "", now: Optional[datetime] = None) -> datetime:
+    """Prefer YYYY-MM-DD embedded in job_name; otherwise use now."""
+    match = _JOB_ISO_DATE_RE.search(str(job_name or ""))
+    if match:
+        try:
+            return datetime.strptime(match.group(1), "%Y-%m-%d")
+        except ValueError:
+            pass
+    return now or datetime.now()
 
 
 def _format_mdyy_date(now: Optional[datetime] = None) -> str:
@@ -33,12 +50,92 @@ def _format_mdyy_date(now: Optional[datetime] = None) -> str:
     return f"{dt.month}.{dt.day}.{dt.strftime('%y')}"
 
 
+def _format_long_date(now: Optional[datetime] = None) -> str:
+    """Format date as 'August 27, 2026' (no zero-padded day)."""
+    dt = now or datetime.now()
+    return f"{dt.strftime('%B')} {dt.day}, {dt.year}"
+
+
+def _format_iso_date(now: Optional[datetime] = None) -> str:
+    """Format date as YYYY-MM-DD."""
+    dt = now or datetime.now()
+    return dt.strftime("%Y-%m-%d")
+
+
 def _infer_vendor_from_job_name(job_name: str) -> str:
     """Best-effort vendor extraction from job names like 'Daily DNK ...'."""
     match = re.match(r"^\s*Daily\s+([A-Za-z0-9_-]+)\s+", str(job_name or ""))
     if match:
         return match.group(1).upper()
     return "UNKNOWN"
+
+
+def _brand_name_for_vendor(vendor_code: str) -> str:
+    """Resolve brand display name (e.g. dnk → Dansko) for email copy."""
+    from app.services.off_price_analytics_vendors import VENDOR_LABELS
+
+    code = (vendor_code or "").strip().lower()
+    label = VENDOR_LABELS.get(code)
+    if label:
+        paren = re.search(r"\(([^)]+)\)", label)
+        if paren:
+            return paren.group(1).strip()
+        return label
+    upper = (vendor_code or "").strip().upper()
+    return upper if upper and upper != "UNKNOWN" else "Vendor"
+
+
+def _default_map_email_body(
+    *,
+    vendor_name: str,
+    brand_name: str,
+    alerts_count: int,
+    report_date_long: str,
+) -> str:
+    """Production MAP pricing exceptions email body (all vendors)."""
+    return (
+        f"Hello {vendor_name},\n"
+        "\n"
+        f"MSW Overwatch has completed today's marketplace MAP pricing review for {brand_name}.\n"
+        "\n"
+        "The attached report identifies Amazon listings where the current advertised price "
+        "is below the applicable MAP price, along with the seller and listing information "
+        "for your review.\n"
+        "\n"
+        "Today's Report\n"
+        f"MAP Pricing Exceptions: {alerts_count}\n"
+        f"Report Date: {report_date_long}\n"
+        f"Brand: {brand_name}\n"
+        "\n"
+        "Please review the attached report for the affected products, sellers, current "
+        "advertised prices, and applicable MAP pricing.\n"
+        "\n"
+        "If you have questions regarding any listing or would like our team to investigate "
+        "an exception further, please reply directly to this email.\n"
+        "\n"
+        "Regards,\n"
+        "MSW Overwatch\n"
+        "MAP Pricing & Marketplace Monitoring\n"
+        "MetroShoe Warehouse\n"
+        f"{EMAIL_SIGNATURE_ADDRESS}"
+    )
+
+
+def _build_html_body(plain_body: str, preheader: str = EMAIL_PREHEADER) -> str:
+    """HTML alternative with a hidden inbox preheader, then the plain body."""
+    safe_preheader = html_lib.escape(preheader)
+    safe_body = html_lib.escape(plain_body).replace("\n", "<br>\n")
+    return (
+        "<!DOCTYPE html><html><body>"
+        '<div style="display:none;font-size:1px;color:#ffffff;line-height:1px;'
+        'max-height:0;max-width:0;opacity:0;overflow:hidden;">'
+        f"{safe_preheader}"
+        "</div>"
+        '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;">'
+        f"{safe_body}"
+        "</div>"
+        "</body></html>"
+    )
 
 
 def _render_email_template(template: Optional[str], context: Mapping[str, object]) -> Optional[str]:
@@ -93,7 +190,7 @@ class EmailService:
 
     def _from_header(self) -> str:
         """RFC 5322 From field: quoted display name + mailbox. Recipients still see the mailbox per their client."""
-        display = (self.email_from_name or "Keepa Alert Service").strip()
+        display = (self.email_from_name or DEFAULT_FROM_DISPLAY_NAME).strip()
         return formataddr((display, self._bare_from_address()))
     
     def _parse_recipients(self, recipients: str) -> List[str]:
@@ -132,10 +229,12 @@ class EmailService:
             vendor: Optional vendor/category code (e.g. dnk, clk) for `{vendor}`
                 substitution and logging context. Does not affect routing.
             email_subject_template: Optional per-vendor custom subject. Supports
-                `{vendor}`, `{job_name}`, `{total_upcs}`, `{alerts_count}`,
-                `{run_date}`. Blank/None falls back to the default subject.
+                `{vendor}`, `{brand}`, `{vendor_name}`, `{job_name}`, `{total_upcs}`,
+                `{alerts_count}`, `{run_date}`, `{run_date_long}`, `{run_date_iso}`.
+                Blank/None falls back to
+                ``MSW Overwatch | MAP Pricing Exceptions — {Month D, YYYY}``.
             email_body_template: Optional per-vendor custom body (plain text);
-                same placeholders. Blank/None falls back to the default body.
+                same placeholders. Blank/None falls back to the production MAP body.
             bcc_emails: Optional list of addresses to BCC instead of To.
             use_default_recipients: When recipient_email is empty, whether to use
                 EMAIL_TO. Daily runs set this to False so empty lists send nothing.
@@ -188,24 +287,33 @@ class EmailService:
         )
         
         try:
-            email_date = _format_mdyy_date()
+            run_dt = _resolve_email_datetime(job_name)
+            email_date = _format_mdyy_date(run_dt)
+            email_date_long = _format_long_date(run_dt)
+            email_date_iso = _format_iso_date(run_dt)
             vendor_upper = (vendor or "").strip().upper() or _infer_vendor_from_job_name(job_name)
-            default_job_name_line = f"Daily {vendor_upper} Uploaded Report - {email_date}"
-            default_subject = f"Keepa Off Price Report - {job_name}"
-            default_body = (
-                f"Hi, attached are the listings that are off price as of today {email_date}.\n\n"
-                "Job Details:\n"
-                f"- Job Name: {default_job_name_line}\n"
-                f"- Price Alerts Found: {alerts_count}\n\n"
-                "Thank you!"
+            brand_name = _brand_name_for_vendor(vendor_upper)
+            # Greeting uses the brand/partner name (same source as Brand: line).
+            vendor_name = brand_name
+            # Same subject line for every vendor; only the run date changes.
+            default_subject = f"MSW Overwatch | MAP Pricing Exceptions — {email_date_long}"
+            default_body = _default_map_email_body(
+                vendor_name=vendor_name,
+                brand_name=brand_name,
+                alerts_count=alerts_count,
+                report_date_long=email_date_long,
             )
 
             template_context = {
                 "vendor": vendor_upper,
+                "brand": brand_name,
+                "vendor_name": vendor_name,
                 "job_name": job_name,
                 "total_upcs": total_upcs,
                 "alerts_count": alerts_count,
                 "run_date": email_date,
+                "run_date_long": email_date_long,
+                "run_date_iso": email_date_iso,
             }
 
             # Templates are truncated defensively in case the DB CHECK was
@@ -238,22 +346,25 @@ class EmailService:
                     rendered_body is not None,
                 )
 
-            msg = MIMEMultipart()
+            msg = MIMEMultipart("mixed")
             msg["From"] = self._from_header()
             msg["To"] = ", ".join(to_recipients)
             if bcc_recipients:
                 msg["Bcc"] = ", ".join(bcc_recipients)
             msg["Subject"] = subject
 
-            msg.attach(MIMEText(body, "plain"))
-            
-            # Attach CSV file
+            alt = MIMEMultipart("alternative")
+            alt.attach(MIMEText(body, "plain", "utf-8"))
+            alt.attach(MIMEText(_build_html_body(body), "html", "utf-8"))
+            msg.attach(alt)
+
+            # Attach report file (xlsx)
             part = MIMEBase("application", "octet-stream")
             part.set_payload(csv_bytes)
             encoders.encode_base64(part)
             part.add_header(
                 "Content-Disposition",
-                f'attachment; filename= "{filename}"'
+                f'attachment; filename="{filename}"'
             )
             msg.attach(part)
             

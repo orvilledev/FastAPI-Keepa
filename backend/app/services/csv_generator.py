@@ -317,21 +317,20 @@ class CSVGenerator:
     @staticmethod
     def generate_csv_filename(job_name: str = "keepa_report", extension: str = "xlsx") -> str:
         """
-        Generate filename with timestamp.
-        
-        Args:
-            job_name: Base name for the file
-            extension: File extension (default: xlsx for Excel)
-            
-        Returns:
-            Filename string
+        Generate MAP report attachment filename.
+
+        Format: MSW_Overwatch_MAP_Report_YYYY-MM-DD.xlsx
+        Prefers a YYYY-MM-DD date embedded in ``job_name`` when present.
         """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        # Sanitize job_name for filename
-        safe_name = "".join(c for c in job_name if c.isalnum() or c in (" ", "-", "_")).strip()
-        safe_name = safe_name.replace(" ", "_")
-        filename = f"{safe_name}_{timestamp}.{extension}"
-        return filename
+        run_dt = datetime.now()
+        match = re.search(r"(20\d{2}-\d{2}-\d{2})", str(job_name or ""))
+        if match:
+            try:
+                run_dt = datetime.strptime(match.group(1), "%Y-%m-%d")
+            except ValueError:
+                pass
+        ext = (extension or "xlsx").lstrip(".")
+        return f"MSW_Overwatch_MAP_Report_{run_dt.strftime('%Y-%m-%d')}.{ext}"
     
     @staticmethod
     def convert_alerts_to_csv_format(alerts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

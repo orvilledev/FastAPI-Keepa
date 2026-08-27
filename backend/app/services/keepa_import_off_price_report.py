@@ -109,9 +109,12 @@ def _off_price_job_name(category: str) -> str:
 
 
 def _off_price_filename(category: str) -> str:
-    vendor = category.strip().upper()
-    run_date = datetime.utcnow().strftime("%m.%d.%y")
-    return f"{vendor}_Keepa_Import_Off_Price_{run_date}.xlsx"
+    """Same MAP report attachment naming used for all vendor daily emails."""
+    run_date = datetime.utcnow().strftime("%Y-%m-%d")
+    return CSVGenerator.generate_csv_filename(
+        f"Keepa Import Off-Price - {category.strip().upper()} - {run_date}",
+        extension="xlsx",
+    )
 
 
 def claim_off_price_email_send(db: Client, build_id: str) -> bool:

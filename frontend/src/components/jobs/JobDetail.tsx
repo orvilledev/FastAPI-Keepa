@@ -538,7 +538,9 @@ export default function JobDetail() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     placeholder="Enter report name"
                   />
-                  <p className="text-xs text-gray-500 mt-1">This is the name that will appear in the email subject and report</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Used for the job record. Daily MAP emails use the standard MSW Overwatch subject and body template.
+                  </p>
                 </div>
 
                 {/* Description */}
