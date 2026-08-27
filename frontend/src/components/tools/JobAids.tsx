@@ -24,9 +24,9 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         Menu includes <strong>Dashboard</strong>, <strong>Notifications</strong>, <strong>Express Jobs</strong>,{' '}
-        <strong>Daily Runs</strong>, <strong>Keepa Import File</strong>, <strong>Manage UPCs</strong>,{' '}
+        <strong>Daily Runs</strong>, <strong>Manage UPCs</strong>,{' '}
         <strong>Manage MAP</strong>, <strong>Seller List</strong>, and <strong>Email List</strong>. Express Jobs through
-        Email List and Keepa Import File require Keepa access; Dashboard and Notifications are available to all signed-in
+        Email List require Keepa access; Dashboard and Notifications are available to all signed-in
         users (warehouse-only accounts do not see the notifications bell).
       </>
     ),
@@ -175,7 +175,7 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         Tools includes <strong>Micro Tools</strong>, <strong>Tracking Extractor</strong>, <strong>FNSKU Labels</strong>,{' '}
         <strong>Manifest Generator</strong>, and <strong>Label Station</strong>. Micro Tools, Tracking Extractor, FNSKU
         Labels, and Manifest Generator are available to all signed-in users. <strong>Label Station</strong> requires Keepa
-        access or a warehouse-only account. <strong>Keepa Import File</strong> lives under Menu.
+        access or a warehouse-only account.
       </>
     ),
   },
@@ -265,18 +265,6 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         types as live tools (FNSKU Labels, Tracking Extractor, Manifest Generator), run a snapshot test, and download
         output — optionally compared to an expected file for SUCCESS or FAILED. It does not change Daily Runs, MAP, or
         live warehouse data.
-      </>
-    ),
-  },
-  {
-    q: 'What is Keepa Import File?',
-    a: (
-      <>
-        <strong>Keepa Import File</strong> builds Keepa Excel files from the UPCs in Manage UPCs so you can feed Daily Run{' '}
-        <strong>Import Mode</strong>. Pick a vendor, click <strong>Download Keepa file</strong>, and use the output on a
-        vendor Daily Run page. You can also schedule automatic builds, optional off-price MAP reports, and email delivery
-        per vendor. Build history shows past runs with download, contents preview, and <strong>Clear history</strong>{' '}
-        controls. The tool requires Keepa access; admins can turn the tool on or off globally.
       </>
     ),
   },

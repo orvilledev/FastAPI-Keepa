@@ -12,7 +12,6 @@ import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { UserProvider, useUser } from './contexts/UserContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { TrackingScanProvider } from './contexts/TrackingScanContext'
-import { KeepaImportBuildProvider } from './contexts/KeepaImportBuildContext'
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/common/ProtectedRoute'
 import WarehouseRouteGuard from './components/common/WarehouseRouteGuard'
@@ -56,7 +55,6 @@ const EmailList = lazy(() => import('./components/email/EmailList'))
 const HowToGuide = lazy(() => import('./components/tools/PublicTools'))
 const JobAids = lazy(() => import('./components/tools/JobAids'))
 const MicroTools = lazy(() => import('./components/tools/MicroTools'))
-const KeepaImportExport = lazy(() => import('./components/tools/KeepaImportExport'))
 const TrackingScanner = lazy(() => import('./components/scanner/TrackingScanner'))
 const FNSKULabelGenerator = lazy(() => import('./components/scanner/FNSKULabelGenerator'))
 const ManifestGenerator = lazy(() => import('./components/tools/ManifestGenerator'))
@@ -265,11 +263,9 @@ function PrivateLayout() {
     <MfaGate>
       <IdleMfaGuard />
       <TrackingScanProvider>
-        <KeepaImportBuildProvider>
-          <WarehouseRouteGuard>
-            <Layout />
-          </WarehouseRouteGuard>
-        </KeepaImportBuildProvider>
+        <WarehouseRouteGuard>
+          <Layout />
+        </WarehouseRouteGuard>
       </TrackingScanProvider>
     </MfaGate>
   )
@@ -432,7 +428,7 @@ function AppRoutes() {
           <Route path="trainings" element={<Navigate to="/howtoguide" replace />} />
           <Route path="faq" element={<JobAids />} />
           <Route path="micro-tools" element={<MicroTools />} />
-          <Route path="keepa-import-export" element={<ProtectedRoute requireKeepaAccess={true}><KeepaImportExport /></ProtectedRoute>} />
+          <Route path="keepa-import-export" element={<Navigate to="/dashboard" replace />} />
           <Route path="tracking-scanner" element={<TrackingScanner />} />
           <Route path="fnsku-labels" element={<FNSKULabelGenerator />} />
           <Route path="manifest-generator" element={<ManifestGenerator />} />

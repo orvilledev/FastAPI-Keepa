@@ -111,11 +111,6 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M9 8h1m5 0h.01M7 3h8l4 4v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z" />
     </svg>
   ),
-  download: (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
-    </svg>
-  ),
   chart: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -192,7 +187,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
   const keepaMenuItems = [
     { path: '/jobs',         label: 'Express Jobs', icon: 'package'  as const },
     { path: '/daily-run',    label: 'Daily Runs',   icon: 'biking'   as const },
-    { path: '/keepa-import-export', label: 'Keepa Import File', icon: 'download' as const },
     { path: '/manage-upcs', label: 'Manage UPCs',  icon: 'barcode'  as const },
     { path: '/map',          label: 'Manage MAP',   icon: 'dollar'   as const },
     { path: '/seller-list',  label: 'Seller List',  icon: 'users'    as const },
@@ -351,7 +345,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
                 item.path === '/seller-list'  ? 'seller-list' :
                 item.path === '/email-list'   ? 'email-list'  :
                 item.path === '/daily-run'    ? 'daily-runs'  :
-                item.path === '/keepa-import-export' ? 'keepa-import-export' :
                 item.path === '/analytics'    ? 'analytics'   :
                 'keepa-other'
 

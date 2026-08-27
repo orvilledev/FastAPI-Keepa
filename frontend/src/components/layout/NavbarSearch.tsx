@@ -38,7 +38,6 @@ function buildSearchItems(
     items.push(
       { label: 'Express Jobs', path: '/jobs', section: 'Menu' },
       { label: 'Daily Runs', path: '/daily-run', section: 'Menu' },
-      { label: 'Keepa Import File', path: '/keepa-import-export', section: 'Menu' },
       { label: 'Manage UPCs', path: '/manage-upcs', section: 'Menu' },
       { label: 'Manage MAP', path: '/map', section: 'Menu' },
       { label: 'Seller List', path: '/seller-list', section: 'Menu' },

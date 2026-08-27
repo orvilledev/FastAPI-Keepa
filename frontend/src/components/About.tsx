@@ -143,11 +143,6 @@ export default function About() {
             and daily runs.
           </li>
           <li>
-            <span className="font-semibold">Keepa Import File:</span> Build Keepa Excel files from Manage UPCs for Daily
-            Run import mode. Pick a vendor, download on demand, or schedule automatic builds and optional off-price MAP
-            reports with email delivery. Build history can be downloaded, reviewed, or cleared.
-          </li>
-          <li>
             <span className="font-semibold">Analytics:</span> Off-price hit trends by vendor, seller, and period, with
             Excel download and email report. In the browser, Hit Alert flags any vendor whose daily off-price listings
             jump by 100 or more versus that vendor’s last daily run (shown in red). Available in the browser and the desktop app. Warehouse
@@ -155,7 +150,7 @@ export default function About() {
           </li>
         </ul>
         <p className="mt-4 text-sm text-gray-600">
-          Express Jobs, Daily Runs, Manage UPCs, Manage MAP, Seller List, Email List, Keepa Import File, and Analytics
+          Express Jobs, Daily Runs, Manage UPCs, Manage MAP, Seller List, Email List, and Analytics
           require Keepa access on your account.
         </p>
       </div>
