@@ -64,7 +64,6 @@ const UserManagement = lazy(() => import('./components/admin/UserManagement'))
 const AuditLog = lazy(() => import('./components/admin/AuditLog'))
 const Feedback = lazy(() => import('./components/feedback/Feedback'))
 const OffPriceAnalytics = lazy(() => import('./components/analytics/OffPriceAnalytics'))
-const Playground = lazy(() => import('./components/playground/Playground'))
 const CatalogUpcPage = lazy(() => import('./components/catalog/CatalogUpcPage'))
 const CatalogDimsPage = lazy(() => import('./components/catalog/CatalogDimsPage'))
 const MasterSheetTool = lazy(() => import('./components/catalog/MasterSheetTool'))
@@ -454,14 +453,7 @@ function AppRoutes() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="playground"
-            element={
-              <ProtectedRoute requirePlaygroundAccess={true}>
-                <Playground />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="playground" element={<Navigate to="/dashboard" replace />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

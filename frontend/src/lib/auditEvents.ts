@@ -2,9 +2,9 @@
  * Best-effort audit events for actions the backend cannot observe.
  *
  * Server-side actions (uploads, downloads, settings, deletes) are recorded by
- * the API's audit middleware. Client-side work — Playground runs, in-page
- * file generation, localStorage history changes, and Supabase login/logout —
- * is reported from here on both web and Electron.
+ * the API's audit middleware. Client-side work — in-page file generation,
+ * localStorage history changes, and Supabase login/logout — is reported from
+ * here on both web and Electron.
  *
  * Every call is fire-and-forget: audit failures must never block the user.
  */
@@ -14,12 +14,6 @@ import { authApi, invalidateAuthTokenCache } from '../services/api'
 export type ClientAuditAction =
   | 'login'
   | 'logout'
-  | 'playground.run'
-  | 'playground.download'
-  | 'playground.fixture_upload'
-  | 'playground.fixture_remove'
-  | 'playground.tool_add'
-  | 'playground.tool_remove'
   | 'fnsku.parse'
   | 'fnsku.download'
   | 'fnsku.history_delete'

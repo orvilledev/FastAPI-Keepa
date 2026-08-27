@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { APP_NAME } from '../../constants/app'
-import { isElectronDesktop } from '../../lib/privatePath'
 
 const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
   {
@@ -258,17 +257,6 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     ),
   },
   {
-    q: 'What is Testing Playground?',
-    a: (
-      <>
-        Playground is an invite-only sandbox under <strong>TESTING</strong>. Allowlisted testers upload the same file
-        types as live tools (FNSKU Labels, Tracking Extractor, Manifest Generator), run a snapshot test, and download
-        output — optionally compared to an expected file for SUCCESS or FAILED. It does not change Daily Runs, MAP, or
-        live warehouse data.
-      </>
-    ),
-  },
-  {
     q: 'What are Notifications?',
     a: (
       <>
@@ -307,7 +295,7 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         Use the <strong>search box</strong> in the top bar. Type part of a page name (for example &quot;Express&quot;,
-        &quot;MAP&quot;, or &quot;FAQ&quot;) and pick from the grouped results under Menu, Tools, Testing, or General.
+        &quot;MAP&quot;, or &quot;FAQ&quot;) and pick from the grouped results under Menu, Tools, or General.
         Warehouse-only accounts see a shorter list focused on Label Station and General pages.
       </>
     ),
@@ -392,10 +380,7 @@ export default function JobAids() {
       </div>
 
       <div className="space-y-3">
-        {(isElectronDesktop()
-          ? FAQ_ITEMS
-          : FAQ_ITEMS.filter((item) => item.q !== 'What is Testing Playground?')
-        ).map(({ q, a }) => (
+        {FAQ_ITEMS.map(({ q, a }) => (
           <details
             key={q}
             className="group card border border-gray-200/80 rounded-xl p-0 overflow-hidden shadow-sm open:shadow-md transition-shadow"

@@ -195,22 +195,6 @@ export default function About() {
         </p>
       </div>
 
-      {isElectron && (
-      <div className="card p-8">
-        <h2 className="text-2xl font-semibold text-gray-900">Testing</h2>
-        <p className="mt-3 text-gray-700">
-          Invite-only sandbox for verifying tools before real work (desktop app).
-        </p>
-        <ul className="mt-4 list-disc space-y-2 pl-6 text-gray-700">
-          <li>
-            <span className="font-semibold">Playground:</span> Upload the same input files as live tools (FNSKU Labels,
-            Tracking Extractor, Manifest Generator), run a test, download output, and optionally compare against an
-            expected file for a SUCCESS or FAILED verdict. Available to allowlisted testers and superadmins.
-          </li>
-        </ul>
-      </div>
-      )}
-
       <div className="card p-8">
         <h2 className="text-2xl font-semibold text-gray-900">Appearance &amp; sign-in</h2>
         <ul className="mt-4 list-disc space-y-2 pl-6 text-gray-700">

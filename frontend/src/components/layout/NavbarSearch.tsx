@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useUser } from '../../contexts/UserContext'
-import { canAccessPlayground } from '../../lib/playground/access'
 import { canAccessMasterSheet } from '../../lib/masterSheetAccess'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
 
@@ -16,7 +15,6 @@ function buildSearchItems(
   hasKeepaAccess: boolean,
   isWarehouseOnly: boolean,
   isSuperadmin: boolean,
-  showPlayground: boolean,
   showMasterSheet: boolean,
   showAnalytics: boolean,
 ): SearchItem[] {
@@ -56,10 +54,6 @@ function buildSearchItems(
     { label: 'Manifest Generator', path: '/manifest-generator', section: 'Tools' },
   )
 
-  if (showPlayground) {
-    items.push({ label: 'Playground', path: '/playground', section: 'Testing' })
-  }
-
   items.push(
     { label: 'About', path: '/about', section: 'General' },
     { label: 'FAQ', path: '/faq', section: 'General' },
@@ -90,10 +84,6 @@ export default function NavbarSearch() {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
-  const showPlayground = canAccessPlayground(
-    userInfo?.email || authUser?.email,
-    isSuperadmin,
-  )
   const showMasterSheet = canAccessMasterSheet(
     userInfo?.email || authUser?.email,
     isSuperadmin,
@@ -106,11 +96,10 @@ export default function NavbarSearch() {
         hasKeepaAccess,
         isWarehouseOnly,
         isSuperadmin,
-        showPlayground,
         showMasterSheet,
         showAnalytics,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showPlayground, showMasterSheet, showAnalytics],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showMasterSheet, showAnalytics],
   )
 
   const results = useMemo(() => {
