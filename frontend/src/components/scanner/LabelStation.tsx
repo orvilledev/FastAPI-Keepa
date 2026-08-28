@@ -755,43 +755,40 @@ export default function LabelStation() {
           })}
         </div>
 
-        {/* Custom 3" × 3" notice label with editable headline */}
+        {/* Custom 3" × 3" notice label — whole card selects, like Small/Medium/Large */}
         <div
-          className={`rounded-lg border-2 p-3 transition ${
+          role="button"
+          tabIndex={0}
+          aria-pressed={selectedSize === 'custom'}
+          onClick={() => handleSelectSize('custom')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              handleSelectSize('custom')
+            }
+          }}
+          className={`rounded-lg border-2 p-3 text-left transition cursor-pointer ${
             selectedSize === 'custom'
               ? 'border-[#404040] ring-1 ring-[#404040] bg-gray-50'
-              : 'border-gray-200'
+              : 'border-gray-200 hover:border-gray-400'
           }`}
         >
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <span className="text-sm font-medium text-gray-800">
+                Custom ({labelSizeDimensionsLabel('custom')})
+              </span>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Square notice label — headline, barcode, title, then print ID and condition
+              </p>
+            </div>
+            {selectedSize === 'custom' && (
+              <span className="text-xs font-semibold text-emerald-700 shrink-0">Selected</span>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => handleSelectSize('custom')}
-                aria-pressed={selectedSize === 'custom'}
-                className={`w-full rounded-lg border-2 px-3 py-2 text-left text-sm transition ${
-                  selectedSize === 'custom'
-                    ? 'border-[#404040] bg-[#404040] text-white'
-                    : 'border-gray-300 bg-white text-gray-800 hover:border-gray-500'
-                }`}
-              >
-                <span className="flex items-center justify-between gap-2">
-                  <span className="font-semibold">
-                    Custom ({labelSizeDimensionsLabel('custom')})
-                  </span>
-                  {selectedSize === 'custom' && (
-                    <span className="text-xs font-semibold">Selected</span>
-                  )}
-                </span>
-                <span
-                  className={`mt-0.5 block text-xs ${
-                    selectedSize === 'custom' ? 'text-gray-200' : 'text-gray-500'
-                  }`}
-                >
-                  Square notice label — headline, barcode, title, then print ID and condition
-                </span>
-              </button>
-
               <label className="block text-xs text-gray-600" htmlFor="custom-label-text">
                 Custom text (one line per row)
               </label>
@@ -799,14 +796,22 @@ export default function LabelStation() {
                 id="custom-label-text"
                 rows={3}
                 value={customText}
-                onChange={(e) => handleCustomTextChange(e.target.value)}
+                onFocus={() => handleSelectSize('custom')}
+                onChange={(e) => {
+                  handleSelectSize('custom')
+                  handleCustomTextChange(e.target.value)
+                }}
                 placeholder={DEFAULT_CUSTOM_LABEL_TEXT}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm uppercase focus:border-[#404040] focus:ring-1 focus:ring-[#404040]"
               />
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => handleCustomTextChange(DEFAULT_CUSTOM_LABEL_TEXT)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleSelectSize('custom')
+                    handleCustomTextChange(DEFAULT_CUSTOM_LABEL_TEXT)
+                  }}
                   className="text-xs text-gray-600 underline hover:text-gray-900"
                 >
                   Reset to default
@@ -817,7 +822,7 @@ export default function LabelStation() {
               </div>
             </div>
 
-            <div className="rounded border border-gray-300 overflow-hidden self-start max-w-[16rem] w-full mx-auto">
+            <div className="rounded border border-gray-300 overflow-hidden self-start max-w-[16rem] w-full mx-auto pointer-events-none">
               <LabelPreview
                 product={product ?? SAMPLE_PRODUCT}
                 size="custom"

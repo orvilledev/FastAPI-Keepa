@@ -94,7 +94,8 @@ def _cell_str(raw: Any) -> str:
         if raw.is_integer():
             return str(int(raw))
         return format(raw, ".15g").strip()
-    text = str(raw).strip()
+    # Collapse newlines/tabs from Excel cells (e.g. "08\\n M" → "08 M").
+    text = re.sub(r"\s+", " ", str(raw)).strip()
     if text.endswith(".0") and text.replace(".", "", 1).isdigit():
         return text[:-2]
     return text
@@ -116,6 +117,13 @@ def size_code_from_master_size(size: str) -> str:
             return f"{int(whole):02d}.{frac}"
         return f"{int(tok):02d}"
     return tok
+
+
+def _size_code_as_float(code: str) -> Optional[float]:
+    try:
+        return float(code)
+    except (TypeError, ValueError):
+        return None
 
 
 def gender_prefix(description: str) -> str:
@@ -147,17 +155,33 @@ def description_match_key(description: str) -> str:
 
 
 def description_match_keys(description: str) -> List[str]:
-    """Primary description key plus aliases (e.g. Tasman Nubuck → Tasman II)."""
+    """Primary description key plus aliases used when DIMS naming differs."""
     primary = description_match_key(description)
     if not primary:
         return []
     keys = [primary]
+
+    def _add(alias: str) -> None:
+        alias = alias.strip()
+        if alias and alias not in keys:
+            keys.append(alias)
+
     # "W TASMAN NUBUCK" / "M TASMAN II NUBUCK" → same gender + "TASMAN II"
     if "TASMAN" in primary and "NUBUCK" in primary:
         prefix = gender_prefix(primary)
-        alias = f"{prefix} TASMAN II".strip() if prefix else "TASMAN II"
-        if alias not in keys:
-            keys.append(alias)
+        _add(f"{prefix} TASMAN II".strip() if prefix else "TASMAN II")
+
+    # "W TASMAN SPOTTED" / "W CLASSIC ULTRA MINI SPOTTED" → base (+ Tasman II)
+    if primary.endswith(" SPOTTED"):
+        base = primary[: -len(" SPOTTED")].strip()
+        _add(base)
+        if base.endswith(" TASMAN") or base == "TASMAN":
+            _add(f"{base} II")
+
+    # "W RETROFI LOW BALLET SNEAKER" → "W RETROFI LOW"
+    if " BALLET SNEAKER" in primary:
+        _add(primary.replace(" BALLET SNEAKER", "").strip())
+
     return keys
 
 
@@ -305,20 +329,41 @@ def _lookup_mc(
 ) -> Tuple[Optional[Tuple[str, str, str]], str]:
     if upc and upc in by_upc:
         return by_upc[upc], "upc"
+
+    desc_keys = description_match_keys(description)
     sc = size_code_from_master_size(size)
     size_candidates = [sc]
     tok = _cell_str(size).split()[0] if _cell_str(size) else ""
     if tok and tok not in size_candidates:
         size_candidates.append(tok)
-    for desc_key in description_match_keys(description):
-        if not desc_key:
-            continue
+
+    for desc_key in desc_keys:
         for size_key in size_candidates:
-            if not size_key:
+            if not desc_key or not size_key:
                 continue
             hit = by_desc_size.get((desc_key, size_key))
             if hit:
                 return hit, "desc_size"
+
+    # Same description family, closest available size (sparse DIMS coverage).
+    target = _size_code_as_float(sc)
+    if target is not None and desc_keys:
+        best_mc: Optional[Tuple[str, str, str]] = None
+        best_dist: Optional[float] = None
+        for desc_key in desc_keys:
+            for (d_key, size_key), mc in by_desc_size.items():
+                if d_key != desc_key:
+                    continue
+                candidate = _size_code_as_float(size_key)
+                if candidate is None:
+                    continue
+                dist = abs(candidate - target)
+                if best_dist is None or dist < best_dist:
+                    best_dist = dist
+                    best_mc = mc
+        if best_mc is not None:
+            return best_mc, "desc_size"
+
     return None, ""
 
 
