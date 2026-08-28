@@ -70,7 +70,7 @@ AZURE_CLIENT_SECRET=<client-secret>
 - `EMAIL_TRANSPORT=graph` — requires Azure vars; fails fast if missing.
 - `EMAIL_PASSWORD` — not needed for Graph.
 
-**Superadmins** can also switch transport at runtime in **User Management → Outbound Email Transport** (Auto / Graph / SMTP) without redeploying. That runtime choice applies to the current API process; set `EMAIL_TRANSPORT` on Render for the default after restarts.
+**Superadmins** can also switch transport at runtime in **User Management → Outbound Email Transport** (Auto / Graph API / SMTP) without redeploying. That runtime choice applies to the current API process; set `EMAIL_TRANSPORT` on Render for the default after restarts.
 
 Restart the API after changing env vars.
 

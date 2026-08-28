@@ -62,6 +62,10 @@ function formatAgo(iso: string | null | undefined): string {
   return `${hr}h ago`
 }
 
+function emailTransportLabel(transport: 'graph' | 'smtp'): string {
+  return transport === 'graph' ? 'Graph API' : 'SMTP'
+}
+
 export default function UserManagement() {
   const { isSuperadmin, userInfoLoading, userInfo } = useUser()
   const [users, setUsers] = useState<User[]>([])
@@ -307,7 +311,7 @@ export default function UserManagement() {
       setEmailSmtpConfigured(Boolean(updated.smtp_configured))
       setEmailGraphConfigured(Boolean(updated.graph_configured))
       setEmailFrom(updated.email_from || '')
-      setEmailTransportMessage(`Saved. Active sender: ${updated.effective_transport.toUpperCase()}.`)
+      setEmailTransportMessage(`Saved. Active sender: ${emailTransportLabel(updated.effective_transport)}.`)
     } catch (err: unknown) {
       const msg =
         err && typeof err === 'object' && 'response' in err
@@ -746,7 +750,7 @@ export default function UserManagement() {
           <h2 className="text-lg font-semibold text-gray-900">Outbound Email Transport</h2>
           <p className="text-sm text-gray-600 mt-1">
             Choose how MAP report emails are sent from{' '}
-            <span className="font-medium">{emailFrom || 'overwatch@'}</span>. SMTP and Microsoft Graph
+            <span className="font-medium">{emailFrom || 'overwatch@'}</span>. SMTP and Graph API
             credentials stay in server environment variables — this only switches which path is active.
           </p>
         </div>
@@ -765,7 +769,7 @@ export default function UserManagement() {
                   : 'border-gray-300 bg-white text-gray-800 hover:border-gray-500'
               }`}
             >
-              {mode === 'auto' ? 'Auto' : mode === 'graph' ? 'Microsoft Graph' : 'SMTP'}
+              {mode === 'auto' ? 'Auto' : mode === 'graph' ? 'Graph API' : 'SMTP'}
             </button>
           ))}
         </div>
@@ -779,16 +783,16 @@ export default function UserManagement() {
                   : 'bg-amber-100 text-amber-900'
               }`}
             >
-              {emailEffectiveTransport.toUpperCase()}
+              {emailTransportLabel(emailEffectiveTransport)}
             </span>
           </p>
           <p className="text-gray-600">
-            SMTP {emailSmtpConfigured ? 'configured' : 'not configured'} · Graph{' '}
+            SMTP {emailSmtpConfigured ? 'configured' : 'not configured'} · Graph API{' '}
             {emailGraphConfigured ? 'configured' : 'not configured'}
           </p>
           {emailTransport === 'auto' && (
             <p className="text-xs text-gray-500">
-              Auto uses Graph when Azure credentials are present; otherwise SMTP.
+              Auto uses Graph API when Azure credentials are present; otherwise SMTP.
             </p>
           )}
           {!emailTransportReady && (
