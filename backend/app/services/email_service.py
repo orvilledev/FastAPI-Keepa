@@ -12,6 +12,7 @@ from email.utils import formataddr, parseaddr
 from typing import Optional, List, Mapping
 from app.config import settings
 from app.services.csv_generator import CSVGenerator
+from app.services.graph_mail_service import GraphMailClient, GraphMailError
 
 SMTP_TIMEOUT = 30  # seconds
 
@@ -244,7 +245,29 @@ class EmailService:
         self.email_from_name = settings.email_from_name
         self.email_password = settings.email_password
         self.email_to = settings.email_to
+        self.email_transport = settings.effective_email_transport
         self.last_error = None
+        self._graph_client: Optional[GraphMailClient] = None
+
+    def _graph_client_or_none(self) -> Optional[GraphMailClient]:
+        if not settings.graph_email_configured:
+            return None
+        if self._graph_client is None:
+            self._graph_client = GraphMailClient(
+                tenant_id=settings.azure_tenant_id,
+                client_id=settings.azure_client_id,
+                client_secret=settings.azure_client_secret,
+                from_address=self._bare_from_address(),
+                from_display_name=(self.email_from_name or DEFAULT_FROM_DISPLAY_NAME),
+            )
+        return self._graph_client
+
+    def _email_configured_for_transport(self) -> bool:
+        if not self._bare_from_address():
+            return False
+        if self.email_transport == "graph":
+            return settings.graph_email_configured
+        return bool(self.email_password)
 
     def _bare_from_address(self) -> str:
         """Mailbox only (for SMTP login and From addr-spec). Strips accidental Name <addr> in EMAIL_FROM."""
@@ -264,6 +287,69 @@ class EmailService:
             return []
         # Split by comma and strip whitespace
         return [email.strip() for email in recipients.split(",") if email.strip()]
+
+    def _send_outbound(
+        self,
+        *,
+        subject: str,
+        plain_body: str,
+        to_recipients: List[str],
+        bcc_recipients: List[str],
+        attachments: Optional[List[tuple[str, bytes, str]]] = None,
+        html_body: Optional[str] = None,
+    ) -> bool:
+        """Send via Graph or SMTP depending on configured transport."""
+        delivery_addrs = list(dict.fromkeys(to_recipients + bcc_recipients))
+        html = html_body if html_body is not None else _build_html_body(plain_body)
+
+        if self.email_transport == "graph":
+            client = self._graph_client_or_none()
+            if client is None:
+                self.last_error = "Microsoft Graph email client is not configured"
+                return False
+            client.send_message(
+                subject=subject,
+                plain_body=plain_body,
+                html_body=html,
+                to_recipients=to_recipients,
+                bcc_recipients=bcc_recipients,
+                attachments=attachments,
+            )
+            logger.info("Email sent successfully via Graph to %s", ", ".join(delivery_addrs))
+            return True
+
+        msg = MIMEMultipart("mixed")
+        msg["From"] = self._from_header()
+        msg["To"] = ", ".join(to_recipients)
+        if bcc_recipients:
+            msg["Bcc"] = ", ".join(bcc_recipients)
+        msg["Subject"] = subject
+
+        alt = MIMEMultipart("alternative")
+        alt.attach(MIMEText(plain_body, "plain", "utf-8"))
+        alt.attach(MIMEText(html, "html", "utf-8"))
+        msg.attach(alt)
+
+        for attach_name, attach_bytes, mime_type in attachments or []:
+            maintype, _, subtype = (mime_type or "application/octet-stream").partition("/")
+            part = MIMEBase(maintype, subtype or "octet-stream")
+            part.set_payload(attach_bytes)
+            encoders.encode_base64(part)
+            part.add_header("Content-Disposition", f'attachment; filename="{attach_name}"')
+            msg.attach(part)
+
+        logger.info(
+            "Attempting SMTP send to %s via %s:%s",
+            delivery_addrs,
+            self.smtp_host,
+            self.smtp_port,
+        )
+        with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=SMTP_TIMEOUT) as server:
+            server.starttls()
+            server.login(self._bare_from_address(), self.email_password)
+            server.send_message(msg, to_addrs=delivery_addrs)
+        logger.info("Email sent successfully via SMTP to %s", ", ".join(delivery_addrs))
+        return True
     
     def send_csv_report(
         self,
@@ -334,7 +420,15 @@ class EmailService:
         if not self._bare_from_address():
             logger.error("EMAIL_FROM is not configured in .env file")
             return False
-        if not self.email_password:
+        if self.email_transport == "graph":
+            if not settings.graph_email_configured:
+                logger.error(
+                    "EMAIL_TRANSPORT=graph but Azure credentials are missing "
+                    "(AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET)"
+                )
+                self.last_error = "Microsoft Graph email is not configured"
+                return False
+        elif not self.email_password:
             logger.error("EMAIL_PASSWORD is not configured in .env file")
             return False
         if not to_recipients and not bcc_recipients:
@@ -343,12 +437,14 @@ class EmailService:
 
         if not to_recipients and bcc_recipients:
             to_recipients = [self._bare_from_address()]
-
-        delivery_addrs = list(dict.fromkeys(to_recipients + bcc_recipients))
         
         logger.info(
-            f"Email configuration validated: from={self._bare_from_address()}, "
-            f"to={to_recipients}, bcc={bcc_recipients or []}, host={self.smtp_host}:{self.smtp_port}"
+            "Email configuration validated: transport=%s from=%s "
+            "to=%s bcc=%s",
+            self.email_transport,
+            self._bare_from_address(),
+            to_recipients,
+            bcc_recipients or [],
         )
         
         try:
@@ -411,40 +507,23 @@ class EmailService:
                     rendered_body is not None,
                 )
 
-            msg = MIMEMultipart("mixed")
-            msg["From"] = self._from_header()
-            msg["To"] = ", ".join(to_recipients)
-            if bcc_recipients:
-                msg["Bcc"] = ", ".join(bcc_recipients)
-            msg["Subject"] = subject
+            html_body = _build_html_body(body)
 
-            alt = MIMEMultipart("alternative")
-            alt.attach(MIMEText(body, "plain", "utf-8"))
-            alt.attach(MIMEText(_build_html_body(body), "html", "utf-8"))
-            msg.attach(alt)
-
-            # Attach report file (xlsx)
-            part = MIMEBase("application", "octet-stream")
-            part.set_payload(csv_bytes)
-            encoders.encode_base64(part)
-            part.add_header(
-                "Content-Disposition",
-                f'attachment; filename="{filename}"'
+            self._send_outbound(
+                subject=subject,
+                plain_body=body,
+                html_body=html_body,
+                to_recipients=to_recipients,
+                bcc_recipients=bcc_recipients,
+                attachments=[(filename, csv_bytes, "application/octet-stream")],
             )
-            msg.attach(part)
-            
-            # Send email
-            logger.info(
-                f"Attempting to send email to {delivery_addrs} via {self.smtp_host}:{self.smtp_port}"
-            )
-            with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=SMTP_TIMEOUT) as server:
-                server.starttls()
-                server.login(self._bare_from_address(), self.email_password)
-                server.send_message(msg, to_addrs=delivery_addrs)
-            
-            logger.info(f"Email sent successfully to {', '.join(delivery_addrs)}")
             return True
             
+        except GraphMailError as e:
+            error_msg = f"Microsoft Graph send failed: {e}"
+            logger.error(error_msg)
+            self.last_error = error_msg
+            return False
         except smtplib.SMTPAuthenticationError as e:
             error_msg = f"SMTP authentication failed: {e}. For Gmail, you must use an App Password (not your regular password). Enable 2-Step Verification and generate an App Password at https://myaccount.google.com/apppasswords"
             logger.error(error_msg)
@@ -510,39 +589,35 @@ class EmailService:
                 return False
             
             try:
-                msg = MIMEMultipart()
-                msg["From"] = self._from_header()
-                msg["To"] = ", ".join(recipients)
-                msg["Subject"] = f"MSW Overwatch Job Completed - {job_name}"
-                
-                body = f"""
-                Hello,
-                
-                Your MSW Overwatch batch job has completed processing.
-                
-                Job Details:
-                - Job Name: {job_name}
-                - Total UPCs Processed: {total_upcs}
-                - Price Alerts Found: {alerts_count}
-                
-                You can view the full report in the dashboard.
-                
-                Best regards,
-                MSW Overwatch
-                """
-                
-                msg.attach(MIMEText(body, "plain"))
-                
-                with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=SMTP_TIMEOUT) as server:
-                    server.starttls()
-                    server.login(self._bare_from_address(), self.email_password)
-                    server.send_message(msg, to_addrs=recipients)
-                
-                logger.info(f"Job completion email sent to {', '.join(recipients)}")
+                if not self._email_configured_for_transport():
+                    logger.error("Email is not configured for transport=%s", self.email_transport)
+                    return False
+                body = (
+                    "Hello,\n\n"
+                    "Your MSW Overwatch batch job has completed processing.\n\n"
+                    "Job Details:\n"
+                    f"- Job Name: {job_name}\n"
+                    f"- Total UPCs Processed: {total_upcs}\n"
+                    f"- Price Alerts Found: {alerts_count}\n\n"
+                    "You can view the full report in the dashboard.\n\n"
+                    "Best regards,\n"
+                    "MSW Overwatch"
+                )
+                self._send_outbound(
+                    subject=f"MSW Overwatch Job Completed - {job_name}",
+                    plain_body=body,
+                    to_recipients=recipients,
+                    bcc_recipients=[],
+                )
                 return True
                 
+            except GraphMailError as e:
+                logger.error("Failed to send job completion email via Graph: %s", e)
+                self.last_error = str(e)
+                return False
             except Exception as e:
                 logger.error(f"Failed to send job completion email: {e}")
+                self.last_error = str(e)
                 return False
 
     def send_binary_attachment(
@@ -579,8 +654,8 @@ class EmailService:
         bcc_set = set(bcc_seen)
         to_recipients = [email for email in all_recipients if email.lower() not in bcc_set]
 
-        if not self._bare_from_address() or not self.email_password:
-            logger.error("Email is not configured; cannot send attachment")
+        if not self._email_configured_for_transport():
+            logger.error("Email is not configured for transport=%s", self.email_transport)
             return False
         if not to_recipients and not bcc_recipients:
             logger.info("No recipients configured; skipping email send")
@@ -588,31 +663,19 @@ class EmailService:
         if not to_recipients and bcc_recipients:
             to_recipients = [self._bare_from_address()]
 
-        delivery_addrs = list(dict.fromkeys(to_recipients + bcc_recipients))
-
         try:
-            msg = MIMEMultipart()
-            msg["From"] = self._from_header()
-            msg["To"] = ", ".join(to_recipients)
-            if bcc_recipients:
-                msg["Bcc"] = ", ".join(bcc_recipients)
-            msg["Subject"] = subject
-            msg.attach(MIMEText(body, "plain"))
-
-            maintype, _, subtype = (mime_type or "application/octet-stream").partition("/")
-            part = MIMEBase(maintype, subtype or "octet-stream")
-            part.set_payload(file_bytes)
-            encoders.encode_base64(part)
-            part.add_header("Content-Disposition", f'attachment; filename="{filename}"')
-            msg.attach(part)
-
-            with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=SMTP_TIMEOUT) as server:
-                server.starttls()
-                server.login(self._bare_from_address(), self.email_password)
-                server.send_message(msg, to_addrs=delivery_addrs)
-
-            logger.info("Attachment email sent to %s", delivery_addrs)
+            self._send_outbound(
+                subject=subject,
+                plain_body=body,
+                to_recipients=to_recipients,
+                bcc_recipients=bcc_recipients,
+                attachments=[(filename, file_bytes, mime_type)],
+            )
             return True
+        except GraphMailError as e:
+            logger.error("Failed to send attachment email via Graph: %s", e)
+            self.last_error = str(e)
+            return False
         except Exception as e:
             logger.error("Failed to send attachment email: %s", e, exc_info=True)
             self.last_error = str(e)
@@ -636,22 +699,22 @@ class EmailService:
             True if email sent successfully, False otherwise
         """
         try:
-            to_addrs = [to_email]
-            msg = MIMEMultipart()
-            msg["From"] = self._from_header()
-            msg["To"] = to_email
-            msg["Subject"] = subject
-            
-            msg.attach(MIMEText(body, "plain"))
-            
-            with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=SMTP_TIMEOUT) as server:
-                server.starttls()
-                server.login(self._bare_from_address(), self.email_password)
-                server.send_message(msg, to_addrs=to_addrs)
-            
-            logger.info(f"Email sent successfully to {to_email}")
+            if not self._email_configured_for_transport():
+                self.last_error = "Email is not configured"
+                return False
+            self._send_outbound(
+                subject=subject,
+                plain_body=body,
+                to_recipients=[to_email],
+                bcc_recipients=[],
+            )
             return True
             
+        except GraphMailError as e:
+            error_msg = f"Microsoft Graph send failed: {e}"
+            logger.error(error_msg)
+            self.last_error = error_msg
+            return False
         except Exception as e:
             error_msg = f"Failed to send email: {type(e).__name__}: {str(e)}"
             logger.error(error_msg, exc_info=True)

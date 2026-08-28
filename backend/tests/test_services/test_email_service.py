@@ -429,3 +429,37 @@ class TestEmailTemplateRendering:
             "bcc1@example.com",
             "bcc2@example.com",
         ]
+
+    @pytest.mark.unit
+    @patch("app.services.email_service.GraphMailClient")
+    @patch("app.services.email_service.settings")
+    def test_send_csv_report_via_graph(self, mock_settings, mock_graph_cls):
+        mock_settings.graph_email_configured = True
+        mock_settings.azure_tenant_id = "tenant"
+        mock_settings.azure_client_id = "client"
+        mock_settings.azure_client_secret = "secret"
+        mock_settings.effective_email_transport = "graph"
+
+        mock_graph = MagicMock()
+        mock_graph_cls.return_value = mock_graph
+
+        service = EmailService()
+        service.email_transport = "graph"
+        service.email_password = ""
+
+        result = service.send_csv_report(
+            csv_bytes=b"xlsx-bytes",
+            filename="MSW_Overwatch_MAP_Report_2026-06-05.xlsx",
+            job_name="Daily DNK Uploaded Report - 2026-06-05",
+            total_upcs=10,
+            alerts_count=3,
+            recipient_email="vendor@example.com",
+            use_default_recipients=False,
+        )
+
+        assert result is True
+        mock_graph.send_message.assert_called_once()
+        kwargs = mock_graph.send_message.call_args.kwargs
+        assert kwargs["to_recipients"] == ["vendor@example.com"]
+        assert kwargs["attachments"][0][0] == "MSW_Overwatch_MAP_Report_2026-06-05.xlsx"
+        assert "MSW Overwatch | MAP Pricing Exceptions" in kwargs["subject"]

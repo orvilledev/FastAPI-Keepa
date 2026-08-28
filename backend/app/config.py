@@ -122,8 +122,14 @@ class Settings(BaseSettings):
     email_smtp_port: int = 587
     email_from: str  # Bare mailbox only, e.g. overwatch@metroshoewarehouse.com (not "Name <addr>")
     email_from_name: str = "MSW Overwatch"  # Display name shown in the From header
-    email_password: str
+    email_password: str = ""  # SMTP only; leave empty when using Graph (EMAIL_TRANSPORT=graph)
     email_to: str  # Can be comma-separated for multiple recipients
+    # Email transport: auto (Graph when Azure vars set), graph, or smtp.
+    email_transport: str = "auto"
+    # Microsoft Graph (application Mail.Send) — no tenant SMTP AUTH required.
+    azure_tenant_id: str = ""
+    azure_client_id: str = ""
+    azure_client_secret: str = ""
     
     # Application Configuration
     environment: str = "development"
@@ -252,6 +258,25 @@ class Settings(BaseSettings):
         if not raw:
             return []
         return [email.strip().lower() for email in raw.split(",") if email.strip()]
+
+    @property
+    def graph_email_configured(self) -> bool:
+        """True when Azure app credentials for Graph Mail.Send are present."""
+        return bool(
+            (self.azure_tenant_id or "").strip()
+            and (self.azure_client_id or "").strip()
+            and (self.azure_client_secret or "").strip()
+        )
+
+    @property
+    def effective_email_transport(self) -> str:
+        """Resolved outbound mail transport: graph or smtp."""
+        mode = (self.email_transport or "auto").strip().lower()
+        if mode == "graph":
+            return "graph"
+        if mode == "smtp":
+            return "smtp"
+        return "graph" if self.graph_email_configured else "smtp"
 
     class Config:
         # Use absolute path to .env file relative to backend directory

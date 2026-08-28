@@ -58,9 +58,11 @@ def test_email(
             return {
                 "message": "Test email sent successfully",
                 "recipients": recipients_list,
-                "from": email_service.email_from
+                "from": email_service.email_from,
+                "transport": email_service.email_transport,
             }
         else:
+            from app.config import settings
             return {
                 "message": "Failed to send test email",
                 "error": error_details or "Check backend logs for details",
@@ -68,14 +70,16 @@ def test_email(
                     "email_from": email_service.email_from or "NOT SET",
                     "email_to": email_service.email_to or "NOT SET",
                     "recipients_parsed": email_service._parse_recipients(email_service.email_to or ""),
+                    "transport": email_service.email_transport,
+                    "graph_configured": settings.graph_email_configured,
                     "smtp_host": email_service.smtp_host,
                     "smtp_port": email_service.smtp_port,
-                    "has_password": bool(email_service.email_password)
+                    "has_password": bool(email_service.email_password),
                 },
                 "troubleshooting": {
-                    "gmail_app_password": "If using Gmail, you need an App Password. Go to: https://myaccount.google.com/apppasswords",
-                    "check_password": "Make sure EMAIL_PASSWORD in .env is a 16-character App Password (no spaces)",
-                    "verify_2fa": "2-Step Verification must be enabled to generate App Passwords"
+                    "graph_setup": "For Microsoft 365, use Graph API (see docs/microsoft-graph-email-setup.md). Set AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, and EMAIL_TRANSPORT=graph.",
+                    "smtp_auth_disabled": "If SMTP fails with SmtpClientAuthentication is disabled, your tenant blocks SMTP AUTH — use Graph instead.",
+                    "gmail_app_password": "If using Gmail SMTP, use an App Password: https://myaccount.google.com/apppasswords",
                 }
             }
     except Exception as e:
