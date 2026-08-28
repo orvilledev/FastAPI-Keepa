@@ -20,6 +20,7 @@ from supabase import Client
 from pydantic import BaseModel
 from typing import List, Optional
 from app.maintenance import get_maintenance_state, set_maintenance_state
+from app.email_transport import get_email_transport_state, set_email_transport
 from fastapi.security import HTTPAuthorizationCredentials
 from app.services.upc_dnk_print_id_allowlist import (
     is_upc_dnk_print_id_allowed,
@@ -352,6 +353,10 @@ class MaintenanceUpdate(BaseModel):
     duration_hours: Optional[float] = None
 
 
+class EmailTransportUpdate(BaseModel):
+    transport: str
+
+
 class UpcDnkPrintIdAllowlistUpdate(BaseModel):
     emails: List[str]
 
@@ -524,6 +529,27 @@ def update_maintenance_mode(
 ):
     """Update runtime maintenance mode state (superadmin only)."""
     return set_maintenance_state(payload.maintenance_mode, payload.message, payload.duration_hours)
+
+
+@router.get("/email-transport")
+@handle_api_errors("get email transport")
+def get_email_transport(
+    current_user: dict = Depends(get_superadmin_user),
+):
+    """Get runtime email transport selection (superadmin only)."""
+    return get_email_transport_state()
+
+
+@router.put("/email-transport")
+@limiter.limit(RateLimits.ADMIN_OPERATIONS)
+@handle_api_errors("update email transport")
+def update_email_transport(
+    request: Request,
+    payload: EmailTransportUpdate,
+    current_user: dict = Depends(get_superadmin_user),
+):
+    """Set runtime email transport: auto, graph, or smtp (superadmin only)."""
+    return set_email_transport(payload.transport)
 
 
 @router.get("/upc-dnk-print-id-allowlist")

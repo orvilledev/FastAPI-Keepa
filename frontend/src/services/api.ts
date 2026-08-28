@@ -259,6 +259,30 @@ export const authApi = {
     }>('/api/v1/auth/maintenance', { maintenance_mode, message, duration_hours })
     return response.data
   },
+  getEmailTransport: async () => {
+    const response = await api.get<{
+      transport: 'auto' | 'graph' | 'smtp'
+      effective_transport: 'graph' | 'smtp'
+      env_transport: 'auto' | 'graph' | 'smtp'
+      smtp_configured: boolean
+      graph_configured: boolean
+      email_from: string
+      smtp_host: string
+    }>('/api/v1/auth/email-transport')
+    return response.data
+  },
+  updateEmailTransport: async (transport: 'auto' | 'graph' | 'smtp') => {
+    const response = await api.put<{
+      transport: 'auto' | 'graph' | 'smtp'
+      effective_transport: 'graph' | 'smtp'
+      env_transport: 'auto' | 'graph' | 'smtp'
+      smtp_configured: boolean
+      graph_configured: boolean
+      email_from: string
+      smtp_host: string
+    }>('/api/v1/auth/email-transport', { transport })
+    return response.data
+  },
   getUpcDnkPrintIdAllowlist: async () => {
     const response = await api.get<{ emails: string[] }>('/api/v1/auth/upc-dnk-print-id-allowlist')
     return response.data

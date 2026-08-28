@@ -75,6 +75,13 @@ export default function UserManagement() {
   const [maintenanceDurationHours, setMaintenanceDurationHours] = useState<number>(0)
   const [maintenanceExpectedEndAt, setMaintenanceExpectedEndAt] = useState<string | null>(null)
   const [maintenanceSaving, setMaintenanceSaving] = useState(false)
+  const [emailTransport, setEmailTransport] = useState<'auto' | 'graph' | 'smtp'>('auto')
+  const [emailEffectiveTransport, setEmailEffectiveTransport] = useState<'graph' | 'smtp'>('smtp')
+  const [emailSmtpConfigured, setEmailSmtpConfigured] = useState(false)
+  const [emailGraphConfigured, setEmailGraphConfigured] = useState(false)
+  const [emailFrom, setEmailFrom] = useState('')
+  const [emailTransportSaving, setEmailTransportSaving] = useState(false)
+  const [emailTransportMessage, setEmailTransportMessage] = useState<string | null>(null)
   const [upcDnkEmails, setUpcDnkEmails] = useState<string[]>([])
   const [upcDnkDraftEmail, setUpcDnkDraftEmail] = useState('')
   const [upcDnkLoading, setUpcDnkLoading] = useState(false)
@@ -121,6 +128,19 @@ export default function UserManagement() {
       setMaintenanceExpectedEndAt(state.expected_end_at || null)
     } catch (err) {
       console.error('Failed to load maintenance mode:', err)
+    }
+  }
+
+  const loadEmailTransport = async () => {
+    try {
+      const state = await authApi.getEmailTransport()
+      setEmailTransport(state.transport)
+      setEmailEffectiveTransport(state.effective_transport)
+      setEmailSmtpConfigured(Boolean(state.smtp_configured))
+      setEmailGraphConfigured(Boolean(state.graph_configured))
+      setEmailFrom(state.email_from || '')
+    } catch (err) {
+      console.error('Failed to load email transport:', err)
     }
   }
 
@@ -209,6 +229,7 @@ export default function UserManagement() {
     if (!isSuperadmin) return
     void loadUsers()
     void loadMaintenanceMode()
+    void loadEmailTransport()
     void loadPresence()
     void loadUpcDnkAllowlist()
   }, [userInfoLoading, isSuperadmin])
@@ -275,6 +296,35 @@ export default function UserManagement() {
       setMaintenanceSaving(false)
     }
   }
+
+  const handleSaveEmailTransport = async () => {
+    try {
+      setEmailTransportSaving(true)
+      setEmailTransportMessage(null)
+      const updated = await authApi.updateEmailTransport(emailTransport)
+      setEmailTransport(updated.transport)
+      setEmailEffectiveTransport(updated.effective_transport)
+      setEmailSmtpConfigured(Boolean(updated.smtp_configured))
+      setEmailGraphConfigured(Boolean(updated.graph_configured))
+      setEmailFrom(updated.email_from || '')
+      setEmailTransportMessage(`Saved. Active sender: ${updated.effective_transport.toUpperCase()}.`)
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined
+      setEmailTransportMessage(typeof msg === 'string' ? msg : 'Failed to update email transport')
+    } finally {
+      setEmailTransportSaving(false)
+    }
+  }
+
+  const emailTransportReady =
+    emailTransport === 'auto'
+      ? emailSmtpConfigured || emailGraphConfigured
+      : emailTransport === 'graph'
+        ? emailGraphConfigured
+        : emailSmtpConfigured
 
   const handleToggleKeepaAccess = async (userId: string, currentAccess: boolean) => {
     if (
@@ -688,6 +738,84 @@ export default function UserManagement() {
           >
             {maintenanceSaving ? 'Saving...' : 'Save Maintenance Details'}
           </button>
+        </div>
+      </div>
+
+      <div className="card p-4 space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Outbound Email Transport</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            Choose how MAP report emails are sent from{' '}
+            <span className="font-medium">{emailFrom || 'overwatch@'}</span>. SMTP and Microsoft Graph
+            credentials stay in server environment variables — this only switches which path is active.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {(['auto', 'graph', 'smtp'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => {
+                setEmailTransport(mode)
+                setEmailTransportMessage(null)
+              }}
+              className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
+                emailTransport === mode
+                  ? 'border-[#404040] bg-[#404040] text-white'
+                  : 'border-gray-300 bg-white text-gray-800 hover:border-gray-500'
+              }`}
+            >
+              {mode === 'auto' ? 'Auto' : mode === 'graph' ? 'Microsoft Graph' : 'SMTP'}
+            </button>
+          ))}
+        </div>
+        <div className="text-sm space-y-1">
+          <p>
+            <span className="font-medium">Currently sending via:</span>{' '}
+            <span
+              className={`px-2 py-0.5 rounded font-medium ${
+                emailEffectiveTransport === 'graph'
+                  ? 'bg-blue-100 text-blue-800'
+                  : 'bg-amber-100 text-amber-900'
+              }`}
+            >
+              {emailEffectiveTransport.toUpperCase()}
+            </span>
+          </p>
+          <p className="text-gray-600">
+            SMTP {emailSmtpConfigured ? 'configured' : 'not configured'} · Graph{' '}
+            {emailGraphConfigured ? 'configured' : 'not configured'}
+          </p>
+          {emailTransport === 'auto' && (
+            <p className="text-xs text-gray-500">
+              Auto uses Graph when Azure credentials are present; otherwise SMTP.
+            </p>
+          )}
+          {!emailTransportReady && (
+            <p className="text-xs text-red-700">
+              The selected mode is not fully configured on the server. Emails will fail until the
+              required credentials are set on Render.
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void handleSaveEmailTransport()}
+            disabled={emailTransportSaving}
+            className="px-4 py-2 rounded-lg bg-[#404040] text-white text-sm font-medium disabled:opacity-50"
+          >
+            {emailTransportSaving ? 'Saving…' : 'Save Email Transport'}
+          </button>
+          {emailTransportMessage && (
+            <p
+              className={`text-sm ${
+                emailTransportMessage.startsWith('Saved') ? 'text-emerald-700' : 'text-red-700'
+              }`}
+            >
+              {emailTransportMessage}
+            </p>
+          )}
         </div>
       </div>
 

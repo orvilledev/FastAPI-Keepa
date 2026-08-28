@@ -253,6 +253,8 @@ _ROUTES: Tuple[_Route, ...] = (
     _r("POST", r"^/api/v1/auth/users$", "admin.user_create", "admin", "Created a user account"),
     _r("PUT", r"^/api/v1/auth/maintenance$",
        "admin.maintenance", "admin", "Changed maintenance mode"),
+    _r("PUT", r"^/api/v1/auth/email-transport$",
+       "admin.email_transport", "admin", "Changed outbound email transport"),
     _r("PUT", r"^/api/v1/auth/upc-dnk-print-id-allowlist$",
        "admin.upc_dnk_print_id_allowlist", "admin",
        "Updated the Label Station UPC (DNK) Print ID allowlist"),

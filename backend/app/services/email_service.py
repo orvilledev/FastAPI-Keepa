@@ -11,6 +11,7 @@ from email import encoders
 from email.utils import formataddr, parseaddr
 from typing import Optional, List, Mapping
 from app.config import settings
+from app.email_transport import get_resolved_transport
 from app.services.csv_generator import CSVGenerator
 from app.services.graph_mail_service import GraphMailClient, GraphMailError
 
@@ -245,7 +246,7 @@ class EmailService:
         self.email_from_name = settings.email_from_name
         self.email_password = settings.email_password
         self.email_to = settings.email_to
-        self.email_transport = settings.effective_email_transport
+        self.email_transport = get_resolved_transport()
         self.last_error = None
         self._graph_client: Optional[GraphMailClient] = None
 

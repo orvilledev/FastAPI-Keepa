@@ -18,6 +18,16 @@ from app.services.email_service import (
 from app.services.csv_generator import CSVGenerator
 
 
+@pytest.fixture(autouse=True)
+def default_smtp_transport(request):
+    """Most email tests expect SMTP unless they patch Graph explicitly."""
+    if request.node.get_closest_marker("graph_email"):
+        yield
+        return
+    with patch("app.services.email_service.get_resolved_transport", return_value="smtp"):
+        yield
+
+
 def _extract_subject_and_body(send_message_call) -> tuple[str, str]:
     """Pull the Subject header and plain-text body from a captured MIME message."""
     args, _ = send_message_call.call_args
@@ -431,6 +441,7 @@ class TestEmailTemplateRendering:
         ]
 
     @pytest.mark.unit
+    @pytest.mark.graph_email
     @patch("app.services.email_service.GraphMailClient")
     @patch("app.services.email_service.settings")
     def test_send_csv_report_via_graph(self, mock_settings, mock_graph_cls):
