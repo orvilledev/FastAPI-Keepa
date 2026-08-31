@@ -1,0 +1,16 @@
+MSW Overwatch 3.4.0 — desktop and web release
+
+Feature release since 3.3.2. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Tools
+- New **DNK AllInventory** tool splits PMSH01 exports by purchase order
+- Removed Keepa Import File and Testing Playground from the UI
+
+## Email
+- Shared **Email List** team recipient directory, plus email groups with To/BCC roles for pickers
+- Superadmin can switch outbound mail between SMTP and **Graph API** (Microsoft 365 without SMTP AUTH)
+- Daily MAP report emails branded as MSW Overwatch, with clearer summary stats and copy
+- Keepa token summary removed from completion emails
+
+## Upgrade from 3.3.2
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.4.0, download it, then prompt to install now or later. Web/PWA users get 3.4.0 on the next deploy/refresh.

@@ -1,7 +1,7 @@
 {
   "name": "msw-overwatch-frontend",
   "private": true,
-  "version": "3.3.2",
+  "version": "3.4.0",
   "description": "MSW Overwatch dashboard (web and Electron)",
   "author": "MSW Overwatch",
   "type": "module",
@@ -87,7 +87,7 @@
       "repo": "FastAPI-Keepa"
     },
     "releaseInfo": {
-      "releaseNotesFile": "release-notes-3.3.2.txt"
+      "releaseNotesFile": "release-notes-3.4.0.txt"
     }
   }
 }
