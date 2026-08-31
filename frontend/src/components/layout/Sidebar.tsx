@@ -110,6 +110,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M9 8h1m5 0h.01M7 3h8l4 4v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z" />
     </svg>
   ),
+  dnkAllInventory: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h10M4 18h10M15 14l5 5m0-5v5h-5" />
+    </svg>
+  ),
   chart: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -415,6 +420,19 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
             >
               <span className="shrink-0">{Icons.manifestGenerator}</span>
               <span className="sidebar-link-label">Manifest Generator</span>
+            </Link>
+
+            <Link
+              to="/dnk-all-inventory"
+              onMouseEnter={() => setHoveredNav('dnk-all-inventory')}
+              className={`sidebar-link ${
+                navHighlighted('dnk-all-inventory', isActive('/dnk-all-inventory'))
+                  ? 'sidebar-link-active'
+                  : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="shrink-0">{Icons.dnkAllInventory}</span>
+              <span className="sidebar-link-label">DNK AllInventory</span>
             </Link>
 
             {hasKeepaAccess && (

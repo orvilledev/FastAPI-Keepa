@@ -58,6 +58,7 @@ const MicroTools = lazy(() => import('./components/tools/MicroTools'))
 const TrackingScanner = lazy(() => import('./components/scanner/TrackingScanner'))
 const FNSKULabelGenerator = lazy(() => import('./components/scanner/FNSKULabelGenerator'))
 const ManifestGenerator = lazy(() => import('./components/tools/ManifestGenerator'))
+const DnkAllInventory = lazy(() => import('./components/tools/DnkAllInventory'))
 const LabelStation = lazy(() => import('./components/scanner/LabelStation'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
@@ -431,6 +432,7 @@ function AppRoutes() {
           <Route path="tracking-scanner" element={<TrackingScanner />} />
           <Route path="fnsku-labels" element={<FNSKULabelGenerator />} />
           <Route path="manifest-generator" element={<ManifestGenerator />} />
+          <Route path="dnk-all-inventory" element={<DnkAllInventory />} />
           <Route
             path="label-station"
             element={<ProtectedRoute requireLabelStationAccess={true}><LabelStation /></ProtectedRoute>}

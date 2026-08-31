@@ -1666,6 +1666,68 @@ export const manifestGeneratorApi = {
   },
 }
 
+export type DnkAllInventoryResult = {
+  blob: Blob
+  filename: string
+  rowCount: number
+  poCount: number
+  availableLines: number
+  dateStamp: string
+}
+
+export const dnkAllInventoryApi = {
+  generate: async (file: File): Promise<DnkAllInventoryResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    try {
+      const response = await api.post<Blob>('/api/v1/dnk-all-inventory/generate', form, {
+        responseType: 'blob',
+        timeout: 180_000,
+      })
+      const headers = response.headers || {}
+      const filenameHeader = headers['x-dnk-filename']
+      const disposition = headers['content-disposition'] as string | undefined
+      let filename =
+        (typeof filenameHeader === 'string' && filenameHeader.trim()) ||
+        'PMSH01-AvailInventory AllInventory.xlsx'
+      if ((!filenameHeader || !String(filenameHeader).trim()) && disposition) {
+        const match = /filename="?([^";]+)"?/i.exec(disposition)
+        if (match?.[1]) filename = match[1]
+      }
+      return {
+        blob: response.data,
+        filename,
+        rowCount: Number(headers['x-dnk-row-count'] || 0),
+        poCount: Number(headers['x-dnk-po-count'] || 0),
+        availableLines: Number(headers['x-dnk-available-lines'] || 0),
+        dateStamp: String(headers['x-dnk-date-stamp'] || ''),
+      }
+    } catch (err: unknown) {
+      const ax = err as {
+        response?: { data?: Blob | { detail?: string }; status?: number }
+        message?: string
+      }
+      const data = ax.response?.data
+      if (data instanceof Blob) {
+        try {
+          const text = await data.text()
+          const parsed = JSON.parse(text) as { detail?: string }
+          if (parsed?.detail) {
+            throw Object.assign(new Error(parsed.detail), {
+              response: { data: { detail: parsed.detail }, status: ax.response?.status },
+            })
+          }
+        } catch (inner) {
+          if (inner instanceof Error && (inner as { response?: unknown }).response) {
+            throw inner
+          }
+        }
+      }
+      throw err
+    }
+  },
+}
+
 export const trackingScannerApi = {
   listHistory: async (): Promise<TrackingHistorySummary[]> => {
     const response = await api.get<TrackingHistorySummary[]>('/api/v1/tracking-scanner/history')
