@@ -69,7 +69,7 @@ function totalPallets(shipment: FreightShipmentResult): number {
 
 function IconBox({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#404040]/8 text-[#404040] dark:bg-white/10 dark:text-white">
+    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#404040]/12 text-[#404040] dark:bg-white/12 dark:text-white">
       {children}
     </span>
   )
@@ -81,6 +81,7 @@ function Field({
   onChange,
   min,
   step,
+  type = 'number',
   className = '',
 }: {
   label: string
@@ -88,20 +89,21 @@ function Field({
   onChange: (v: string) => void
   min?: number
   step?: number | 'any'
+  type?: 'number' | 'text'
   className?: string
 }) {
   return (
     <label className={`block ${className}`}>
-      <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-content-muted">
+      <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400">
         {label}
       </span>
       <input
-        type="number"
+        type={type}
         min={min}
         step={step}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm tabular-nums text-content shadow-sm transition-colors placeholder:text-content-muted/50 focus:border-[#81B81D] focus:outline-none focus:ring-2 focus:ring-[#81B81D]/20"
+        className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm tabular-nums text-gray-900 shadow-sm transition-colors placeholder:text-gray-400 focus:border-[#81B81D] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#81B81D]/25 dark:border-gray-600 dark:bg-gray-800/60 dark:text-gray-100 dark:focus:bg-gray-800"
       />
     </label>
   )
@@ -124,7 +126,7 @@ function Toggle({
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="flex w-full items-start gap-3 rounded-xl border border-border/80 bg-surface-muted/40 px-4 py-3 text-left transition-colors hover:bg-surface-muted/70"
+      className="flex w-full items-start gap-3 rounded-xl border border-gray-300 bg-gray-100 px-4 py-3 text-left transition-colors hover:bg-gray-100/80 dark:border-gray-600 dark:bg-gray-800/50"
     >
       <span
         className={`relative mt-0.5 inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${
@@ -138,8 +140,8 @@ function Toggle({
         />
       </span>
       <span className="min-w-0">
-        <span className="block text-sm font-medium text-content">{label}</span>
-        <span className="mt-0.5 block text-xs leading-relaxed text-content-muted">{description}</span>
+        <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{label}</span>
+        <span className="mt-0.5 block text-xs leading-relaxed text-gray-600 dark:text-gray-400">{description}</span>
       </span>
     </button>
   )
@@ -162,22 +164,22 @@ function ClassBadge({ value, size = 'md' }: { value: number; size?: 'sm' | 'md' 
 
 function ShipmentResultCard({ shipment }: { shipment: FreightShipmentResult }) {
   return (
-    <article className="group rounded-2xl border border-border/80 bg-surface p-5 shadow-sm transition-shadow hover:shadow-md">
+    <article className="group rounded-2xl border border-gray-300 bg-white p-5 shadow-sm transition-shadow hover:shadow-md dark:border-gray-600 dark:bg-surface">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-content-muted">{shipment.shipment_id}</p>
-          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-content-muted">
+          <p className="truncate text-sm font-medium text-gray-700 dark:text-gray-300">{shipment.shipment_id}</p>
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-600 dark:text-gray-400">
             <span>
-              <span className="font-medium text-content">{totalPallets(shipment)}</span> pallets
+              <span className="font-medium text-gray-900 dark:text-gray-100">{totalPallets(shipment)}</span> pallets
             </span>
             <span>
-              <span className="font-medium text-content">{shipment.total_weight_lbs.toFixed(0)}</span> lbs
+              <span className="font-medium text-gray-900 dark:text-gray-100">{shipment.total_weight_lbs.toFixed(0)}</span> lbs
             </span>
             <span>
-              <span className="font-medium text-content">{shipment.total_cubic_feet.toFixed(2)}</span> ft³
+              <span className="font-medium text-gray-900 dark:text-gray-100">{shipment.total_cubic_feet.toFixed(2)}</span> ft³
             </span>
             <span>
-              <span className="font-medium text-content">{shipment.density_pcf.toFixed(2)}</span> lb/ft³
+              <span className="font-medium text-gray-900 dark:text-gray-100">{shipment.density_pcf.toFixed(2)}</span> lb/ft³
             </span>
           </div>
           {shipment.height_rule_applied && (
@@ -187,7 +189,7 @@ function ShipmentResultCard({ shipment }: { shipment: FreightShipmentResult }) {
           )}
         </div>
         <div className="flex shrink-0 flex-col items-start sm:items-end">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-content-muted">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400">
             Freight class
           </span>
           <div className="mt-1">
@@ -218,10 +220,10 @@ function ResultsPanel({
 
   return (
     <section className="space-y-5">
-      <div className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-4 border-b border-gray-200 pb-5 sm:flex-row sm:items-end sm:justify-between dark:border-gray-700">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-content">Results</h2>
-          <p className="mt-1 text-sm text-content-muted">
+          <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-gray-100">Results</h2>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
             {result.summary.shipment_count} shipment{result.summary.shipment_count === 1 ? '' : 's'}{' '}
             calculated
           </p>
@@ -230,7 +232,7 @@ function ResultsPanel({
           <button
             type="button"
             onClick={onCopy}
-            className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3.5 py-2 text-sm font-medium text-content shadow-sm transition-colors hover:bg-surface-muted"
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-800 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
           >
             {copySuccess ? (
               <>
@@ -239,7 +241,7 @@ function ResultsPanel({
               </>
             ) : (
               <>
-                <CopyIcon className="h-4 w-4 text-content-muted" />
+                <CopyIcon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                 Copy
               </>
             )}
@@ -496,17 +498,17 @@ export default function FreightClassCalculator() {
             <TruckIcon className="h-5 w-5" />
           </IconBox>
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-semibold tracking-tight text-content sm:text-2xl">
+            <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 sm:text-2xl">
               Freight Class Calculator
             </h1>
-            <p className="mt-1 text-sm leading-relaxed text-content-muted">
+            <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
               NMFC density scale · XPO-compatible logic
             </p>
           </div>
           <button
             type="button"
             onClick={() => void handleDownloadTemplate()}
-            className="hidden shrink-0 text-sm font-medium text-content-muted underline-offset-2 hover:text-[#81B81D] hover:underline sm:block"
+            className="hidden shrink-0 text-sm font-medium text-gray-600 underline-offset-2 hover:text-[#81B81D] hover:underline dark:text-gray-400 sm:block"
           >
             Template
           </button>
@@ -523,7 +525,7 @@ export default function FreightClassCalculator() {
       )}
 
       {/* Tabs */}
-      <div className="mb-6 inline-flex rounded-full border border-border bg-surface-muted/60 p-1">
+      <div className="mb-6 inline-flex rounded-full border border-gray-300 bg-gray-100 p-1 dark:border-gray-600 dark:bg-gray-800/60">
         {(
           [
             ['manual', 'Manual'],
@@ -539,8 +541,8 @@ export default function FreightClassCalculator() {
             }}
             className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
               activeTab === id
-                ? 'bg-surface text-content shadow-sm ring-1 ring-border/60'
-                : 'text-content-muted hover:text-content'
+                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-300 dark:bg-gray-700 dark:text-gray-100 dark:ring-gray-600'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
             }`}
           >
             {label}
@@ -549,7 +551,7 @@ export default function FreightClassCalculator() {
       </div>
 
       {/* Input card */}
-      <div className="rounded-2xl border border-border/80 bg-surface p-5 shadow-sm sm:p-6">
+      <div className="rounded-2xl border border-gray-300 bg-white p-5 shadow-md sm:p-6 dark:border-gray-600 dark:bg-surface">
         <Toggle
           checked={skipSeventyFiveRule}
           onChange={setSkipSeventyFiveRule}
@@ -559,81 +561,82 @@ export default function FreightClassCalculator() {
 
         <div className="mt-6">
           {activeTab === 'bulk' ? (
-            <div
-              className={`relative rounded-xl border-2 border-dashed transition-all ${
-                isDragging
-                  ? 'border-[#81B81D] bg-[#81B81D]/5'
-                  : file
-                    ? 'border-[#81B81D]/40 bg-[#81B81D]/[0.03]'
-                    : 'border-border hover:border-content-muted/40'
-              }`}
-              onDragOver={(e) => {
-                e.preventDefault()
-                setIsDragging(true)
-              }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-            >
-              <div className="flex flex-col items-center px-6 py-10 text-center">
-                <div
-                  className={`mb-4 flex h-12 w-12 items-center justify-center rounded-full transition-colors ${
-                    file ? 'bg-[#81B81D]/15 text-[#81B81D]' : 'bg-surface-muted text-content-muted'
-                  }`}
-                >
-                  <UploadIcon className="h-6 w-6" />
+            <div className="relative">
+              <input
+                id="freight-bulk-file-input"
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPTED}
+                className="sr-only"
+                onChange={(e) => {
+                  acceptFile(e.target.files?.[0])
+                  if (fileInputRef.current) fileInputRef.current.value = ''
+                }}
+              />
+              <label
+                htmlFor="freight-bulk-file-input"
+                className={`block cursor-pointer rounded-xl border-2 border-dashed transition-all ${
+                  isDragging
+                    ? 'border-[#81B81D] bg-[#81B81D]/5'
+                    : file
+                      ? 'border-[#81B81D]/40 bg-[#81B81D]/[0.03]'
+                      : 'border-gray-300 bg-gray-50 hover:border-gray-400 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800/40'
+                }`}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  setIsDragging(true)
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+              >
+                <div className="flex flex-col items-center px-6 py-10 text-center">
+                  <div
+                    className={`mb-4 flex h-12 w-12 items-center justify-center rounded-full transition-colors ${
+                      file ? 'bg-[#81B81D]/15 text-[#81B81D]' : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    <UploadIcon className="h-6 w-6" />
+                  </div>
+                  {file ? (
+                    <>
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{file.name}</p>
+                      <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                        {(file.size / 1024).toFixed(1)} KB · Click to replace
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-gray-800 dark:text-gray-200">
+                        Drop <span className="font-medium">.xlsx</span> here or{' '}
+                        <span className="font-semibold text-[#404040] underline decoration-[#81B81D]/50 underline-offset-2 dark:text-[#81B81D]">
+                          browse
+                        </span>
+                      </p>
+                      <p className="mt-2 max-w-xs text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+                        Shipment ID, Pallets, Weight, Length, Width, Height
+                      </p>
+                    </>
+                  )}
                 </div>
-                {file ? (
-                  <>
-                    <p className="text-sm font-medium text-content">{file.name}</p>
-                    <p className="mt-1 text-xs text-content-muted">
-                      {(file.size / 1024).toFixed(1)} KB · Ready to calculate
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm text-content">
-                      Drop <span className="font-medium">.xlsx</span> here or{' '}
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="font-medium text-[#404040] underline-offset-2 hover:text-[#81B81D] hover:underline dark:text-[#81B81D]"
-                      >
-                        browse
-                      </button>
-                    </p>
-                    <p className="mt-2 max-w-xs text-xs leading-relaxed text-content-muted">
-                      Shipment ID, Pallets, Weight, Length, Width, Height
-                    </p>
-                  </>
-                )}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept={ACCEPTED}
-                  className="hidden"
-                  onChange={(e) => {
-                    acceptFile(e.target.files?.[0])
+              </label>
+              {file && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFile(null)
                     if (fileInputRef.current) fileInputRef.current.value = ''
                   }}
-                />
-                {file && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFile(null)
-                      if (fileInputRef.current) fileInputRef.current.value = ''
-                    }}
-                    className="mt-3 text-xs font-medium text-content-muted hover:text-red-600"
-                  >
-                    Remove file
-                  </button>
-                )}
-              </div>
+                  className="mt-3 w-full text-center text-xs font-medium text-gray-600 hover:text-red-600 dark:text-gray-400"
+                >
+                  Remove file
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
               <Field
-                label="Shipment ID"
+                label="Shipment ID (optional)"
+                type="text"
                 value={manualShipmentId}
                 onChange={setManualShipmentId}
                 className="max-w-xs"
@@ -642,17 +645,17 @@ export default function FreightClassCalculator() {
                 {manualRows.map((row, index) => (
                   <div
                     key={row.id}
-                    className="rounded-xl border border-border/70 bg-surface-muted/30 p-4"
+                    className="rounded-xl border border-gray-300 bg-gray-100 p-4 dark:border-gray-600 dark:bg-gray-800/40"
                   >
                     <div className="mb-3 flex items-center justify-between">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-content-muted">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-300">
                         Pallet {index + 1}
                       </span>
                       {manualRows.length > 1 && (
                         <button
                           type="button"
                           onClick={() => setManualRows((rows) => rows.filter((r) => r.id !== row.id))}
-                          className="rounded-md p-1 text-content-muted transition-colors hover:bg-red-50 hover:text-red-600"
+                          className="rounded-md p-1 text-gray-600 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-gray-400"
                           aria-label="Remove pallet row"
                         >
                           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -716,7 +719,7 @@ export default function FreightClassCalculator() {
               <button
                 type="button"
                 onClick={() => setManualRows((rows) => [...rows, emptyRow()])}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-content-muted transition-colors hover:text-[#81B81D]"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-700 transition-colors hover:text-[#81B81D] dark:text-gray-300"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -727,7 +730,7 @@ export default function FreightClassCalculator() {
           )}
         </div>
 
-        <div className="mt-8 flex items-center gap-3 border-t border-border/60 pt-6">
+        <div className="mt-8 flex items-center gap-3 border-t border-gray-200 pt-6 dark:border-gray-700">
           <button
             type="button"
             disabled={loading || (activeTab === 'bulk' && !file)}
@@ -747,7 +750,7 @@ export default function FreightClassCalculator() {
             <button
               type="button"
               onClick={clearAll}
-              className="rounded-xl border border-border px-4 py-3 text-sm font-medium text-content-muted transition-colors hover:bg-surface-muted"
+              className="rounded-xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
             >
               Clear
             </button>
@@ -760,7 +763,7 @@ export default function FreightClassCalculator() {
         <button
           type="button"
           onClick={() => setShowReference((v) => !v)}
-          className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-surface-muted/30 px-4 py-3 text-left text-sm font-medium text-content-muted transition-colors hover:bg-surface-muted/50"
+          className="flex w-full items-center justify-between rounded-xl border border-gray-300 bg-gray-100 px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100/80 dark:border-gray-600 dark:bg-gray-800/50 dark:text-gray-300"
         >
           <span>NMFC density scale</span>
           <svg
@@ -774,14 +777,14 @@ export default function FreightClassCalculator() {
           </svg>
         </button>
         {showReference && (
-          <div className="mt-2 overflow-hidden rounded-xl border border-border/60 bg-surface">
-            <div className="grid grid-cols-2 gap-px bg-border/40 sm:grid-cols-3">
+          <div className="mt-2 overflow-hidden rounded-xl border border-gray-300 bg-white dark:border-gray-600 dark:bg-surface">
+            <div className="grid grid-cols-2 gap-px bg-gray-200 sm:grid-cols-3 dark:bg-gray-700">
               {NMFC_SCALE.map(([range, cls]) => (
                 <div
                   key={cls}
-                  className="flex items-center justify-between bg-surface px-3 py-2 text-xs"
+                  className="flex items-center justify-between bg-white px-3 py-2 text-xs dark:bg-surface"
                 >
-                  <span className="text-content-muted">{range} lb/ft³</span>
+                  <span className="text-gray-600 dark:text-gray-400">{range} lb/ft³</span>
                   <ClassBadge value={Number(cls)} size="sm" />
                 </div>
               ))}
@@ -807,7 +810,7 @@ export default function FreightClassCalculator() {
         <button
           type="button"
           onClick={() => void handleDownloadTemplate()}
-          className="text-sm font-medium text-content-muted underline-offset-2 hover:text-[#81B81D] hover:underline"
+          className="text-sm font-medium text-gray-600 underline-offset-2 hover:text-[#81B81D] hover:underline dark:text-gray-400"
         >
           Download Excel template
         </button>
