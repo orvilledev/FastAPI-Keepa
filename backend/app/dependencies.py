@@ -235,6 +235,30 @@ def get_master_sheet_user(
     return current_user
 
 
+def is_freight_class_allowed_user(current_user: dict, db: Client) -> bool:
+    """True for superadmin or emails on the Freight Class Calculator allowlist."""
+    if is_superadmin_user(current_user, db):
+        return True
+    email = (current_user.get("email") or "").strip().lower()
+    if not email:
+        return False
+    allowed = set(settings.freight_class_allowed_emails_list)
+    return email in allowed
+
+
+def get_freight_class_user(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+) -> dict:
+    """Verify user may use the Freight Class Calculator."""
+    if not is_freight_class_allowed_user(current_user, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Freight Class Calculator is restricted to authorized users",
+        )
+    return current_user
+
+
 def get_keepa_access_user(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)

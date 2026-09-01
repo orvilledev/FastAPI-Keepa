@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useUser } from '../../contexts/UserContext'
 import { canAccessMasterSheet } from '../../lib/masterSheetAccess'
+import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
 
 type SearchItem = {
@@ -16,6 +17,7 @@ function buildSearchItems(
   isWarehouseOnly: boolean,
   isSuperadmin: boolean,
   showMasterSheet: boolean,
+  showFreightClass: boolean,
   showAnalytics: boolean,
 ): SearchItem[] {
   if (isWarehouseOnly) {
@@ -61,9 +63,12 @@ function buildSearchItems(
     { label: 'Feedback From Users', path: '/feedback', section: 'General' },
   )
 
+  if (showFreightClass) {
+    items.push({ label: 'Freight Class Calculator', path: '/freight-class-calculator', section: 'Tools' })
+  }
+
   if (isSuperadmin) {
     items.push(
-      { label: 'Freight Class Calculator', path: '/freight-class-calculator', section: 'Tools' },
       { label: 'User Management', path: '/admin/users', section: 'General' },
       { label: 'Audit Log', path: '/admin/audit-log', section: 'General' },
       { label: 'UPC', path: '/catalog/upc', section: 'General' },
@@ -90,6 +95,10 @@ export default function NavbarSearch() {
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
+  const showFreightClass = canAccessFreightClassCalculator(
+    userInfo?.email || authUser?.email,
+    isSuperadmin,
+  )
   const showAnalytics = canAccessWebAnalytics(userInfo?.email || authUser?.email)
 
   const searchItems = useMemo(
@@ -99,9 +108,10 @@ export default function NavbarSearch() {
         isWarehouseOnly,
         isSuperadmin,
         showMasterSheet,
+        showFreightClass,
         showAnalytics,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showMasterSheet, showAnalytics],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showMasterSheet, showFreightClass, showAnalytics],
   )
 
   const results = useMemo(() => {

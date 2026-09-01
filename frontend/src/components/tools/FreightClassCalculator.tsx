@@ -6,6 +6,7 @@ import {
   type FreightShipmentResult,
 } from '../../services/api'
 import { auditAction } from '../../lib/auditEvents'
+import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { classBadgeStyle, copySummaryToClipboard } from '../../utils/freightClassExport'
 
 const ACCEPTED =
@@ -167,8 +168,8 @@ function ShipmentResultCard({ shipment }: { shipment: FreightShipmentResult }) {
     <article className="group rounded-2xl border border-gray-300 bg-white p-5 shadow-sm transition-shadow hover:shadow-md dark:border-gray-600 dark:bg-surface">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-gray-700 dark:text-gray-300">{shipment.shipment_id}</p>
-          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-600 dark:text-gray-400">
+          <p className="truncate text-base font-semibold text-gray-800 dark:text-gray-200">{shipment.shipment_id}</p>
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-gray-600 dark:text-gray-400">
             <span>
               <span className="font-medium text-gray-900 dark:text-gray-100">{totalPallets(shipment)}</span> pallets
             </span>
@@ -189,7 +190,7 @@ function ShipmentResultCard({ shipment }: { shipment: FreightShipmentResult }) {
           )}
         </div>
         <div className="flex shrink-0 flex-col items-start sm:items-end">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400">
+          <span className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400">
             Freight class
           </span>
           <div className="mt-1">
@@ -223,7 +224,7 @@ function ResultsPanel({
       <div className="flex flex-col gap-4 border-b border-gray-200 pb-5 sm:flex-row sm:items-end sm:justify-between dark:border-gray-700">
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-gray-100">Results</h2>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+          <p className="mt-1 text-base text-gray-600 dark:text-gray-400">
             {result.summary.shipment_count} shipment{result.summary.shipment_count === 1 ? '' : 's'}{' '}
             calculated
           </p>
@@ -263,10 +264,10 @@ function ResultsPanel({
           {classes.map(([cls, count]) => (
             <span
               key={cls}
-              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${classBadgeStyle(Number(cls))}`}
+              className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium ${classBadgeStyle(Number(cls))}`}
             >
               Class {cls}
-              <span className="rounded-full bg-black/5 px-1.5 py-px text-[10px] dark:bg-white/10">
+              <span className="rounded-full bg-black/5 px-1.5 py-px text-xs dark:bg-white/10">
                 {count}
               </span>
             </span>
@@ -324,7 +325,8 @@ function TruckIcon({ className }: { className?: string }) {
 }
 
 export default function FreightClassCalculator() {
-  const { isSuperadmin } = useUser()
+  const { isSuperadmin, userInfo, authUser } = useUser()
+  const canUse = canAccessFreightClassCalculator(userInfo?.email || authUser?.email, isSuperadmin)
   const [activeTab, setActiveTab] = useState<TabId>('manual')
   const [skipSeventyFiveRule, setSkipSeventyFiveRule] = useState(false)
   const [manualRows, setManualRows] = useState<ManualRow[]>([emptyRow()])
@@ -473,7 +475,7 @@ export default function FreightClassCalculator() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }, [])
 
-  if (!isSuperadmin) {
+  if (!canUse) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center px-4">
         <div className="max-w-sm rounded-2xl border border-border bg-surface p-8 text-center shadow-sm">
@@ -483,7 +485,7 @@ export default function FreightClassCalculator() {
             </svg>
           </IconBox>
           <h2 className="mt-4 text-lg font-semibold text-content">Access restricted</h2>
-          <p className="mt-2 text-sm text-content-muted">Superadmin access required.</p>
+          <p className="mt-2 text-sm text-content-muted">This tool is limited to authorized users.</p>
         </div>
       </div>
     )

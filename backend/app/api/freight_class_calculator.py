@@ -1,11 +1,11 @@
-"""Freight Class Calculator API — NMFC density-based LTL class (superadmin only)."""
+"""Freight Class Calculator API — NMFC density-based LTL class (authorized users)."""
 import logging
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from app.dependencies import get_superadmin_user
+from app.dependencies import get_freight_class_user
 from app.middleware.rate_limiter import RateLimits, limiter
 from app.services.freight_class_calculator import (
     FreightClassCalculatorError,
@@ -54,7 +54,7 @@ def _validate_xlsx_upload(file: UploadFile) -> None:
 @handle_api_errors("download freight class template")
 async def download_template(
     request: Request,
-    current_user=Depends(get_superadmin_user),
+    current_user=Depends(get_freight_class_user),
 ):
     _ = current_user
     content = build_template_workbook()
@@ -73,7 +73,7 @@ async def download_template(
 async def calculate_manual_endpoint(
     request: Request,
     body: ManualCalculateRequest,
-    current_user=Depends(get_superadmin_user),
+    current_user=Depends(get_freight_class_user),
 ):
     _ = current_user
     try:
@@ -94,7 +94,7 @@ async def calculate_file_endpoint(
     request: Request,
     file: UploadFile = File(...),
     skip_seventy_five_inch_rule: bool = False,
-    current_user=Depends(get_superadmin_user),
+    current_user=Depends(get_freight_class_user),
 ):
     _ = current_user
     _validate_xlsx_upload(file)
@@ -119,7 +119,7 @@ async def calculate_file_endpoint(
 async def export_results_endpoint(
     request: Request,
     body: ExportRequest,
-    current_user=Depends(get_superadmin_user),
+    current_user=Depends(get_freight_class_user),
 ):
     _ = current_user
     from app.services.freight_class_calculator import CalculationResult, ShipmentLineItem, ShipmentResult

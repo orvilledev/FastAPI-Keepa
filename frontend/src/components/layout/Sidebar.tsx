@@ -5,6 +5,7 @@ import { APP_NAME } from '../../constants/app'
 import AppLogo from '../common/AppLogo'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessMasterSheet } from '../../lib/masterSheetAccess'
+import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 
 // SVG Icon components that inherit text color via currentColor
 const Icons = {
@@ -138,6 +139,10 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
   const location = useLocation()
   const { hasKeepaAccess, isWarehouseOnly, isSuperadmin, userInfo, authUser } = useUser()
   const canUseMasterSheet = canAccessMasterSheet(
+    userInfo?.email || authUser?.email,
+    isSuperadmin,
+  )
+  const canUseFreightClass = canAccessFreightClassCalculator(
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
@@ -440,7 +445,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
               <span className="sidebar-link-label">DNK AllInventory</span>
             </Link>
 
-            {isSuperadmin && (
+            {canUseFreightClass && (
               <Link
                 to="/freight-class-calculator"
                 onMouseEnter={() => setHoveredNav('freight-class-calculator')}
