@@ -63,6 +63,7 @@ function buildSearchItems(
 
   if (isSuperadmin) {
     items.push(
+      { label: 'Freight Class Calculator', path: '/freight-class-calculator', section: 'Tools' },
       { label: 'User Management', path: '/admin/users', section: 'General' },
       { label: 'Audit Log', path: '/admin/audit-log', section: 'General' },
       { label: 'UPC', path: '/catalog/upc', section: 'General' },

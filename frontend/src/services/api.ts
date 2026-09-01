@@ -1728,6 +1728,98 @@ export const dnkAllInventoryApi = {
   },
 }
 
+export type FreightLineItem = {
+  pallets: number
+  weight_lbs: number
+  length_in: number
+  width_in: number
+  height_in: number
+  adjusted_height_in?: number | null
+  height_rule_applied: boolean
+  cubic_feet: number
+}
+
+export type FreightShipmentResult = {
+  shipment_id: string
+  line_items: FreightLineItem[]
+  total_weight_lbs: number
+  total_cubic_feet: number
+  density_pcf: number
+  freight_class: number
+  height_rule_applied: boolean
+}
+
+export type FreightCalculationResult = {
+  shipments: FreightShipmentResult[]
+  summary: {
+    shipment_count: number
+    class_breakdown: Record<string, number>
+  }
+}
+
+export type ManualFreightCalculatePayload = {
+  shipment_id?: string
+  skip_seventy_five_inch_rule?: boolean
+  line_items: Array<{
+    pallets: number
+    weight: number
+    length: number
+    width: number
+    height: number
+  }>
+}
+
+export const freightClassCalculatorApi = {
+  calculateManual: async (
+    payload: ManualFreightCalculatePayload,
+  ): Promise<FreightCalculationResult> => {
+    const response = await api.post<FreightCalculationResult>(
+      '/api/v1/freight-class-calculator/calculate-manual',
+      payload,
+    )
+    return response.data
+  },
+
+  calculateFile: async (
+    file: File,
+    skipSeventyFiveInchRule = false,
+  ): Promise<FreightCalculationResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    const response = await api.post<FreightCalculationResult>(
+      `/api/v1/freight-class-calculator/calculate-file?skip_seventy_five_inch_rule=${skipSeventyFiveInchRule}`,
+      form,
+      { timeout: 120_000 },
+    )
+    return response.data
+  },
+
+  exportExcel: async (result: FreightCalculationResult): Promise<{ blob: Blob; filename: string }> => {
+    const response = await api.post<Blob>(
+      '/api/v1/freight-class-calculator/export',
+      result,
+      { responseType: 'blob', timeout: 120_000 },
+    )
+    const disposition = response.headers['content-disposition'] as string | undefined
+    let filename = 'Freight Class Summary.xlsx'
+    if (disposition) {
+      const match = /filename="?([^";]+)"?/i.exec(disposition)
+      if (match?.[1]) filename = match[1]
+    }
+    return { blob: response.data, filename }
+  },
+
+  downloadTemplate: async (): Promise<{ blob: Blob; filename: string }> => {
+    const response = await api.get<Blob>('/api/v1/freight-class-calculator/template', {
+      responseType: 'blob',
+    })
+    return {
+      blob: response.data,
+      filename: 'Freight Class Calculator Template.xlsx',
+    }
+  },
+}
+
 export const trackingScannerApi = {
   listHistory: async (): Promise<TrackingHistorySummary[]> => {
     const response = await api.get<TrackingHistorySummary[]>('/api/v1/tracking-scanner/history')
