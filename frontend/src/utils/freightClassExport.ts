@@ -44,9 +44,17 @@ export async function copySummaryToClipboard(result: FreightCalculationResult): 
 }
 
 export function classBadgeStyle(freightClass: number): string {
-  if (freightClass <= 70) return 'bg-emerald-100 text-emerald-900 border-emerald-300'
-  if (freightClass <= 100) return 'bg-lime-100 text-lime-900 border-lime-300'
-  if (freightClass <= 175) return 'bg-amber-100 text-amber-900 border-amber-300'
-  if (freightClass <= 300) return 'bg-orange-100 text-orange-900 border-orange-300'
-  return 'bg-red-100 text-red-900 border-red-300'
+  if (freightClass <= 70) {
+    return 'border-emerald-200/80 bg-emerald-50 text-emerald-800 dark:border-emerald-800/50 dark:bg-emerald-950/40 dark:text-emerald-200'
+  }
+  if (freightClass <= 100) {
+    return 'border-[#81B81D]/30 bg-[#81B81D]/10 text-[#3d5c0f] dark:border-[#81B81D]/40 dark:bg-[#81B81D]/15 dark:text-[#c5e887]'
+  }
+  if (freightClass <= 175) {
+    return 'border-amber-200/80 bg-amber-50 text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-200'
+  }
+  if (freightClass <= 300) {
+    return 'border-orange-200/80 bg-orange-50 text-orange-900 dark:border-orange-800/50 dark:bg-orange-950/40 dark:text-orange-200'
+  }
+  return 'border-red-200/80 bg-red-50 text-red-900 dark:border-red-800/50 dark:bg-red-950/40 dark:text-red-200'
 }
