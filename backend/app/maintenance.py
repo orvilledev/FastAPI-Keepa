@@ -2,12 +2,15 @@
 from datetime import datetime, timedelta, timezone
 from app.config import settings
 
+_DEFAULT_SCHEDULE_TIMEZONE = "America/Chicago"
+
 _state = {
     "maintenance_mode": bool(settings.maintenance_mode),
     "message": settings.maintenance_message,
     "duration_hours": None,
     "expected_end_at": None,
     "scheduled_start_at": None,
+    "schedule_timezone": _DEFAULT_SCHEDULE_TIMEZONE,
 }
 
 
@@ -22,6 +25,11 @@ def _parse_iso_utc(value: str | None) -> datetime | None:
 
 def _to_iso_z(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _normalize_timezone(value: str | None) -> str:
+    cleaned = str(value or "").strip()
+    return cleaned or _DEFAULT_SCHEDULE_TIMEZONE
 
 
 def _format_expected_end(expected_end_at: str | None) -> str | None:
@@ -80,6 +88,7 @@ def get_maintenance_state() -> dict:
     expected_end_at = _state.get("expected_end_at")
     duration_hours = _state.get("duration_hours")
     scheduled_start_at = _state.get("scheduled_start_at")
+    schedule_timezone = _normalize_timezone(_state.get("schedule_timezone"))
     return {
         "maintenance_mode": maintenance_mode,
         "message": message,
@@ -87,6 +96,7 @@ def get_maintenance_state() -> dict:
         "duration_hours": duration_hours,
         "expected_end_at": expected_end_at,
         "scheduled_start_at": scheduled_start_at,
+        "schedule_timezone": schedule_timezone,
     }
 
 
@@ -96,6 +106,7 @@ def set_maintenance_state(
     duration_hours: float | None = None,
     scheduled_start_at: str | None = None,
     scheduled_end_at: str | None = None,
+    schedule_timezone: str | None = None,
     *,
     update_schedule: bool = False,
 ) -> dict:
@@ -106,6 +117,8 @@ def set_maintenance_state(
     if duration_hours is not None:
         clamped = max(0.0, min(168.0, float(duration_hours)))
         _state["duration_hours"] = clamped
+    if schedule_timezone is not None:
+        _state["schedule_timezone"] = _normalize_timezone(schedule_timezone)
 
     hours = _state.get("duration_hours")
     hours_val = float(hours) if isinstance(hours, (int, float)) else None

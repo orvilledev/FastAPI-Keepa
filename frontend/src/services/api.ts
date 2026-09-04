@@ -249,6 +249,7 @@ export const authApi = {
       duration_hours?: number | null
       expected_end_at?: string | null
       scheduled_start_at?: string | null
+      schedule_timezone?: string | null
     }>('/api/v1/auth/maintenance')
     return response.data
   },
@@ -259,6 +260,7 @@ export const authApi = {
     options?: {
       scheduled_start_at?: string | null
       scheduled_end_at?: string | null
+      schedule_timezone?: string | null
       update_schedule?: boolean
     }
   ) => {
@@ -269,12 +271,14 @@ export const authApi = {
       duration_hours?: number | null
       expected_end_at?: string | null
       scheduled_start_at?: string | null
+      schedule_timezone?: string | null
     }>('/api/v1/auth/maintenance', {
       maintenance_mode,
       message,
       duration_hours,
       scheduled_start_at: options?.scheduled_start_at ?? null,
       scheduled_end_at: options?.scheduled_end_at ?? null,
+      schedule_timezone: options?.schedule_timezone ?? null,
       update_schedule: Boolean(options?.update_schedule),
     })
     return response.data
@@ -2039,6 +2043,7 @@ export const systemApi = {
     duration_hours?: number | null
     expected_end_at?: string | null
     scheduled_start_at?: string | null
+    schedule_timezone?: string | null
   }> => {
     const response = await api.get('/api/v1/system/maintenance-status')
     return response.data

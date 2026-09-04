@@ -66,28 +66,117 @@ function emailTransportLabel(transport: 'graph' | 'smtp'): string {
   return transport === 'graph' ? 'Graph API' : 'SMTP'
 }
 
-function toLocalDateValue(iso: string | null | undefined): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+const DEFAULT_MAINTENANCE_TIMEZONE = 'America/Chicago'
+
+const MAINTENANCE_TIMEZONE_VALUES = new Set([
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'America/Anchorage',
+  'Pacific/Honolulu',
+  'Asia/Taipei',
+  'Asia/Tokyo',
+  'Asia/Shanghai',
+  'Asia/Hong_Kong',
+  'Asia/Singapore',
+  'Asia/Seoul',
+  'Asia/Dubai',
+  'Asia/Kolkata',
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Berlin',
+  'Europe/Rome',
+  'Europe/Madrid',
+  'Europe/Moscow',
+  'Australia/Sydney',
+  'Australia/Melbourne',
+  'Australia/Brisbane',
+  'Pacific/Auckland',
+  'America/Toronto',
+  'America/Vancouver',
+  'America/Mexico_City',
+  'America/Sao_Paulo',
+  'America/Buenos_Aires',
+  'UTC',
+  'Africa/Johannesburg',
+  'Asia/Jerusalem',
+])
+
+function browserTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_MAINTENANCE_TIMEZONE
+  } catch {
+    return DEFAULT_MAINTENANCE_TIMEZONE
+  }
 }
 
-function toLocalTimeValue(iso: string | null | undefined): string {
-  if (!iso) return ''
+function formatInTimeZone(iso: string | null | undefined, timeZone: string): { date: string; time: string } {
+  if (!iso) return { date: '', time: '' }
   const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  if (Number.isNaN(d.getTime())) return { date: '', time: '' }
+  try {
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      })
+        .formatToParts(d)
+        .filter((p) => p.type !== 'literal')
+        .map((p) => [p.type, p.value])
+    ) as Record<string, string>
+    return {
+      date: `${parts.year}-${parts.month}-${parts.day}`,
+      time: `${parts.hour}:${parts.minute}`,
+    }
+  } catch {
+    return { date: '', time: '' }
+  }
 }
 
-function localDateTimeToIso(date: string, time: string): string | null {
+function zonedDateTimeToIso(date: string, time: string, timeZone: string): string | null {
   if (!date.trim() || !time.trim()) return null
-  const d = new Date(`${date}T${time}:00`)
-  if (Number.isNaN(d.getTime())) return null
-  return d.toISOString()
+  const [y, mo, d] = date.split('-').map(Number)
+  const [h, mi] = time.split(':').map(Number)
+  if (![y, mo, d, h, mi].every((n) => Number.isFinite(n))) return null
+
+  // Interpret wall-clock date/time in the selected IANA timezone, convert to UTC ISO.
+  let utcMs = Date.UTC(y, mo - 1, d, h, mi, 0)
+  for (let i = 0; i < 3; i++) {
+    const shown = formatInTimeZone(new Date(utcMs).toISOString(), timeZone)
+    if (!shown.date || !shown.time) return null
+    const [sy, smo, sd] = shown.date.split('-').map(Number)
+    const [sh, smi] = shown.time.split(':').map(Number)
+    const shownAsUtc = Date.UTC(sy, smo - 1, sd, sh, smi, 0)
+    const desiredAsUtc = Date.UTC(y, mo - 1, d, h, mi, 0)
+    const diff = desiredAsUtc - shownAsUtc
+    if (diff === 0) break
+    utcMs += diff
+  }
+  return new Date(utcMs).toISOString()
+}
+
+function formatZonedDisplay(iso: string | null | undefined, timeZone: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      timeZone,
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(d)
+  } catch {
+    return d.toLocaleString()
+  }
 }
 
 export default function UserManagement() {
@@ -103,6 +192,7 @@ export default function UserManagement() {
   const [maintenanceDurationHours, setMaintenanceDurationHours] = useState<number>(0)
   const [maintenanceExpectedEndAt, setMaintenanceExpectedEndAt] = useState<string | null>(null)
   const [maintenanceScheduledStartAt, setMaintenanceScheduledStartAt] = useState<string | null>(null)
+  const [maintenanceScheduleTimezone, setMaintenanceScheduleTimezone] = useState(browserTimezone)
   const [maintenanceScheduleDate, setMaintenanceScheduleDate] = useState('')
   const [maintenanceScheduleTime, setMaintenanceScheduleTime] = useState('')
   const [maintenanceScheduleEndDate, setMaintenanceScheduleEndDate] = useState('')
@@ -156,6 +246,7 @@ export default function UserManagement() {
     duration_hours?: number | null
     expected_end_at?: string | null
     scheduled_start_at?: string | null
+    schedule_timezone?: string | null
   }) => {
     setMaintenanceMode(Boolean(state.maintenance_mode))
     setMaintenanceMessage(state.message || '')
@@ -163,14 +254,18 @@ export default function UserManagement() {
       typeof state.duration_hours === 'number' && state.duration_hours > 0 ? state.duration_hours : 0
     )
     setMaintenanceExpectedEndAt(state.expected_end_at || null)
+    const tz = (state.schedule_timezone || '').trim() || browserTimezone()
+    setMaintenanceScheduleTimezone(tz)
     const scheduled = state.scheduled_start_at || null
     setMaintenanceScheduledStartAt(scheduled)
-    setMaintenanceScheduleDate(toLocalDateValue(scheduled))
-    setMaintenanceScheduleTime(toLocalTimeValue(scheduled))
+    const startParts = formatInTimeZone(scheduled, tz)
+    setMaintenanceScheduleDate(startParts.date)
+    setMaintenanceScheduleTime(startParts.time)
     // End pickers only apply to a pending schedule window.
     if (scheduled && state.expected_end_at) {
-      setMaintenanceScheduleEndDate(toLocalDateValue(state.expected_end_at))
-      setMaintenanceScheduleEndTime(toLocalTimeValue(state.expected_end_at))
+      const endParts = formatInTimeZone(state.expected_end_at, tz)
+      setMaintenanceScheduleEndDate(endParts.date)
+      setMaintenanceScheduleEndTime(endParts.time)
     } else {
       setMaintenanceScheduleEndDate('')
       setMaintenanceScheduleEndTime('')
@@ -329,6 +424,7 @@ export default function UserManagement() {
     const hasEndTime = Boolean(maintenanceScheduleEndTime)
     const anyScheduleField = hasStartDate || hasStartTime || hasEndDate || hasEndTime
     const allScheduleFields = hasStartDate && hasStartTime && hasEndDate && hasEndTime
+    const tz = maintenanceScheduleTimezone.trim() || DEFAULT_MAINTENANCE_TIMEZONE
 
     if (anyScheduleField && !allScheduleFields) {
       alert('Select both schedule start and end (date and hour), or clear all four fields to remove the schedule.')
@@ -336,14 +432,14 @@ export default function UserManagement() {
     }
 
     const scheduledStartIso = allScheduleFields
-      ? localDateTimeToIso(maintenanceScheduleDate, maintenanceScheduleTime)
+      ? zonedDateTimeToIso(maintenanceScheduleDate, maintenanceScheduleTime, tz)
       : null
     const scheduledEndIso = allScheduleFields
-      ? localDateTimeToIso(maintenanceScheduleEndDate, maintenanceScheduleEndTime)
+      ? zonedDateTimeToIso(maintenanceScheduleEndDate, maintenanceScheduleEndTime, tz)
       : null
 
     if (allScheduleFields && (!scheduledStartIso || !scheduledEndIso)) {
-      alert('Invalid schedule date or time. Check the start and end values.')
+      alert('Invalid schedule date, time, or timezone. Check the start and end values.')
       return
     }
 
@@ -384,6 +480,7 @@ export default function UserManagement() {
         {
           scheduled_start_at: scheduledStartIso,
           scheduled_end_at: scheduledEndIso,
+          schedule_timezone: tz,
           update_schedule: true,
         }
       )
@@ -803,10 +900,12 @@ export default function UserManagement() {
           </span>
           {!maintenanceMode && maintenanceScheduledStartAt && (
             <span className="px-2 py-1 rounded font-medium bg-amber-100 text-amber-900">
-              Scheduled {new Date(maintenanceScheduledStartAt).toLocaleString()}
+              Scheduled{' '}
+              {formatZonedDisplay(maintenanceScheduledStartAt, maintenanceScheduleTimezone)}
               {maintenanceExpectedEndAt
-                ? ` → ${new Date(maintenanceExpectedEndAt).toLocaleString()}`
-                : ''}
+                ? ` → ${formatZonedDisplay(maintenanceExpectedEndAt, maintenanceScheduleTimezone)}`
+                : ''}{' '}
+              ({maintenanceScheduleTimezone})
             </span>
           )}
         </div>
@@ -833,6 +932,63 @@ export default function UserManagement() {
             className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg"
             placeholder="e.g. 2"
           />
+        </label>
+        <label className="block text-sm font-medium text-gray-700">
+          Schedule timezone
+          <select
+            value={maintenanceScheduleTimezone}
+            onChange={(e) => setMaintenanceScheduleTimezone(e.target.value)}
+            disabled={maintenanceMode}
+            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
+          >
+            {!MAINTENANCE_TIMEZONE_VALUES.has(maintenanceScheduleTimezone) && (
+              <option value={maintenanceScheduleTimezone}>{maintenanceScheduleTimezone}</option>
+            )}
+            <optgroup label="US Timezones">
+              <option value="America/New_York">Eastern Time (UTC-5/-4)</option>
+              <option value="America/Chicago">Central Time (UTC-6/-5)</option>
+              <option value="America/Denver">Mountain Time (UTC-7/-6)</option>
+              <option value="America/Los_Angeles">Pacific Time (UTC-8/-7)</option>
+              <option value="America/Anchorage">Alaska Time (UTC-9/-8)</option>
+              <option value="Pacific/Honolulu">Hawaii Time (UTC-10)</option>
+            </optgroup>
+            <optgroup label="Asia">
+              <option value="Asia/Taipei">Asia/Taipei (UTC+8)</option>
+              <option value="Asia/Tokyo">Asia/Tokyo (UTC+9)</option>
+              <option value="Asia/Shanghai">Asia/Shanghai (UTC+8)</option>
+              <option value="Asia/Hong_Kong">Asia/Hong_Kong (UTC+8)</option>
+              <option value="Asia/Singapore">Asia/Singapore (UTC+8)</option>
+              <option value="Asia/Seoul">Asia/Seoul (UTC+9)</option>
+              <option value="Asia/Dubai">Asia/Dubai (UTC+4)</option>
+              <option value="Asia/Kolkata">Asia/Kolkata (UTC+5:30)</option>
+            </optgroup>
+            <optgroup label="Europe">
+              <option value="Europe/London">Europe/London (UTC+0/+1)</option>
+              <option value="Europe/Paris">Europe/Paris (UTC+1/+2)</option>
+              <option value="Europe/Berlin">Europe/Berlin (UTC+1/+2)</option>
+              <option value="Europe/Rome">Europe/Rome (UTC+1/+2)</option>
+              <option value="Europe/Madrid">Europe/Madrid (UTC+1/+2)</option>
+              <option value="Europe/Moscow">Europe/Moscow (UTC+3)</option>
+            </optgroup>
+            <optgroup label="Australia & Pacific">
+              <option value="Australia/Sydney">Australia/Sydney (UTC+10/+11)</option>
+              <option value="Australia/Melbourne">Australia/Melbourne (UTC+10/+11)</option>
+              <option value="Australia/Brisbane">Australia/Brisbane (UTC+10)</option>
+              <option value="Pacific/Auckland">Pacific/Auckland (UTC+12/+13)</option>
+            </optgroup>
+            <optgroup label="Americas (Other)">
+              <option value="America/Toronto">Canada Eastern (UTC-5/-4)</option>
+              <option value="America/Vancouver">Canada Pacific (UTC-8/-7)</option>
+              <option value="America/Mexico_City">Mexico City (UTC-6/-5)</option>
+              <option value="America/Sao_Paulo">Sao Paulo (UTC-3)</option>
+              <option value="America/Buenos_Aires">Buenos Aires (UTC-3)</option>
+            </optgroup>
+            <optgroup label="Other">
+              <option value="UTC">UTC (UTC+0)</option>
+              <option value="Africa/Johannesburg">Africa/Johannesburg (UTC+2)</option>
+              <option value="Asia/Jerusalem">Asia/Jerusalem (UTC+2/+3)</option>
+            </optgroup>
+          </select>
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="block text-sm font-medium text-gray-700">
@@ -879,14 +1035,16 @@ export default function UserManagement() {
           </label>
         </div>
         <p className="text-xs text-gray-500">
-          Optional. While maintenance is off, save a future start and end (local timezone) to
+          Optional. While maintenance is off, save a future start and end in the selected timezone to
           auto-enable for that window. Length hours is filled from the start/end gap when you save.
           Clear all schedule fields and save to remove a schedule. Use Enable Maintenance for an
           immediate start.
         </p>
         {maintenanceMode && maintenanceExpectedEndAt && (
           <p className="text-xs text-gray-600">
-            Expected completion: {new Date(maintenanceExpectedEndAt).toLocaleString()}
+            Expected completion:{' '}
+            {formatZonedDisplay(maintenanceExpectedEndAt, maintenanceScheduleTimezone)} (
+            {maintenanceScheduleTimezone})
           </p>
         )}
         <div>
