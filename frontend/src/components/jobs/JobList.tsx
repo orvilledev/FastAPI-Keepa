@@ -244,19 +244,19 @@ export default function JobList() {
     }
   }
 
-  const listedExpressCompleted = jobs.filter((job) => {
+  const listedCompleted = jobs.filter((job) => {
     const synthetic = (job as BatchJob & Partial<SyntheticScheduledJob>).is_synthetic === true
-    return !synthetic && job.status === 'completed' && !extractDailyCategory(job.job_name || '')
+    return !synthetic && job.status === 'completed'
   }).length
-  const expressCompleted = Math.max(stats.express_completed ?? 0, listedExpressCompleted)
+  const completedCount = Math.max(stats.completed ?? 0, listedCompleted)
 
   const handleClearCompletedJobs = async () => {
-    if (expressCompleted === 0) return
+    if (completedCount === 0) return
 
-    const noun = expressCompleted === 1 ? 'run' : 'runs'
+    const noun = completedCount === 1 ? 'run' : 'runs'
     if (
       !window.confirm(
-        `Clear all ${expressCompleted} completed Express ${noun} at once? Daily Runs stay for Off-Price Analytics. This cannot be undone and deletes related Express batches, items, and alerts.`,
+        `Clear all ${completedCount} completed ${noun} at once? This removes Express Jobs and Daily Runs from the list. Off-Price Analytics archives are kept. This cannot be undone.`,
       )
     ) {
       return
@@ -269,7 +269,7 @@ export default function JobList() {
       await loadAllJobsForStats()
       await loadJobs(0, { silent: true })
       if (result.deleted_count === 0) {
-        window.alert('No completed Express jobs were found to remove.')
+        window.alert('No completed jobs were found to remove.')
       }
     } catch (error: any) {
       const errorMessage =
@@ -301,18 +301,18 @@ export default function JobList() {
           <button
             type="button"
             onClick={() => void handleClearCompletedJobs()}
-            disabled={expressCompleted === 0 || clearingCompleted}
+            disabled={completedCount === 0 || clearingCompleted}
             className="inline-flex items-center rounded-lg border border-red-600 bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-red-700 disabled:cursor-not-allowed disabled:border-red-300 disabled:bg-red-300 disabled:text-white dark:disabled:border-red-900 dark:disabled:bg-red-950"
             title={
-              expressCompleted === 0
-                ? 'No completed Express runs to clear'
-                : 'Clear every completed Express job at once. Daily Runs are kept for Analytics.'
+              completedCount === 0
+                ? 'No completed runs to clear'
+                : 'Clear every completed Express and Daily Run at once. Analytics archives are kept.'
             }
           >
             {clearingCompleted
               ? 'Clearing…'
-              : expressCompleted > 0
-                ? `Clear all completed runs (${expressCompleted})`
+              : completedCount > 0
+                ? `Clear all completed runs (${completedCount})`
                 : 'Clear all completed runs'}
           </button>
           <Link
@@ -339,14 +339,14 @@ export default function JobList() {
         <div className="stat-card border-green-200/50 bg-gradient-to-br from-green-50/50 to-white dark:border-green-500/30 dark:from-green-500/15 dark:to-surface">
           <div className="text-sm font-medium text-gray-500 dark:text-slate-400 mb-1">Completed</div>
           <div className="text-3xl font-bold text-green-600 dark:text-green-400">{stats.completed}</div>
-          {expressCompleted > 0 && (
+          {completedCount > 0 && (
             <button
               type="button"
               onClick={() => void handleClearCompletedJobs()}
               disabled={clearingCompleted}
               className="mt-2 text-xs font-semibold text-red-700 underline-offset-2 hover:underline disabled:opacity-50 dark:text-red-400"
             >
-              {clearingCompleted ? 'Clearing Express runs…' : `Clear all ${expressCompleted} Express runs`}
+              {clearingCompleted ? 'Clearing completed runs…' : `Clear all ${completedCount} completed runs`}
             </button>
           )}
         </div>

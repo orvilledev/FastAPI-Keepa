@@ -48,8 +48,8 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         <strong>Use Manage UPCs</strong> for the selected vendor or paste a custom list, and run in{' '}
         <strong>API Mode</strong> (live Keepa data) or <strong>Import Mode</strong> (uploaded Keepa report file). Job
         status, results, and cleanup live under Express Jobs in the sidebar. Use{' '}
-        <strong>Clear all completed runs</strong> to delete every completed Express job at once (Daily Runs and Analytics
-        stay). You can also delete a single job from the list or detail page.
+        <strong>Clear all completed runs</strong> to delete every completed Express and Daily Run at once
+        (Off-Price Analytics archives stay). You can also delete a single job from the list or detail page.
       </>
     ),
   },

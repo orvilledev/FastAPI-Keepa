@@ -391,13 +391,13 @@ class JobRepository:
 
     def delete_completed_jobs(self) -> int:
         """
-        Delete completed Express Jobs only (not Daily Runs) and related
+        Delete every completed job (Express and Daily Runs) and related
         job-scoped data (batches, items, alerts).
 
-        Daily Run rows stay so Off-Price Live Analytics can still recompute
-        from ``price_alerts``. Snapshots are never touched.
+        Off-Price Analytics archives (``off_price_analytics_snapshots``) are
+        never touched — historical Live Analytics stays available from snapshots.
         """
-        job_ids = self.list_completed_express_job_ids()
+        job_ids = self.list_completed_job_ids()
         for job_id in job_ids:
             self.delete_job(job_id)
         return len(job_ids)

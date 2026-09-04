@@ -144,7 +144,7 @@ _ROUTES: Tuple[_Route, ...] = (
 
     # --- Express jobs / reports ------------------------------------------------
     _r("DELETE", r"^/api/v1/jobs/completed$",
-       "job.delete_completed", "data", "Deleted all completed Express jobs"),
+       "job.delete_completed", "data", "Deleted all completed jobs"),
     _r("POST", r"^/api/v1/jobs/[^/]+/trigger$",
        "job.trigger", "job", "Manually re-ran a job"),
     _r("POST", r"^/api/v1/jobs/[^/]+/stop$",
