@@ -101,12 +101,12 @@ def get_price_alerts(
 
 
 @router.get("/reports/{job_id}/csv")
-@handle_api_errors("generate CSV")
+@handle_api_errors("generate Excel report")
 def download_csv(
     job: dict = Depends(verify_job_access),
     db: Client = Depends(get_supabase)
 ):
-    """Download Excel report for a job."""
+    """Download Excel (.xlsx) report for a job."""
     job_id = UUID(job["id"])
     report_service = ReportService(db)
     csv_bytes, filename, _ = report_service.generate_csv_for_job(

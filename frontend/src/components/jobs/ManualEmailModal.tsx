@@ -79,7 +79,7 @@ export default function ManualEmailModal({ jobId, jobName, onClose }: ManualEmai
     if (!draft) return
     setDownloading(true)
     try {
-      const blob = await reportsApi.downloadCSV(jobId)
+      const { blob } = await reportsApi.downloadExcel(jobId)
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url

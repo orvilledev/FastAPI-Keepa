@@ -577,11 +577,29 @@ export const reportsApi = {
     return response.data
   },
   
-  downloadCSV: async (jobId: string) => {
+  downloadExcel: async (jobId: string): Promise<{ blob: Blob; filename: string }> => {
     const response = await api.get(`/api/v1/reports/${jobId}/csv`, {
       responseType: 'blob',
     })
-    return response.data
+    const disposition = response.headers['content-disposition'] as string | undefined
+    let filename = 'MSW_Overwatch_MAP_Report.xlsx'
+    if (disposition) {
+      const match = /filename="?([^";]+)"?/i.exec(disposition)
+      if (match?.[1]) filename = match[1].trim()
+    }
+    // Report bytes are always XLSX; never save as .csv (Excel treats that as corrupt).
+    if (!filename.toLowerCase().endsWith('.xlsx')) {
+      filename = filename.replace(/\.[^.]+$/, '') + '.xlsx'
+    }
+    const blob =
+      response.data instanceof Blob &&
+      response.data.type ===
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        ? response.data
+        : new Blob([response.data], {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          })
+    return { blob, filename }
   },
   
   resendEmail: async (jobId: string) => {

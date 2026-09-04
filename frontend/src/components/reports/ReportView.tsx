@@ -28,22 +28,22 @@ export default function ReportView() {
     }
   }
 
-  const handleDownloadCSV = async () => {
+  const handleDownloadExcel = async () => {
     if (!jobId) return
     setDownloading(true)
     try {
-      const blob = await reportsApi.downloadCSV(jobId)
+      const { blob, filename } = await reportsApi.downloadExcel(jobId)
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `keepa_report_${jobId}.csv`
+      a.download = filename
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
     } catch (error) {
-      console.error('Failed to download CSV:', error)
-      alert('Failed to download CSV')
+      console.error('Failed to download Excel:', error)
+      alert('Failed to download Excel')
     } finally {
       setDownloading(false)
     }
@@ -91,11 +91,11 @@ export default function ReportView() {
             {sending ? 'Sending...' : 'Resend Email'}
           </button>
           <button
-            onClick={handleDownloadCSV}
+            onClick={handleDownloadExcel}
             disabled={downloading}
             className="bg-[#404040] hover:bg-[#3B3B3B] text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
           >
-            {downloading ? 'Downloading...' : 'Download CSV'}
+            {downloading ? 'Downloading...' : 'Download Excel'}
           </button>
         </div>
       </div>
