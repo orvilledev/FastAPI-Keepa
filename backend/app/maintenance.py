@@ -47,6 +47,11 @@ def _compute_expected_end(start: datetime, duration_hours: float | None) -> str 
     return None
 
 
+def _duration_hours_between(start: datetime, end: datetime) -> float:
+    hours = (end - start).total_seconds() / 3600.0
+    return max(0.0, min(168.0, round(hours * 2) / 2))
+
+
 def _maybe_activate_scheduled() -> None:
     """Activate maintenance when a future schedule reaches its start time."""
     if _state.get("maintenance_mode"):
@@ -58,8 +63,12 @@ def _maybe_activate_scheduled() -> None:
     if now < start:
         return
     _state["maintenance_mode"] = True
-    hours = _state.get("duration_hours")
-    _state["expected_end_at"] = _compute_expected_end(start, hours if isinstance(hours, (int, float)) else None)
+    # Keep an explicit scheduled end when present; otherwise derive from duration.
+    if not _state.get("expected_end_at"):
+        hours = _state.get("duration_hours")
+        _state["expected_end_at"] = _compute_expected_end(
+            start, hours if isinstance(hours, (int, float)) else None
+        )
     _state["scheduled_start_at"] = None
 
 
@@ -86,6 +95,7 @@ def set_maintenance_state(
     message: str | None = None,
     duration_hours: float | None = None,
     scheduled_start_at: str | None = None,
+    scheduled_end_at: str | None = None,
     *,
     update_schedule: bool = False,
 ) -> dict:
@@ -105,7 +115,12 @@ def set_maintenance_state(
         _state["maintenance_mode"] = True
         _state["scheduled_start_at"] = None
         now = datetime.now(timezone.utc)
-        _state["expected_end_at"] = _compute_expected_end(now, hours_val)
+        explicit_end = _parse_iso_utc(scheduled_end_at) if update_schedule else None
+        if explicit_end and explicit_end > now:
+            _state["expected_end_at"] = _to_iso_z(explicit_end)
+            _state["duration_hours"] = _duration_hours_between(now, explicit_end)
+        else:
+            _state["expected_end_at"] = _compute_expected_end(now, hours_val)
         return get_maintenance_state()
 
     # Disable immediate maintenance.
@@ -113,10 +128,15 @@ def set_maintenance_state(
 
     if update_schedule:
         start = _parse_iso_utc(scheduled_start_at)
+        end = _parse_iso_utc(scheduled_end_at)
         now = datetime.now(timezone.utc)
         if start and start > now:
             _state["scheduled_start_at"] = _to_iso_z(start)
-            _state["expected_end_at"] = _compute_expected_end(start, hours_val)
+            if end and end > start:
+                _state["expected_end_at"] = _to_iso_z(end)
+                _state["duration_hours"] = _duration_hours_between(start, end)
+            else:
+                _state["expected_end_at"] = _compute_expected_end(start, hours_val)
         else:
             # Empty, invalid, or past datetime clears the schedule.
             _state["scheduled_start_at"] = None

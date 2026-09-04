@@ -256,7 +256,11 @@ export const authApi = {
     maintenance_mode: boolean,
     message?: string,
     duration_hours?: number,
-    options?: { scheduled_start_at?: string | null; update_schedule?: boolean }
+    options?: {
+      scheduled_start_at?: string | null
+      scheduled_end_at?: string | null
+      update_schedule?: boolean
+    }
   ) => {
     const response = await api.put<{
       maintenance_mode: boolean
@@ -270,6 +274,7 @@ export const authApi = {
       message,
       duration_hours,
       scheduled_start_at: options?.scheduled_start_at ?? null,
+      scheduled_end_at: options?.scheduled_end_at ?? null,
       update_schedule: Boolean(options?.update_schedule),
     })
     return response.data

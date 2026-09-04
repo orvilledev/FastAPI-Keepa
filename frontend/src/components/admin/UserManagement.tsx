@@ -105,6 +105,8 @@ export default function UserManagement() {
   const [maintenanceScheduledStartAt, setMaintenanceScheduledStartAt] = useState<string | null>(null)
   const [maintenanceScheduleDate, setMaintenanceScheduleDate] = useState('')
   const [maintenanceScheduleTime, setMaintenanceScheduleTime] = useState('')
+  const [maintenanceScheduleEndDate, setMaintenanceScheduleEndDate] = useState('')
+  const [maintenanceScheduleEndTime, setMaintenanceScheduleEndTime] = useState('')
   const [maintenanceSaving, setMaintenanceSaving] = useState(false)
   const [emailTransport, setEmailTransport] = useState<'auto' | 'graph' | 'smtp'>('auto')
   const [emailEffectiveTransport, setEmailEffectiveTransport] = useState<'graph' | 'smtp'>('smtp')
@@ -165,6 +167,14 @@ export default function UserManagement() {
     setMaintenanceScheduledStartAt(scheduled)
     setMaintenanceScheduleDate(toLocalDateValue(scheduled))
     setMaintenanceScheduleTime(toLocalTimeValue(scheduled))
+    // End pickers only apply to a pending schedule window.
+    if (scheduled && state.expected_end_at) {
+      setMaintenanceScheduleEndDate(toLocalDateValue(state.expected_end_at))
+      setMaintenanceScheduleEndTime(toLocalTimeValue(state.expected_end_at))
+    } else {
+      setMaintenanceScheduleEndDate('')
+      setMaintenanceScheduleEndTime('')
+    }
   }
 
   const loadMaintenanceMode = async () => {
@@ -313,26 +323,67 @@ export default function UserManagement() {
   }
 
   const handleSaveMaintenanceDetails = async () => {
-    const scheduledIso = localDateTimeToIso(maintenanceScheduleDate, maintenanceScheduleTime)
-    if ((maintenanceScheduleDate && !maintenanceScheduleTime) || (!maintenanceScheduleDate && maintenanceScheduleTime)) {
-      alert('Select both a schedule date and time, or clear both to remove the schedule.')
+    const hasStartDate = Boolean(maintenanceScheduleDate)
+    const hasStartTime = Boolean(maintenanceScheduleTime)
+    const hasEndDate = Boolean(maintenanceScheduleEndDate)
+    const hasEndTime = Boolean(maintenanceScheduleEndTime)
+    const anyScheduleField = hasStartDate || hasStartTime || hasEndDate || hasEndTime
+    const allScheduleFields = hasStartDate && hasStartTime && hasEndDate && hasEndTime
+
+    if (anyScheduleField && !allScheduleFields) {
+      alert('Select both schedule start and end (date and hour), or clear all four fields to remove the schedule.')
       return
     }
-    if (scheduledIso && !maintenanceMode) {
-      const startMs = new Date(scheduledIso).getTime()
+
+    const scheduledStartIso = allScheduleFields
+      ? localDateTimeToIso(maintenanceScheduleDate, maintenanceScheduleTime)
+      : null
+    const scheduledEndIso = allScheduleFields
+      ? localDateTimeToIso(maintenanceScheduleEndDate, maintenanceScheduleEndTime)
+      : null
+
+    if (allScheduleFields && (!scheduledStartIso || !scheduledEndIso)) {
+      alert('Invalid schedule date or time. Check the start and end values.')
+      return
+    }
+
+    if (scheduledStartIso && scheduledEndIso && !maintenanceMode) {
+      const startMs = new Date(scheduledStartIso).getTime()
+      const endMs = new Date(scheduledEndIso).getTime()
       if (Number.isNaN(startMs) || startMs <= Date.now()) {
-        alert('Schedule start must be a future date and time. Use Enable Maintenance for immediate start.')
+        alert('Schedule start must be a future date and time. Use Enable Maintenance for an immediate start.')
+        return
+      }
+      if (Number.isNaN(endMs) || endMs <= startMs) {
+        alert('Schedule end must be after the schedule start.')
         return
       }
     }
+
+    const derivedHours =
+      scheduledStartIso && scheduledEndIso
+        ? Math.max(
+            0,
+            Math.min(
+              168,
+              Math.round(
+                ((new Date(scheduledEndIso).getTime() - new Date(scheduledStartIso).getTime()) / 3_600_000) * 2
+              ) / 2
+            )
+          )
+        : maintenanceDurationHours > 0
+          ? maintenanceDurationHours
+          : 0
+
     try {
       setMaintenanceSaving(true)
       const updated = await authApi.updateMaintenanceMode(
         maintenanceMode,
         maintenanceMessage,
-        maintenanceDurationHours > 0 ? maintenanceDurationHours : 0,
+        derivedHours,
         {
-          scheduled_start_at: scheduledIso,
+          scheduled_start_at: scheduledStartIso,
+          scheduled_end_at: scheduledEndIso,
           update_schedule: true,
         }
       )
@@ -753,6 +804,9 @@ export default function UserManagement() {
           {!maintenanceMode && maintenanceScheduledStartAt && (
             <span className="px-2 py-1 rounded font-medium bg-amber-100 text-amber-900">
               Scheduled {new Date(maintenanceScheduledStartAt).toLocaleString()}
+              {maintenanceExpectedEndAt
+                ? ` → ${new Date(maintenanceExpectedEndAt).toLocaleString()}`
+                : ''}
             </span>
           )}
         </div>
@@ -802,20 +856,37 @@ export default function UserManagement() {
               className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
             />
           </label>
+          <label className="block text-sm font-medium text-gray-700">
+            Schedule end date
+            <input
+              type="date"
+              value={maintenanceScheduleEndDate}
+              onChange={(e) => setMaintenanceScheduleEndDate(e.target.value)}
+              disabled={maintenanceMode}
+              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
+            />
+          </label>
+          <label className="block text-sm font-medium text-gray-700">
+            Schedule end hour
+            <input
+              type="time"
+              step={3600}
+              value={maintenanceScheduleEndTime}
+              onChange={(e) => setMaintenanceScheduleEndTime(e.target.value)}
+              disabled={maintenanceMode}
+              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
+            />
+          </label>
         </div>
         <p className="text-xs text-gray-500">
-          Optional. While maintenance is off, save a future date and hour to auto-enable at that time
-          (your local timezone). Clear both fields and save to remove a schedule. Use Enable
-          Maintenance for an immediate start.
+          Optional. While maintenance is off, save a future start and end (local timezone) to
+          auto-enable for that window. Length hours is filled from the start/end gap when you save.
+          Clear all schedule fields and save to remove a schedule. Use Enable Maintenance for an
+          immediate start.
         </p>
         {maintenanceMode && maintenanceExpectedEndAt && (
           <p className="text-xs text-gray-600">
             Expected completion: {new Date(maintenanceExpectedEndAt).toLocaleString()}
-          </p>
-        )}
-        {!maintenanceMode && maintenanceScheduledStartAt && maintenanceExpectedEndAt && (
-          <p className="text-xs text-gray-600">
-            Scheduled window ends: {new Date(maintenanceExpectedEndAt).toLocaleString()}
           </p>
         )}
         <div>

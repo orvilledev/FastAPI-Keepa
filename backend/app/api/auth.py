@@ -352,6 +352,7 @@ class MaintenanceUpdate(BaseModel):
     message: Optional[str] = None
     duration_hours: Optional[float] = None
     scheduled_start_at: Optional[str] = None
+    scheduled_end_at: Optional[str] = None
     update_schedule: bool = False
 
 
@@ -535,6 +536,7 @@ def update_maintenance_mode(
         payload.message,
         payload.duration_hours,
         scheduled_start_at=payload.scheduled_start_at,
+        scheduled_end_at=payload.scheduled_end_at,
         update_schedule=bool(payload.update_schedule),
     )
 
