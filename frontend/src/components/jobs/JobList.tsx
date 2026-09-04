@@ -5,6 +5,7 @@ import type { BatchJob } from '../../types'
 import { getStatusColor } from '../../utils/statusColors'
 import { formatRunDuration } from '../../utils/timeUtils'
 import KeepaTokenBatteries from './KeepaTokenBatteries'
+import ManualEmailModal from './ManualEmailModal'
 
 const JOBS_PER_PAGE = 15
 const POLL_INTERVAL_BUSY_MS = 10000
@@ -101,6 +102,7 @@ export default function JobList() {
     failed: 0,
   })
   const [clearingCompleted, setClearingCompleted] = useState(false)
+  const [emailDraftJob, setEmailDraftJob] = useState<{ id: string; name: string } | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const calendarCacheRef = useRef<SchedulerCalendar | null>(null)
   const lastCalendarFetchAtRef = useRef<number>(0)
@@ -439,6 +441,23 @@ export default function JobList() {
                         View →
                       </Link>
                       <button
+                        type="button"
+                        onClick={() => setEmailDraftJob({ id: job.id, name: job.job_name })}
+                        disabled={job.status !== 'completed'}
+                        className={`font-semibold text-[#0B3D91] transition-colors dark:text-blue-400 ${
+                          job.status !== 'completed'
+                            ? 'opacity-50 cursor-not-allowed'
+                            : 'hover:underline hover:text-[#092E6E] dark:hover:text-blue-300'
+                        }`}
+                        title={
+                          job.status !== 'completed'
+                            ? 'The report email is only available once the run has completed'
+                            : 'Open a prefilled Outlook compose window to send this report manually'
+                        }
+                      >
+                        Email
+                      </button>
+                      <button
                         onClick={() => handleDeleteJob(job.id, job.job_name)}
                         disabled={job.status === 'processing'}
                         className={`text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium transition-colors ${
@@ -517,6 +536,23 @@ export default function JobList() {
                         View →
                       </Link>
                       <button
+                        type="button"
+                        onClick={() => setEmailDraftJob({ id: job.id, name: job.job_name })}
+                        disabled={job.status !== 'completed'}
+                        className={`font-semibold text-[#0B3D91] transition-colors dark:text-blue-400 ${
+                          job.status !== 'completed'
+                            ? 'opacity-50 cursor-not-allowed'
+                            : 'hover:underline hover:text-[#092E6E] dark:hover:text-blue-300'
+                        }`}
+                        title={
+                          job.status !== 'completed'
+                            ? 'The report email is only available once the run has completed'
+                            : 'Open a prefilled Outlook compose window to send this report manually'
+                        }
+                      >
+                        Email
+                      </button>
+                      <button
                         onClick={() => handleDeleteJob(job.id, job.job_name)}
                         disabled={job.status === 'processing'}
                         className={`text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium transition-colors ${
@@ -577,6 +613,14 @@ export default function JobList() {
             </div>
           </div>
         </div>
+      )}
+
+      {emailDraftJob && (
+        <ManualEmailModal
+          jobId={emailDraftJob.id}
+          jobName={emailDraftJob.name}
+          onClose={() => setEmailDraftJob(null)}
+        />
       )}
     </div>
   )

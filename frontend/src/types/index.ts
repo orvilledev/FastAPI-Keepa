@@ -132,6 +132,31 @@ export interface BatchJob {
   } | null
 }
 
+/** Ready-to-send daily-run email draft for a report, from GET /reports/{job_id}/email-draft */
+export interface ManualEmailDraft {
+  job_id: string
+  job_name: string
+  from_address: string
+  from_name: string
+  to: string[]
+  bcc: string[]
+  recipients_source: 'job' | 'scheduler_settings' | 'none'
+  subject: string
+  body: string
+  vendor: string
+  brand: string
+  report_date: string
+  report_date_long: string
+  off_price_count: number
+  total_upcs: number
+  attachment_filename: string
+  compose_url: string
+  compose_url_signed_in_mailbox: string
+  mailto_url: string
+  used_custom_subject: boolean
+  used_custom_body: boolean
+}
+
 export interface UPCBatch {
   id: string
   batch_job_id: string

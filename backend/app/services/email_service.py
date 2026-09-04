@@ -9,7 +9,7 @@ from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 from email.utils import formataddr, parseaddr
-from typing import Optional, List, Mapping
+from typing import Optional, List, Mapping, NamedTuple
 from app.config import settings
 from app.email_transport import get_resolved_transport
 from app.services.csv_generator import CSVGenerator
@@ -236,6 +236,108 @@ def _render_email_template(template: Optional[str], context: Mapping[str, object
         return None
 
 
+class ReportEmailContent(NamedTuple):
+    """Resolved subject/body for a MAP report email, plus the values used to build it."""
+
+    subject: str
+    body: str
+    html_body: str
+    vendor: str
+    brand: str
+    vendor_name: str
+    run_date: str
+    run_date_long: str
+    run_date_iso: str
+    used_custom_subject: bool
+    used_custom_body: bool
+
+
+def build_report_email_content(
+    *,
+    job_name: str,
+    total_upcs: int,
+    alerts_count: int,
+    vendor: Optional[str] = None,
+    email_subject_template: Optional[str] = None,
+    email_body_template: Optional[str] = None,
+) -> ReportEmailContent:
+    """Resolve the subject/body a MAP report email would be sent with.
+
+    Single source of truth shared by the automatic daily-run send
+    (``EmailService.send_csv_report``) and the manual-send draft endpoint, so a
+    hand-sent email is worded identically to the scheduled one.
+    """
+    run_dt = _resolve_email_datetime(job_name)
+    email_date = _format_mdyy_date(run_dt)
+    email_date_long = _format_long_date(run_dt)
+    email_date_iso = _format_iso_date(run_dt)
+    vendor_upper = (vendor or "").strip().upper() or _infer_vendor_from_job_name(job_name)
+    brand_name = _brand_name_for_vendor(vendor_upper)
+    # Greeting uses the brand/partner name (same source as Brand: line).
+    vendor_name = brand_name
+    # Same subject line for every vendor; only the run date changes.
+    default_subject = f"MSW Overwatch | MAP Pricing Exceptions — {email_date_long}"
+    default_body = _default_map_email_body(
+        vendor_name=vendor_name,
+        brand_name=brand_name,
+        alerts_count=alerts_count,
+        report_date_long=email_date_long,
+    )
+
+    template_context = {
+        "vendor": vendor_upper,
+        "brand": brand_name,
+        "vendor_name": vendor_name,
+        "job_name": job_name,
+        "total_upcs": total_upcs,
+        "alerts_count": alerts_count,
+        "run_date": email_date,
+        "run_date_long": email_date_long,
+        "run_date_iso": email_date_iso,
+    }
+
+    # Templates are truncated defensively in case the DB CHECK was
+    # bypassed (e.g. row inserted via raw SQL by an admin).
+    safe_subject_template = (
+        str(email_subject_template)[:MAX_SUBJECT_TEMPLATE_LENGTH]
+        if email_subject_template is not None
+        else None
+    )
+    safe_body_template = (
+        str(email_body_template)[:MAX_BODY_TEMPLATE_LENGTH]
+        if email_body_template is not None
+        else None
+    )
+
+    rendered_subject = _render_email_template(safe_subject_template, template_context)
+    rendered_body = _render_email_template(safe_body_template, template_context)
+
+    subject = rendered_subject if rendered_subject is not None else default_subject
+    body = rendered_body if rendered_body is not None else default_body
+
+    if rendered_subject is not None or rendered_body is not None:
+        logger.info(
+            "Using custom email template for vendor=%s (subject_overridden=%s, body_overridden=%s)",
+            vendor or "<unknown>",
+            rendered_subject is not None,
+            rendered_body is not None,
+        )
+
+    return ReportEmailContent(
+        subject=subject,
+        body=body,
+        html_body=_build_html_body(body),
+        vendor=vendor_upper,
+        brand=brand_name,
+        vendor_name=vendor_name,
+        run_date=email_date,
+        run_date_long=email_date_long,
+        run_date_iso=email_date_iso,
+        used_custom_subject=rendered_subject is not None,
+        used_custom_body=rendered_body is not None,
+    )
+
+
 class EmailService:
     """Service for sending emails with CSV attachments."""
 
@@ -447,68 +549,19 @@ class EmailService:
         )
         
         try:
-            run_dt = _resolve_email_datetime(job_name)
-            email_date = _format_mdyy_date(run_dt)
-            email_date_long = _format_long_date(run_dt)
-            email_date_iso = _format_iso_date(run_dt)
-            vendor_upper = (vendor or "").strip().upper() or _infer_vendor_from_job_name(job_name)
-            brand_name = _brand_name_for_vendor(vendor_upper)
-            # Greeting uses the brand/partner name (same source as Brand: line).
-            vendor_name = brand_name
-            # Same subject line for every vendor; only the run date changes.
-            default_subject = f"MSW Overwatch | MAP Pricing Exceptions — {email_date_long}"
-            default_body = _default_map_email_body(
-                vendor_name=vendor_name,
-                brand_name=brand_name,
+            content = build_report_email_content(
+                job_name=job_name,
+                total_upcs=total_upcs,
                 alerts_count=alerts_count,
-                report_date_long=email_date_long,
+                vendor=vendor,
+                email_subject_template=email_subject_template,
+                email_body_template=email_body_template,
             )
-
-            template_context = {
-                "vendor": vendor_upper,
-                "brand": brand_name,
-                "vendor_name": vendor_name,
-                "job_name": job_name,
-                "total_upcs": total_upcs,
-                "alerts_count": alerts_count,
-                "run_date": email_date,
-                "run_date_long": email_date_long,
-                "run_date_iso": email_date_iso,
-            }
-
-            # Templates are truncated defensively in case the DB CHECK was
-            # bypassed (e.g. row inserted via raw SQL by an admin).
-            safe_subject_template = (
-                str(email_subject_template)[:MAX_SUBJECT_TEMPLATE_LENGTH]
-                if email_subject_template is not None
-                else None
-            )
-            safe_body_template = (
-                str(email_body_template)[:MAX_BODY_TEMPLATE_LENGTH]
-                if email_body_template is not None
-                else None
-            )
-
-            rendered_subject = _render_email_template(safe_subject_template, template_context)
-            rendered_body = _render_email_template(safe_body_template, template_context)
-
-            subject = rendered_subject if rendered_subject is not None else default_subject
-            body = rendered_body if rendered_body is not None else default_body
-
-            if rendered_subject is not None or rendered_body is not None:
-                logger.info(
-                    "Using custom email template for vendor=%s (subject_overridden=%s, body_overridden=%s)",
-                    vendor or "<unknown>",
-                    rendered_subject is not None,
-                    rendered_body is not None,
-                )
-
-            html_body = _build_html_body(body)
 
             self._send_outbound(
-                subject=subject,
-                plain_body=body,
-                html_body=html_body,
+                subject=content.subject,
+                plain_body=content.body,
+                html_body=content.html_body,
                 to_recipients=to_recipients,
                 bcc_recipients=bcc_recipients,
                 attachments=[(filename, csv_bytes, "application/octet-stream")],
