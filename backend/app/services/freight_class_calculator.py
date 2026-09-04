@@ -31,6 +31,10 @@ _HEADER_ALIASES: dict[str, str] = {
     "shipment id": "shipment_id",
     "shipment_id": "shipment_id",
     "shipment": "shipment_id",
+    # Pallet Count = how many identical pallets this row represents (volume multiplier).
+    # Pallet Number (#1, #2, …) is a line label only — never aliased here.
+    "pallet count": "pallets",
+    "pallet_count": "pallets",
     "pallets": "pallets",
     "pieces": "pallets",
     "piece count": "pallets",
@@ -167,7 +171,7 @@ def calculate_shipment(
 
         if pallets < 1:
             raise FreightClassCalculatorError(
-                f"Shipment '{shipment_id}' row {index}: pallets must be at least 1."
+                f"Shipment '{shipment_id}' row {index}: pallet count must be at least 1."
             )
         if weight <= 0 or length <= 0 or width <= 0 or height <= 0:
             raise FreightClassCalculatorError(
@@ -275,7 +279,8 @@ def parse_excel_shipments(file_bytes: bytes) -> dict[str, list[dict[str, Any]]]:
         labels = ", ".join(sorted(missing))
         raise FreightClassCalculatorError(
             f"Missing required column(s): {labels}. "
-            "Expected: Shipment ID, Pallets, Weight, Length, Width, Height."
+            "Expected: Shipment ID, Pallet Number, Pallet Count, Weight, Length, Width, Height "
+            "(legacy 'Pallets' column is also accepted as Pallet Count)."
         )
 
     grouped: dict[str, list[dict[str, Any]]] = {}
@@ -394,7 +399,8 @@ def build_results_workbook(result: CalculationResult) -> bytes:
     ws_detail = wb.create_sheet("Line Items")
     detail_headers = [
         "Shipment ID",
-        "Pallets",
+        "Pallet Number",
+        "Pallet Count",
         "Weight (lbs)",
         "Length (in)",
         "Width (in)",
@@ -411,10 +417,11 @@ def build_results_workbook(result: CalculationResult) -> bytes:
         cell.alignment = Alignment(horizontal="center")
 
     for shipment in result.shipments:
-        for item in shipment.line_items:
+        for index, item in enumerate(shipment.line_items, start=1):
             ws_detail.append(
                 [
                     shipment.shipment_id,
+                    f"#{index}",
                     item.pallets,
                     round(item.weight_lbs, 2),
                     round(item.length_in, 2),
@@ -439,15 +446,24 @@ def build_template_workbook() -> bytes:
     wb = Workbook()
     ws = wb.active
     ws.title = "Pallet Dims"
-    headers = ["Shipment ID", "Pallets", "Weight", "Length", "Width", "Height"]
+    # Pallet Number = line label (#1, #2). Pallet Count = identical-pallet multiplier.
+    headers = [
+        "Shipment ID",
+        "Pallet Number",
+        "Pallet Count",
+        "Weight",
+        "Length",
+        "Width",
+        "Height",
+    ]
     ws.append(headers)
     for col in range(1, len(headers) + 1):
         cell = ws.cell(row=1, column=col)
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = PatternFill(start_color="404040", end_color="404040", fill_type="solid")
-    ws.append(["FBA19EXAMPLE1", 1, 500, 48, 40, 36])
-    ws.append([None, 2, 350, 48, 40, 52])
-    ws.append(["FBA19EXAMPLE2", 1, 458, 48, 40, 56])
+    ws.append(["FBA19EXAMPLE1", "#1", 1, 500, 48, 40, 36])
+    ws.append([None, "#2", 2, 350, 48, 40, 52])
+    ws.append(["FBA19EXAMPLE2", "#1", 1, 458, 48, 40, 56])
     for col in ws.columns:
         ws.column_dimensions[col[0].column_letter].width = 16
     buffer = BytesIO()

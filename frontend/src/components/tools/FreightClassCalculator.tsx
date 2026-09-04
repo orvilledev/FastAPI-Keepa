@@ -615,7 +615,7 @@ export default function FreightClassCalculator() {
                         </span>
                       </p>
                       <p className="mt-2 max-w-xs text-xs leading-relaxed text-gray-600 dark:text-gray-400">
-                        Shipment ID, Pallets, Weight, Length, Width, Height
+                        Shipment ID, Pallet Number, Pallet Count, Weight, Length, Width, Height
                       </p>
                     </>
                   )}
@@ -668,7 +668,7 @@ export default function FreightClassCalculator() {
                     </div>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                       <Field
-                        label="Pallets"
+                        label="Pallet Count"
                         value={row.pallets}
                         onChange={(v) =>
                           setManualRows((rows) =>

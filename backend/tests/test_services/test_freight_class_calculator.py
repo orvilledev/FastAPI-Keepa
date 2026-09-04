@@ -7,6 +7,7 @@ import pytest
 from app.services.freight_class_calculator import (
     FreightClassCalculatorError,
     apply_height_rule,
+    build_template_workbook,
     calculate_from_excel,
     calculate_manual,
     density_to_freight_class,
@@ -64,9 +65,77 @@ def test_sample_excel_grouped_shipments():
 def test_parse_excel_missing_shipment_id_raises():
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.append(["Shipment ID", "Pallets", "Weight", "Length", "Width", "Height"])
+    ws.append(["Shipment ID", "Pallet Count", "Weight", "Length", "Width", "Height"])
     ws.append([None, 1, 100, 48, 40, 40])
     buf = BytesIO()
     wb.save(buf)
     with pytest.raises(FreightClassCalculatorError, match="Shipment ID"):
+        parse_excel_shipments(buf.getvalue())
+
+
+def test_parse_new_template_pallet_number_vs_count():
+    """Pallet Number is a label; Pallet Count is the volume multiplier."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(
+        [
+            "Shipment ID",
+            "Pallet Number",
+            "Pallet Count",
+            "Weight",
+            "Length",
+            "Width",
+            "Height",
+        ]
+    )
+    ws.append(["FBA1", "#1", 1, 500, 48, 40, 36])
+    ws.append([None, "#2", 2, 350, 48, 40, 52])
+    buf = BytesIO()
+    wb.save(buf)
+
+    grouped = parse_excel_shipments(buf.getvalue())
+    assert list(grouped) == ["FBA1"]
+    assert grouped["FBA1"][0]["pallets"] == 1
+    assert grouped["FBA1"][1]["pallets"] == 2
+
+
+def test_parse_legacy_pallets_header_still_works():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Shipment ID", "Pallets", "Weight", "Length", "Width", "Height"])
+    ws.append(["S1", 3, 600, 48, 40, 40])
+    buf = BytesIO()
+    wb.save(buf)
+    grouped = parse_excel_shipments(buf.getvalue())
+    assert grouped["S1"][0]["pallets"] == 3
+
+
+def test_build_template_workbook_uses_pallet_number_and_count():
+    raw = build_template_workbook()
+    wb = openpyxl.load_workbook(BytesIO(raw))
+    headers = [cell.value for cell in next(wb.active.iter_rows(min_row=1, max_row=1))]
+    assert headers == [
+        "Shipment ID",
+        "Pallet Number",
+        "Pallet Count",
+        "Weight",
+        "Length",
+        "Width",
+        "Height",
+    ]
+    grouped = parse_excel_shipments(raw)
+    assert set(grouped) == {"FBA19EXAMPLE1", "FBA19EXAMPLE2"}
+    assert grouped["FBA19EXAMPLE1"][0]["pallets"] == 1
+    assert grouped["FBA19EXAMPLE1"][1]["pallets"] == 2
+
+
+def test_pallet_number_alone_is_not_treated_as_count():
+    """If only Pallet Number exists (no Count/Pallets), parsing must fail — not use #1 as count."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Shipment ID", "Pallet Number", "Weight", "Length", "Width", "Height"])
+    ws.append(["S1", "#1", 100, 48, 40, 40])
+    buf = BytesIO()
+    wb.save(buf)
+    with pytest.raises(FreightClassCalculatorError, match="pallets"):
         parse_excel_shipments(buf.getvalue())
