@@ -153,6 +153,12 @@ class Settings(BaseSettings):
     # Uploaded-report runs use the latest file regardless of upload date/timezone.
     # This guard prevents accidentally running against very old files.
     scheduler_uploaded_report_max_age_days: int = 7
+    # Auto-delete completed Express / Daily jobs older than this many days.
+    # Set to 0 to disable the retention cleanup job.
+    completed_jobs_retention_days: int = 7
+    # When (America/Chicago) the retention cleanup cron runs each day.
+    completed_jobs_cleanup_hour: int = 3
+    completed_jobs_cleanup_minute: int = 15
 
     # CLI chat (OpenAI + Supabase session memory); optional until OPENAI_API_KEY is set
     openai_api_key: str = ""

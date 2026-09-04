@@ -1199,3 +1199,63 @@ def shutdown_scheduler():
         scheduler.shutdown()
         logger.info("Scheduler shutdown")
 
+
+COMPLETED_JOBS_RETENTION_JOB_ID = "completed_jobs_retention_cleanup"
+
+
+async def run_completed_jobs_retention_cleanup() -> int:
+    """Delete completed Express / Daily jobs older than the configured retention window."""
+    from app.repositories.job_repository import JobRepository
+
+    days = int(getattr(settings, "completed_jobs_retention_days", 7) or 0)
+    if days <= 0:
+        logger.info("Completed jobs retention cleanup skipped (retention_days=%s)", days)
+        return 0
+
+    def _delete() -> int:
+        return JobRepository(get_supabase()).delete_completed_jobs_older_than(days)
+
+    deleted = await _run_sync(_delete)
+    logger.info(
+        "Completed jobs retention cleanup deleted %s job(s) older than %s day(s)",
+        deleted,
+        days,
+    )
+    return deleted
+
+
+def setup_completed_jobs_retention_cleanup() -> None:
+    """Schedule daily auto-deletion of completed jobs past the retention window."""
+    days = int(getattr(settings, "completed_jobs_retention_days", 7) or 0)
+    if days <= 0:
+        if scheduler.get_job(COMPLETED_JOBS_RETENTION_JOB_ID):
+            scheduler.remove_job(COMPLETED_JOBS_RETENTION_JOB_ID)
+        logger.info("Completed jobs retention cleanup disabled (retention_days=%s)", days)
+        return
+
+    hour = int(getattr(settings, "completed_jobs_cleanup_hour", 3))
+    minute = int(getattr(settings, "completed_jobs_cleanup_minute", 15))
+    tz_name = "America/Chicago"
+    try:
+        tz = timezone(tz_name)
+    except Exception:
+        tz = timezone("UTC")
+        tz_name = "UTC"
+
+    scheduler.add_job(
+        run_completed_jobs_retention_cleanup,
+        trigger=CronTrigger(hour=hour, minute=minute, timezone=tz),
+        id=COMPLETED_JOBS_RETENTION_JOB_ID,
+        name=f"Delete completed jobs older than {days} days",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=_scheduler_misfire_grace_seconds,
+    )
+    logger.info(
+        "Completed jobs retention cleanup scheduled daily at %02d:%02d %s (keep %s day(s))",
+        hour,
+        minute,
+        tz_name,
+        days,
+    )

@@ -49,7 +49,8 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         <strong>API Mode</strong> (live Keepa data) or <strong>Import Mode</strong> (uploaded Keepa report file). Job
         status, results, and cleanup live under Express Jobs in the sidebar. Use{' '}
         <strong>Clear all completed runs</strong> to delete every completed Express and Daily Run at once
-        (Off-Price Analytics archives stay). You can also delete a single job from the list or detail page.
+        (Off-Price Analytics archives stay). Completed runs are also removed automatically after 7 days.
+        You can also delete a single job from the list or detail page.
       </>
     ),
   },

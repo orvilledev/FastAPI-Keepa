@@ -7,7 +7,13 @@ from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.database import init_db
 from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, keepa_import_export, analytics, presence, manifest_generator, dnk_all_inventory, freight_class_calculator, audit, catalog_upc_dims, master_sheet
-from app.scheduler import setup_scheduler, start_scheduler, shutdown_scheduler
+from app.scheduler import (
+    setup_scheduler,
+    setup_completed_jobs_retention_cleanup,
+    start_scheduler,
+    shutdown_scheduler,
+    run_completed_jobs_retention_cleanup,
+)
 from app.dependencies import require_app_access
 from app.maintenance import get_maintenance_state
 from app.middleware.audit_logger import AuditLogMiddleware
@@ -216,7 +222,14 @@ async def startup_event():
         setup_scheduler(category='tev')  # Use TEV defaults
         setup_scheduler(category='cha')  # Use CHA defaults
         setup_scheduler(category='jfs')  # Use JFS defaults
+    setup_completed_jobs_retention_cleanup()
     start_scheduler()
+    try:
+        deleted = await run_completed_jobs_retention_cleanup()
+        if deleted:
+            logger.info("Startup retention cleanup removed %s completed job(s)", deleted)
+    except Exception as e:
+        logger.warning("Startup completed-jobs retention cleanup failed: %s", e)
     try:
         from app.services.keepa_import_build_runner import (
             reconcile_stale_keepa_import_builds,

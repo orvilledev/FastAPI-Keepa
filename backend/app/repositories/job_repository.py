@@ -4,7 +4,7 @@ from typing import List, Optional
 from uuid import UUID
 from supabase import Client
 from fastapi import HTTPException
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from app.repositories.supabase_read_all import read_all_paginated
 
@@ -373,6 +373,48 @@ class JobRepository:
         )
         return [UUID(row["id"]) for row in rows]
 
+    @staticmethod
+    def parse_job_timestamp(value: Optional[str]) -> Optional[datetime]:
+        """Parse a batch_jobs ISO timestamp into an aware UTC datetime."""
+        if not value or not isinstance(value, str):
+            return None
+        raw = value.strip()
+        if not raw:
+            return None
+        try:
+            parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    @classmethod
+    def job_completion_time(cls, row: dict) -> Optional[datetime]:
+        """Prefer completed_at; fall back to created_at when missing."""
+        return cls.parse_job_timestamp(row.get("completed_at")) or cls.parse_job_timestamp(
+            row.get("created_at")
+        )
+
+    def list_completed_job_ids_older_than(self, retention_days: int) -> List[UUID]:
+        """Return completed job IDs whose completion time is at least ``retention_days`` ago."""
+        if retention_days <= 0:
+            return []
+        cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+        rows = read_all_paginated(
+            lambda start, end: self.db.table(self.table)
+            .select("id, completed_at, created_at")
+            .eq("status", "completed")
+            .order("created_at", desc=True)
+            .range(start, end)
+            .execute()
+        )
+        return [
+            UUID(row["id"])
+            for row in rows
+            if (stamp := self.job_completion_time(row)) is not None and stamp <= cutoff
+        ]
+
     def list_completed_express_job_ids(self) -> List[UUID]:
         """Return IDs of completed Express Jobs only (excludes Daily Runs)."""
         rows = read_all_paginated(
@@ -398,6 +440,18 @@ class JobRepository:
         never touched — historical Live Analytics stays available from snapshots.
         """
         job_ids = self.list_completed_job_ids()
+        for job_id in job_ids:
+            self.delete_job(job_id)
+        return len(job_ids)
+
+    def delete_completed_jobs_older_than(self, retention_days: int) -> int:
+        """
+        Delete completed jobs (Express and Daily) older than ``retention_days``.
+
+        Age is based on ``completed_at`` (fallback ``created_at``). Analytics
+        archives are never touched.
+        """
+        job_ids = self.list_completed_job_ids_older_than(retention_days)
         for job_id in job_ids:
             self.delete_job(job_id)
         return len(job_ids)

@@ -288,6 +288,9 @@ export default function JobList() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100 sm:text-3xl">Express Jobs</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">Manage and monitor your batch processing jobs</p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
+            Completed runs are removed automatically after 7 days. Use Clear all for an immediate cleanup.
+          </p>
           {stats.processing > 0 && (
             <p
               className="mt-2 inline-flex items-center rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800 border border-amber-200"
