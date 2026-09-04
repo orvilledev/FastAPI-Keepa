@@ -5,6 +5,7 @@ import { isElectronDesktop } from '../lib/privatePath'
 import type {
   MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, MicroToolRecord, JobAid, Notification, ComprehensiveReportRow, SellerName, CliChatSession, CliChatMessage, TrackingHistorySummary, TrackingHistoryDetail, TrackingScannerRow,
   ManualEmailDraft,
+  ManualEmailDraftOpenResult,
   WarehouseProductLookup, WarehouseProductImportResult, WarehouseProduct,
   CatalogImportResult, CatalogUpcListResponse, CatalogDimsListResponse } from '../types'
 
@@ -590,6 +591,13 @@ export const reportsApi = {
 
   getEmailDraft: async (jobId: string) => {
     const response = await api.get<ManualEmailDraft>(`/api/v1/reports/${jobId}/email-draft`)
+    return response.data
+  },
+
+  openEmailDraft: async (jobId: string) => {
+    const response = await api.post<ManualEmailDraftOpenResult>(
+      `/api/v1/reports/${jobId}/email-draft/open`
+    )
     return response.data
   },
 }

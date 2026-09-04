@@ -16,15 +16,19 @@ const RECIPIENT_SOURCE_NOTE: Record<ManualEmailDraft['recipients_source'], strin
 }
 
 /**
- * Preview of the exact email the Daily Run sends for a report, with a button that
- * opens a prefilled Outlook on the web compose window so it can be sent by hand.
+ * Preview of the exact email the Daily Run sends for a report.
+ *
+ * Primary action creates a real draft in the Overwatch mailbox via Graph so
+ * To / Cc / Bcc and the XLSX attachment are all present. Outlook Web compose
+ * deeplinks cannot prefill Cc/Bcc — those are fallbacks only.
  */
 export default function ManualEmailModal({ jobId, jobName, onClose }: ManualEmailModalProps) {
   const [draft, setDraft] = useState<ManualEmailDraft | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
-  const [copied, setCopied] = useState<'subject' | 'body' | null>(null)
+  const [opening, setOpening] = useState(false)
+  const [copied, setCopied] = useState<'subject' | 'body' | 'cc' | 'bcc' | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -58,7 +62,10 @@ export default function ManualEmailModal({ jobId, jobName, onClose }: ManualEmai
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [onClose])
 
-  const handleCopy = async (field: 'subject' | 'body', value: string) => {
+  const handleCopy = async (
+    field: 'subject' | 'body' | 'cc' | 'bcc',
+    value: string
+  ) => {
     try {
       await navigator.clipboard.writeText(value)
       setCopied(field)
@@ -89,7 +96,26 @@ export default function ManualEmailModal({ jobId, jobName, onClose }: ManualEmai
     }
   }
 
+  const handleOpenOverwatchDraft = async () => {
+    setOpening(true)
+    try {
+      const opened = await reportsApi.openEmailDraft(jobId)
+      window.open(opened.open_url, '_blank', 'noopener,noreferrer')
+    } catch (err: any) {
+      const detail =
+        err?.response?.data?.detail || err?.message || 'Failed to create the Overwatch draft'
+      console.error('Failed to open Overwatch draft:', err)
+      window.alert(
+        `${detail}\n\nYou can still use “Open signed-in mailbox” below. Outlook Web will not prefill Cc/Bcc from a link — copy those addresses from this preview and paste them in.`
+      )
+    } finally {
+      setOpening(false)
+    }
+  }
+
   const recipientNote = draft ? RECIPIENT_SOURCE_NOTE[draft.recipients_source] : null
+  const signedInComposeUrl =
+    draft?.compose_url_signed_in_mailbox || draft?.compose_url || '#'
 
   return (
     <div
@@ -162,10 +188,34 @@ export default function ManualEmailModal({ jobId, jobName, onClose }: ManualEmai
                   {draft.to.length > 0 ? draft.to.join(', ') : '—'}
                 </dd>
               </div>
+              {(draft.cc?.length ?? 0) > 0 && (
+                <div className="flex gap-2">
+                  <dt className="w-20 shrink-0 font-semibold text-gray-600 dark:text-slate-400">Cc</dt>
+                  <dd className="break-words text-gray-900 dark:text-slate-100">
+                    <span>{draft.cc.join(', ')}</span>
+                    <button
+                      type="button"
+                      onClick={() => void handleCopy('cc', draft.cc.join(', '))}
+                      className="ml-2 text-xs font-semibold text-[#0B3D91] hover:underline dark:text-blue-400"
+                    >
+                      {copied === 'cc' ? 'Copied' : 'Copy'}
+                    </button>
+                  </dd>
+                </div>
+              )}
               {draft.bcc.length > 0 && (
                 <div className="flex gap-2">
                   <dt className="w-20 shrink-0 font-semibold text-gray-600 dark:text-slate-400">Bcc</dt>
-                  <dd className="break-words text-gray-900 dark:text-slate-100">{draft.bcc.join(', ')}</dd>
+                  <dd className="break-words text-gray-900 dark:text-slate-100">
+                    <span>{draft.bcc.join(', ')}</span>
+                    <button
+                      type="button"
+                      onClick={() => void handleCopy('bcc', draft.bcc.join(', '))}
+                      className="ml-2 text-xs font-semibold text-[#0B3D91] hover:underline dark:text-blue-400"
+                    >
+                      {copied === 'bcc' ? 'Copied' : 'Copy'}
+                    </button>
+                  </dd>
                 </div>
               )}
               <div className="flex gap-2">
@@ -210,50 +260,90 @@ export default function ManualEmailModal({ jobId, jobName, onClose }: ManualEmai
             </div>
 
             <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-3 text-xs text-gray-600 dark:border-border dark:bg-surface-muted dark:text-slate-400">
-              Outlook cannot receive the attachment through a compose link. Download{' '}
-              <span className="font-semibold text-gray-800 dark:text-slate-200">
-                {draft.attachment_filename}
-              </span>{' '}
-              and attach it before sending.
-              <button
-                type="button"
-                onClick={() => void handleDownloadAttachment()}
-                disabled={downloading}
-                className="ml-2 font-semibold text-[#0B3D91] hover:underline disabled:opacity-50 dark:text-blue-400"
-              >
-                {downloading ? 'Preparing…' : 'Download report'}
-              </button>
+              {draft.graph_draft_available ? (
+                <>
+                  <strong className="text-gray-800 dark:text-slate-200">Open Overwatch draft</strong>{' '}
+                  creates a real message in{' '}
+                  <span className="font-semibold text-gray-800 dark:text-slate-200">
+                    {draft.from_address}
+                  </span>
+                  ’s Drafts with To, Cc, Bcc, and{' '}
+                  <span className="font-semibold text-gray-800 dark:text-slate-200">
+                    {draft.attachment_filename}
+                  </span>{' '}
+                  already attached. You need mailbox access to Overwatch in Outlook to open it.
+                </>
+              ) : (
+                <>
+                  Outlook Web compose links cannot prefill Cc or Bcc. Download{' '}
+                  <span className="font-semibold text-gray-800 dark:text-slate-200">
+                    {draft.attachment_filename}
+                  </span>{' '}
+                  and attach it before sending.
+                  <button
+                    type="button"
+                    onClick={() => void handleDownloadAttachment()}
+                    disabled={downloading}
+                    className="ml-2 font-semibold text-[#0B3D91] hover:underline disabled:opacity-50 dark:text-blue-400"
+                  >
+                    {downloading ? 'Preparing…' : 'Download report'}
+                  </button>
+                </>
+              )}
             </div>
 
             <div className="mt-6 flex flex-wrap items-center gap-3">
+              {draft.graph_draft_available ? (
+                <button
+                  type="button"
+                  onClick={() => void handleOpenOverwatchDraft()}
+                  disabled={opening}
+                  className="btn-primary disabled:opacity-60"
+                >
+                  {opening ? 'Creating draft…' : 'Open Overwatch draft'}
+                </button>
+              ) : null}
+
               <a
-                href={draft.compose_url}
+                href={signedInComposeUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="btn-primary"
+                className={draft.graph_draft_available ? 'btn-secondary' : 'btn-primary'}
+                title="Opens compose in whichever mailbox this browser is signed into. Cc/Bcc will not auto-fill — copy them from the preview above."
+                onClick={() => {
+                  if (draft.bcc.length > 0 || (draft.cc?.length ?? 0) > 0) {
+                    const parts = [
+                      ...(draft.cc?.length ? [`Cc: ${draft.cc.join(', ')}`] : []),
+                      ...(draft.bcc.length ? [`Bcc: ${draft.bcc.join(', ')}`] : []),
+                    ]
+                    void navigator.clipboard.writeText(parts.join('\n')).catch(() => undefined)
+                  }
+                }}
               >
-                Open in Outlook Web
+                Open signed-in mailbox
               </a>
-              <a
-                href={draft.compose_url_signed_in_mailbox}
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs font-semibold text-gray-600 hover:underline dark:text-slate-400"
-                title="Use whichever mailbox this browser is signed into, instead of the Overwatch shared mailbox"
-              >
-                Use my signed-in mailbox
-              </a>
+
               <a
                 href={draft.mailto_url}
-                /* target=_blank routes the click through Electron's window-open
-                   handler, which hands mailto: to the OS mail client. */
                 target="_blank"
                 rel="noreferrer"
                 className="text-xs font-semibold text-gray-600 hover:underline dark:text-slate-400"
-                title="Open in the computer's default mail application"
+                title="Desktop Outlook / mail apps often honor Cc and Bcc in mailto links"
               >
                 Open in desktop mail app
               </a>
+
+              {draft.graph_draft_available && (
+                <button
+                  type="button"
+                  onClick={() => void handleDownloadAttachment()}
+                  disabled={downloading}
+                  className="text-xs font-semibold text-gray-600 hover:underline disabled:opacity-50 dark:text-slate-400"
+                >
+                  {downloading ? 'Preparing…' : 'Download report'}
+                </button>
+              )}
+
               <button type="button" onClick={onClose} className="btn-secondary ml-auto">
                 Close
               </button>

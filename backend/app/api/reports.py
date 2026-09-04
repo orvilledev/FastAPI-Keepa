@@ -10,7 +10,7 @@ from app.dependencies import get_current_user, verify_job_access
 from app.database import get_supabase
 from app.services.csv_generator import CSVGenerator
 from app.services.email_service import EmailService
-from app.services.manual_email_draft import build_manual_email_draft
+from app.services.manual_email_draft import build_manual_email_draft, open_manual_email_draft
 from app.services.report_service import ReportService
 from app.utils.error_handler import handle_api_errors
 from supabase import Client
@@ -135,9 +135,21 @@ def get_email_draft(
     """Build the daily-run email draft for a job so it can be sent manually.
 
     Returns the same subject/body the scheduled send would use, the resolved
-    recipients, and an Outlook on the web compose link the browser can open.
+    recipients (To/Cc/Bcc), and Outlook compose links. Prefer
+    ``POST /reports/{job_id}/email-draft/open`` to create a real Overwatch
+    draft — Outlook Web compose deeplinks do not prefill Cc/Bcc.
     """
     return build_manual_email_draft(db, job)
+
+
+@router.post("/reports/{job_id}/email-draft/open")
+@handle_api_errors("open email draft")
+def open_email_draft(
+    job: dict = Depends(verify_job_access),
+    db: Client = Depends(get_supabase)
+):
+    """Create a draft in the Overwatch mailbox (To/Cc/Bcc + XLSX) and return its webLink."""
+    return open_manual_email_draft(db, job)
 
 
 @router.post("/reports/{job_id}/email")

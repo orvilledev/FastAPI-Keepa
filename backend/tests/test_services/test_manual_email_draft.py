@@ -4,9 +4,13 @@ from unittest.mock import MagicMock, patch
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+from fastapi import HTTPException
 
 from app.services.email_service import build_report_email_content
-from app.services.manual_email_draft import build_manual_email_draft
+from app.services.manual_email_draft import (
+    build_manual_email_draft,
+    open_manual_email_draft,
+)
 
 JOB_ID = "11111111-2222-3333-4444-555555555555"
 
@@ -41,7 +45,9 @@ def patched_services():
     """Stub report generation and the mailer's From address."""
     with patch("app.services.manual_email_draft.ReportService") as report_cls, patch(
         "app.services.manual_email_draft.EmailService"
-    ) as email_cls:
+    ) as email_cls, patch(
+        "app.services.manual_email_draft.settings"
+    ) as mock_settings:
         report = report_cls.return_value
         report.generate_csv_for_job.return_value = (
             b"xlsx-bytes",
@@ -53,8 +59,9 @@ def patched_services():
         mailer = email_cls.return_value
         mailer._bare_from_address.return_value = "overwatch@metroshoewarehouse.com"
         mailer.email_from_name = "MSW Overwatch"
+        mock_settings.graph_email_configured = True
 
-        yield report, mailer
+        yield report, mailer, mock_settings
 
 
 class TestManualEmailDraft:
@@ -88,7 +95,7 @@ class TestManualEmailDraft:
 
     @pytest.mark.unit
     def test_report_is_generated_with_the_job_vendor_and_scope(self, patched_services):
-        report, _ = patched_services
+        report, _, _ = patched_services
         build_manual_email_draft(_make_db(), _make_job())
 
         kwargs = report.generate_csv_for_job.call_args.kwargs
@@ -104,7 +111,23 @@ class TestManualEmailDraft:
 
         assert draft["to"] == ["vendor@example.com"]
         assert draft["bcc"] == ["audit@example.com"]
+        assert draft["cc"] == []
         assert draft["recipients_source"] == "job"
+
+    @pytest.mark.unit
+    def test_includes_cc_and_keeps_buckets_disjoint(self, patched_services):
+        draft = build_manual_email_draft(
+            _make_db(),
+            _make_job(
+                email_recipients="to@example.com, also-cc@example.com",
+                email_cc_recipients="also-cc@example.com, cc-only@example.com",
+                email_bcc_recipients="bcc@example.com, also-cc@example.com",
+            ),
+        )
+
+        assert draft["to"] == ["to@example.com"]
+        assert draft["cc"] == ["cc-only@example.com"]
+        assert draft["bcc"] == ["bcc@example.com", "also-cc@example.com"]
 
     @pytest.mark.unit
     def test_falls_back_to_scheduler_settings_recipients(self, patched_services):
@@ -112,25 +135,38 @@ class TestManualEmailDraft:
             {
                 "category": "sff",
                 "email_recipients": "fallback@example.com",
+                "email_cc_recipients": "cc@example.com",
                 "email_bcc_recipients": None,
                 "email_subject_template": None,
                 "email_body_template": None,
             }
         )
         draft = build_manual_email_draft(
-            db, _make_job(email_recipients=None, email_bcc_recipients=None)
+            db,
+            _make_job(
+                email_recipients=None,
+                email_cc_recipients=None,
+                email_bcc_recipients=None,
+            ),
         )
 
         assert draft["to"] == ["fallback@example.com"]
+        assert draft["cc"] == ["cc@example.com"]
         assert draft["recipients_source"] == "scheduler_settings"
 
     @pytest.mark.unit
     def test_reports_missing_recipients(self, patched_services):
         draft = build_manual_email_draft(
-            _make_db(), _make_job(email_recipients=None, email_bcc_recipients=None)
+            _make_db(),
+            _make_job(
+                email_recipients=None,
+                email_cc_recipients=None,
+                email_bcc_recipients=None,
+            ),
         )
 
         assert draft["to"] == []
+        assert draft["cc"] == []
         assert draft["bcc"] == []
         assert draft["recipients_source"] == "none"
 
@@ -153,15 +189,15 @@ class TestManualEmailDraft:
         assert draft["used_custom_body"] is True
 
     @pytest.mark.unit
-    def test_compose_url_targets_the_overwatch_mailbox_with_prefilled_fields(
-        self, patched_services
-    ):
+    def test_compose_url_prioritizes_signed_in_mailbox(self, patched_services):
         draft = build_manual_email_draft(_make_db(), _make_job())
 
         parsed = urlparse(draft["compose_url"])
-        assert parsed.scheme == "https"
-        assert parsed.netloc == "outlook.office.com"
-        assert parsed.path == (
+        assert parsed.path == "/mail/deeplink/compose"
+        assert draft["compose_url"] == draft["compose_url_signed_in_mailbox"]
+
+        overwatch = urlparse(draft["compose_url_overwatch_mailbox"])
+        assert overwatch.path == (
             "/mail/overwatch@metroshoewarehouse.com/deeplink/compose"
         )
 
@@ -171,22 +207,20 @@ class TestManualEmailDraft:
         assert params["subject"] == [draft["subject"]]
         assert params["body"][0] == draft["body"].replace("\n", "\r\n")
 
-        assert urlparse(draft["compose_url_signed_in_mailbox"]).path == (
-            "/mail/deeplink/compose"
-        )
-
     @pytest.mark.unit
     def test_compose_url_encodes_spaces_as_percent_20(self, patched_services):
         draft = build_manual_email_draft(_make_db(), _make_job())
 
-        # Outlook renders '+' literally, so spaces must not be plus-encoded.
         query = urlparse(draft["compose_url"]).query
         assert "%20" in query
         assert "+" not in query
 
     @pytest.mark.unit
     def test_mailto_url_includes_recipients_and_subject(self, patched_services):
-        draft = build_manual_email_draft(_make_db(), _make_job())
+        draft = build_manual_email_draft(
+            _make_db(),
+            _make_job(email_cc_recipients="cc@example.com"),
+        )
 
         assert draft["mailto_url"].startswith(
             "mailto:vendor@example.com,ops@example.com?"
@@ -194,3 +228,41 @@ class TestManualEmailDraft:
         params = parse_qs(draft["mailto_url"].split("?", 1)[1])
         assert params["subject"] == [draft["subject"]]
         assert params["bcc"] == ["audit@example.com"]
+        assert params["cc"] == ["cc@example.com"]
+
+
+class TestOpenManualEmailDraft:
+    @pytest.mark.unit
+    def test_creates_graph_draft_with_to_cc_bcc_and_attachment(self, patched_services):
+        _, mailer, mock_settings = patched_services
+        mock_settings.graph_email_configured = True
+        graph = MagicMock()
+        graph.create_draft.return_value = {
+            "id": "draft-123",
+            "webLink": "https://outlook.office.com/mail/id/draft-123",
+        }
+        mailer._graph_client_or_none.return_value = graph
+
+        result = open_manual_email_draft(
+            _make_db(),
+            _make_job(email_cc_recipients="cc@example.com"),
+        )
+
+        assert result["open_url"] == "https://outlook.office.com/mail/id/draft-123"
+        assert result["draft_id"] == "draft-123"
+        kwargs = graph.create_draft.call_args.kwargs
+        assert kwargs["to_recipients"] == ["vendor@example.com", "ops@example.com"]
+        assert kwargs["cc_recipients"] == ["cc@example.com"]
+        assert kwargs["bcc_recipients"] == ["audit@example.com"]
+        assert kwargs["attachments"][0][0] == "MSW_Overwatch_MAP_Report_2026-09-04.xlsx"
+        assert kwargs["attachments"][0][1] == b"xlsx-bytes"
+
+    @pytest.mark.unit
+    def test_raises_when_graph_not_configured(self, patched_services):
+        _, _, mock_settings = patched_services
+        mock_settings.graph_email_configured = False
+
+        with pytest.raises(HTTPException) as exc_info:
+            open_manual_email_draft(_make_db(), _make_job())
+
+        assert exc_info.value.status_code == 503

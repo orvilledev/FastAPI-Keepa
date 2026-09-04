@@ -14,6 +14,8 @@ GRAPH_SCOPE = "https://graph.microsoft.com/.default"
 GRAPH_TIMEOUT_SECONDS = 60
 TOKEN_URL_TEMPLATE = "https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
 SEND_MAIL_URL_TEMPLATE = "https://graph.microsoft.com/v1.0/users/{mailbox}/sendMail"
+# Creating a draft needs Mail.ReadWrite (application); sendMail only needs Mail.Send.
+CREATE_MESSAGE_URL_TEMPLATE = "https://graph.microsoft.com/v1.0/users/{mailbox}/messages"
 
 
 class GraphMailError(Exception):
@@ -45,6 +47,9 @@ class GraphMailClient:
 
     def _send_mail_url(self) -> str:
         return SEND_MAIL_URL_TEMPLATE.format(mailbox=self.from_address)
+
+    def _create_message_url(self) -> str:
+        return CREATE_MESSAGE_URL_TEMPLATE.format(mailbox=self.from_address)
 
     def _get_access_token(self) -> str:
         now = time.time()
@@ -86,27 +91,10 @@ class GraphMailClient:
             if addr and str(addr).strip()
         ]
 
-    def send_message(
-        self,
-        *,
-        subject: str,
-        plain_body: str,
-        html_body: str,
-        to_recipients: List[str],
-        bcc_recipients: Optional[List[str]] = None,
-        attachments: Optional[List[tuple[str, bytes, str]]] = None,
-        save_to_sent_items: bool = True,
-    ) -> None:
-        """
-        Send a message through Graph sendMail.
-
-        attachments: list of (filename, bytes, mime_type)
-        """
-        to_list = self._recipient_list(to_recipients)
-        bcc_list = self._recipient_list(bcc_recipients or [])
-        if not to_list and not bcc_list:
-            raise GraphMailError("No recipients provided for Graph sendMail")
-
+    @staticmethod
+    def _file_attachments(
+        attachments: Optional[List[tuple[str, bytes, str]]],
+    ) -> List[dict]:
         graph_attachments: List[dict] = []
         for filename, content, mime_type in attachments or []:
             graph_attachments.append(
@@ -117,6 +105,108 @@ class GraphMailClient:
                     "contentBytes": base64.b64encode(content).decode("ascii"),
                 }
             )
+        return graph_attachments
+
+    def create_draft(
+        self,
+        *,
+        subject: str,
+        plain_body: str,
+        html_body: str,
+        to_recipients: List[str],
+        cc_recipients: Optional[List[str]] = None,
+        bcc_recipients: Optional[List[str]] = None,
+        attachments: Optional[List[tuple[str, bytes, str]]] = None,
+    ) -> dict:
+        """
+        Create a draft in the Overwatch mailbox Drafts folder.
+
+        Requires application permission Mail.ReadWrite (in addition to Mail.Send).
+        Returns the Graph message payload (includes ``id`` and ``webLink``).
+        """
+        to_list = self._recipient_list(to_recipients)
+        cc_list = self._recipient_list(cc_recipients or [])
+        bcc_list = self._recipient_list(bcc_recipients or [])
+        if not to_list and not cc_list and not bcc_list:
+            raise GraphMailError("No recipients provided for Graph draft")
+
+        # Creating via POST /messages stores the message as a draft by default.
+        _ = plain_body
+        message: dict = {
+            "subject": subject,
+            "body": {
+                "contentType": "HTML",
+                "content": html_body,
+            },
+            "from": {
+                "emailAddress": {
+                    "name": self.from_display_name,
+                    "address": self.from_address,
+                }
+            },
+            "toRecipients": to_list,
+        }
+        if cc_list:
+            message["ccRecipients"] = cc_list
+        if bcc_list:
+            message["bccRecipients"] = bcc_list
+        file_attachments = self._file_attachments(attachments)
+        if file_attachments:
+            message["attachments"] = file_attachments
+
+        token = self._get_access_token()
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+        try:
+            with httpx.Client(timeout=GRAPH_TIMEOUT_SECONDS) as client:
+                response = client.post(
+                    self._create_message_url(), headers=headers, json=message
+                )
+        except httpx.HTTPError as exc:
+            raise GraphMailError(f"Graph create draft request failed: {exc}") from exc
+
+        if response.status_code not in (200, 201):
+            raise GraphMailError(
+                f"Graph create draft failed ({response.status_code}): {response.text[:800]}"
+            )
+
+        payload = response.json()
+        logger.info(
+            "Graph draft created for %s (id=%s, to=%s, cc=%s, bcc=%s)",
+            self.from_address,
+            payload.get("id"),
+            to_recipients,
+            cc_recipients or [],
+            bcc_recipients or [],
+        )
+        return payload
+
+    def send_message(
+        self,
+        *,
+        subject: str,
+        plain_body: str,
+        html_body: str,
+        to_recipients: List[str],
+        cc_recipients: Optional[List[str]] = None,
+        bcc_recipients: Optional[List[str]] = None,
+        attachments: Optional[List[tuple[str, bytes, str]]] = None,
+        save_to_sent_items: bool = True,
+    ) -> None:
+        """
+        Send a message through Graph sendMail.
+
+        attachments: list of (filename, bytes, mime_type)
+        """
+        to_list = self._recipient_list(to_recipients)
+        cc_list = self._recipient_list(cc_recipients or [])
+        bcc_list = self._recipient_list(bcc_recipients or [])
+        if not to_list and not cc_list and not bcc_list:
+            raise GraphMailError("No recipients provided for Graph sendMail")
+
+        graph_attachments = self._file_attachments(attachments)
 
         message: dict = {
             "subject": subject,
@@ -132,6 +222,8 @@ class GraphMailClient:
             },
             "toRecipients": to_list,
         }
+        if cc_list:
+            message["ccRecipients"] = cc_list
         if bcc_list:
             message["bccRecipients"] = bcc_list
         if graph_attachments:
@@ -163,8 +255,9 @@ class GraphMailClient:
             )
 
         logger.info(
-            "Graph sendMail accepted for %s (to=%s, bcc=%s)",
+            "Graph sendMail accepted for %s (to=%s, cc=%s, bcc=%s)",
             self.from_address,
             to_recipients,
+            cc_recipients or [],
             bcc_recipients or [],
         )

@@ -139,6 +139,7 @@ export interface ManualEmailDraft {
   from_address: string
   from_name: string
   to: string[]
+  cc: string[]
   bcc: string[]
   recipients_source: 'job' | 'scheduler_settings' | 'none'
   subject: string
@@ -150,11 +151,27 @@ export interface ManualEmailDraft {
   off_price_count: number
   total_upcs: number
   attachment_filename: string
+  /** Signed-in Outlook Web compose (primary deeplink fallback). */
   compose_url: string
   compose_url_signed_in_mailbox: string
+  compose_url_overwatch_mailbox?: string
   mailto_url: string
+  /** True when POST /email-draft/open can create a real Overwatch Graph draft. */
+  graph_draft_available: boolean
   used_custom_subject: boolean
   used_custom_body: boolean
+}
+
+export interface ManualEmailDraftOpenResult {
+  job_id: string
+  draft_id?: string
+  open_url: string
+  from_address: string
+  to: string[]
+  cc: string[]
+  bcc: string[]
+  subject: string
+  attachment_filename: string
 }
 
 export interface UPCBatch {

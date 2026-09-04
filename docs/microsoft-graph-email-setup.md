@@ -8,8 +8,9 @@ Use this when your Microsoft 365 tenant blocks **SMTP AUTH** (`SmtpClientAuthent
 |--------|--------|
 | Sender mailbox | `overwatch@metroshoewarehouse.com` |
 | Display name | `MSW Overwatch` |
-| Graph permission | `Mail.Send` (application) |
-| API used | `POST /v1.0/users/{mailbox}/sendMail` |
+| Graph permission | `Mail.Send` + `Mail.ReadWrite` (application) |
+| API used | `POST /v1.0/users/{mailbox}/sendMail` (auto send) |
+| Manual draft | `POST /v1.0/users/{mailbox}/messages` (To/Cc/Bcc + attachment) |
 
 ## 1. Entra app registration (IT / M365 admin)
 
@@ -23,7 +24,9 @@ Use this when your Microsoft 365 tenant blocks **SMTP AUTH** (`SmtpClientAuthent
 
 1. Open the app → **API permissions** → **Add a permission**.
 2. **Microsoft Graph** → **Application permissions**.
-3. Add **Mail.Send**.
+3. Add **Mail.Send** and **Mail.ReadWrite**.
+   - `Mail.Send` — automatic Daily Run emails
+   - `Mail.ReadWrite` — manual “Open Overwatch draft” (creates a real draft with Cc/Bcc + attachment; Outlook Web compose links cannot prefill Cc/Bcc)
 4. Click **Grant admin consent** for your organization.
 
 ### Client secret
