@@ -66,6 +66,30 @@ function emailTransportLabel(transport: 'graph' | 'smtp'): string {
   return transport === 'graph' ? 'Graph API' : 'SMTP'
 }
 
+function toLocalDateValue(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function toLocalTimeValue(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function localDateTimeToIso(date: string, time: string): string | null {
+  if (!date.trim() || !time.trim()) return null
+  const d = new Date(`${date}T${time}:00`)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toISOString()
+}
+
 export default function UserManagement() {
   const { isSuperadmin, userInfoLoading, userInfo } = useUser()
   const [users, setUsers] = useState<User[]>([])
@@ -78,6 +102,9 @@ export default function UserManagement() {
   const [maintenanceMessage, setMaintenanceMessage] = useState('')
   const [maintenanceDurationHours, setMaintenanceDurationHours] = useState<number>(0)
   const [maintenanceExpectedEndAt, setMaintenanceExpectedEndAt] = useState<string | null>(null)
+  const [maintenanceScheduledStartAt, setMaintenanceScheduledStartAt] = useState<string | null>(null)
+  const [maintenanceScheduleDate, setMaintenanceScheduleDate] = useState('')
+  const [maintenanceScheduleTime, setMaintenanceScheduleTime] = useState('')
   const [maintenanceSaving, setMaintenanceSaving] = useState(false)
   const [emailTransport, setEmailTransport] = useState<'auto' | 'graph' | 'smtp'>('auto')
   const [emailEffectiveTransport, setEmailEffectiveTransport] = useState<'graph' | 'smtp'>('smtp')
@@ -121,15 +148,29 @@ export default function UserManagement() {
     }
   }
 
+  const applyMaintenanceState = (state: {
+    maintenance_mode: boolean
+    message: string
+    duration_hours?: number | null
+    expected_end_at?: string | null
+    scheduled_start_at?: string | null
+  }) => {
+    setMaintenanceMode(Boolean(state.maintenance_mode))
+    setMaintenanceMessage(state.message || '')
+    setMaintenanceDurationHours(
+      typeof state.duration_hours === 'number' && state.duration_hours > 0 ? state.duration_hours : 0
+    )
+    setMaintenanceExpectedEndAt(state.expected_end_at || null)
+    const scheduled = state.scheduled_start_at || null
+    setMaintenanceScheduledStartAt(scheduled)
+    setMaintenanceScheduleDate(toLocalDateValue(scheduled))
+    setMaintenanceScheduleTime(toLocalTimeValue(scheduled))
+  }
+
   const loadMaintenanceMode = async () => {
     try {
       const state = await authApi.getMaintenanceMode()
-      setMaintenanceMode(Boolean(state.maintenance_mode))
-      setMaintenanceMessage(state.message || '')
-      setMaintenanceDurationHours(
-        typeof state.duration_hours === 'number' && state.duration_hours > 0 ? state.duration_hours : 0
-      )
-      setMaintenanceExpectedEndAt(state.expected_end_at || null)
+      applyMaintenanceState(state)
     } catch (err) {
       console.error('Failed to load maintenance mode:', err)
     }
@@ -248,8 +289,8 @@ export default function UserManagement() {
     const nextMode = !maintenanceMode
     const confirmed = window.confirm(
       nextMode
-        ? 'Enable maintenance mode? Non-superadmin users will see the maintenance page.'
-        : 'Disable maintenance mode and restore normal access for users?'
+        ? 'Enable maintenance mode now? Non-superadmin users will see the maintenance page.'
+        : 'Disable maintenance mode and clear any scheduled start? Normal access will be restored.'
     )
     if (!confirmed) return
     try {
@@ -259,12 +300,7 @@ export default function UserManagement() {
         maintenanceMessage,
         maintenanceDurationHours > 0 ? maintenanceDurationHours : 0
       )
-      setMaintenanceMode(Boolean(updated.maintenance_mode))
-      setMaintenanceMessage(updated.message || '')
-      setMaintenanceDurationHours(
-        typeof updated.duration_hours === 'number' && updated.duration_hours > 0 ? updated.duration_hours : 0
-      )
-      setMaintenanceExpectedEndAt(updated.expected_end_at || null)
+      applyMaintenanceState(updated)
     } catch (err: unknown) {
       const msg =
         err && typeof err === 'object' && 'response' in err
@@ -277,19 +313,30 @@ export default function UserManagement() {
   }
 
   const handleSaveMaintenanceDetails = async () => {
+    const scheduledIso = localDateTimeToIso(maintenanceScheduleDate, maintenanceScheduleTime)
+    if ((maintenanceScheduleDate && !maintenanceScheduleTime) || (!maintenanceScheduleDate && maintenanceScheduleTime)) {
+      alert('Select both a schedule date and time, or clear both to remove the schedule.')
+      return
+    }
+    if (scheduledIso && !maintenanceMode) {
+      const startMs = new Date(scheduledIso).getTime()
+      if (Number.isNaN(startMs) || startMs <= Date.now()) {
+        alert('Schedule start must be a future date and time. Use Enable Maintenance for immediate start.')
+        return
+      }
+    }
     try {
       setMaintenanceSaving(true)
       const updated = await authApi.updateMaintenanceMode(
         maintenanceMode,
         maintenanceMessage,
-        maintenanceDurationHours > 0 ? maintenanceDurationHours : 0
+        maintenanceDurationHours > 0 ? maintenanceDurationHours : 0,
+        {
+          scheduled_start_at: scheduledIso,
+          update_schedule: true,
+        }
       )
-      setMaintenanceMode(Boolean(updated.maintenance_mode))
-      setMaintenanceMessage(updated.message || '')
-      setMaintenanceDurationHours(
-        typeof updated.duration_hours === 'number' && updated.duration_hours > 0 ? updated.duration_hours : 0
-      )
-      setMaintenanceExpectedEndAt(updated.expected_end_at || null)
+      applyMaintenanceState(updated)
     } catch (err: unknown) {
       const msg =
         err && typeof err === 'object' && 'response' in err
@@ -695,7 +742,7 @@ export default function UserManagement() {
                 : 'Enable Maintenance'}
           </button>
         </div>
-        <div className="text-sm">
+        <div className="text-sm flex flex-wrap items-center gap-2">
           <span
             className={`px-2 py-1 rounded font-medium ${
               maintenanceMode ? 'bg-[#81B81D]/20 text-[#111827]' : 'bg-green-100 text-green-800'
@@ -703,6 +750,11 @@ export default function UserManagement() {
           >
             {maintenanceMode ? 'Maintenance ON' : 'Maintenance OFF'}
           </span>
+          {!maintenanceMode && maintenanceScheduledStartAt && (
+            <span className="px-2 py-1 rounded font-medium bg-amber-100 text-amber-900">
+              Scheduled {new Date(maintenanceScheduledStartAt).toLocaleString()}
+            </span>
+          )}
         </div>
         <label className="block text-sm font-medium text-gray-700">
           Maintenance message
@@ -728,9 +780,42 @@ export default function UserManagement() {
             placeholder="e.g. 2"
           />
         </label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="block text-sm font-medium text-gray-700">
+            Schedule start date
+            <input
+              type="date"
+              value={maintenanceScheduleDate}
+              onChange={(e) => setMaintenanceScheduleDate(e.target.value)}
+              disabled={maintenanceMode}
+              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
+            />
+          </label>
+          <label className="block text-sm font-medium text-gray-700">
+            Schedule start hour
+            <input
+              type="time"
+              step={3600}
+              value={maintenanceScheduleTime}
+              onChange={(e) => setMaintenanceScheduleTime(e.target.value)}
+              disabled={maintenanceMode}
+              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
+            />
+          </label>
+        </div>
+        <p className="text-xs text-gray-500">
+          Optional. While maintenance is off, save a future date and hour to auto-enable at that time
+          (your local timezone). Clear both fields and save to remove a schedule. Use Enable
+          Maintenance for an immediate start.
+        </p>
         {maintenanceMode && maintenanceExpectedEndAt && (
           <p className="text-xs text-gray-600">
             Expected completion: {new Date(maintenanceExpectedEndAt).toLocaleString()}
+          </p>
+        )}
+        {!maintenanceMode && maintenanceScheduledStartAt && maintenanceExpectedEndAt && (
+          <p className="text-xs text-gray-600">
+            Scheduled window ends: {new Date(maintenanceExpectedEndAt).toLocaleString()}
           </p>
         )}
         <div>

@@ -248,17 +248,30 @@ export const authApi = {
       effective_message: string
       duration_hours?: number | null
       expected_end_at?: string | null
+      scheduled_start_at?: string | null
     }>('/api/v1/auth/maintenance')
     return response.data
   },
-  updateMaintenanceMode: async (maintenance_mode: boolean, message?: string, duration_hours?: number) => {
+  updateMaintenanceMode: async (
+    maintenance_mode: boolean,
+    message?: string,
+    duration_hours?: number,
+    options?: { scheduled_start_at?: string | null; update_schedule?: boolean }
+  ) => {
     const response = await api.put<{
       maintenance_mode: boolean
       message: string
       effective_message: string
       duration_hours?: number | null
       expected_end_at?: string | null
-    }>('/api/v1/auth/maintenance', { maintenance_mode, message, duration_hours })
+      scheduled_start_at?: string | null
+    }>('/api/v1/auth/maintenance', {
+      maintenance_mode,
+      message,
+      duration_hours,
+      scheduled_start_at: options?.scheduled_start_at ?? null,
+      update_schedule: Boolean(options?.update_schedule),
+    })
     return response.data
   },
   getEmailTransport: async () => {
@@ -2020,6 +2033,7 @@ export const systemApi = {
     effective_message?: string
     duration_hours?: number | null
     expected_end_at?: string | null
+    scheduled_start_at?: string | null
   }> => {
     const response = await api.get('/api/v1/system/maintenance-status')
     return response.data
