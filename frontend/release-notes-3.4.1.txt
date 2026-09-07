@@ -1,0 +1,20 @@
+MSW Overwatch 3.4.1 — desktop and web release
+
+Patch release since 3.4.0. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Freight Class
+- New **Freight Class** calculator under Tools, with Excel bulk upload and a Pallet Number / Pallet Count template
+- Access for superadmins and authorized warehouse users
+- Cleaner UI, contrast, and bulk-upload flow
+
+## Email & reports
+- Manual **Email** action opens an Outlook compose draft that matches Daily Run mail, including Cc/Bcc and the report attachment via Graph
+- Price Alerts report download now saves as Excel (.xlsx) instead of a misnamed CSV that corrupted the file
+
+## Jobs & maintenance
+- Clear all completed runs deletes Express and Daily Jobs and keeps analytics archives
+- Completed Express and Daily jobs auto-delete after 7 days
+- Maintenance windows can be scheduled for a future date and hour, with end date/hour and timezone
+
+## Upgrade from 3.4.0
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.4.1, download it, then prompt to install now or later. Web/PWA users get 3.4.1 on the next deploy/refresh.
