@@ -7,7 +7,7 @@ from supabase import Client
 
 from app.api.auth import _ensure_profile_row
 from app.database import get_supabase
-from app.dependencies import get_current_user
+from app.dependencies import get_projects_user
 from app.models.project import (
     DONE_STATUSES,
     PROJECT_STATUSES,
@@ -55,7 +55,7 @@ def _fetch_owned(db: Client, project_id: str, user_id: str) -> dict | None:
 @handle_api_errors("list projects")
 def list_projects(
     status_filter: Optional[str] = Query(None, alias="status"),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_projects_user),
     db: Client = Depends(get_supabase),
 ):
     """Return the signed-in user's projects, newest update first."""
@@ -81,7 +81,7 @@ def list_projects(
 @handle_api_errors("create project")
 def create_project(
     payload: ProjectCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_projects_user),
     db: Client = Depends(get_supabase),
 ):
     """Create a project owned by the signed-in user."""
@@ -108,7 +108,7 @@ def create_project(
 def update_project(
     project_id: UUID,
     payload: ProjectUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_projects_user),
     db: Client = Depends(get_supabase),
 ):
     """Update name, notes, and/or status on a project the user owns."""
@@ -146,7 +146,7 @@ def update_project(
 @handle_api_errors("delete project")
 def delete_project(
     project_id: UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_projects_user),
     db: Client = Depends(get_supabase),
 ):
     """Delete a project the user owns."""

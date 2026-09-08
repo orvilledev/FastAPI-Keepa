@@ -5,6 +5,7 @@ import { useUser } from '../../contexts/UserContext'
 import { canAccessMasterSheet } from '../../lib/masterSheetAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
+import { canAccessProjects } from '../../lib/projectsAccess'
 
 type SearchItem = {
   label: string
@@ -19,6 +20,7 @@ function buildSearchItems(
   showMasterSheet: boolean,
   showFreightClass: boolean,
   showAnalytics: boolean,
+  showProjects: boolean,
 ): SearchItem[] {
   if (isWarehouseOnly) {
     return [
@@ -49,7 +51,9 @@ function buildSearchItems(
     }
   }
 
-  items.push({ label: 'Projects', path: '/projects', section: 'Menu' })
+  if (showProjects) {
+    items.push({ label: 'Projects', path: '/projects', section: 'Menu' })
+  }
 
   if (hasKeepaAccess) {
     items.push({ label: 'Label Station', path: '/label-station', section: 'Tools' })
@@ -106,6 +110,10 @@ export default function NavbarSearch() {
     isSuperadmin,
   )
   const showAnalytics = canAccessWebAnalytics(userInfo?.email || authUser?.email)
+  const showProjects = canAccessProjects(
+    userInfo?.email || authUser?.email,
+    isSuperadmin,
+  )
 
   const searchItems = useMemo(
     () =>
@@ -116,8 +124,9 @@ export default function NavbarSearch() {
         showMasterSheet,
         showFreightClass,
         showAnalytics,
+        showProjects,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showMasterSheet, showFreightClass, showAnalytics],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showMasterSheet, showFreightClass, showAnalytics, showProjects],
   )
 
   const results = useMemo(() => {

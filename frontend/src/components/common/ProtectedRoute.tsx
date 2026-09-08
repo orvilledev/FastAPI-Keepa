@@ -1,12 +1,14 @@
 import { Navigate } from 'react-router-dom'
 import { useUser } from '../../contexts/UserContext'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
+import { canAccessProjects } from '../../lib/projectsAccess'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
   requireKeepaAccess?: boolean
   requireLabelStationAccess?: boolean
   requireAnalyticsAccess?: boolean
+  requireProjectsAccess?: boolean
 }
 
 export default function ProtectedRoute({
@@ -14,11 +16,13 @@ export default function ProtectedRoute({
   requireKeepaAccess = false,
   requireLabelStationAccess = false,
   requireAnalyticsAccess = false,
+  requireProjectsAccess = false,
 }: ProtectedRouteProps) {
   const {
     hasKeepaAccess,
     hasLabelStationAccess,
     isWarehouseOnly,
+    isSuperadmin,
     userInfoLoading,
     userInfo,
     authUser,
@@ -47,6 +51,13 @@ export default function ProtectedRoute({
     const email = userInfo.email || authUser?.email || null
     if (!canAccessWebAnalytics(email)) {
       return <Navigate to="/dashboard" replace />
+    }
+  }
+
+  if (requireProjectsAccess) {
+    const email = userInfo.email || authUser?.email || null
+    if (!canAccessProjects(email, isSuperadmin)) {
+      return <Navigate to={isWarehouseOnly ? '/label-station' : '/dashboard'} replace />
     }
   }
 

@@ -6,6 +6,7 @@ import AppLogo from '../common/AppLogo'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessMasterSheet } from '../../lib/masterSheetAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
+import { canAccessProjects } from '../../lib/projectsAccess'
 
 // SVG Icon components that inherit text color via currentColor
 const Icons = {
@@ -155,6 +156,10 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
     isSuperadmin,
   )
   const canUseFreightClass = canAccessFreightClassCalculator(
+    userInfo?.email || authUser?.email,
+    isSuperadmin,
+  )
+  const canUseProjects = canAccessProjects(
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
@@ -387,18 +392,20 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
               )
             })}
 
-            <Link
-              to="/projects"
-              onMouseEnter={() => setHoveredNav('projects')}
-              className={`sidebar-link ${
-                navHighlighted('projects', isActive('/projects'))
-                  ? 'sidebar-link-active'
-                  : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="shrink-0">{Icons.projects}</span>
-              <span className="sidebar-link-label">Projects</span>
-            </Link>
+            {canUseProjects && (
+              <Link
+                to="/projects"
+                onMouseEnter={() => setHoveredNav('projects')}
+                className={`sidebar-link ${
+                  navHighlighted('projects', isActive('/projects'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.projects}</span>
+                <span className="sidebar-link-label">Projects</span>
+              </Link>
+            )}
           </div>
         </div>
 

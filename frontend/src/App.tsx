@@ -394,7 +394,7 @@ function AppRoutes() {
 
         <Route element={<PrivateLayout />}>
           <Route path="dashboard" element={<Dashboard />} />
-          <Route path="projects" element={<ProjectsPage />} />
+          <Route path="projects" element={<ProtectedRoute requireProjectsAccess={true}><ProjectsPage /></ProtectedRoute>} />
           <Route path="about" element={<About />} />
           <Route path="feedback" element={<Feedback />} />
           <Route path="dev-md" element={<Navigate to="/dashboard" replace />} />

@@ -259,6 +259,30 @@ def get_freight_class_user(
     return current_user
 
 
+def is_projects_allowed_user(current_user: dict, db: Client) -> bool:
+    """True for superadmin or emails on the Projects page allowlist."""
+    if is_superadmin_user(current_user, db):
+        return True
+    email = (current_user.get("email") or "").strip().lower()
+    if not email:
+        return False
+    allowed = set(settings.projects_allowed_emails_list)
+    return email in allowed
+
+
+def get_projects_user(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+) -> dict:
+    """Verify user may use the Projects page."""
+    if not is_projects_allowed_user(current_user, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Projects is restricted to authorized users",
+        )
+    return current_user
+
+
 def get_keepa_access_user(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase)

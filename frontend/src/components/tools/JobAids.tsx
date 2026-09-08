@@ -25,8 +25,8 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         Menu includes <strong>Dashboard</strong>, <strong>Notifications</strong>,{' '}
         <strong>Express Jobs</strong>, <strong>Daily Runs</strong>, <strong>Manage UPCs</strong>,{' '}
         <strong>Manage MAP</strong>, <strong>Seller List</strong>, <strong>Email List</strong>, and{' '}
-        <strong>Projects</strong>. Express Jobs through Email List require Keepa access; Dashboard, Projects, and Notifications are available to all signed-in
-        users (warehouse-only accounts do not see Projects or the notifications bell).
+        <strong>Projects</strong>. Express Jobs through Email List require Keepa access; Dashboard and Notifications are available to all signed-in
+        users. Projects is limited to Superadmin, Stephanie, Sunshine, Paolo, and John Bernard. Warehouse-only accounts do not see Projects or the notifications bell.
       </>
     ),
   },
