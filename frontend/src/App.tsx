@@ -60,6 +60,7 @@ const TrackingScanner = lazy(() => import('./components/scanner/TrackingScanner'
 const FNSKULabelGenerator = lazy(() => import('./components/scanner/FNSKULabelGenerator'))
 const ManifestGenerator = lazy(() => import('./components/tools/ManifestGenerator'))
 const DnkAllInventory = lazy(() => import('./components/tools/DnkAllInventory'))
+const ShipmentManager = lazy(() => import('./components/tools/ShipmentManager'))
 const FreightClassCalculator = lazy(() => import('./components/tools/FreightClassCalculator'))
 const LabelStation = lazy(() => import('./components/scanner/LabelStation'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
@@ -438,6 +439,7 @@ function AppRoutes() {
           <Route path="fnsku-labels" element={<FNSKULabelGenerator />} />
           <Route path="manifest-generator" element={<ManifestGenerator />} />
           <Route path="dnk-all-inventory" element={<DnkAllInventory />} />
+          <Route path="shipment-manager" element={<ShipmentManager />} />
           <Route path="freight-class-calculator" element={<FreightClassCalculator />} />
           <Route
             path="label-station"

@@ -1805,6 +1805,74 @@ export const dnkAllInventoryApi = {
   },
 }
 
+export type ShipmentManagerResult = {
+  blob: Blob
+  filename: string
+  shipmentId: string
+  shipmentName: string
+  shipTo: string
+  boxCount: number
+  skuCount: number
+  totalUnits: number
+  duplicateSkus: number
+}
+
+export const shipmentManagerApi = {
+  generate: async (file: File): Promise<ShipmentManagerResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    try {
+      const response = await api.post<Blob>('/api/v1/shipment-manager/generate', form, {
+        responseType: 'blob',
+        timeout: 180_000,
+      })
+      const headers = response.headers || {}
+      const filenameHeader = headers['x-shipment-filename']
+      const disposition = headers['content-disposition'] as string | undefined
+      let filename =
+        (typeof filenameHeader === 'string' && filenameHeader.trim()) ||
+        'WR SKU UPDATE TEMPLATE.xlsx'
+      if ((!filenameHeader || !String(filenameHeader).trim()) && disposition) {
+        const match = /filename="?([^";]+)"?/i.exec(disposition)
+        if (match?.[1]) filename = match[1]
+      }
+      return {
+        blob: response.data,
+        filename,
+        shipmentId: String(headers['x-shipment-id'] || ''),
+        shipmentName: String(headers['x-shipment-name'] || ''),
+        shipTo: String(headers['x-shipment-ship-to'] || ''),
+        boxCount: Number(headers['x-shipment-box-count'] || 0),
+        skuCount: Number(headers['x-shipment-sku-count'] || 0),
+        totalUnits: Number(headers['x-shipment-total-units'] || 0),
+        duplicateSkus: Number(headers['x-shipment-duplicate-skus'] || 0),
+      }
+    } catch (err: unknown) {
+      const ax = err as {
+        response?: { data?: Blob | { detail?: string }; status?: number }
+        message?: string
+      }
+      const data = ax.response?.data
+      if (data instanceof Blob) {
+        try {
+          const text = await data.text()
+          const parsed = JSON.parse(text) as { detail?: string }
+          if (parsed?.detail) {
+            throw Object.assign(new Error(parsed.detail), {
+              response: { data: { detail: parsed.detail }, status: ax.response?.status },
+            })
+          }
+        } catch (inner) {
+          if (inner instanceof Error && (inner as { response?: unknown }).response) {
+            throw inner
+          }
+        }
+      }
+      throw err
+    }
+  },
+}
+
 export type FreightLineItem = {
   pallets: number
   weight_lbs: number

@@ -123,6 +123,12 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h10M4 18h10M15 14l5 5m0-5v5h-5" />
     </svg>
   ),
+  shipmentManager: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1" />
+    </svg>
+  ),
   freightClassCalculator: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -477,6 +483,19 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
             >
               <span className="shrink-0">{Icons.dnkAllInventory}</span>
               <span className="sidebar-link-label">DNK AllInventory</span>
+            </Link>
+
+            <Link
+              to="/shipment-manager"
+              onMouseEnter={() => setHoveredNav('shipment-manager')}
+              className={`sidebar-link ${
+                navHighlighted('shipment-manager', isActive('/shipment-manager'))
+                  ? 'sidebar-link-active'
+                  : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="shrink-0">{Icons.shipmentManager}</span>
+              <span className="sidebar-link-label">Shipment Manager</span>
             </Link>
 
             {canUseFreightClass && (

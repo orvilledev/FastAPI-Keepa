@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.database import init_db
-from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, keepa_import_export, analytics, presence, manifest_generator, dnk_all_inventory, freight_class_calculator, audit, catalog_upc_dims, catalog_ship_to, master_sheet, projects
+from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, keepa_import_export, analytics, presence, manifest_generator, dnk_all_inventory, freight_class_calculator, audit, catalog_upc_dims, catalog_ship_to, master_sheet, projects, shipment_manager
 from app.scheduler import (
     setup_scheduler,
     setup_completed_jobs_retention_cleanup,
@@ -116,6 +116,14 @@ app.add_middleware(
         "X-Dnk-Date-Stamp",
         "X-Freight-Shipment-Count",
         "X-Freight-Summary",
+        "X-Shipment-Filename",
+        "X-Shipment-Id",
+        "X-Shipment-Name",
+        "X-Shipment-Ship-To",
+        "X-Shipment-Box-Count",
+        "X-Shipment-Sku-Count",
+        "X-Shipment-Total-Units",
+        "X-Shipment-Duplicate-Skus",
     ],
 )
 
@@ -317,6 +325,7 @@ app.include_router(keepa_import_export.router, prefix=settings.api_v1_str, tags=
 app.include_router(manifest_generator.router, prefix=settings.api_v1_str, tags=["manifest-generator"], dependencies=[Depends(require_app_access)])
 app.include_router(dnk_all_inventory.router, prefix=settings.api_v1_str, tags=["dnk-all-inventory"], dependencies=[Depends(require_app_access)])
 app.include_router(freight_class_calculator.router, prefix=settings.api_v1_str, tags=["freight-class-calculator"], dependencies=[Depends(require_app_access)])
+app.include_router(shipment_manager.router, prefix=settings.api_v1_str, tags=["shipment-manager"], dependencies=[Depends(require_app_access)])
 # Off-price analytics (web). Electron hides the UI; API remains auth-gated.
 app.include_router(analytics.router, prefix=settings.api_v1_str, tags=["analytics"], dependencies=[Depends(require_app_access)])
 # Superadmin audit log (web-app actions). Record endpoints need auth; list is superadmin-gated in-router.

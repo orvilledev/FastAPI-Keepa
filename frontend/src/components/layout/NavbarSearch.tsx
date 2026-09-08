@@ -65,6 +65,7 @@ function buildSearchItems(
     { label: 'FNSKU Labels', path: '/fnsku-labels', section: 'Tools' },
     { label: 'Manifest Generator', path: '/manifest-generator', section: 'Tools' },
     { label: 'DNK AllInventory', path: '/dnk-all-inventory', section: 'Tools' },
+    { label: 'Shipment Manager', path: '/shipment-manager', section: 'Tools' },
   )
 
   items.push(
