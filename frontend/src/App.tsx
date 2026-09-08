@@ -70,6 +70,7 @@ const OffPriceAnalytics = lazy(() => import('./components/analytics/OffPriceAnal
 const CatalogUpcPage = lazy(() => import('./components/catalog/CatalogUpcPage'))
 const CatalogDimsPage = lazy(() => import('./components/catalog/CatalogDimsPage'))
 const MasterSheetTool = lazy(() => import('./components/catalog/MasterSheetTool'))
+const ShipToAddressesPage = lazy(() => import('./components/catalog/ShipToAddressesPage'))
 
 /** Packaged Electron loads `index.html` over `file:`; BrowserRouter cannot match routes there. */
 function AppRouter({ children }: { children: ReactNode }) {
@@ -409,6 +410,7 @@ function AppRoutes() {
           <Route path="vendor-list" element={<Navigate to="/seller-list" replace />} />
           <Route path="seller-list" element={<ProtectedRoute requireKeepaAccess={true}><SellerList /></ProtectedRoute>} />
           <Route path="email-list" element={<ProtectedRoute requireKeepaAccess={true}><EmailList /></ProtectedRoute>} />
+          <Route path="ship-to-addresses" element={<ProtectedRoute requireKeepaAccess={true}><ShipToAddressesPage /></ProtectedRoute>} />
           <Route path="daily-run" element={<ProtectedRoute requireKeepaAccess={true}><DailyRunsMenu /></ProtectedRoute>} />
           <Route path="daily-run/api" element={<Navigate to="/daily-run" replace />} />
           <Route path="daily-run/uploaded" element={<Navigate to="/daily-run" replace />} />

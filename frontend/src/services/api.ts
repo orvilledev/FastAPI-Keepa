@@ -7,7 +7,7 @@ import type {
   ManualEmailDraft,
   ManualEmailDraftOpenResult,
   WarehouseProductLookup, WarehouseProductImportResult, WarehouseProduct,
-  CatalogImportResult, CatalogUpcListResponse, CatalogDimsListResponse, ProjectRecord, ProjectStatus } from '../types'
+  CatalogImportResult, CatalogUpcListResponse, CatalogDimsListResponse, CatalogShipToListResponse, ProjectRecord, ProjectStatus } from '../types'
 
 /** All request paths begin with `/api/v1`. Strip a mistaken `/api/v1` suffix from env to avoid doubled paths (404 Not Found). */
 function normalizeApiBaseUrl(raw: string): string {
@@ -1983,6 +1983,33 @@ export const catalogUpcApi = {
   },
   downloadTemplate: async (): Promise<Blob> => {
     const response = await api.get('/api/v1/catalog-upc/template', {
+      responseType: 'blob',
+    })
+    return response.data
+  },
+}
+
+export const catalogShipToApi = {
+  list: async (
+    limit = 50,
+    offset = 0,
+    search?: string
+  ): Promise<CatalogShipToListResponse> => {
+    const response = await api.get('/api/v1/catalog-ship-to', {
+      params: { limit, offset, search: search || undefined },
+    })
+    return response.data
+  },
+  importFile: async (file: File): Promise<CatalogImportResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    const response = await api.post('/api/v1/catalog-ship-to/import', form, {
+      timeout: 300_000,
+    })
+    return response.data
+  },
+  downloadTemplate: async (): Promise<Blob> => {
+    const response = await api.get('/api/v1/catalog-ship-to/template', {
       responseType: 'blob',
     })
     return response.data

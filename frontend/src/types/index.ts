@@ -448,3 +448,24 @@ export interface CatalogDimsListResponse {
   columns: string[]
 }
 
+export interface CatalogShipToRecord {
+  id: string
+  code: string
+  full_address: string
+  address_1: string
+  city: string
+  state: string
+  postal_code: string
+  row_data: Record<string, string>
+  created_at: string
+  updated_at: string
+}
+
+export interface CatalogShipToListResponse {
+  items: CatalogShipToRecord[]
+  total: number
+  limit: number
+  offset: number
+  columns: string[]
+}
+

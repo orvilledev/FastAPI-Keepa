@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.database import init_db
-from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, keepa_import_export, analytics, presence, manifest_generator, dnk_all_inventory, freight_class_calculator, audit, catalog_upc_dims, master_sheet, projects
+from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, keepa_import_export, analytics, presence, manifest_generator, dnk_all_inventory, freight_class_calculator, audit, catalog_upc_dims, catalog_ship_to, master_sheet, projects
 from app.scheduler import (
     setup_scheduler,
     setup_completed_jobs_retention_cleanup,
@@ -322,6 +322,7 @@ app.include_router(analytics.router, prefix=settings.api_v1_str, tags=["analytic
 # Superadmin audit log (web-app actions). Record endpoints need auth; list is superadmin-gated in-router.
 app.include_router(audit.router, prefix=settings.api_v1_str, tags=["audit"], dependencies=[Depends(require_app_access)])
 app.include_router(catalog_upc_dims.router, prefix=settings.api_v1_str, tags=["catalog-upc-dims"], dependencies=[Depends(require_app_access)])
+app.include_router(catalog_ship_to.router, prefix=settings.api_v1_str, tags=["catalog-ship-to"], dependencies=[Depends(require_app_access)])
 app.include_router(master_sheet.router, prefix=settings.api_v1_str, tags=["master-sheet"], dependencies=[Depends(require_app_access)])
 app.include_router(projects.router, prefix=settings.api_v1_str, tags=["projects"], dependencies=[Depends(require_app_access)])
 

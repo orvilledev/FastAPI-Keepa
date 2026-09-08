@@ -86,6 +86,12 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8m-18 8h18a2 2 0 002-2V8a2 2 0 00-2-2H3a2 2 0 00-2 2v6a2 2 0 002 2z" />
     </svg>
   ),
+  shipTo: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  ),
   feedback: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.018c8.836 0 16 8.058 16 9.036v7.964a1 1 0 01-1.618.794L17 21" />
@@ -205,6 +211,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
     { path: '/map',          label: 'Manage MAP',   icon: 'dollar'   as const },
     { path: '/seller-list',  label: 'Seller List',  icon: 'users'    as const },
     { path: '/email-list',   label: 'Email List',   icon: 'mail'     as const },
+    { path: '/ship-to-addresses', label: 'Ship To Addresses', icon: 'shipTo' as const },
     ...(canAccessWebAnalytics(userInfo?.email || authUser?.email)
       ? [{ path: '/analytics', label: 'Analytics', icon: 'chart' as const }]
       : []),
@@ -358,6 +365,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
                 item.path === '/map'          ? 'map'         :
                 item.path === '/seller-list'  ? 'seller-list' :
                 item.path === '/email-list'   ? 'email-list'  :
+                item.path === '/ship-to-addresses' ? 'ship-to-addresses' :
                 item.path === '/daily-run'    ? 'daily-runs'  :
                 item.path === '/analytics'    ? 'analytics'   :
                 'keepa-other'
