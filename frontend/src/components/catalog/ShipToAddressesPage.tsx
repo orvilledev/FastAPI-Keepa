@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { catalogShipToApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
-import type { CatalogImportResult } from '../../types'
+import type { CatalogShipToImportPreview, CatalogShipToRecord } from '../../types'
 
 const PAGE_SIZE = 50
 const ACCEPTED = '.xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -24,16 +24,58 @@ function cellValue(rowData: Record<string, string> | undefined, column: string):
   return value == null || value === '' ? '' : String(value)
 }
 
+function buildImportConfirmMessage(preview: CatalogShipToImportPreview): string {
+  const parts = [
+    `This upload has ${preview.valid_rows.toLocaleString()} valid row(s).`,
+    `${preview.new_count.toLocaleString()} new code(s) will be added.`,
+  ]
+  if (preview.replace_count > 0) {
+    const shown = preview.replace_codes.slice(0, 12)
+    const sample = shown.join(', ')
+    const remaining = preview.replace_count - shown.length
+    const more = remaining > 0 ? ` (+${remaining.toLocaleString()} more)` : ''
+    parts.push(
+      `${preview.replace_count.toLocaleString()} existing code(s) will be replaced${sample ? `: ${sample}${more}` : ''}.`,
+    )
+  }
+  if (preview.invalid > 0) {
+    parts.push(`${preview.invalid.toLocaleString()} row(s) will be skipped.`)
+  }
+  parts.push('Continue?')
+  return parts.join('\n\n')
+}
+
+function buildImportSuccessMessage(
+  imported: number,
+  inserted: number,
+  replaced: number,
+  invalid: number,
+): string {
+  let message = `Imported ${imported.toLocaleString()} row(s)`
+  if (inserted > 0 || replaced > 0) {
+    message += ` (${inserted.toLocaleString()} new`
+    if (replaced > 0) {
+      message += `, ${replaced.toLocaleString()} replaced`
+    }
+    message += ')'
+  }
+  if (invalid > 0) {
+    message += ` · ${invalid.toLocaleString()} skipped`
+  }
+  return `${message}.`
+}
+
 export default function ShipToAddressesPage() {
   const { hasKeepaAccess, userInfoLoading } = useUser()
   const [columns, setColumns] = useState<string[]>([])
-  const [items, setItems] = useState<Record<string, string>[]>([])
+  const [items, setItems] = useState<CatalogShipToRecord[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(0)
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState(false)
+  const [deletingCode, setDeletingCode] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [refreshToken, setRefreshToken] = useState(0)
@@ -48,7 +90,7 @@ export default function ShipToAddressesPage() {
       const response = await catalogShipToApi.list(PAGE_SIZE, page * PAGE_SIZE, search || undefined)
       if (requestId !== loadRequestId.current) return
       setColumns(response.columns)
-      setItems(response.items.map((row) => row.row_data || {}))
+      setItems(response.items)
       setTotal(response.total)
     } catch (err: unknown) {
       if (requestId !== loadRequestId.current) return
@@ -94,11 +136,19 @@ export default function ShipToAddressesPage() {
     setError(null)
     setMessage(null)
     try {
-      const result: CatalogImportResult = await catalogShipToApi.importFile(file)
+      const preview = await catalogShipToApi.previewImport(file)
+      if (preview.replace_count > 0) {
+        const confirmed = window.confirm(buildImportConfirmMessage(preview))
+        if (!confirmed) return
+      }
+      const result = await catalogShipToApi.importFile(file)
       setMessage(
-        `Imported ${result.imported.toLocaleString()} rows` +
-          (result.invalid ? ` (${result.invalid.toLocaleString()} skipped)` : '') +
-          '. Previous records were replaced.',
+        buildImportSuccessMessage(
+          result.imported,
+          result.inserted,
+          result.replaced,
+          result.invalid,
+        ),
       )
       setPage(0)
       setSearch('')
@@ -111,6 +161,30 @@ export default function ShipToAddressesPage() {
     } finally {
       setImporting(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleDelete = async (code: string) => {
+    const normalized = code.trim()
+    if (!normalized) return
+    const confirmed = window.confirm(
+      `Delete ship-to code "${normalized}"? This cannot be undone.`,
+    )
+    if (!confirmed) return
+
+    setDeletingCode(normalized)
+    setError(null)
+    setMessage(null)
+    try {
+      await catalogShipToApi.delete(normalized)
+      setMessage(`Deleted ship-to code ${normalized}.`)
+      setRefreshToken((n) => n + 1)
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setError(typeof detail === 'string' ? detail : 'Delete failed')
+    } finally {
+      setDeletingCode(null)
     }
   }
 
@@ -135,15 +209,15 @@ export default function ShipToAddressesPage() {
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const colCount = Math.max(columns.length, 1)
+  const colCount = Math.max(columns.length, 1) + 1
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Ship To Address Catalog</h1>
         <p className="mt-1 text-sm text-gray-600 dark:text-content-muted">
-          Amazon FC ship-to codes and addresses. Download the template (header plus the first sample
-          row) or upload a matching workbook to replace this catalog.
+          Amazon FC ship-to codes and addresses. Upload a matching workbook to add new codes or
+          replace existing ones. Existing codes in the file are confirmed before they are replaced.
         </p>
       </div>
 
@@ -223,6 +297,7 @@ export default function ShipToAddressesPage() {
                 {columns.length === 0 && (
                   <th className="px-3 py-3 whitespace-nowrap">Columns</th>
                 )}
+                <th className="px-3 py-3 whitespace-nowrap text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -241,15 +316,29 @@ export default function ShipToAddressesPage() {
                   </td>
                 </tr>
               ) : (
-                items.map((row, idx) => (
-                  <tr key={`${page}-${idx}`} className="hover:bg-gray-50 dark:hover:bg-surface-muted">
-                    {columns.map((col) => (
-                      <td key={col} className="px-3 py-2 whitespace-nowrap text-gray-800 dark:text-slate-200">
-                        {cellValue(row, col) || '—'}
+                items.map((row) => {
+                  const rowData = row.row_data || {}
+                  const code = row.code || cellValue(rowData, 'Code')
+                  return (
+                    <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-surface-muted">
+                      {columns.map((col) => (
+                        <td key={col} className="px-3 py-2 whitespace-nowrap text-gray-800 dark:text-slate-200">
+                          {cellValue(rowData, col) || '—'}
+                        </td>
+                      ))}
+                      <td className="px-3 py-2 whitespace-nowrap text-right">
+                        <button
+                          type="button"
+                          disabled={!code || deletingCode === code}
+                          onClick={() => void handleDelete(code)}
+                          className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30"
+                        >
+                          {deletingCode === code ? 'Deleting…' : 'Delete'}
+                        </button>
                       </td>
-                    ))}
-                  </tr>
-                ))
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>

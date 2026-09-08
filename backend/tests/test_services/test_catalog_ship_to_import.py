@@ -7,6 +7,7 @@ from openpyxl import Workbook, load_workbook
 from app.services.catalog_ship_to_headers import HEADERS, TEMPLATE_FILENAME
 from app.services.catalog_ship_to_import import (
     compose_full_address,
+    dedupe_by_code,
     parse_ship_to_spreadsheet,
     ship_to_row_to_record,
 )
@@ -87,6 +88,19 @@ def test_ship_to_row_to_record_and_compose():
     assert record["code"] == "ABE1"
     assert record["postal_code"] == "18106-9266"
     assert record["row_data"]["Full Address"].startswith("6370 Hedgewood Dr")
+
+
+def test_dedupe_by_code_last_wins():
+    rows = [
+        {"Code": "ABE1", "Address 1": "First"},
+        {"Code": "ABE1", "Address 1": "Second"},
+        {"Code": "ABE2", "Address 1": "Other"},
+    ]
+    out = dedupe_by_code(rows)
+    assert len(out) == 2
+    by_code = {row["Code"]: row for row in out}
+    assert by_code["ABE1"]["Address 1"] == "Second"
+    assert by_code["ABE2"]["Address 1"] == "Other"
 
 
 def test_template_is_original_format_with_header_and_first_entry_only():

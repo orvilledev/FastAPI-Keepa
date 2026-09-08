@@ -8,9 +8,19 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class CatalogShipToImportResult(BaseModel):
     imported: int
+    inserted: int
+    replaced: int
     invalid: int
     total_in_file: int
-    replaced: bool = True
+
+
+class CatalogShipToImportPreview(BaseModel):
+    valid_rows: int
+    new_count: int
+    replace_count: int
+    replace_codes: List[str]
+    invalid: int
+    total_in_file: int
 
 
 class CatalogShipToRecordResponse(BaseModel):

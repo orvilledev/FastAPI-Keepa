@@ -85,6 +85,78 @@ class CatalogShipToRepository:
         )
         return response.data or [], int(response.count or 0)
 
+    def find_existing_codes(self, codes: List[str]) -> List[str]:
+        if not codes:
+            return []
+        existing: set[str] = set()
+        chunk_size = 200
+        for i in range(0, len(codes), chunk_size):
+            chunk = codes[i : i + chunk_size]
+            try:
+                response = self.db.table(_TABLE).select("code").in_("code", chunk).execute()
+            except Exception as exc:
+                logger.error("catalog_ship_to lookup failed: %s", exc, exc_info=True)
+                _raise_persist_error(exc, 0)
+            for row in response.data or []:
+                code = (row.get("code") or "").strip()
+                if code:
+                    existing.add(code)
+        return sorted(existing)
+
+    def upsert_all(self, rows: List[Dict[str, Any]]) -> Dict[str, int]:
+        """Insert new codes and replace any existing rows with the same code."""
+        if not rows:
+            return {"imported": 0, "inserted": 0, "replaced": 0}
+
+        now = datetime.utcnow().isoformat()
+        inserted = 0
+        replaced = 0
+        for row in rows:
+            code = (row.get("code") or "").strip()
+            if not code:
+                continue
+            row["updated_at"] = now
+            row.pop("created_at", None)
+            row.pop("id", None)
+            try:
+                existing = (
+                    self.db.table(_TABLE).select("id").eq("code", code).limit(1).execute()
+                )
+                self.db.table(_TABLE).delete().eq("code", code).execute()
+                response = self.db.table(_TABLE).insert(row).execute()
+            except Exception as exc:
+                logger.error("catalog_ship_to upsert failed for %s: %s", code, exc, exc_info=True)
+                _raise_persist_error(exc, 1)
+            if response.data == []:
+                raise ValueError(
+                    f"Ship-to import returned no saved row for {code}. {_MIGRATION_HINT}"
+                )
+            if existing.data:
+                replaced += 1
+            else:
+                inserted += 1
+        return {
+            "imported": inserted + replaced,
+            "inserted": inserted,
+            "replaced": replaced,
+        }
+
+    def delete_by_code(self, code: str) -> bool:
+        normalized = (code or "").strip()
+        if not normalized:
+            return False
+        try:
+            existing = (
+                self.db.table(_TABLE).select("id").eq("code", normalized).limit(1).execute()
+            )
+            if not existing.data:
+                return False
+            self.db.table(_TABLE).delete().eq("code", normalized).execute()
+        except Exception as exc:
+            logger.error("catalog_ship_to delete failed for %s: %s", normalized, exc, exc_info=True)
+            _raise_persist_error(exc, 0)
+        return True
+
     def replace_all(self, rows: List[Dict[str, Any]]) -> Dict[str, int]:
         """Replace the entire ship-to catalog with the uploaded file contents."""
         try:

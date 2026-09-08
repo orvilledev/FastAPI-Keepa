@@ -469,3 +469,20 @@ export interface CatalogShipToListResponse {
   columns: string[]
 }
 
+export interface CatalogShipToImportResult {
+  imported: number
+  inserted: number
+  replaced: number
+  invalid: number
+  total_in_file: number
+}
+
+export interface CatalogShipToImportPreview {
+  valid_rows: number
+  new_count: number
+  replace_count: number
+  replace_codes: string[]
+  invalid: number
+  total_in_file: number
+}
+

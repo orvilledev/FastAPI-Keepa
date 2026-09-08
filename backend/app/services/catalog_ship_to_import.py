@@ -137,3 +137,13 @@ def ship_to_row_to_record(row_data: Dict[str, str]) -> Dict[str, Any]:
         "postal_code": row_data.get("Postal Code") or "",
         "row_data": row_data,
     }
+
+
+def dedupe_by_code(rows: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    """Last row wins for duplicate codes within one import file."""
+    seen: Dict[str, Dict[str, str]] = {}
+    for row in rows:
+        key = (row.get("Code") or "").strip()
+        if key:
+            seen[key] = row
+    return list(seen.values())
