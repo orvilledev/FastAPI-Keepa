@@ -215,6 +215,26 @@ def _parse_sku_rows(rows: Sequence[Sequence[str]], header_index: int) -> tuple[L
     return parsed, duplicates
 
 
+def stored_rows_to_sku_rows(stored: Sequence[dict]) -> List[ShipmentSkuRow]:
+    """Turn persisted shipment_sku_rows into compile-ready SKU rows."""
+    return [
+        ShipmentSkuRow(
+            sku=row.get("sku") or "",
+            description=row.get("description") or "",
+            upc=row.get("upc") or "",
+            fnsku=row.get("fnsku") or "",
+            total_units=int(row.get("total_units") or 0),
+        )
+        for row in stored
+    ]
+
+
+def compile_stored_rows(stored: Sequence[dict]) -> tuple[List[ShipmentSkuRow], int]:
+    """Merge stored rows and drop later duplicates by UPC. Returns (unique rows, collected count)."""
+    sku_rows = stored_rows_to_sku_rows(stored)
+    return dedupe_by_upc(sku_rows), len(sku_rows)
+
+
 def dedupe_by_upc(sku_rows: Sequence[ShipmentSkuRow]) -> List[ShipmentSkuRow]:
     """Collapse rows to one per UPC, keeping the first occurrence."""
     seen: set[str] = set()

@@ -16,6 +16,7 @@ from app.database import get_supabase
 from app.dependencies import get_current_user, is_superadmin_user
 from app.middleware.rate_limiter import RateLimits, limiter
 from app.models.shipment import (
+    ShipmentCompiledRow,
     ShipmentCreate,
     ShipmentDetailResponse,
     ShipmentResponse,
@@ -27,9 +28,8 @@ from app.repositories.shipment_repository import ShipmentRepository
 from app.services.shipment_manager import (
     OUTPUT_FILENAME,
     ShipmentManagerError,
-    ShipmentSkuRow,
     build_workbook,
-    dedupe_by_upc,
+    compile_stored_rows,
     parse_fba_export,
 )
 from app.utils.error_handler import handle_api_errors
@@ -235,10 +235,11 @@ def get_shipment(
     shipment = _load_shipment(repo, shipment_id)
     try:
         uploads = repo.list_uploads(str(shipment_id))
-        row_count, unique_upc_count = repo.row_stats(str(shipment_id))
+        stored = repo.list_rows_merged(str(shipment_id))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    compiled, collected = compile_stored_rows(stored)
     admin = _is_admin(db, current_user)
     names = _display_names(
         db,
@@ -258,13 +259,22 @@ def get_shipment(
         **shipment,
         upload_count=len(uploads),
         contributor_count=len({str(item.get("uploaded_by")) for item in uploads}),
-        row_count=row_count,
-        unique_upc_count=unique_upc_count,
+        row_count=collected,
+        unique_upc_count=len(compiled),
         can_delete=admin or str(shipment.get("created_by")) == current_user["id"],
         created_by_name=_person_name(
             names, shipment.get("created_by"), shipment.get("created_by_email")
         ),
         uploads=[_upload_response(item, names) for item in uploads],
+        compiled_rows=[
+            ShipmentCompiledRow(
+                sku=item.sku,
+                description=item.description,
+                upc=item.upc,
+                fnsku=item.fnsku,
+            )
+            for item in compiled
+        ],
     )
 
 
@@ -485,7 +495,7 @@ async def generate_shipment_sheet(
     repo = ShipmentRepository(db)
     shipment = _load_shipment(repo, shipment_id)
     try:
-        stored = repo.list_rows(str(shipment_id))
+        stored = repo.list_rows_merged(str(shipment_id))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not stored:
@@ -493,36 +503,25 @@ async def generate_shipment_sheet(
             status_code=400, detail="No files have been uploaded to this shipment yet."
         )
 
-    rows = dedupe_by_upc(
-        [
-            ShipmentSkuRow(
-                sku=row.get("sku") or "",
-                description=row.get("description") or "",
-                upc=row.get("upc") or "",
-                fnsku=row.get("fnsku") or "",
-                total_units=int(row.get("total_units") or 0),
-            )
-            for row in stored
-        ]
-    )
+    rows, collected = compile_stored_rows(stored)
     try:
         workbook_bytes = build_workbook(rows)
     except ShipmentManagerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     logger.info(
-        "Shipment %s compiled by %s: %s rows from %s collected",
+        "Shipment %s compiled by %s: %s unique UPCs from %s collected rows across uploads",
         shipment_id,
         current_user.get("email"),
         len(rows),
-        len(stored),
+        collected,
     )
     headers = {
         "Content-Disposition": f'attachment; filename="{OUTPUT_FILENAME}"',
         "X-Shipment-Filename": OUTPUT_FILENAME,
         "X-Shipment-Name": _header_safe(str(shipment.get("name") or "")),
         "X-Shipment-Sku-Count": str(len(rows)),
-        "X-Shipment-Collected-Rows": str(len(stored)),
-        "X-Shipment-Duplicates-Removed": str(len(stored) - len(rows)),
+        "X-Shipment-Collected-Rows": str(collected),
+        "X-Shipment-Duplicates-Removed": str(collected - len(rows)),
     }
     return Response(content=workbook_bytes, media_type=_XLSX_MEDIA_TYPE, headers=headers)

@@ -10,6 +10,7 @@ from app.services.shipment_manager import (
     ShipmentSkuRow,
     build_workbook,
     build_wr_sku_update,
+    compile_stored_rows,
     dedupe_by_upc,
     parse_fba_export,
 )
@@ -171,6 +172,20 @@ def test_build_workbook_renders_collected_rows():
     assert sheet.cell(2, 3).value == 111111111111
     assert sheet.cell(3, 3).value == 222222222222
     assert sheet["A1"].fill.fgColor.rgb == "FF92D050"
+
+
+def test_compile_stored_rows_merges_uploads_and_drops_duplicate_upcs():
+    stored = [
+        {"sku": "111-FNSKU", "description": "First file", "upc": "111", "fnsku": "XA", "total_units": 2},
+        {"sku": "222-FNSKU", "description": "First file B", "upc": "222", "fnsku": "XB", "total_units": 1},
+        {"sku": "111-FNSKU", "description": "Second file duplicate", "upc": "111", "fnsku": "XA", "total_units": 9},
+        {"sku": "333", "description": "Second file new", "upc": "333", "fnsku": "XC", "total_units": 4},
+    ]
+    unique, collected = compile_stored_rows(stored)
+    assert collected == 4
+    assert [row.upc for row in unique] == ["111", "222", "333"]
+    assert unique[0].description == "First file"
+    assert unique[2].description == "Second file new"
 
 
 def test_missing_sku_table_is_rejected():

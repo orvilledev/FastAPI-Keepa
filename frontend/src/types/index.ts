@@ -119,8 +119,16 @@ export interface ShipmentUpload {
   created_at: string
 }
 
+export interface ShipmentCompiledRow {
+  sku: string
+  description: string
+  upc: string
+  fnsku: string
+}
+
 export interface ShipmentDetail extends ShipmentRecord {
   uploads: ShipmentUpload[]
+  compiled_rows: ShipmentCompiledRow[]
 }
 
 export interface ShipmentUploadResult {

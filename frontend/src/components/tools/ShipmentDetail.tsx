@@ -281,6 +281,26 @@ export default function ShipmentDetail() {
             {generating ? 'Compiling…' : 'Generate WR SKU Update'}
           </button>
         </div>
+        {shipment.upload_count > 0 && (
+          <p className="border-b border-gray-100 px-4 py-2 text-sm text-gray-600">
+            The sheet will merge all {shipment.upload_count} upload
+            {shipment.upload_count === 1 ? '' : 's'} (
+            {shipment.row_count.toLocaleString()} collected row
+            {shipment.row_count === 1 ? '' : 's'}) into{' '}
+            <strong>
+              {shipment.unique_upc_count.toLocaleString()} unique UPC
+              {shipment.unique_upc_count === 1 ? '' : 's'}
+            </strong>
+            {shipment.row_count > shipment.unique_upc_count && (
+              <>
+                {' '}
+                after removing {(shipment.row_count - shipment.unique_upc_count).toLocaleString()}{' '}
+                duplicate{shipment.row_count - shipment.unique_upc_count === 1 ? '' : 's'}
+              </>
+            )}
+            .
+          </p>
+        )}
 
         {shipment.uploads.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-gray-600">
@@ -330,6 +350,41 @@ export default function ShipmentDetail() {
           </table>
         )}
       </section>
+
+      {shipment.compiled_rows.length > 0 && (
+        <section className="rounded-xl border border-gray-200 bg-white">
+          <div className="border-b border-gray-200 px-4 py-3">
+            <h2 className="font-semibold text-gray-900">Merged sheet preview</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              These {shipment.compiled_rows.length.toLocaleString()} unique UPC
+              {shipment.compiled_rows.length === 1 ? '' : 's'} are what Generate will write —
+              every upload combined, later duplicates dropped.
+            </p>
+          </div>
+          <div className="max-h-80 overflow-auto">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="sticky top-0 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="px-4 py-2">SKU</th>
+                  <th className="px-4 py-2">Description</th>
+                  <th className="px-4 py-2">UPC</th>
+                  <th className="px-4 py-2">FNSKU</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {shipment.compiled_rows.map((row) => (
+                  <tr key={row.upc || row.sku} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 font-medium text-gray-900">{row.sku}</td>
+                    <td className="px-4 py-2 text-gray-600">{row.description}</td>
+                    <td className="px-4 py-2 text-gray-600">{row.upc}</td>
+                    <td className="px-4 py-2 text-gray-600">{row.fnsku}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600">
         <h2 className="font-semibold text-gray-900">How this works</h2>

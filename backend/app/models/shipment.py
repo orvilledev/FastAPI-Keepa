@@ -84,8 +84,16 @@ class ShipmentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ShipmentCompiledRow(BaseModel):
+    sku: str = ""
+    description: str = ""
+    upc: str = ""
+    fnsku: str = ""
+
+
 class ShipmentDetailResponse(ShipmentResponse):
     uploads: List[ShipmentUploadResponse] = Field(default_factory=list)
+    compiled_rows: List[ShipmentCompiledRow] = Field(default_factory=list)
 
 
 class ShipmentUploadResult(BaseModel):

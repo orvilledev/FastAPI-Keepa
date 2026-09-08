@@ -181,20 +181,40 @@ class ShipmentRepository:
         return inserted
 
     def list_rows(self, shipment_id: str) -> List[dict]:
-        """All collected rows in upload order, oldest upload first."""
-        try:
-            response = (
-                self.db.table(_ROWS)
-                .select("*")
-                .eq("shipment_id", shipment_id)
-                .order("created_at")
-                .order("row_index")
-                .execute()
-            )
-        except Exception as exc:
-            logger.error("shipment rows list failed: %s", exc, exc_info=True)
-            _raise_persist_error(exc, _ROWS)
-        return response.data or []
+        """All collected rows, upload by upload (oldest first), then original file order."""
+        return self.list_rows_merged(shipment_id)
+
+    def list_rows_for_upload(self, upload_id: str) -> List[dict]:
+        rows: List[dict] = []
+        offset = 0
+        page = 1000
+        while True:
+            try:
+                response = (
+                    self.db.table(_ROWS)
+                    .select("*")
+                    .eq("upload_id", upload_id)
+                    .order("row_index")
+                    .range(offset, offset + page - 1)
+                    .execute()
+                )
+            except Exception as exc:
+                logger.error("shipment rows by upload failed: %s", exc, exc_info=True)
+                _raise_persist_error(exc, _ROWS)
+            chunk = response.data or []
+            rows.extend(chunk)
+            if len(chunk) < page:
+                break
+            offset += page
+        return rows
+
+    def list_rows_merged(self, shipment_id: str) -> List[dict]:
+        """Concatenate every upload's rows in the order the files were added."""
+        uploads = self.list_uploads(shipment_id)
+        merged: List[dict] = []
+        for upload in uploads:
+            merged.extend(self.list_rows_for_upload(str(upload["id"])))
+        return merged
 
     def upcs_for_shipments(self, shipment_ids: List[str]) -> Dict[str, set[str]]:
         """shipment_id -> set of UPCs, for list-view stats in a single query."""
