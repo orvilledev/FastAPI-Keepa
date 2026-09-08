@@ -113,11 +113,6 @@ export default function About() {
             grouped into active and inactive runs.
           </li>
           <li>
-            <span className="font-semibold">Projects:</span> Personal work log for current projects. Set status
-            (planning, in progress, on hold, complete, deployed, cancelled), keep notes, and update or delete entries.
-            Each signed-in user sees only their own projects. Warehouse station accounts do not see this page.
-          </li>
-          <li>
             <span className="font-semibold">Notifications:</span> Team feed of completed express and daily runs. Open
             from the bell icon in the top bar; mark items read or clear the list.
           </li>
@@ -152,6 +147,11 @@ export default function About() {
             Excel download and email report. In the browser, Hit Alert flags any vendor whose daily off-price listings
             jump by 100 or more versus that vendor’s last daily run (shown in red). Available in the browser and the desktop app. Warehouse
             station accounts do not see this page.
+          </li>
+          <li>
+            <span className="font-semibold">Projects:</span> Personal work log for current projects. Set status
+            (planning, in progress, on hold, complete, deployed, cancelled), keep notes, and update or delete entries.
+            Each signed-in user sees only their own projects. Warehouse station accounts do not see this page.
           </li>
         </ul>
         <p className="mt-4 text-sm text-gray-600">

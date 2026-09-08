@@ -31,7 +31,6 @@ function buildSearchItems(
 
   const items: SearchItem[] = [
     { label: 'Dashboard', path: '/dashboard', section: 'Menu' },
-    { label: 'Projects', path: '/projects', section: 'Menu' },
     { label: 'Notifications', path: '/notifications', section: 'Menu' },
   ]
 
@@ -47,6 +46,11 @@ function buildSearchItems(
     if (showAnalytics) {
       items.push({ label: 'Analytics', path: '/analytics', section: 'Menu' })
     }
+  }
+
+  items.push({ label: 'Projects', path: '/projects', section: 'Menu' })
+
+  if (hasKeepaAccess) {
     items.push({ label: 'Label Station', path: '/label-station', section: 'Tools' })
   }
 

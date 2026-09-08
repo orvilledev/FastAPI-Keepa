@@ -351,19 +351,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
               <span className="sidebar-link-label">Dashboard</span>
             </Link>
 
-            <Link
-              to="/projects"
-              onMouseEnter={() => setHoveredNav('projects')}
-              className={`sidebar-link ${
-                navHighlighted('projects', isActive('/projects'))
-                  ? 'sidebar-link-active'
-                  : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="shrink-0">{Icons.projects}</span>
-              <span className="sidebar-link-label">Projects</span>
-            </Link>
-
             {hasKeepaAccess && keepaMenuItems.map((item) => {
               const linkId =
                 item.path === '/jobs'         ? 'jobs'        :
@@ -391,6 +378,19 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
                 </Link>
               )
             })}
+
+            <Link
+              to="/projects"
+              onMouseEnter={() => setHoveredNav('projects')}
+              className={`sidebar-link ${
+                navHighlighted('projects', isActive('/projects'))
+                  ? 'sidebar-link-active'
+                  : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="shrink-0">{Icons.projects}</span>
+              <span className="sidebar-link-label">Projects</span>
+            </Link>
           </div>
         </div>
 

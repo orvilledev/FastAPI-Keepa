@@ -22,10 +22,10 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     q: 'What is in the Menu section?',
     a: (
       <>
-        Menu includes <strong>Dashboard</strong>, <strong>Projects</strong>, <strong>Notifications</strong>,{' '}
+        Menu includes <strong>Dashboard</strong>, <strong>Notifications</strong>,{' '}
         <strong>Express Jobs</strong>, <strong>Daily Runs</strong>, <strong>Manage UPCs</strong>,{' '}
-        <strong>Manage MAP</strong>, <strong>Seller List</strong>, and <strong>Email List</strong>. Express Jobs through
-        Email List require Keepa access; Dashboard, Projects, and Notifications are available to all signed-in
+        <strong>Manage MAP</strong>, <strong>Seller List</strong>, <strong>Email List</strong>, and{' '}
+        <strong>Projects</strong>. Express Jobs through Email List require Keepa access; Dashboard, Projects, and Notifications are available to all signed-in
         users (warehouse-only accounts do not see Projects or the notifications bell).
       </>
     ),
