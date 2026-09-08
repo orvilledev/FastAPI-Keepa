@@ -31,6 +31,7 @@ function buildSearchItems(
 
   const items: SearchItem[] = [
     { label: 'Dashboard', path: '/dashboard', section: 'Menu' },
+    { label: 'Projects', path: '/projects', section: 'Menu' },
     { label: 'Notifications', path: '/notifications', section: 'Menu' },
   ]
 

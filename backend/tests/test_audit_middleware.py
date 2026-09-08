@@ -163,6 +163,9 @@ def test_handler_logged_routes_are_not_double_logged(method, path):
         ("POST", "/api/v1/email-recipients/pool", "email.pool_add", "email"),
         ("POST", "/api/v1/manifest-generator/generate", "manifest.generate", "tool"),
         ("POST", "/api/v1/auth/users/abc/approve", "admin.user_approve", "admin"),
+        ("POST", "/api/v1/projects", "project.create", "other"),
+        ("PATCH", "/api/v1/projects/abc", "project.update", "other"),
+        ("DELETE", "/api/v1/projects/abc", "project.delete", "other"),
     ],
 )
 def test_known_routes_get_friendly_actions(method, path, action, category):

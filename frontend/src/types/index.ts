@@ -65,6 +65,26 @@ export interface UserTool {
   updated_at: string
 }
 
+export type ProjectStatus =
+  | 'planning'
+  | 'in_progress'
+  | 'on_hold'
+  | 'complete'
+  | 'deployed'
+  | 'cancelled'
+
+/** Persisted project log entry (user-owned), API snake_case. */
+export interface ProjectRecord {
+  id: string
+  user_id: string
+  name: string
+  notes?: string | null
+  status: ProjectStatus
+  created_at: string
+  updated_at: string
+  completed_at?: string | null
+}
+
 /** Persisted Micro Tool (user-owned), API snake_case. */
 export interface MicroToolRecord {
   id: string

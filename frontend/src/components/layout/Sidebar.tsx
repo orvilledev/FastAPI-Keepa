@@ -126,6 +126,12 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
     </svg>
   ),
+  projects: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h8M8 16h5" />
+    </svg>
+  ),
 }
 
 interface SidebarProps {
@@ -343,6 +349,19 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
             >
               <span className="shrink-0">{Icons.dashboard}</span>
               <span className="sidebar-link-label">Dashboard</span>
+            </Link>
+
+            <Link
+              to="/projects"
+              onMouseEnter={() => setHoveredNav('projects')}
+              className={`sidebar-link ${
+                navHighlighted('projects', isActive('/projects'))
+                  ? 'sidebar-link-active'
+                  : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="shrink-0">{Icons.projects}</span>
+              <span className="sidebar-link-label">Projects</span>
             </Link>
 
             {hasKeepaAccess && keepaMenuItems.map((item) => {

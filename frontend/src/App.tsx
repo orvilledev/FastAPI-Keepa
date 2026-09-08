@@ -51,6 +51,7 @@ const UPCManagement = lazy(() => import('./components/upcs/UPCManagement'))
 const ManageUPCsHub = lazy(() => import('./components/upcs/ManageUPCsHub'))
 const MAPManagement = lazy(() => import('./components/map/MAPManagement'))
 const SellerList = lazy(() => import('./components/sellers/SellerList'))
+const ProjectsPage = lazy(() => import('./components/projects/ProjectsPage'))
 const EmailList = lazy(() => import('./components/email/EmailList'))
 const HowToGuide = lazy(() => import('./components/tools/PublicTools'))
 const JobAids = lazy(() => import('./components/tools/JobAids'))
@@ -392,6 +393,7 @@ function AppRoutes() {
 
         <Route element={<PrivateLayout />}>
           <Route path="dashboard" element={<Dashboard />} />
+          <Route path="projects" element={<ProjectsPage />} />
           <Route path="about" element={<About />} />
           <Route path="feedback" element={<Feedback />} />
           <Route path="dev-md" element={<Navigate to="/dashboard" replace />} />

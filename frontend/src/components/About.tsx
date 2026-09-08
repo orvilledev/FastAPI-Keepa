@@ -53,7 +53,7 @@ export default function About() {
         <p className="mt-3 text-gray-600 max-w-4xl">
           {APP_NAME} is MetroShoe Warehouse&apos;s workspace for Keepa-based pricing compliance and
           day-to-day operational tools. The sidebar is organized into{' '}
-          <span className="font-semibold">Menu</span> (monitoring and shared data),{' '}
+          <span className="font-semibold">Menu</span> (monitoring, project tracking, and shared data),{' '}
           <span className="font-semibold">Tools</span> (document and label utilities), and{' '}
           <span className="font-semibold">General</span> (about, FAQ, and feedback). Use the top-bar{' '}
           <span className="font-semibold">search</span> to jump to any page, the{' '}
@@ -113,6 +113,11 @@ export default function About() {
             grouped into active and inactive runs.
           </li>
           <li>
+            <span className="font-semibold">Projects:</span> Personal work log for current projects. Set status
+            (planning, in progress, on hold, complete, deployed, cancelled), keep notes, and update or delete entries.
+            Each signed-in user sees only their own projects. Warehouse station accounts do not see this page.
+          </li>
+          <li>
             <span className="font-semibold">Notifications:</span> Team feed of completed express and daily runs. Open
             from the bell icon in the top bar; mark items read or clear the list.
           </li>
@@ -151,7 +156,7 @@ export default function About() {
         </ul>
         <p className="mt-4 text-sm text-gray-600">
           Express Jobs, Daily Runs, Manage UPCs, Manage MAP, Seller List, Email List, and Analytics
-          require Keepa access on your account.
+          require Keepa access on your account. Projects does not.
         </p>
       </div>
 

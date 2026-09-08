@@ -8,7 +8,7 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         {APP_NAME} is MetroShoe Warehouse&apos;s workspace for Keepa-based pricing compliance and day-to-day
-        operational tools. The sidebar is organized into <strong>Menu</strong> (monitoring and shared data),{' '}
+        operational tools. The sidebar is organized into <strong>Menu</strong> (monitoring, project tracking, and shared data),{' '}
         <strong>Tools</strong> (document and label utilities), and <strong>General</strong> (about, FAQ, and
         feedback). Warehouse station accounts open <strong>Label Station</strong> only, plus General pages. See the{' '}
         <Link to="/about" className="text-[#404040] font-medium underline">
@@ -22,11 +22,11 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     q: 'What is in the Menu section?',
     a: (
       <>
-        Menu includes <strong>Dashboard</strong>, <strong>Notifications</strong>, <strong>Express Jobs</strong>,{' '}
-        <strong>Daily Runs</strong>, <strong>Manage UPCs</strong>,{' '}
+        Menu includes <strong>Dashboard</strong>, <strong>Projects</strong>, <strong>Notifications</strong>,{' '}
+        <strong>Express Jobs</strong>, <strong>Daily Runs</strong>, <strong>Manage UPCs</strong>,{' '}
         <strong>Manage MAP</strong>, <strong>Seller List</strong>, and <strong>Email List</strong>. Express Jobs through
-        Email List require Keepa access; Dashboard and Notifications are available to all signed-in
-        users (warehouse-only accounts do not see the notifications bell).
+        Email List require Keepa access; Dashboard, Projects, and Notifications are available to all signed-in
+        users (warehouse-only accounts do not see Projects or the notifications bell).
       </>
     ),
   },
