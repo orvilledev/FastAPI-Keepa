@@ -60,6 +60,7 @@ class ShipmentUploadResponse(BaseModel):
     total_units: int = 0
     uploaded_by: UUID
     uploaded_by_email: str = ""
+    uploaded_by_name: str = ""
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -71,6 +72,7 @@ class ShipmentResponse(BaseModel):
     notes: Optional[str] = None
     created_by: UUID
     created_by_email: str = ""
+    created_by_name: str = ""
     created_at: datetime
     updated_at: datetime
     upload_count: int = 0

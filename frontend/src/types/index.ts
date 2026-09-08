@@ -92,6 +92,7 @@ export interface ShipmentRecord {
   notes?: string | null
   created_by: string
   created_by_email: string
+  created_by_name: string
   created_at: string
   updated_at: string
   upload_count: number
@@ -114,6 +115,7 @@ export interface ShipmentUpload {
   total_units: number
   uploaded_by: string
   uploaded_by_email: string
+  uploaded_by_name: string
   created_at: string
 }
 

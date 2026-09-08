@@ -176,7 +176,9 @@ export default function ShipmentManager() {
                     >
                       {shipment.name}
                     </Link>
-                    <div className="text-xs text-gray-500">{shipment.created_by_email}</div>
+                    <div className="text-xs text-gray-500">
+                      {shipment.created_by_name || shipment.created_by_email}
+                    </div>
                   </td>
                   <td className="px-4 py-2">{shipment.upload_count}</td>
                   <td className="px-4 py-2">{shipment.contributor_count}</td>

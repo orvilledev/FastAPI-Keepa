@@ -188,7 +188,7 @@ export default function ShipmentDetail() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{shipment.name}</h1>
           <p className="mt-1 text-sm text-gray-600">
-            Registered by {shipment.created_by_email || 'unknown'} on{' '}
+            Registered by {shipment.created_by_name || shipment.created_by_email || 'unknown'} on{' '}
             {formatDateTime(shipment.created_at)}
           </p>
           {shipment.notes && <p className="mt-1 text-sm text-gray-600">{shipment.notes}</p>}
@@ -309,7 +309,9 @@ export default function ShipmentDetail() {
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-gray-600">{upload.uploaded_by_email}</td>
+                  <td className="px-4 py-2 text-gray-600">
+                    {upload.uploaded_by_name || upload.uploaded_by_email}
+                  </td>
                   <td className="px-4 py-2">{upload.row_count.toLocaleString()}</td>
                   <td className="px-4 py-2 text-gray-600">{formatDateTime(upload.created_at)}</td>
                   <td className="px-4 py-2 text-right">

@@ -33,6 +33,7 @@ from app.services.shipment_manager import (
     parse_fba_export,
 )
 from app.utils.error_handler import handle_api_errors
+from app.utils.user_display_name import resolve_user_display_name
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,42 @@ def _load_shipment(repo: ShipmentRepository, shipment_id: UUID) -> dict:
     return shipment
 
 
+def _display_names(db: Client, user_ids: List[str], emails: dict[str, str]) -> dict[str, str]:
+    """Live profile names for the given user ids; email local-part is the fallback."""
+    names: dict[str, str] = {}
+    ids = [str(uid) for uid in user_ids if uid]
+    if ids:
+        try:
+            response = (
+                db.table("profiles")
+                .select("id, display_name, email")
+                .in_("id", ids)
+                .execute()
+            )
+            for row in response.data or []:
+                uid = str(row.get("id") or "")
+                if not uid:
+                    continue
+                resolved = resolve_user_display_name(
+                    display_name=row.get("display_name"),
+                    email=row.get("email") or emails.get(uid),
+                )
+                if resolved:
+                    names[uid] = resolved
+        except Exception:
+            logger.debug("shipment display-name lookup failed", exc_info=True)
+    for uid, email in emails.items():
+        if uid not in names:
+            names[uid] = resolve_user_display_name(email=email) or email or ""
+    return names
+
+
+def _person_name(names: dict[str, str], user_id: object, email: object) -> str:
+    uid = str(user_id or "")
+    mail = (email or "").strip() if isinstance(email, str) else ""
+    return names.get(uid) or resolve_user_display_name(email=mail) or mail
+
+
 def _to_response(
     shipment: dict,
     *,
@@ -76,6 +113,7 @@ def _to_response(
     row_count: int,
     unique_upc_count: int,
     can_delete: bool,
+    created_by_name: str = "",
 ) -> ShipmentResponse:
     return ShipmentResponse(
         **shipment,
@@ -84,6 +122,15 @@ def _to_response(
         row_count=row_count,
         unique_upc_count=unique_upc_count,
         can_delete=can_delete,
+        created_by_name=created_by_name
+        or _person_name({}, shipment.get("created_by"), shipment.get("created_by_email")),
+    )
+
+
+def _upload_response(item: dict, names: dict[str, str]) -> ShipmentUploadResponse:
+    return ShipmentUploadResponse(
+        **item,
+        uploaded_by_name=_person_name(names, item.get("uploaded_by"), item.get("uploaded_by_email")),
     )
 
 
@@ -108,6 +155,15 @@ def list_shipments(
     for upload in uploads:
         by_shipment.setdefault(str(upload.get("shipment_id")), []).append(upload)
 
+    names = _display_names(
+        db,
+        [str(row.get("created_by") or "") for row in shipments],
+        {
+            str(row.get("created_by") or ""): str(row.get("created_by_email") or "")
+            for row in shipments
+        },
+    )
+
     results: List[ShipmentResponse] = []
     for shipment in shipments:
         key = str(shipment["id"])
@@ -120,6 +176,9 @@ def list_shipments(
                 row_count=sum(int(item.get("row_count") or 0) for item in group),
                 unique_upc_count=len(upcs.get(key, set())),
                 can_delete=admin or str(shipment.get("created_by")) == current_user["id"],
+                created_by_name=_person_name(
+                    names, shipment.get("created_by"), shipment.get("created_by_email")
+                ),
             )
         )
     return results
@@ -148,6 +207,11 @@ def create_shipment(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     logger.info("Shipment %s registered by %s", shipment.get("id"), current_user.get("email"))
+    names = _display_names(
+        db,
+        [current_user["id"]],
+        {current_user["id"]: current_user.get("email") or ""},
+    )
     return _to_response(
         shipment,
         upload_count=0,
@@ -155,6 +219,7 @@ def create_shipment(
         row_count=0,
         unique_upc_count=0,
         can_delete=True,
+        created_by_name=_person_name(names, current_user["id"], current_user.get("email")),
     )
 
 
@@ -175,6 +240,20 @@ def get_shipment(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     admin = _is_admin(db, current_user)
+    names = _display_names(
+        db,
+        [str(shipment.get("created_by") or "")]
+        + [str(item.get("uploaded_by") or "") for item in uploads],
+        {
+            **{
+                str(shipment.get("created_by") or ""): str(shipment.get("created_by_email") or "")
+            },
+            **{
+                str(item.get("uploaded_by") or ""): str(item.get("uploaded_by_email") or "")
+                for item in uploads
+            },
+        },
+    )
     return ShipmentDetailResponse(
         **shipment,
         upload_count=len(uploads),
@@ -182,7 +261,10 @@ def get_shipment(
         row_count=row_count,
         unique_upc_count=unique_upc_count,
         can_delete=admin or str(shipment.get("created_by")) == current_user["id"],
-        uploads=[ShipmentUploadResponse(**item) for item in uploads],
+        created_by_name=_person_name(
+            names, shipment.get("created_by"), shipment.get("created_by_email")
+        ),
+        uploads=[_upload_response(item, names) for item in uploads],
     )
 
 
@@ -219,6 +301,11 @@ def update_shipment(
         row_count, unique_upc_count = repo.row_stats(str(shipment_id))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    names = _display_names(
+        db,
+        [str(updated.get("created_by") or "")],
+        {str(updated.get("created_by") or ""): str(updated.get("created_by_email") or "")},
+    )
     return _to_response(
         updated,
         upload_count=len(uploads),
@@ -226,6 +313,9 @@ def update_shipment(
         row_count=row_count,
         unique_upc_count=unique_upc_count,
         can_delete=True,
+        created_by_name=_person_name(
+            names, updated.get("created_by"), updated.get("created_by_email")
+        ),
     )
 
 
@@ -328,7 +418,14 @@ async def add_shipment_upload(
         overlap,
     )
     return ShipmentUploadResult(
-        upload=ShipmentUploadResponse(**upload),
+        upload=_upload_response(
+            upload,
+            _display_names(
+                db,
+                [current_user["id"]],
+                {current_user["id"]: current_user.get("email") or ""},
+            ),
+        ),
         rows_added=len(parsed.rows),
         duplicates_in_file=parsed.duplicate_skus,
         duplicates_against_shipment=overlap,
