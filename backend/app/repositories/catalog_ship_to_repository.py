@@ -45,7 +45,14 @@ def _apply_search(query, search: Optional[str], columns: Tuple[str, ...]):
 
 def _raise_persist_error(exc: Exception, chunk_size: int) -> None:
     message = str(exc).lower()
-    if _TABLE in message and ("does not exist" in message or "relation" in message):
+    missing_table = _TABLE in message and (
+        "does not exist" in message
+        or "relation" in message
+        or "schema cache" in message
+        or "pgrst205" in message
+        or "could not find the table" in message
+    )
+    if missing_table:
         raise ValueError(f"The {_TABLE} table is missing. {_MIGRATION_HINT}") from exc
     if "row-level security" in message or "permission denied" in message:
         raise ValueError(
