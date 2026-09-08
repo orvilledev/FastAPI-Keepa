@@ -85,6 +85,50 @@ export interface ProjectRecord {
   completed_at?: string | null
 }
 
+/** A registered shipment the team uploads FBA exports into, API snake_case. */
+export interface ShipmentRecord {
+  id: string
+  name: string
+  notes?: string | null
+  created_by: string
+  created_by_email: string
+  created_at: string
+  updated_at: string
+  upload_count: number
+  contributor_count: number
+  row_count: number
+  unique_upc_count: number
+  can_delete: boolean
+}
+
+/** One FBA export added to a shipment. */
+export interface ShipmentUpload {
+  id: string
+  shipment_id: string
+  filename: string
+  amazon_shipment_id: string
+  amazon_shipment_name: string
+  ship_to: string
+  box_count: number
+  row_count: number
+  total_units: number
+  uploaded_by: string
+  uploaded_by_email: string
+  created_at: string
+}
+
+export interface ShipmentDetail extends ShipmentRecord {
+  uploads: ShipmentUpload[]
+}
+
+export interface ShipmentUploadResult {
+  upload: ShipmentUpload
+  rows_added: number
+  duplicates_in_file: number
+  duplicates_against_shipment: number
+  unique_upc_count: number
+}
+
 /** Persisted Micro Tool (user-owned), API snake_case. */
 export interface MicroToolRecord {
   id: string

@@ -1,9 +1,13 @@
-"""Shipment Manager — turn an Amazon FBA shipment export into a WR SKU Update sheet.
+"""Shipment Manager — turn Amazon FBA shipment exports into a WR SKU Update sheet.
 
 The FBA "Individual units" export carries a metadata preamble, a SKU table, and a
 per-box footer. Only the SKU table feeds the WR SKU Update sheet: SKU, Title and
 FNSKU copy across verbatim and the UPC is the numeric portion of the SKU. The nine
 dimension columns are left empty for the warehouse team to fill in.
+
+A registered shipment collects the rows from several uploads. Each upload keeps
+its own rows, and `dedupe_by_upc` collapses them to one row per UPC only when the
+sheet is compiled — so removing one upload never disturbs another's rows.
 """
 import csv
 import io
@@ -62,7 +66,7 @@ class ShipmentSkuRow:
 
 @dataclass
 class ShipmentManagerResult:
-    workbook_bytes: bytes
+    workbook_bytes: bytes = b""
     filename: str = OUTPUT_FILENAME
     shipment_id: str = ""
     shipment_name: str = ""
@@ -211,6 +215,24 @@ def _parse_sku_rows(rows: Sequence[Sequence[str]], header_index: int) -> tuple[L
     return parsed, duplicates
 
 
+def dedupe_by_upc(sku_rows: Sequence[ShipmentSkuRow]) -> List[ShipmentSkuRow]:
+    """Collapse rows to one per UPC, keeping the first occurrence."""
+    seen: set[str] = set()
+    unique: List[ShipmentSkuRow] = []
+    for item in sku_rows:
+        upc = (item.upc or "").strip()
+        if not upc or upc in seen:
+            continue
+        seen.add(upc)
+        unique.append(item)
+    return unique
+
+
+def build_workbook(sku_rows: Sequence[ShipmentSkuRow]) -> bytes:
+    """Render rows into a copy of the WR SKU Update template."""
+    return _build_workbook(sku_rows)
+
+
 def _build_workbook(sku_rows: Sequence[ShipmentSkuRow]) -> bytes:
     if not TEMPLATE_PATH.is_file():
         raise ShipmentManagerError("The WR SKU Update template file is missing on the server.")
@@ -234,8 +256,8 @@ def _build_workbook(sku_rows: Sequence[ShipmentSkuRow]) -> bytes:
         workbook.close()
 
 
-def build_wr_sku_update(filename: str, content: bytes) -> ShipmentManagerResult:
-    """Convert an FBA shipment export into a filled WR SKU Update workbook."""
+def parse_fba_export(filename: str, content: bytes) -> ShipmentManagerResult:
+    """Read an FBA shipment export into SKU rows without rendering a workbook."""
     rows = _read_rows(filename or "shipment.csv", content)
     if not rows:
         raise ShipmentManagerError("That file is empty.")
@@ -245,7 +267,6 @@ def build_wr_sku_update(filename: str, content: bytes) -> ShipmentManagerResult:
     sku_rows, duplicates = _parse_sku_rows(rows, header_index)
 
     return ShipmentManagerResult(
-        workbook_bytes=_build_workbook(sku_rows),
         shipment_id=metadata.get(_META_SHIPMENT_ID, ""),
         shipment_name=metadata.get(_META_SHIPMENT_NAME, ""),
         ship_to=metadata.get(_META_SHIP_TO, ""),
@@ -255,3 +276,10 @@ def build_wr_sku_update(filename: str, content: bytes) -> ShipmentManagerResult:
         duplicate_skus=duplicates,
         rows=sku_rows,
     )
+
+
+def build_wr_sku_update(filename: str, content: bytes) -> ShipmentManagerResult:
+    """Convert a single FBA shipment export into a filled WR SKU Update workbook."""
+    result = parse_fba_export(filename, content)
+    result.workbook_bytes = _build_workbook(result.rows)
+    return result

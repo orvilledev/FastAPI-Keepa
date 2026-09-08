@@ -7,7 +7,11 @@ from openpyxl import load_workbook
 from app.services.shipment_manager import (
     OUTPUT_FILENAME,
     ShipmentManagerError,
+    ShipmentSkuRow,
+    build_workbook,
     build_wr_sku_update,
+    dedupe_by_upc,
+    parse_fba_export,
 )
 
 FBA_EXPORT = """Workflow name,wf5acb45b4-38bc-4c72-b878-c6b522ac6f99,,
@@ -128,6 +132,45 @@ def test_tab_delimited_export_is_supported():
     result = _run(FBA_EXPORT.replace(",", "\t"), filename="FBA19JHYH77Q.txt")
     assert result.shipment_id == "FBA19JHYH77Q"
     assert result.sku_count == 2
+
+
+def _row(upc: str, sku: str = "", description: str = "") -> ShipmentSkuRow:
+    return ShipmentSkuRow(
+        sku=sku or f"{upc}-FNSKU",
+        description=description or f"Item {upc}",
+        upc=upc,
+        fnsku=f"X{upc[-8:]}",
+    )
+
+
+def test_parse_fba_export_does_not_render_a_workbook():
+    result = parse_fba_export("FBA19JHYH77Q.csv", FBA_EXPORT.encode("utf-8"))
+    assert result.workbook_bytes == b""
+    assert result.sku_count == 2
+    assert [row.upc for row in result.rows] == ["197642130629", "198268844372"]
+
+
+def test_dedupe_by_upc_keeps_the_first_occurrence():
+    rows = [
+        _row("111111111111", description="From first upload"),
+        _row("222222222222"),
+        _row("111111111111", description="From second upload"),
+    ]
+    unique = dedupe_by_upc(rows)
+    assert [row.upc for row in unique] == ["111111111111", "222222222222"]
+    assert unique[0].description == "From first upload"
+
+
+def test_dedupe_by_upc_drops_blank_upcs():
+    assert dedupe_by_upc([_row(""), _row("333333333333")]) == [_row("333333333333")]
+
+
+def test_build_workbook_renders_collected_rows():
+    sheet = load_workbook(io.BytesIO(build_workbook([_row("111111111111"), _row("222222222222")]))).active
+    assert sheet.max_row == 3
+    assert sheet.cell(2, 3).value == 111111111111
+    assert sheet.cell(3, 3).value == 222222222222
+    assert sheet["A1"].fill.fgColor.rgb == "FF92D050"
 
 
 def test_missing_sku_table_is_rejected():

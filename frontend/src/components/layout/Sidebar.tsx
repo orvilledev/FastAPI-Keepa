@@ -194,7 +194,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
     if (currentPath === path) return true
 
     // /jobs matches /jobs/123, /jobs/new, etc.
-    const parentRoutes = ['/jobs']
+    const parentRoutes = ['/jobs', '/shipment-manager']
     if (parentRoutes.includes(path)) {
       return currentPath.startsWith(path + '/')
     }

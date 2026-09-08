@@ -1,90 +1,101 @@
-import { useCallback, useRef, useState, type DragEvent } from 'react'
-import { shipmentManagerApi, type ShipmentManagerResult } from '../../services/api'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
+import { shipmentsApi } from '../../services/api'
+import type { ShipmentRecord } from '../../types'
 
-const ACCEPTED =
-  '.csv,.txt,.tsv,.xlsx,.xlsm,text/csv,' +
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,' +
-  'application/vnd.ms-excel.sheet.macroEnabled.12'
+function errorDetail(err: unknown, fallback: string): string {
+  const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+  if (typeof detail === 'string' && detail.trim()) return detail
+  const message = (err as { message?: string })?.message
+  return typeof message === 'string' && message.trim() ? message : fallback
+}
 
-const VALID_SUFFIXES = ['.csv', '.txt', '.tsv', '.xlsx', '.xlsm']
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+function formatDate(value: string): string {
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleDateString()
 }
 
 export default function ShipmentManager() {
-  const [file, setFile] = useState<File | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const [generating, setGenerating] = useState(false)
+  const [shipments, setShipments] = useState<ShipmentRecord[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<ShipmentManagerResult | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showForm, setShowForm] = useState(false)
+  const [name, setName] = useState('')
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [busyId, setBusyId] = useState<string | null>(null)
 
-  const reset = useCallback(() => {
-    setFile(null)
-    setError(null)
-    setSuccess(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
-  }, [])
-
-  const acceptFile = useCallback((incoming: File | null | undefined) => {
-    setError(null)
-    setSuccess(null)
-    if (!incoming) return
-    const name = incoming.name.toLowerCase()
-    if (!VALID_SUFFIXES.some((suffix) => name.endsWith(suffix))) {
-      setError('Upload the FBA shipment export as a .csv or .xlsx file.')
-      setFile(null)
-      return
-    }
-    setFile(incoming)
-  }, [])
-
-  const handleDrop = useCallback(
-    (e: DragEvent<HTMLElement>) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setIsDragging(false)
-      acceptFile(e.dataTransfer.files?.[0])
-    },
-    [acceptFile],
-  )
-
-  const handleGenerate = useCallback(async () => {
-    if (!file || generating) return
-    setGenerating(true)
-    setError(null)
-    setSuccess(null)
+  const load = useCallback(async () => {
+    setLoading(true)
     try {
-      const result = await shipmentManagerApi.generate(file)
-      downloadBlob(result.blob, result.filename)
-      setSuccess(result)
-    } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        (err as { message?: string })?.message ||
-        'Failed to generate the WR SKU Update sheet.'
-      setError(typeof msg === 'string' ? msg : 'Failed to generate the WR SKU Update sheet.')
+      setShipments(await shipmentsApi.list())
+      setError(null)
+    } catch (err) {
+      setError(errorDetail(err, 'Could not load shipments.'))
     } finally {
-      setGenerating(false)
+      setLoading(false)
     }
-  }, [file, generating])
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const handleCreate = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!name.trim() || saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      const created = await shipmentsApi.create({
+        name: name.trim(),
+        notes: notes.trim() || undefined,
+      })
+      setShipments((prev) => [created, ...prev])
+      setName('')
+      setNotes('')
+      setShowForm(false)
+    } catch (err) {
+      setError(errorDetail(err, 'Could not register this shipment.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (shipment: ShipmentRecord) => {
+    const confirmed = window.confirm(
+      `Delete “${shipment.name}”? This removes all ${shipment.upload_count} upload(s) and every collected row. This cannot be undone.`,
+    )
+    if (!confirmed) return
+    setBusyId(shipment.id)
+    setError(null)
+    try {
+      await shipmentsApi.delete(shipment.id)
+      setShipments((prev) => prev.filter((item) => item.id !== shipment.id))
+    } catch (err) {
+      setError(errorDetail(err, 'Could not delete this shipment.'))
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-gray-900">Shipment Manager</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Upload an Amazon FBA shipment export (for example <code>FBA19JHYH77Q.csv</code>) to build
-          the WR SKU Update sheet — one row per SKU, ready for the warehouse team to add dimensions.
-        </p>
+    <div className="mx-auto max-w-5xl space-y-6">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Shipment Manager</h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Register a shipment, let everyone upload their FBA exports into it, then compile one
+            WR SKU Update sheet with duplicates removed. Shipments stay here until deleted.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowForm((open) => !open)}
+          className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+        >
+          {showForm ? 'Cancel' : 'Register shipment'}
+        </button>
       </header>
 
       {error && (
@@ -92,127 +103,111 @@ export default function ShipmentManager() {
           {error}
         </div>
       )}
-      {success && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-          Downloaded <strong>{success.filename}</strong> — {success.skuCount} SKU
-          {success.skuCount === 1 ? '' : 's'}
-          {success.totalUnits > 0 && <> across {success.totalUnits.toLocaleString()} units</>}
-          {success.shipmentId && (
-            <>
-              {' '}
-              for shipment <strong>{success.shipmentId}</strong>
-            </>
-          )}
-          {success.shipTo && <> to {success.shipTo}</>}
-          {success.boxCount > 0 && <> ({success.boxCount} boxes)</>}.
-          {success.duplicateSkus > 0 && (
-            <> Skipped {success.duplicateSkus} duplicate UPC row(s).</>
-          )}
-        </div>
-      )}
 
-      <section
-        className={`rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
-          isDragging
-            ? 'border-indigo-500 bg-indigo-50'
-            : 'border-gray-300 bg-white hover:border-gray-400'
-        }`}
-        onDragOver={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          setIsDragging(true)
-        }}
-        onDragLeave={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          setIsDragging(false)
-        }}
-        onDrop={handleDrop}
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="mx-auto h-12 w-12 text-gray-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
+      {showForm && (
+        <form
+          onSubmit={handleCreate}
+          className="space-y-3 rounded-xl border border-gray-200 bg-white p-4"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={1.5}
-            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-          />
-        </svg>
-        <p className="mt-3 text-sm text-gray-600">
-          Drag and drop the FBA shipment export here, or
-        </p>
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="mt-2 inline-flex items-center rounded-md bg-[#404040] px-4 py-2 text-sm font-medium text-white hover:bg-black"
-        >
-          Choose file
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={ACCEPTED}
-          className="hidden"
-          onChange={(e) => {
-            acceptFile(e.target.files?.[0])
-            if (fileInputRef.current) fileInputRef.current.value = ''
-          }}
-        />
-
-        {file && (
-          <p className="mt-4 text-sm text-gray-800">
-            Selected: <span className="font-medium">{file.name}</span>
-          </p>
-        )}
-
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+          <div>
+            <label htmlFor="shipment-name" className="block text-sm font-medium text-gray-700">
+              Shipment name
+            </label>
+            <input
+              id="shipment-name"
+              type="text"
+              value={name}
+              maxLength={200}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="NFA WHRP 7.17.26"
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label htmlFor="shipment-notes" className="block text-sm font-medium text-gray-700">
+              Notes <span className="font-normal text-gray-500">(optional)</span>
+            </label>
+            <textarea
+              id="shipment-notes"
+              value={notes}
+              rows={2}
+              onChange={(e) => setNotes(e.target.value)}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+            />
+          </div>
           <button
-            type="button"
-            disabled={!file || generating}
-            onClick={() => void handleGenerate()}
+            type="submit"
+            disabled={!name.trim() || saving}
             className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
           >
-            {generating ? 'Generating…' : 'Download WR SKU Update'}
+            {saving ? 'Registering…' : 'Register'}
           </button>
-          {file && (
-            <button
-              type="button"
-              onClick={reset}
-              disabled={generating}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      </section>
+        </form>
+      )}
 
-      <section className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600">
-        <h2 className="font-semibold text-gray-900">What this does</h2>
-        <ul className="mt-2 list-disc space-y-1 pl-5">
-          <li>
-            Reads the <strong>Individual units</strong> table from the FBA export, skipping the
-            shipment metadata above it and the per-box details below it.
-          </li>
-          <li>
-            Writes one row per UPC into the WR SKU Update sheet: <code>SKU</code> and{' '}
-            <code>FNSKU</code> copy across as-is, <code>Description</code> comes from the export's{' '}
-            <code>Title</code>, and <code>UPC</code> is the SKU with its <code>-FNSKU</code> suffix
-            removed, stored as a number. Later rows that share a UPC already in the sheet are
-            dropped.
-          </li>
-          <li>
-            Leaves the item and carton dimension columns blank — the FBA export does not contain
-            them, so the warehouse team fills those in.
-          </li>
-          <li>Keeps the original template's column widths, header formatting and UPC formatting.</li>
-        </ul>
-      </section>
+      {loading ? (
+        <p className="text-sm text-gray-600">Loading shipments…</p>
+      ) : shipments.length === 0 ? (
+        <div className="rounded-xl border-2 border-dashed border-gray-300 bg-white p-8 text-center">
+          <p className="text-sm text-gray-600">
+            No shipments registered yet. Register one to start collecting FBA exports.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="px-4 py-2">Shipment</th>
+                <th className="px-4 py-2">Uploads</th>
+                <th className="px-4 py-2">Contributors</th>
+                <th className="px-4 py-2">Unique UPCs</th>
+                <th className="px-4 py-2">Registered</th>
+                <th className="px-4 py-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {shipments.map((shipment) => (
+                <tr key={shipment.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-2">
+                    <Link
+                      to={`/shipment-manager/${shipment.id}`}
+                      className="font-semibold text-[#404040] hover:underline"
+                    >
+                      {shipment.name}
+                    </Link>
+                    <div className="text-xs text-gray-500">{shipment.created_by_email}</div>
+                  </td>
+                  <td className="px-4 py-2">{shipment.upload_count}</td>
+                  <td className="px-4 py-2">{shipment.contributor_count}</td>
+                  <td className="px-4 py-2">{shipment.unique_upc_count.toLocaleString()}</td>
+                  <td className="px-4 py-2 text-gray-600">{formatDate(shipment.created_at)}</td>
+                  <td className="px-4 py-2 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <Link
+                        to={`/shipment-manager/${shipment.id}`}
+                        className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                      >
+                        Open
+                      </Link>
+                      {shipment.can_delete && (
+                        <button
+                          type="button"
+                          disabled={busyId === shipment.id}
+                          onClick={() => void handleDelete(shipment)}
+                          className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {busyId === shipment.id ? 'Deleting…' : 'Delete'}
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

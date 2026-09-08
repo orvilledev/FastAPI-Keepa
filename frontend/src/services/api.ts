@@ -7,7 +7,8 @@ import type {
   ManualEmailDraft,
   ManualEmailDraftOpenResult,
   WarehouseProductLookup, WarehouseProductImportResult, WarehouseProduct,
-  CatalogImportResult, CatalogUpcListResponse, CatalogDimsListResponse, CatalogShipToListResponse, CatalogShipToImportResult, CatalogShipToImportPreview, ProjectRecord, ProjectStatus } from '../types'
+  CatalogImportResult, CatalogUpcListResponse, CatalogDimsListResponse, CatalogShipToListResponse, CatalogShipToImportResult, CatalogShipToImportPreview, ProjectRecord, ProjectStatus,
+  ShipmentRecord, ShipmentDetail, ShipmentUploadResult } from '../types'
 
 /** All request paths begin with `/api/v1`. Strip a mistaken `/api/v1` suffix from env to avoid doubled paths (404 Not Found). */
 function normalizeApiBaseUrl(raw: string): string {
@@ -1805,27 +1806,58 @@ export const dnkAllInventoryApi = {
   },
 }
 
-export type ShipmentManagerResult = {
+export type ShipmentCompileResult = {
   blob: Blob
   filename: string
-  shipmentId: string
   shipmentName: string
-  shipTo: string
-  boxCount: number
   skuCount: number
-  totalUnits: number
-  duplicateSkus: number
+  collectedRows: number
+  duplicatesRemoved: number
 }
 
-export const shipmentManagerApi = {
-  generate: async (file: File): Promise<ShipmentManagerResult> => {
+export const shipmentsApi = {
+  list: async (): Promise<ShipmentRecord[]> => {
+    const response = await api.get<ShipmentRecord[]>('/api/v1/shipments')
+    return response.data
+  },
+  get: async (shipmentId: string): Promise<ShipmentDetail> => {
+    const response = await api.get<ShipmentDetail>(`/api/v1/shipments/${shipmentId}`)
+    return response.data
+  },
+  create: async (body: { name: string; notes?: string }): Promise<ShipmentRecord> => {
+    const response = await api.post<ShipmentRecord>('/api/v1/shipments', body)
+    return response.data
+  },
+  update: async (
+    shipmentId: string,
+    body: { name?: string; notes?: string },
+  ): Promise<ShipmentRecord> => {
+    const response = await api.patch<ShipmentRecord>(`/api/v1/shipments/${shipmentId}`, body)
+    return response.data
+  },
+  delete: async (shipmentId: string): Promise<void> => {
+    await api.delete(`/api/v1/shipments/${shipmentId}`)
+  },
+  addUpload: async (shipmentId: string, file: File): Promise<ShipmentUploadResult> => {
     const form = new FormData()
     form.append('file', file)
+    const response = await api.post<ShipmentUploadResult>(
+      `/api/v1/shipments/${shipmentId}/uploads`,
+      form,
+      { timeout: 180_000 },
+    )
+    return response.data
+  },
+  removeUpload: async (shipmentId: string, uploadId: string): Promise<void> => {
+    await api.delete(`/api/v1/shipments/${shipmentId}/uploads/${uploadId}`)
+  },
+  generate: async (shipmentId: string): Promise<ShipmentCompileResult> => {
     try {
-      const response = await api.post<Blob>('/api/v1/shipment-manager/generate', form, {
-        responseType: 'blob',
-        timeout: 180_000,
-      })
+      const response = await api.post<Blob>(
+        `/api/v1/shipments/${shipmentId}/generate`,
+        null,
+        { responseType: 'blob', timeout: 180_000 },
+      )
       const headers = response.headers || {}
       const filenameHeader = headers['x-shipment-filename']
       const disposition = headers['content-disposition'] as string | undefined
@@ -1839,13 +1871,10 @@ export const shipmentManagerApi = {
       return {
         blob: response.data,
         filename,
-        shipmentId: String(headers['x-shipment-id'] || ''),
         shipmentName: String(headers['x-shipment-name'] || ''),
-        shipTo: String(headers['x-shipment-ship-to'] || ''),
-        boxCount: Number(headers['x-shipment-box-count'] || 0),
         skuCount: Number(headers['x-shipment-sku-count'] || 0),
-        totalUnits: Number(headers['x-shipment-total-units'] || 0),
-        duplicateSkus: Number(headers['x-shipment-duplicate-skus'] || 0),
+        collectedRows: Number(headers['x-shipment-collected-rows'] || 0),
+        duplicatesRemoved: Number(headers['x-shipment-duplicates-removed'] || 0),
       }
     } catch (err: unknown) {
       const ax = err as {
