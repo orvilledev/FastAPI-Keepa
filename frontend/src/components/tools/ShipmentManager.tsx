@@ -106,7 +106,7 @@ export default function ShipmentManager() {
           {success.shipTo && <> to {success.shipTo}</>}
           {success.boxCount > 0 && <> ({success.boxCount} boxes)</>}.
           {success.duplicateSkus > 0 && (
-            <> Skipped {success.duplicateSkus} duplicate SKU row(s).</>
+            <> Skipped {success.duplicateSkus} duplicate UPC row(s).</>
           )}
         </div>
       )}
@@ -200,10 +200,11 @@ export default function ShipmentManager() {
             shipment metadata above it and the per-box details below it.
           </li>
           <li>
-            Writes one row per SKU into the WR SKU Update sheet: <code>SKU</code> and{' '}
+            Writes one row per UPC into the WR SKU Update sheet: <code>SKU</code> and{' '}
             <code>FNSKU</code> copy across as-is, <code>Description</code> comes from the export's{' '}
             <code>Title</code>, and <code>UPC</code> is the SKU with its <code>-FNSKU</code> suffix
-            removed, stored as a number.
+            removed, stored as a number. Later rows that share a UPC already in the sheet are
+            dropped.
           </li>
           <li>
             Leaves the item and carton dimension columns blank — the FBA export does not contain

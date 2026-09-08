@@ -103,6 +103,22 @@ def test_duplicate_skus_are_collapsed():
     assert result.duplicate_skus == 1
 
 
+def test_duplicate_upcs_keep_the_first_row_only():
+    """Two different SKUs that strip to the same UPC become one output row."""
+    duplicated = FBA_EXPORT.replace(
+        '198268844372-FNSKU,"Antora Jacket, XL",B0FX3FSCDN,X0057D6IM5,New,FC_PROVIDED,1,1',
+        '197642130629_FNSKU,"Borealis Backpack, Navy",B0CN9VGKD5,X0053P8X57,New,FC_PROVIDED,5,1',
+    )
+    result = _run(duplicated)
+    sheet = _sheet(result)
+    assert result.sku_count == 1
+    assert result.duplicate_skus == 1
+    assert sheet.max_row == 2
+    assert sheet.cell(2, 1).value == "197642130629-FNSKU"
+    assert sheet.cell(2, 3).value == 197642130629
+    assert sheet.cell(3, 1).value is None
+
+
 def test_non_numeric_upc_falls_back_to_text():
     text = FBA_EXPORT.replace("197642130629-FNSKU", "ABC-123-FNSKU")
     assert _sheet(_run(text))["C2"].value == "ABC-123"

@@ -179,7 +179,7 @@ def _parse_sku_rows(rows: Sequence[Sequence[str]], header_index: int) -> tuple[L
     units_at = _column_index(header, _TOTAL_UNITS_COLUMN)
 
     parsed: List[ShipmentSkuRow] = []
-    seen: set[str] = set()
+    seen_upcs: set[str] = set()
     duplicates = 0
 
     for row in rows[header_index + 1 :]:
@@ -187,15 +187,20 @@ def _parse_sku_rows(rows: Sequence[Sequence[str]], header_index: int) -> tuple[L
         # A blank SKU marks the end of the table; the per-box footer follows it.
         if not sku:
             break
-        if sku in seen:
+        upc = _upc_from_sku(sku)
+        if not upc:
+            continue
+        # One row per UPC — later repeats of the same UPC (same SKU or a
+        # different SKU that strips to the same digits) are dropped.
+        if upc in seen_upcs:
             duplicates += 1
             continue
-        seen.add(sku)
+        seen_upcs.add(upc)
         parsed.append(
             ShipmentSkuRow(
                 sku=sku,
                 description=_cell(row, title_at),
-                upc=_upc_from_sku(sku),
+                upc=upc,
                 fnsku=_cell(row, fnsku_at),
                 total_units=_to_int(_cell(row, units_at)),
             )
