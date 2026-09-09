@@ -105,6 +105,31 @@ def _upload_sku_rows(repo: ShipmentRepository, upload_id: UUID) -> List[Shipment
     return stored_rows_to_sku_rows(stored)
 
 
+def _require_catalog_ship_to(db: Client, ship_to_raw: str) -> tuple[str, dict]:
+    """Resolve the export's Ship to line against the Ship To Address Catalog.
+
+    Uploads and Order Import both require a known fulfilment-centre code so we
+    never store or export an address we cannot look up.
+    """
+    code = ship_to_code(ship_to_raw)
+    if not code:
+        raise HTTPException(
+            status_code=400,
+            detail="This FBA export has no Ship to code, so it cannot be added. "
+            "Confirm the file includes a Ship to line, then try again.",
+        )
+    try:
+        record = CatalogShipToRepository(db).get_by_code(code)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not record:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{code} is not in the Ship To Address Catalog. Add it there, then try again.",
+        )
+    return code, record
+
+
 def _display_names(db: Client, user_ids: List[str], emails: dict[str, str]) -> dict[str, str]:
     """Live profile names for the given user ids; email local-part is the fallback."""
     names: dict[str, str] = {}
@@ -399,7 +424,11 @@ async def add_shipment_upload(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
-    """Add one FBA export's SKU rows to a registered shipment."""
+    """Add one FBA export's SKU rows to a registered shipment.
+
+    The export's Ship to code must already exist in the Ship To Address Catalog;
+    otherwise the upload is rejected and nothing is stored.
+    """
     name = (file.filename or "").lower()
     if not name.endswith(_ACCEPTED_SUFFIXES):
         raise HTTPException(
@@ -419,6 +448,9 @@ async def add_shipment_upload(
         parsed = parse_fba_export(file.filename or "shipment.csv", raw)
     except ShipmentManagerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Reject before anything is stored — Order Import needs this address later.
+    _require_catalog_ship_to(db, parsed.ship_to)
 
     _ensure_profile_row(db, current_user)
     try:
@@ -703,21 +735,7 @@ async def generate_upload_order_import(
     upload = _load_upload(repo, shipment_id, upload_id)
     rows = _upload_sku_rows(repo, upload_id)
 
-    code = ship_to_code(str(upload.get("ship_to") or ""))
-    if not code:
-        raise HTTPException(
-            status_code=400,
-            detail="This upload's FBA export has no Ship to code, so no address can be looked up.",
-        )
-    try:
-        record = CatalogShipToRepository(db).get_by_code(code)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if not record:
-        raise HTTPException(
-            status_code=400,
-            detail=f"{code} is not in the Ship To Address Catalog. Add it there, then try again.",
-        )
+    code, record = _require_catalog_ship_to(db, str(upload.get("ship_to") or ""))
 
     reference_number = str(upload.get("amazon_shipment_id") or "")
     address = ship_to_address_from_catalog(code, record)
