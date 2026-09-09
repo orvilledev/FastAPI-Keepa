@@ -296,8 +296,8 @@ def test_po_import_leaves_the_optional_columns_blank():
 @pytest.mark.parametrize(
     "title, expected",
     [
-        ("The North Face Borealis Commuter Laptop Backpack, Blk/Blk-NPF, OSFA", "The North Face"),
-        ("THE NORTH FACE Evolution Simple Dome Hoodie, Pale Gy Hth, S", "The North Face"),
+        ("The North Face Borealis Commuter Laptop Backpack, Blk/Blk-NPF, OSFA", "North Face"),
+        ("THE NORTH FACE Evolution Simple Dome Hoodie, Pale Gy Hth, S", "North Face"),
         ("Smartwool Women's Classic Thermal Merino Base Layer Crew", "Smartwool"),
         ("Dansko Women's Professional Clog", "Dansko"),
         ("Oboz Bridger 7\" Insulated Waterproof Winter Boot", "Oboz"),
@@ -318,7 +318,7 @@ def test_supplier_from_titles_keeps_the_first_known_brand():
                 "Dansko Women's Professional Clog",
             ]
         )
-        == "The North Face"
+        == "North Face"
     )
 
 
@@ -334,7 +334,7 @@ def test_resolve_po_supplier_prefers_the_title_over_the_filename():
     ]
     assert (
         resolve_po_supplier(rows, filename="FBA19JHYH77Q.csv", shipment_name="NFA WHRP 7.17.26")
-        == "The North Face"
+        == "North Face"
     )
 
 
@@ -342,7 +342,7 @@ def test_resolve_po_supplier_falls_back_to_the_shipment_name_code():
     rows = [_row("197642130629", description="Borealis Backpack, Blk")]
     assert (
         resolve_po_supplier(rows, filename="FBA19JHYH77Q.csv", shipment_name="NFA WHRP 7.17.26 1 OF 5")
-        == "The North Face"
+        == "North Face"
     )
 
 

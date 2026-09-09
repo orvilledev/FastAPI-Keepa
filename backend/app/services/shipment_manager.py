@@ -84,8 +84,8 @@ _PO_BODY_FONT = Font(name="Open Sans", size=11, family=2)
 # Brand names as they appear at the start of an FBA Title, mapped to the
 # SupplierCompanyName Extensiv expects. Longer names are matched first.
 _SUPPLIER_BRANDS = (
-    ("the north face", "The North Face"),
-    ("north face", "The North Face"),
+    ("the north face", "North Face"),
+    ("north face", "North Face"),
     ("smartwool", "Smartwool"),
     ("dansko", "Dansko"),
     ("oboz", "Oboz"),
@@ -101,7 +101,7 @@ _SUPPLIER_BRANDS = (
 )
 _SUPPLIER_BRAND_BOUNDARY = re.compile(r"[\s,/'()\-]")
 _SUPPLIER_CODES = {
-    "nfa": "The North Face",
+    "nfa": "North Face",
     "dnk": "Dansko",
     "smw": "Smartwool",
     "obz": "Oboz",

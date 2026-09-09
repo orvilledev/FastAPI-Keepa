@@ -1,6 +1,6 @@
 /** Warehouse vendor codes used when registering a shipment. */
 export const SHIPMENT_VENDORS = [
-  { code: 'NFA', label: 'NFA (The North Face)' },
+  { code: 'NFA', label: 'NFA (North Face)' },
   { code: 'DNK', label: 'DNK (Dansko)' },
   { code: 'SMW', label: 'SMW (Smartwool)' },
   { code: 'UGG', label: 'UGG' },

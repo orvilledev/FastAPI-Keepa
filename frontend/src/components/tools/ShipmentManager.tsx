@@ -35,6 +35,29 @@ function resolveVendorCode(preset: string, custom: string): string {
   return preset
 }
 
+/** Workflow stage from upload/UPC counts — no DB field required. */
+function shipmentStatus(shipment: ShipmentRecord): {
+  label: string
+  className: string
+} {
+  if (shipment.upload_count === 0) {
+    return {
+      label: 'Empty',
+      className: 'bg-gray-100 text-gray-700',
+    }
+  }
+  if (shipment.unique_upc_count > 0) {
+    return {
+      label: 'Ready',
+      className: 'bg-emerald-100 text-emerald-800',
+    }
+  }
+  return {
+    label: 'In Progress',
+    className: 'bg-amber-100 text-amber-900',
+  }
+}
+
 export default function ShipmentManager() {
   const [shipments, setShipments] = useState<ShipmentRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -362,6 +385,7 @@ export default function ShipmentManager() {
                 <tr>
                   <th className="px-4 py-2">Shipment</th>
                   <th className="px-4 py-2">Vendor</th>
+                  <th className="px-4 py-2">Status</th>
                   <th className="px-4 py-2">Uploads</th>
                   <th className="px-4 py-2">Contributors</th>
                   <th className="px-4 py-2">Unique UPCs</th>
@@ -370,7 +394,9 @@ export default function ShipmentManager() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((shipment) => (
+                {filtered.map((shipment) => {
+                  const status = shipmentStatus(shipment)
+                  return (
                   <tr key={shipment.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2">
                       <Link
@@ -385,6 +411,13 @@ export default function ShipmentManager() {
                     </td>
                     <td className="px-4 py-2 font-medium text-gray-900">
                       {shipment.vendor || '—'}
+                    </td>
+                    <td className="px-4 py-2">
+                      <span
+                        className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${status.className}`}
+                      >
+                        {status.label}
+                      </span>
                     </td>
                     <td className="px-4 py-2">{shipment.upload_count}</td>
                     <td className="px-4 py-2">{shipment.contributor_count}</td>
@@ -419,7 +452,8 @@ export default function ShipmentManager() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           )}
