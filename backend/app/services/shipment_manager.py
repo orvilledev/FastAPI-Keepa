@@ -417,10 +417,18 @@ def build_shipment_ledger_workbook(
     sku_rows: Sequence[ShipmentSkuRow],
     registered_by: str = "",
 ) -> bytes:
-    """Build a three-sheet ledger of one shipment's details, uploads and unique SKUs."""
+    """Build a ledger workbook for one registered shipment.
+
+    Sheets:
+    * **Summary** — registration metadata and counts
+    * **FBA Shipments** — one row per uploaded FBA export (name, id, SKUs, units, ship-to)
+    * **Uploads** — file-level contribution history
+    * **Lines** — unique SKUs across the shipment
+    """
     workbook = Workbook()
     summary = workbook.active
     summary.title = "Summary"
+    fba_sheet = workbook.create_sheet("FBA Shipments")
     uploads_sheet = workbook.create_sheet("Uploads")
     lines_sheet = workbook.create_sheet("Lines")
 
@@ -455,6 +463,23 @@ def build_shipment_ledger_workbook(
         value_cell = summary.cell(row=offset, column=2, value=value)
         value_cell.font = _LEDGER_BODY_FONT
     _ledger_autosize(summary, min_width=14, max_width=60)
+
+    # One row per FBA export — Name / Shipment ID / Total SKUs / Total Units / Ship To
+    # come from the export preamble and SKU table we stored when the file was uploaded.
+    fba_headers = ("Name", "Shipment ID", "Total SKUs", "Total Units", "Ship To")
+    _ledger_write_header(fba_sheet, fba_headers)
+    for offset, upload in enumerate(uploads, start=2):
+        values = (
+            upload.get("amazon_shipment_name") or "",
+            upload.get("amazon_shipment_id") or "",
+            int(upload.get("row_count") or 0),
+            int(upload.get("total_units") or 0),
+            upload.get("ship_to") or "",
+        )
+        for column, value in enumerate(values, start=1):
+            cell = fba_sheet.cell(row=offset, column=column, value=value)
+            cell.font = _LEDGER_BODY_FONT
+    _ledger_autosize(fba_sheet, min_width=12, max_width=40)
 
     upload_headers = (
         "Filename",

@@ -553,7 +553,7 @@ def test_shipment_ledger_has_summary_uploads_and_unique_lines():
             )
         )
     )
-    assert workbook.sheetnames == ["Summary", "Uploads", "Lines"]
+    assert workbook.sheetnames == ["Summary", "FBA Shipments", "Uploads", "Lines"]
 
     summary = workbook["Summary"]
     assert summary["A2"].value == "Shipment"
@@ -563,6 +563,22 @@ def test_shipment_ledger_has_summary_uploads_and_unique_lines():
     assert summary["B7"].value == 1
     assert summary["B10"].value == 2
     assert summary["B11"].value == 140
+
+    fba = workbook["FBA Shipments"]
+    assert [fba.cell(1, col).value for col in range(1, 6)] == [
+        "Name",
+        "Shipment ID",
+        "Total SKUs",
+        "Total Units",
+        "Ship To",
+    ]
+    assert [fba.cell(2, col).value for col in range(1, 6)] == [
+        "NFA WHRP 7.17.26 1 OF 5",
+        "FBA19JHYH77Q",
+        2,
+        140,
+        "DEN8",
+    ]
 
     uploads = workbook["Uploads"]
     assert uploads["A1"].value == "Filename"
@@ -585,6 +601,49 @@ def test_shipment_ledger_has_summary_uploads_and_unique_lines():
     assert lines.max_row == 3
 
 
+def test_shipment_ledger_fba_shipments_one_row_per_upload():
+    workbook = load_workbook(
+        io.BytesIO(
+            build_shipment_ledger_workbook(
+                shipment={"name": "NFA FBA 4.17.26 GRP 1", "vendor": "NFA", "created_at": ""},
+                uploads=[
+                    {
+                        "amazon_shipment_name": "NFA FBA 4.17.26 GRP 1 1",
+                        "amazon_shipment_id": "FBA19BSJC15G",
+                        "row_count": 23,
+                        "total_units": 141,
+                        "ship_to": "DEN8",
+                    },
+                    {
+                        "amazon_shipment_name": "NFA FBA 4.17.26 GRP 1 1",
+                        "amazon_shipment_id": "FBA19BSFJ4YH",
+                        "row_count": 23,
+                        "total_units": 143,
+                        "ship_to": "DEN8",
+                    },
+                ],
+                sku_rows=[],
+            )
+        )
+    )
+    sheet = workbook["FBA Shipments"]
+    assert sheet.max_row == 3
+    assert [sheet.cell(2, col).value for col in range(1, 6)] == [
+        "NFA FBA 4.17.26 GRP 1 1",
+        "FBA19BSJC15G",
+        23,
+        141,
+        "DEN8",
+    ]
+    assert [sheet.cell(3, col).value for col in range(1, 6)] == [
+        "NFA FBA 4.17.26 GRP 1 1",
+        "FBA19BSFJ4YH",
+        23,
+        143,
+        "DEN8",
+    ]
+
+
 def test_shipment_ledger_allows_empty_uploads():
     workbook = load_workbook(
         io.BytesIO(
@@ -596,6 +655,7 @@ def test_shipment_ledger_allows_empty_uploads():
         )
     )
     assert workbook["Summary"]["B7"].value == 0
+    assert workbook["FBA Shipments"].max_row == 1
     assert workbook["Uploads"].max_row == 1
     assert workbook["Lines"].max_row == 1
 
