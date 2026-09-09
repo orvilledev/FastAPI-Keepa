@@ -1831,6 +1831,15 @@ export type ShipmentOrderImportResult = {
   skuCount: number
 }
 
+export type ShipmentLedgerResult = {
+  blob: Blob
+  filename: string
+  shipmentName: string
+  skuCount: number
+  collectedRows: number
+  uploadCount: number
+}
+
 type ResponseHeaders = Record<string, unknown>
 
 function shipmentDownloadFilename(headers: ResponseHeaders, fallback: string): string {
@@ -1920,6 +1929,26 @@ export const shipmentsApi = {
         skuCount: Number(headers['x-shipment-sku-count'] || 0),
         collectedRows: Number(headers['x-shipment-collected-rows'] || 0),
         duplicatesRemoved: Number(headers['x-shipment-duplicates-removed'] || 0),
+      }
+    } catch (err: unknown) {
+      return rethrowShipmentDownloadError(err)
+    }
+  },
+  ledger: async (shipmentId: string): Promise<ShipmentLedgerResult> => {
+    try {
+      const response = await api.post<Blob>(
+        `/api/v1/shipments/${shipmentId}/ledger`,
+        null,
+        { responseType: 'blob', timeout: 180_000 },
+      )
+      const headers = (response.headers || {}) as ResponseHeaders
+      return {
+        blob: response.data,
+        filename: shipmentDownloadFilename(headers, 'LEDGER.xlsx'),
+        shipmentName: String(headers['x-shipment-name'] || ''),
+        skuCount: Number(headers['x-shipment-sku-count'] || 0),
+        collectedRows: Number(headers['x-shipment-collected-rows'] || 0),
+        uploadCount: Number(headers['x-shipment-upload-count'] || 0),
       }
     } catch (err: unknown) {
       return rethrowShipmentDownloadError(err)

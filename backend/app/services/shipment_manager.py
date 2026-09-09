@@ -25,8 +25,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
-from openpyxl import load_workbook
-from openpyxl.styles import Alignment, Font
+from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 
 logger = logging.getLogger(__name__)
 
@@ -377,6 +378,133 @@ def dedupe_by_upc(sku_rows: Sequence[ShipmentSkuRow]) -> List[ShipmentSkuRow]:
 def build_workbook(sku_rows: Sequence[ShipmentSkuRow]) -> bytes:
     """Render rows into a copy of the WR SKU Update template."""
     return _build_workbook(sku_rows)
+
+
+_LEDGER_HEADER_FILL = PatternFill(fill_type="solid", fgColor="FF404040")
+_LEDGER_HEADER_FONT = Font(name="Calibri", size=11, bold=True, color="FFFFFFFF")
+_LEDGER_BODY_FONT = Font(name="Calibri", size=11)
+_LEDGER_SUMMARY_LABEL_FONT = Font(name="Calibri", size=11, bold=True)
+
+
+def ledger_filename(shipment_name: str) -> str:
+    """Name the ledger download after the shipment."""
+    cleaned = re.sub(r'[\\/:*?"<>|]+', " ", (shipment_name or "").strip())
+    cleaned = " ".join(cleaned.split())
+    return f"LEDGER {cleaned}.xlsx" if cleaned else "LEDGER.xlsx"
+
+
+def _ledger_autosize(sheet, min_width: float = 12, max_width: float = 48) -> None:
+    for column_cells in sheet.columns:
+        letter = get_column_letter(column_cells[0].column)
+        widest = 0
+        for cell in column_cells:
+            value = "" if cell.value is None else str(cell.value)
+            widest = max(widest, len(value))
+        sheet.column_dimensions[letter].width = min(max(widest + 2, min_width), max_width)
+
+
+def _ledger_write_header(sheet, headers: Sequence[str]) -> None:
+    for index, title in enumerate(headers, start=1):
+        cell = sheet.cell(row=1, column=index, value=title)
+        cell.fill = _LEDGER_HEADER_FILL
+        cell.font = _LEDGER_HEADER_FONT
+
+
+def build_shipment_ledger_workbook(
+    *,
+    shipment: dict,
+    uploads: Sequence[dict],
+    sku_rows: Sequence[ShipmentSkuRow],
+    registered_by: str = "",
+) -> bytes:
+    """Build a three-sheet ledger of one shipment's details, uploads and unique SKUs."""
+    workbook = Workbook()
+    summary = workbook.active
+    summary.title = "Summary"
+    uploads_sheet = workbook.create_sheet("Uploads")
+    lines_sheet = workbook.create_sheet("Lines")
+
+    unique_upcs = len(sku_rows)
+    collected_rows = sum(int(item.get("row_count") or 0) for item in uploads)
+    total_units = sum(item.total_units for item in sku_rows)
+    registered_at = str(shipment.get("created_at") or "")
+    if registered_at.endswith("+00:00"):
+        registered_at = registered_at[:-6] + "Z"
+
+    summary_rows = (
+        ("Shipment", shipment.get("name") or ""),
+        ("Vendor", shipment.get("vendor") or ""),
+        ("Notes", shipment.get("notes") or ""),
+        ("Registered by", registered_by or shipment.get("created_by_email") or ""),
+        ("Registered at", registered_at),
+        ("Uploads", len(uploads)),
+        ("Contributors", len({str(item.get("uploaded_by") or "") for item in uploads if item.get("uploaded_by")})),
+        ("Collected rows", collected_rows),
+        ("Unique UPCs", unique_upcs),
+        ("Total units (unique lines)", total_units),
+    )
+    summary["A1"] = "Field"
+    summary["B1"] = "Value"
+    summary["A1"].fill = _LEDGER_HEADER_FILL
+    summary["B1"].fill = _LEDGER_HEADER_FILL
+    summary["A1"].font = _LEDGER_HEADER_FONT
+    summary["B1"].font = _LEDGER_HEADER_FONT
+    for offset, (label, value) in enumerate(summary_rows, start=2):
+        label_cell = summary.cell(row=offset, column=1, value=label)
+        label_cell.font = _LEDGER_SUMMARY_LABEL_FONT
+        value_cell = summary.cell(row=offset, column=2, value=value)
+        value_cell.font = _LEDGER_BODY_FONT
+    _ledger_autosize(summary, min_width=14, max_width=60)
+
+    upload_headers = (
+        "Filename",
+        "Amazon Shipment ID",
+        "Amazon Shipment Name",
+        "Ship To",
+        "Boxes",
+        "Rows",
+        "Total Units",
+        "Uploaded By",
+        "Uploaded At",
+    )
+    _ledger_write_header(uploads_sheet, upload_headers)
+    for offset, upload in enumerate(uploads, start=2):
+        uploaded_at = str(upload.get("created_at") or "")
+        if uploaded_at.endswith("+00:00"):
+            uploaded_at = uploaded_at[:-6] + "Z"
+        values = (
+            upload.get("filename") or "",
+            upload.get("amazon_shipment_id") or "",
+            upload.get("amazon_shipment_name") or "",
+            upload.get("ship_to") or "",
+            int(upload.get("box_count") or 0),
+            int(upload.get("row_count") or 0),
+            int(upload.get("total_units") or 0),
+            upload.get("uploaded_by_name")
+            or upload.get("uploaded_by_email")
+            or "",
+            uploaded_at,
+        )
+        for column, value in enumerate(values, start=1):
+            cell = uploads_sheet.cell(row=offset, column=column, value=value)
+            cell.font = _LEDGER_BODY_FONT
+    _ledger_autosize(uploads_sheet)
+
+    line_headers = ("SKU", "Description", "UPC", "FNSKU", "Total Units")
+    _ledger_write_header(lines_sheet, line_headers)
+    for offset, item in enumerate(sku_rows, start=2):
+        upc_value: object = int(item.upc) if item.upc.isdigit() else item.upc
+        values = (item.sku, item.description, upc_value, item.fnsku, item.total_units)
+        for column, value in enumerate(values, start=1):
+            cell = lines_sheet.cell(row=offset, column=column, value=value)
+            cell.font = _LEDGER_BODY_FONT
+            if column == 3:
+                cell.number_format = _UPC_NUMBER_FORMAT
+    _ledger_autosize(lines_sheet, max_width=56)
+
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
 
 
 def _build_workbook(sku_rows: Sequence[ShipmentSkuRow]) -> bytes:

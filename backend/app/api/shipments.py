@@ -35,8 +35,10 @@ from app.services.shipment_manager import (
     ShipmentSkuRow,
     build_order_import_workbook,
     build_po_import_workbook,
+    build_shipment_ledger_workbook,
     build_workbook,
     compile_stored_rows,
+    ledger_filename,
     order_import_filename,
     parse_fba_export,
     po_import_filename,
@@ -553,6 +555,81 @@ async def generate_shipment_sheet(
         "X-Shipment-Sku-Count": str(len(rows)),
         "X-Shipment-Collected-Rows": str(collected),
         "X-Shipment-Duplicates-Removed": str(collected - len(rows)),
+    }
+    return Response(content=workbook_bytes, media_type=_XLSX_MEDIA_TYPE, headers=headers)
+
+
+@router.post("/shipments/{shipment_id}/ledger", response_model=None)
+@limiter.limit(RateLimits.FILE_UPLOAD)
+@handle_api_errors("build shipment ledger")
+async def download_shipment_ledger(
+    request: Request,
+    shipment_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Download an Excel ledger of this shipment's details, uploads and unique SKUs."""
+    repo = ShipmentRepository(db)
+    shipment = _load_shipment(repo, shipment_id)
+    try:
+        uploads = repo.list_uploads(str(shipment_id))
+        stored = repo.list_rows_merged(str(shipment_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    rows, collected = compile_stored_rows(stored)
+    names = _display_names(
+        db,
+        [str(shipment.get("created_by") or "")]
+        + [str(item.get("uploaded_by") or "") for item in uploads],
+        {
+            **{
+                str(shipment.get("created_by") or ""): str(shipment.get("created_by_email") or "")
+            },
+            **{
+                str(item.get("uploaded_by") or ""): str(item.get("uploaded_by_email") or "")
+                for item in uploads
+            },
+        },
+    )
+    upload_payload = [
+        {
+            **item,
+            "uploaded_by_name": _person_name(
+                names, item.get("uploaded_by"), item.get("uploaded_by_email")
+            ),
+        }
+        for item in uploads
+    ]
+    registered_by = _person_name(
+        names, shipment.get("created_by"), shipment.get("created_by_email")
+    )
+
+    try:
+        workbook_bytes = build_shipment_ledger_workbook(
+            shipment=shipment,
+            uploads=upload_payload,
+            sku_rows=rows,
+            registered_by=registered_by,
+        )
+    except ShipmentManagerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    filename = _header_safe(ledger_filename(str(shipment.get("name") or ""))) or "LEDGER.xlsx"
+    logger.info(
+        "Shipment %s ledger downloaded by %s: %s unique UPC(s) from %s collected row(s)",
+        shipment_id,
+        current_user.get("email"),
+        len(rows),
+        collected,
+    )
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "X-Shipment-Filename": filename,
+        "X-Shipment-Name": _header_safe(str(shipment.get("name") or "")),
+        "X-Shipment-Sku-Count": str(len(rows)),
+        "X-Shipment-Collected-Rows": str(collected),
+        "X-Shipment-Upload-Count": str(len(uploads)),
     }
     return Response(content=workbook_bytes, media_type=_XLSX_MEDIA_TYPE, headers=headers)
 

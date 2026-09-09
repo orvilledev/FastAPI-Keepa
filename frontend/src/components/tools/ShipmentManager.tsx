@@ -19,6 +19,17 @@ function formatDate(value: string): string {
   return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleDateString()
 }
 
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 function resolveVendorCode(preset: string, custom: string): string {
   if (preset === SHIPMENT_VENDOR_OTHER) return custom.trim().toUpperCase()
   return preset
@@ -35,6 +46,8 @@ export default function ShipmentManager() {
   const [vendorCustom, setVendorCustom] = useState('')
   const [saving, setSaving] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [ledgerId, setLedgerId] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [vendorFilter, setVendorFilter] = useState('all')
   const [contributorFilter, setContributorFilter] = useState('all')
@@ -89,6 +102,7 @@ export default function ShipmentManager() {
     if (!confirmed) return
     setBusyId(shipment.id)
     setError(null)
+    setMessage(null)
     try {
       await shipmentsApi.delete(shipment.id)
       setShipments((prev) => prev.filter((item) => item.id !== shipment.id))
@@ -96,6 +110,26 @@ export default function ShipmentManager() {
       setError(errorDetail(err, 'Could not delete this shipment.'))
     } finally {
       setBusyId(null)
+    }
+  }
+
+  const handleLedger = async (shipment: ShipmentRecord) => {
+    if (ledgerId) return
+    setLedgerId(shipment.id)
+    setError(null)
+    setMessage(null)
+    try {
+      const result = await shipmentsApi.ledger(shipment.id)
+      downloadBlob(result.blob, result.filename)
+      setMessage(
+        `Downloaded ${result.filename} — ${result.skuCount.toLocaleString()} unique UPC` +
+          `${result.skuCount === 1 ? '' : 's'} across ${result.uploadCount} upload` +
+          `${result.uploadCount === 1 ? '' : 's'}.`,
+      )
+    } catch (err) {
+      setError(errorDetail(err, 'Could not download the shipment ledger.'))
+    } finally {
+      setLedgerId(null)
     }
   }
 
@@ -170,6 +204,11 @@ export default function ShipmentManager() {
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {error}
+        </div>
+      )}
+      {message && (
+        <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+          {message}
         </div>
       )}
 
@@ -359,10 +398,18 @@ export default function ShipmentManager() {
                         >
                           Open
                         </Link>
+                        <button
+                          type="button"
+                          disabled={ledgerId === shipment.id || busyId === shipment.id}
+                          onClick={() => void handleLedger(shipment)}
+                          className="rounded-md bg-slate-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                        >
+                          {ledgerId === shipment.id ? 'Building…' : 'Download Ledger'}
+                        </button>
                         {shipment.can_delete && (
                           <button
                             type="button"
-                            disabled={busyId === shipment.id}
+                            disabled={busyId === shipment.id || ledgerId === shipment.id}
                             onClick={() => void handleDelete(shipment)}
                             className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
                           >

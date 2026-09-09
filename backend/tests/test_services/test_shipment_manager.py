@@ -10,10 +10,12 @@ from app.services.shipment_manager import (
     ShipmentSkuRow,
     build_order_import_workbook,
     build_po_import_workbook,
+    build_shipment_ledger_workbook,
     build_workbook,
     build_wr_sku_update,
     compile_stored_rows,
     dedupe_by_upc,
+    ledger_filename,
     order_import_filename,
     parse_fba_export,
     po_import_filename,
@@ -509,6 +511,93 @@ def test_order_import_tolerates_a_catalog_row_with_gaps():
 
 def test_order_import_of_no_rows_is_just_the_template():
     assert _order_sheet([]).max_row == 1
+
+
+# ---- Shipment ledger ----------------------------------------------------
+
+
+def test_ledger_filename_sanitizes_the_shipment_name():
+    assert ledger_filename("NFA WHRP 7.17.26") == "LEDGER NFA WHRP 7.17.26.xlsx"
+    assert ledger_filename('NFA/WHRP: "a"') == "LEDGER NFA WHRP a.xlsx"
+    assert ledger_filename("") == "LEDGER.xlsx"
+
+
+def test_shipment_ledger_has_summary_uploads_and_unique_lines():
+    parsed = parse_fba_export("x.csv", FBA_EXPORT.encode("utf-8"))
+    workbook = load_workbook(
+        io.BytesIO(
+            build_shipment_ledger_workbook(
+                shipment={
+                    "name": "NFA WHRP 7.17.26",
+                    "vendor": "NFA",
+                    "notes": "Week 29",
+                    "created_at": "2026-09-09T12:00:00+00:00",
+                    "created_by_email": "orville@example.com",
+                },
+                uploads=[
+                    {
+                        "filename": "North Face WHRP 7.17.26 1 OF 5.csv",
+                        "amazon_shipment_id": "FBA19JHYH77Q",
+                        "amazon_shipment_name": "NFA WHRP 7.17.26 1 OF 5",
+                        "ship_to": "DEN8",
+                        "box_count": 38,
+                        "row_count": 2,
+                        "total_units": 140,
+                        "uploaded_by": "u1",
+                        "uploaded_by_name": "Orville",
+                        "created_at": "2026-09-09T13:00:00+00:00",
+                    }
+                ],
+                sku_rows=parsed.rows,
+                registered_by="Orville",
+            )
+        )
+    )
+    assert workbook.sheetnames == ["Summary", "Uploads", "Lines"]
+
+    summary = workbook["Summary"]
+    assert summary["A2"].value == "Shipment"
+    assert summary["B2"].value == "NFA WHRP 7.17.26"
+    assert summary["B3"].value == "NFA"
+    assert summary["B5"].value == "Orville"
+    assert summary["B7"].value == 1
+    assert summary["B10"].value == 2
+    assert summary["B11"].value == 140
+
+    uploads = workbook["Uploads"]
+    assert uploads["A1"].value == "Filename"
+    assert uploads["A2"].value == "North Face WHRP 7.17.26 1 OF 5.csv"
+    assert uploads["D2"].value == "DEN8"
+    assert uploads["H2"].value == "Orville"
+
+    lines = workbook["Lines"]
+    assert [lines.cell(1, col).value for col in range(1, 6)] == [
+        "SKU",
+        "Description",
+        "UPC",
+        "FNSKU",
+        "Total Units",
+    ]
+    assert lines["A2"].value == "197642130629-FNSKU"
+    assert lines["C2"].value == 197642130629
+    assert lines["E2"].value == 139
+    assert lines["E3"].value == 1
+    assert lines.max_row == 3
+
+
+def test_shipment_ledger_allows_empty_uploads():
+    workbook = load_workbook(
+        io.BytesIO(
+            build_shipment_ledger_workbook(
+                shipment={"name": "Empty", "vendor": "DNK", "created_at": ""},
+                uploads=[],
+                sku_rows=[],
+            )
+        )
+    )
+    assert workbook["Summary"]["B7"].value == 0
+    assert workbook["Uploads"].max_row == 1
+    assert workbook["Lines"].max_row == 1
 
 
 def test_missing_sku_table_is_rejected():
