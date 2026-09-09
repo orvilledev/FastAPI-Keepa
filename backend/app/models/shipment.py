@@ -1,13 +1,28 @@
 """Pydantic models for registered shipments and their FBA uploads."""
 from datetime import datetime
+import re
 from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+_VENDOR_RE = re.compile(r"^[A-Z0-9]{2,8}$")
+
+
+def _normalize_vendor(value: Optional[str], *, required: bool) -> str:
+    cleaned = (value or "").strip().upper()
+    if not cleaned:
+        if required:
+            raise ValueError("Vendor is required (for example NFA, DNK, or SMW).")
+        return ""
+    if not _VENDOR_RE.match(cleaned):
+        raise ValueError("Vendor must be 2–8 letters or digits, like NFA, DNK, or SMW.")
+    return cleaned
+
 
 class ShipmentCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
+    vendor: str = Field(..., min_length=1, max_length=8)
     notes: Optional[str] = Field(default=None, max_length=10_000)
 
     @field_validator("name")
@@ -17,6 +32,11 @@ class ShipmentCreate(BaseModel):
         if not cleaned:
             raise ValueError("Shipment name is required.")
         return cleaned
+
+    @field_validator("vendor")
+    @classmethod
+    def strip_vendor(cls, value: str) -> str:
+        return _normalize_vendor(value, required=True)
 
     @field_validator("notes")
     @classmethod
@@ -28,6 +48,7 @@ class ShipmentCreate(BaseModel):
 
 class ShipmentUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    vendor: Optional[str] = Field(default=None, max_length=8)
     notes: Optional[str] = Field(default=None, max_length=10_000)
 
     @field_validator("name")
@@ -39,6 +60,13 @@ class ShipmentUpdate(BaseModel):
         if not cleaned:
             raise ValueError("Shipment name is required.")
         return cleaned
+
+    @field_validator("vendor")
+    @classmethod
+    def strip_vendor(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return _normalize_vendor(value, required=True)
 
     @field_validator("notes")
     @classmethod
@@ -70,6 +98,7 @@ class ShipmentResponse(BaseModel):
     id: UUID
     name: str
     notes: Optional[str] = None
+    vendor: str = ""
     created_by: UUID
     created_by_email: str = ""
     created_by_name: str = ""

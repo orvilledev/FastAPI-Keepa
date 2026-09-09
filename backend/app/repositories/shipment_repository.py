@@ -15,6 +15,9 @@ _ROWS = "shipment_sku_rows"
 _MIGRATION_HINT = (
     "Run backend/database/migrations/create_shipments.sql in the Supabase SQL Editor."
 )
+_VENDOR_MIGRATION_HINT = (
+    "Run backend/database/migrations/add_shipments_vendor.sql in the Supabase SQL Editor."
+)
 _ROW_CHUNK = 250
 
 
@@ -29,6 +32,16 @@ def _raise_persist_error(exc: Exception, table: str) -> None:
     )
     if missing_table:
         raise ValueError(f"The {table} table is missing. {_MIGRATION_HINT}") from exc
+    missing_vendor = table == _SHIPMENTS and "vendor" in message and (
+        "column" in message
+        or "schema cache" in message
+        or "pgrst204" in message
+        or "could not find" in message
+    )
+    if missing_vendor:
+        raise ValueError(
+            f"The shipments.vendor column is missing. {_VENDOR_MIGRATION_HINT}"
+        ) from exc
     if "row-level security" in message or "permission denied" in message:
         raise ValueError(
             f"The request was blocked by database permissions on {table}. "

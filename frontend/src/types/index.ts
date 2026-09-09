@@ -90,6 +90,7 @@ export interface ShipmentRecord {
   id: string
   name: string
   notes?: string | null
+  vendor: string
   created_by: string
   created_by_email: string
   created_by_name: string

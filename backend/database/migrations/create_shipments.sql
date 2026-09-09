@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS shipments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   notes TEXT,
+  vendor TEXT NOT NULL DEFAULT '',
   created_by UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   created_by_email TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -16,6 +17,7 @@ CREATE TABLE IF NOT EXISTS shipments (
 
 CREATE INDEX IF NOT EXISTS idx_shipments_created_at ON shipments (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_shipments_created_by ON shipments (created_by);
+CREATE INDEX IF NOT EXISTS idx_shipments_vendor ON shipments (vendor);
 
 -- One row per uploaded FBA export. Deleting it removes that upload's SKU rows.
 CREATE TABLE IF NOT EXISTS shipment_uploads (

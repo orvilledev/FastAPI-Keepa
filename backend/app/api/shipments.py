@@ -215,6 +215,7 @@ def create_shipment(
         shipment = repo.create_shipment(
             {
                 "name": payload.name,
+                "vendor": payload.vendor,
                 "notes": payload.notes,
                 "created_by": current_user["id"],
                 "created_by_email": current_user.get("email") or "",

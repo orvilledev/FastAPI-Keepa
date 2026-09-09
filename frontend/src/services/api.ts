@@ -1870,13 +1870,13 @@ export const shipmentsApi = {
     const response = await api.get<ShipmentDetail>(`/api/v1/shipments/${shipmentId}`)
     return response.data
   },
-  create: async (body: { name: string; notes?: string }): Promise<ShipmentRecord> => {
+  create: async (body: { name: string; vendor: string; notes?: string }): Promise<ShipmentRecord> => {
     const response = await api.post<ShipmentRecord>('/api/v1/shipments', body)
     return response.data
   },
   update: async (
     shipmentId: string,
-    body: { name?: string; notes?: string },
+    body: { name?: string; vendor?: string; notes?: string },
   ): Promise<ShipmentRecord> => {
     const response = await api.patch<ShipmentRecord>(`/api/v1/shipments/${shipmentId}`, body)
     return response.data
