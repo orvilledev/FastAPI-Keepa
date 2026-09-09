@@ -22,6 +22,16 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
+/** Save several files from one click; browsers drop downloads fired in the same tick. */
+async function downloadBlobs(files: Array<{ blob: Blob; filename: string }>) {
+  for (const [index, file] of files.entries()) {
+    if (index > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 350))
+    }
+    downloadBlob(file.blob, file.filename)
+  }
+}
+
 function errorDetail(err: unknown, fallback: string): string {
   const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
   if (typeof detail === 'string' && detail.trim()) return detail
@@ -114,9 +124,10 @@ export default function ShipmentDetail() {
     setMessage(null)
     try {
       const result = await shipmentsApi.poImport(shipmentId, upload.id)
-      downloadBlob(result.blob, result.filename)
+      await downloadBlobs(result.files)
       setMessage(
-        `Downloaded ${result.filename} — ${result.skuCount} line item(s) from ${upload.filename} alone.`,
+        `Downloaded ${result.files.map((file) => file.filename).join(' and ')} — ` +
+          `${result.skuCount} line item(s) from ${upload.filename} alone.`,
       )
     } catch (err) {
       setError(errorDetail(err, 'Could not build the PO Import sheet for this upload.'))
@@ -132,9 +143,10 @@ export default function ShipmentDetail() {
     setMessage(null)
     try {
       const result = await shipmentsApi.orderImport(shipmentId, upload.id)
-      downloadBlob(result.blob, result.filename)
+      await downloadBlobs(result.files)
       setMessage(
-        `Downloaded ${result.filename} — ${result.skuCount} line item(s) from ${upload.filename} alone` +
+        `Downloaded ${result.files.map((file) => file.filename).join(' and ')} — ` +
+          `${result.skuCount} line item(s) from ${upload.filename} alone` +
           (result.shipToCode ? `, shipping to ${result.shipToCode}.` : '.'),
       )
     } catch (err) {

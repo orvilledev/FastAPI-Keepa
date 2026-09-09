@@ -8,7 +8,9 @@ from app.services.shipment_manager import (
     OUTPUT_FILENAME,
     ShipmentManagerError,
     ShipmentSkuRow,
+    build_order_import_text,
     build_order_import_workbook,
+    build_po_import_text,
     build_po_import_workbook,
     build_shipment_ledger_workbook,
     build_workbook,
@@ -25,6 +27,7 @@ from app.services.shipment_manager import (
     supplier_from_filename,
     supplier_from_title,
     supplier_from_titles,
+    text_filename,
 )
 
 FBA_EXPORT = """Workflow name,wf5acb45b4-38bc-4c72-b878-c6b522ac6f99,,
@@ -511,6 +514,94 @@ def test_order_import_tolerates_a_catalog_row_with_gaps():
 
 def test_order_import_of_no_rows_is_just_the_template():
     assert _order_sheet([]).max_row == 1
+
+
+# ---- Tab-delimited twins ------------------------------------------------
+# The warehouse also takes each import sheet as Excel's "Text (Tab delimited)"
+# save-as: every column, no headers, CRLF endings and a trailing newline.
+
+
+def test_text_filename_is_the_workbook_name_with_a_txt_extension():
+    assert text_filename("PO IMPORT North Face FBA1.xlsx") == "PO IMPORT North Face FBA1.txt"
+    assert text_filename("ORDER IMPORT DEN8.XLSX") == "ORDER IMPORT DEN8.txt"
+    assert text_filename("") == "IMPORT.txt"
+
+
+def _po_text_lines(rows=None, *, purchase_order_number="FBA19JHYH77Q", supplier="North Face"):
+    rows = parse_fba_export("x.csv", FBA_EXPORT.encode("utf-8")).rows if rows is None else rows
+    blob = build_po_import_text(
+        rows, purchase_order_number=purchase_order_number, supplier=supplier
+    )
+    assert blob == b"" or blob.endswith(b"\r\n")
+    return [line.split("\t") for line in blob.decode("cp1252").split("\r\n") if line]
+
+
+def _order_text_lines(rows=None, *, reference_number="FBA19JHYH77Q", record=None):
+    rows = parse_fba_export("x.csv", FBA_EXPORT.encode("utf-8")).rows if rows is None else rows
+    address = ship_to_address_from_catalog("DEN8", record if record is not None else DEN8)
+    blob = build_order_import_text(rows, reference_number=reference_number, address=address)
+    assert blob == b"" or blob.endswith(b"\r\n")
+    return [line.split("\t") for line in blob.decode("cp1252").split("\r\n") if line]
+
+
+def test_po_import_text_carries_no_headers_and_every_column():
+    lines = _po_text_lines()
+    assert len(lines) == 2
+    assert all(len(line) == 9 for line in lines)
+    assert lines[0] == [
+        "FBA19JHYH77Q",
+        "North Face",
+        "",
+        "",
+        "197642130629-FNSKU",
+        "139",
+        "WHREP Ontario",
+        "",
+        "",
+    ]
+
+
+def test_order_import_text_carries_no_headers_and_every_column():
+    lines = _order_text_lines()
+    assert len(lines) == 2
+    assert all(len(line) == 35 for line in lines)
+    assert lines[0][:2] == ["FBA19JHYH77Q", "FBA19JHYH77Q"]
+    assert lines[0][10:17] == [
+        "DEN8 Amazon",
+        "21000 E 13th Ave",
+        "",
+        "AURORA",
+        "CO",
+        "80018",
+        "US",
+    ]
+    assert lines[0][23:25] == ["197642130629-FNSKU", "139"]
+
+
+@pytest.mark.parametrize(
+    "text_lines, workbook_sheet, first_data_row, width",
+    [
+        (_po_text_lines, _po_sheet, 6, 9),
+        (_order_text_lines, _order_sheet, 2, 35),
+    ],
+)
+def test_import_text_matches_its_workbook_cell_for_cell(
+    text_lines, workbook_sheet, first_data_row, width
+):
+    """The .txt is a render of the same rows, so it can never drift from the sheet."""
+    lines = text_lines()
+    sheet = workbook_sheet()
+    for offset, line in enumerate(lines):
+        row = first_data_row + offset
+        for column in range(1, width + 1):
+            value = sheet.cell(row, column).value
+            assert line[column - 1] == ("" if value is None else str(value))
+
+
+def test_import_text_of_no_rows_is_empty():
+    assert build_po_import_text([], purchase_order_number="X", supplier="Y") == b""
+    assert _po_text_lines([]) == []
+    assert _order_text_lines([]) == []
 
 
 # ---- Shipment ledger ----------------------------------------------------

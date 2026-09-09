@@ -1,4 +1,5 @@
 import axios from 'axios'
+import JSZip from 'jszip'
 import { supabase } from '../lib/supabase'
 import { isMfaAuthRoute, redirectForIncompleteMfa } from '../lib/mfa'
 import { isElectronDesktop } from '../lib/privatePath'
@@ -1815,17 +1816,24 @@ export type ShipmentCompileResult = {
   duplicatesRemoved: number
 }
 
-export type ShipmentPoImportResult = {
+export type ShipmentDownloadFile = {
   blob: Blob
   filename: string
+}
+
+export type ShipmentPoImportResult = {
+  files: ShipmentDownloadFile[]
+  filename: string
+  textFilename: string
   poNumber: string
   supplier: string
   skuCount: number
 }
 
 export type ShipmentOrderImportResult = {
-  blob: Blob
+  files: ShipmentDownloadFile[]
   filename: string
+  textFilename: string
   referenceNumber: string
   shipToCode: string
   skuCount: number
@@ -1841,6 +1849,27 @@ export type ShipmentLedgerResult = {
 }
 
 type ResponseHeaders = Record<string, unknown>
+
+/**
+ * The import endpoints answer with a zip so one click can save both the sheet
+ * and its tab-delimited twin. Unpack it in the requested order.
+ */
+async function unzipShipmentImport(
+  bundle: Blob,
+  names: string[],
+): Promise<ShipmentDownloadFile[]> {
+  const zip = await JSZip.loadAsync(await bundle.arrayBuffer())
+  const files: ShipmentDownloadFile[] = []
+  for (const name of names) {
+    const entry = name ? zip.file(name) : null
+    if (entry) files.push({ blob: await entry.async('blob'), filename: name })
+  }
+  if (files.length) return files
+  for (const [name, entry] of Object.entries(zip.files)) {
+    if (!entry.dir) files.push({ blob: await entry.async('blob'), filename: name })
+  }
+  return files
+}
 
 function shipmentDownloadFilename(headers: ResponseHeaders, fallback: string): string {
   const named = headers['x-shipment-filename']
@@ -1962,9 +1991,12 @@ export const shipmentsApi = {
         { responseType: 'blob', timeout: 180_000 },
       )
       const headers = (response.headers || {}) as ResponseHeaders
+      const filename = shipmentDownloadFilename(headers, 'PO IMPORT.xlsx')
+      const textFilename = String(headers['x-shipment-text-filename'] || '')
       return {
-        blob: response.data,
-        filename: shipmentDownloadFilename(headers, 'PO IMPORT.xlsx'),
+        files: await unzipShipmentImport(response.data, [filename, textFilename]),
+        filename,
+        textFilename,
         poNumber: String(headers['x-shipment-po-number'] || ''),
         supplier: String(headers['x-shipment-supplier'] || ''),
         skuCount: Number(headers['x-shipment-sku-count'] || 0),
@@ -1984,9 +2016,12 @@ export const shipmentsApi = {
         { responseType: 'blob', timeout: 180_000 },
       )
       const headers = (response.headers || {}) as ResponseHeaders
+      const filename = shipmentDownloadFilename(headers, 'ORDER IMPORT.xlsx')
+      const textFilename = String(headers['x-shipment-text-filename'] || '')
       return {
-        blob: response.data,
-        filename: shipmentDownloadFilename(headers, 'ORDER IMPORT.xlsx'),
+        files: await unzipShipmentImport(response.data, [filename, textFilename]),
+        filename,
+        textFilename,
         referenceNumber: String(headers['x-shipment-reference-number'] || ''),
         shipToCode: String(headers['x-shipment-ship-to-code'] || ''),
         skuCount: Number(headers['x-shipment-sku-count'] || 0),

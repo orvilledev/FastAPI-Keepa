@@ -6,7 +6,9 @@ Update sheet is compiled, so removing one upload never disturbs another's rows.
 The PO Import and Order Import sheets are built per upload instead of merged,
 because one purchase order covers one FBA shipment.
 """
+import io
 import logging
+import zipfile
 from typing import List, Optional
 from uuid import UUID
 
@@ -33,7 +35,9 @@ from app.services.shipment_manager import (
     OUTPUT_FILENAME,
     ShipmentManagerError,
     ShipmentSkuRow,
+    build_order_import_text,
     build_order_import_workbook,
+    build_po_import_text,
     build_po_import_workbook,
     build_shipment_ledger_workbook,
     build_workbook,
@@ -46,6 +50,7 @@ from app.services.shipment_manager import (
     ship_to_address_from_catalog,
     ship_to_code,
     stored_rows_to_sku_rows,
+    text_filename,
 )
 from app.utils.error_handler import handle_api_errors
 from app.utils.user_display_name import resolve_user_display_name
@@ -57,6 +62,30 @@ router = APIRouter()
 _MAX_BYTES = 15 * 1024 * 1024
 _ACCEPTED_SUFFIXES = INPUT_SUFFIXES
 _XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+_ZIP_MEDIA_TYPE = "application/zip"
+
+
+def _bundle_filename(workbook_filename: str) -> str:
+    """The zip the browser receives before it is split back into the two files."""
+    stem = workbook_filename[: -len(".xlsx")] if workbook_filename.lower().endswith(
+        ".xlsx"
+    ) else workbook_filename
+    return f"{stem}.zip"
+
+
+def _zip_import_pair(
+    *,
+    workbook_name: str,
+    workbook_bytes: bytes,
+    text_name: str,
+    text_bytes: bytes,
+) -> bytes:
+    """Bundle a sheet and its tab-delimited twin so one click yields both files."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(workbook_name, workbook_bytes)
+        archive.writestr(text_name, text_bytes)
+    return buffer.getvalue()
 
 
 def _header_safe(value: str) -> str:
@@ -676,7 +705,11 @@ async def generate_upload_po_import(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
-    """Build one upload's own PO Import sheet, never merged with the other uploads."""
+    """Build one upload's own PO Import sheet and its tab-delimited twin.
+
+    Never merged with the other uploads. The response is a zip holding the
+    .xlsx and the .txt so a single click delivers both files.
+    """
     repo = ShipmentRepository(db)
     _load_shipment(repo, shipment_id)
     upload = _load_upload(repo, shipment_id, upload_id)
@@ -694,10 +727,22 @@ async def generate_upload_po_import(
             purchase_order_number=purchase_order_number,
             supplier=supplier,
         )
+        text_bytes = build_po_import_text(
+            rows,
+            purchase_order_number=purchase_order_number,
+            supplier=supplier,
+        )
     except ShipmentManagerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     filename = _header_safe(po_import_filename(purchase_order_number, supplier)) or "PO IMPORT.xlsx"
+    txt_name = text_filename(filename)
+    bundle = _zip_import_pair(
+        workbook_name=filename,
+        workbook_bytes=workbook_bytes,
+        text_name=txt_name,
+        text_bytes=text_bytes,
+    )
     logger.info(
         "Shipment %s upload %s PO import built by %s: %s line(s)",
         shipment_id,
@@ -706,13 +751,14 @@ async def generate_upload_po_import(
         len(rows),
     )
     headers = {
-        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Content-Disposition": f'attachment; filename="{_bundle_filename(filename)}"',
         "X-Shipment-Filename": filename,
+        "X-Shipment-Text-Filename": txt_name,
         "X-Shipment-Po-Number": _header_safe(purchase_order_number),
         "X-Shipment-Supplier": _header_safe(supplier),
         "X-Shipment-Sku-Count": str(len(rows)),
     }
-    return Response(content=workbook_bytes, media_type=_XLSX_MEDIA_TYPE, headers=headers)
+    return Response(content=bundle, media_type=_ZIP_MEDIA_TYPE, headers=headers)
 
 
 @router.post("/shipments/{shipment_id}/uploads/{upload_id}/order-import", response_model=None)
@@ -725,10 +771,11 @@ async def generate_upload_order_import(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
-    """Build one upload's own Order Import sheet, never merged with the other uploads.
+    """Build one upload's own Order Import sheet and its tab-delimited twin.
 
     The ship-to block is the Ship To Address Catalog entry for the fulfilment
-    centre code on the export's "Ship to" line.
+    centre code on the export's "Ship to" line. The response is a zip holding
+    the .xlsx and the .txt so a single click delivers both files.
     """
     repo = ShipmentRepository(db)
     _load_shipment(repo, shipment_id)
@@ -745,11 +792,23 @@ async def generate_upload_order_import(
             reference_number=reference_number,
             address=address,
         )
+        text_bytes = build_order_import_text(
+            rows,
+            reference_number=reference_number,
+            address=address,
+        )
     except ShipmentManagerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     filename = (
         _header_safe(order_import_filename(reference_number, code)) or "ORDER IMPORT.xlsx"
+    )
+    txt_name = text_filename(filename)
+    bundle = _zip_import_pair(
+        workbook_name=filename,
+        workbook_bytes=workbook_bytes,
+        text_name=txt_name,
+        text_bytes=text_bytes,
     )
     logger.info(
         "Shipment %s upload %s order import built by %s: %s line(s) to %s",
@@ -760,10 +819,11 @@ async def generate_upload_order_import(
         code,
     )
     headers = {
-        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Content-Disposition": f'attachment; filename="{_bundle_filename(filename)}"',
         "X-Shipment-Filename": filename,
+        "X-Shipment-Text-Filename": txt_name,
         "X-Shipment-Reference-Number": _header_safe(reference_number),
         "X-Shipment-Ship-To-Code": _header_safe(code),
         "X-Shipment-Sku-Count": str(len(rows)),
     }
-    return Response(content=workbook_bytes, media_type=_XLSX_MEDIA_TYPE, headers=headers)
+    return Response(content=bundle, media_type=_ZIP_MEDIA_TYPE, headers=headers)

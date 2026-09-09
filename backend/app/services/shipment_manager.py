@@ -61,9 +61,17 @@ _META_BOXES = "boxes"
 
 _FNSKU_SUFFIX = re.compile(r"[-_\s]*FNSKU$", re.IGNORECASE)
 
+# --- Import text files ----------------------------------------------------
+# The warehouse also takes each import sheet as Excel's "Text (Tab delimited)"
+# save-as: every template column, tab separated, no header or banner rows,
+# CRLF line endings and a trailing newline, written in ANSI like Excel does.
+_TEXT_ENCODING = "cp1252"
+_TEXT_NEWLINE = "\r\n"
+
 # --- PO Import template ---------------------------------------------------
 # Rows 1-4 are the banner and row 5 holds the headers, so data starts at row 6.
 _PO_FIRST_DATA_ROW = 6
+_PO_COLUMN_COUNT = 9
 _PO_COL_PURCHASE_ORDER_NUMBER = 1
 _PO_COL_SUPPLIER_COMPANY_NAME = 2
 _PO_COL_ITEM_NUMBER = 5
@@ -139,6 +147,7 @@ _SUPPLIER_TOKEN_SPLIT = re.compile(r"[\s_\-]+")
 # --- Order Import template ------------------------------------------------
 # Row 1 holds the headers, so data starts at row 2.
 _ORDER_FIRST_DATA_ROW = 2
+_ORDER_COLUMN_COUNT = 35
 _ORDER_COL_REFERENCE_NUMBER = 1
 _ORDER_COL_PURCHASE_ORDER_NUMBER = 2
 _ORDER_COL_SHIP_TO_COMPANY = 11
@@ -630,10 +639,62 @@ def resolve_po_supplier(
     return _supplier_from_code_token(shipment_name) or _supplier_from_code_token(filename)
 
 
+def text_filename(workbook_filename: str) -> str:
+    """The .txt twin of an import workbook, so the pair is obviously one set."""
+    stem = re.sub(r"\.xlsx$", "", workbook_filename or "", flags=re.IGNORECASE)
+    return f"{stem}.txt" if stem else "IMPORT.txt"
+
+
+def _text_cell(value: object) -> str:
+    """Render one cell the way Excel's tab-delimited save-as does."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
+
+def _rows_to_tab_text(rows: Sequence[Sequence[object]]) -> bytes:
+    """Join full-width rows into the warehouse's tab-delimited text file."""
+    lines = ["\t".join(_text_cell(cell) for cell in row) for row in rows]
+    if not lines:
+        return b""
+    body = _TEXT_NEWLINE.join(lines) + _TEXT_NEWLINE
+    # Excel writes ANSI and substitutes anything the code page cannot express.
+    return body.encode(_TEXT_ENCODING, errors="replace")
+
+
 def po_import_filename(purchase_order_number: str, supplier: str) -> str:
     """Name the PO Import download after whatever identifies the upload."""
     label = " ".join(part for part in (supplier.strip(), purchase_order_number.strip()) if part)
     return f"PO IMPORT {label}.xlsx" if label else "PO IMPORT.xlsx"
+
+
+def _po_import_rows(
+    sku_rows: Sequence[ShipmentSkuRow],
+    *,
+    purchase_order_number: str,
+    supplier: str,
+) -> List[List[object]]:
+    """One full-width PO template row per SKU — the single source both outputs render.
+
+    Facility is always WHREP Ontario. IssueDate, PONotes, ExpectedDate and
+    LineItemNotes stay blank — the FBA export does not carry them.
+    """
+    purchase_order = purchase_order_number.strip()
+    company = supplier.strip()
+    rows: List[List[object]] = []
+    for item in sku_rows:
+        row: List[object] = [""] * _PO_COLUMN_COUNT
+        row[_PO_COL_PURCHASE_ORDER_NUMBER - 1] = purchase_order
+        row[_PO_COL_SUPPLIER_COMPANY_NAME - 1] = company
+        row[_PO_COL_ITEM_NUMBER - 1] = item.sku or ""
+        row[_PO_COL_ITEM_QUANTITY - 1] = item.total_units
+        row[_PO_COL_FACILITY - 1] = _PO_FACILITY
+        rows.append(row)
+    return rows
 
 
 def build_po_import_workbook(
@@ -642,28 +703,20 @@ def build_po_import_workbook(
     purchase_order_number: str,
     supplier: str,
 ) -> bytes:
-    """Render one upload's rows into a copy of the Berry PO import template.
-
-    Facility is always WHREP Ontario. IssueDate, PONotes, ExpectedDate and
-    LineItemNotes stay blank — the FBA export does not carry them.
-    """
+    """Render one upload's rows into a copy of the Berry PO import template."""
     if not PO_TEMPLATE_PATH.is_file():
         raise ShipmentManagerError("The PO Import template file is missing on the server.")
 
+    rows = _po_import_rows(
+        sku_rows, purchase_order_number=purchase_order_number, supplier=supplier
+    )
     workbook = load_workbook(PO_TEMPLATE_PATH)
     try:
         sheet = workbook.active
-        for offset, item in enumerate(sku_rows):
+        for offset, row in enumerate(rows):
             row_number = _PO_FIRST_DATA_ROW + offset
-            values = (
-                (_PO_COL_PURCHASE_ORDER_NUMBER, purchase_order_number.strip() or None),
-                (_PO_COL_SUPPLIER_COMPANY_NAME, supplier.strip() or None),
-                (_PO_COL_ITEM_NUMBER, item.sku or None),
-                (_PO_COL_ITEM_QUANTITY, item.total_units),
-                (_PO_COL_FACILITY, _PO_FACILITY),
-            )
-            for column, value in values:
-                if value is None:
+            for column, value in enumerate(row, start=1):
+                if value == "":
                     continue
                 cell = sheet.cell(row=row_number, column=column, value=value)
                 cell.font = _PO_BODY_FONT
@@ -672,6 +725,20 @@ def build_po_import_workbook(
         return buffer.getvalue()
     finally:
         workbook.close()
+
+
+def build_po_import_text(
+    sku_rows: Sequence[ShipmentSkuRow],
+    *,
+    purchase_order_number: str,
+    supplier: str,
+) -> bytes:
+    """The PO Import sheet as tab-delimited text, line for line with the workbook."""
+    return _rows_to_tab_text(
+        _po_import_rows(
+            sku_rows, purchase_order_number=purchase_order_number, supplier=supplier
+        )
+    )
 
 
 def ship_to_code(ship_to: str) -> str:
@@ -705,42 +772,57 @@ def order_import_filename(reference_number: str, code: str) -> str:
     return f"ORDER IMPORT {label}.xlsx" if label else "ORDER IMPORT.xlsx"
 
 
+def _order_import_rows(
+    sku_rows: Sequence[ShipmentSkuRow],
+    *,
+    reference_number: str,
+    address: ShipToAddress,
+) -> List[List[object]]:
+    """One full-width order template row per SKU — the single source both outputs render.
+
+    Reference Number and Purchase Order Number are both the FBA shipment id, and
+    every line repeats the same ship-to block. The carrier, date, phone and
+    option columns stay blank — the FBA export does not carry them.
+    """
+    reference = reference_number.strip()
+    rows: List[List[object]] = []
+    for item in sku_rows:
+        row: List[object] = [""] * _ORDER_COLUMN_COUNT
+        row[_ORDER_COL_REFERENCE_NUMBER - 1] = reference
+        row[_ORDER_COL_PURCHASE_ORDER_NUMBER - 1] = reference
+        row[_ORDER_COL_SHIP_TO_COMPANY - 1] = address.company
+        row[_ORDER_COL_SHIP_TO_ADDRESS_1 - 1] = address.address_1
+        row[_ORDER_COL_SHIP_TO_ADDRESS_2 - 1] = address.address_2
+        row[_ORDER_COL_SHIP_TO_CITY - 1] = address.city
+        row[_ORDER_COL_SHIP_TO_STATE - 1] = address.state
+        row[_ORDER_COL_SHIP_TO_ZIP - 1] = address.postal_code
+        row[_ORDER_COL_SHIP_TO_COUNTRY - 1] = address.country
+        row[_ORDER_COL_SKU - 1] = item.sku or ""
+        row[_ORDER_COL_QUANTITY - 1] = item.total_units
+        rows.append(row)
+    return rows
+
+
 def build_order_import_workbook(
     sku_rows: Sequence[ShipmentSkuRow],
     *,
     reference_number: str,
     address: ShipToAddress,
 ) -> bytes:
-    """Render one upload's rows into a copy of the warehouse order import template.
-
-    Reference Number and Purchase Order Number are both the FBA shipment id, and
-    every line repeats the same ship-to block. The carrier, date, phone and
-    option columns stay blank — the FBA export does not carry them.
-    """
+    """Render one upload's rows into a copy of the warehouse order import template."""
     if not ORDER_TEMPLATE_PATH.is_file():
         raise ShipmentManagerError("The Order Import template file is missing on the server.")
 
-    reference = reference_number.strip()
+    rows = _order_import_rows(
+        sku_rows, reference_number=reference_number, address=address
+    )
     workbook = load_workbook(ORDER_TEMPLATE_PATH)
     try:
         sheet = workbook["Order Import Template"]
-        for offset, item in enumerate(sku_rows):
+        for offset, row in enumerate(rows):
             row_number = _ORDER_FIRST_DATA_ROW + offset
-            values = (
-                (_ORDER_COL_REFERENCE_NUMBER, reference or None),
-                (_ORDER_COL_PURCHASE_ORDER_NUMBER, reference or None),
-                (_ORDER_COL_SHIP_TO_COMPANY, address.company or None),
-                (_ORDER_COL_SHIP_TO_ADDRESS_1, address.address_1 or None),
-                (_ORDER_COL_SHIP_TO_ADDRESS_2, address.address_2 or None),
-                (_ORDER_COL_SHIP_TO_CITY, address.city or None),
-                (_ORDER_COL_SHIP_TO_STATE, address.state or None),
-                (_ORDER_COL_SHIP_TO_ZIP, address.postal_code or None),
-                (_ORDER_COL_SHIP_TO_COUNTRY, address.country or None),
-                (_ORDER_COL_SKU, item.sku or None),
-                (_ORDER_COL_QUANTITY, item.total_units),
-            )
-            for column, value in values:
-                if value is None:
+            for column, value in enumerate(row, start=1):
+                if value == "":
                     continue
                 cell = sheet.cell(row=row_number, column=column, value=value)
                 cell.font = _ORDER_BODY_FONT
@@ -751,6 +833,18 @@ def build_order_import_workbook(
         return buffer.getvalue()
     finally:
         workbook.close()
+
+
+def build_order_import_text(
+    sku_rows: Sequence[ShipmentSkuRow],
+    *,
+    reference_number: str,
+    address: ShipToAddress,
+) -> bytes:
+    """The Order Import sheet as tab-delimited text, line for line with the workbook."""
+    return _rows_to_tab_text(
+        _order_import_rows(sku_rows, reference_number=reference_number, address=address)
+    )
 
 
 def parse_fba_export(filename: str, content: bytes) -> ShipmentManagerResult:

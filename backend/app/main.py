@@ -126,6 +126,7 @@ app.add_middleware(
         "X-Shipment-Reference-Number",
         "X-Shipment-Ship-To-Code",
         "X-Shipment-Upload-Count",
+        "X-Shipment-Text-Filename",
     ],
 )
 
