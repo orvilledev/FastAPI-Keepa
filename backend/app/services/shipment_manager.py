@@ -1,18 +1,13 @@
-"""Shipment Manager — turn Amazon FBA shipment exports into warehouse sheets.
+"""Shipment Manager — turn Amazon FBA shipment exports into a WR SKU Update sheet.
 
 The FBA "Individual units" export carries a metadata preamble, a SKU table, and a
-per-box footer. Only the SKU table feeds the outputs.
+per-box footer. Only the SKU table feeds the WR SKU Update sheet: SKU, Title and
+FNSKU copy across verbatim and the UPC is the numeric portion of the SKU. The nine
+dimension columns are left empty for the warehouse team to fill in.
 
-Two sheets come out of it:
-
-* **WR SKU Update** — one row per UPC across the whole shipment. SKU, Title and
-  FNSKU copy across verbatim and the UPC is the numeric portion of the SKU. The
-  nine dimension columns are left empty for the warehouse team to fill in.
-  A registered shipment collects the rows from several uploads; each upload keeps
-  its own rows, and `dedupe_by_upc` collapses them to one row per UPC only when
-  the sheet is compiled — so removing one upload never disturbs another's rows.
-* **PO Import** — the Berry purchase-order import template, built per upload
-  rather than merged, because one purchase order covers one FBA shipment.
+A registered shipment collects the rows from several uploads. Each upload keeps
+its own rows, and `dedupe_by_upc` collapses them to one row per UPC only when the
+sheet is compiled — so removing one upload never disturbs another's rows.
 """
 import csv
 import io
@@ -23,18 +18,17 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
 from openpyxl import load_workbook
-from openpyxl.styles import Font
 
 logger = logging.getLogger(__name__)
 
 OUTPUT_FILENAME = "WR SKU UPDATE TEMPLATE.xlsx"
 
-INPUT_SUFFIXES = (".csv", ".txt", ".tsv", ".xlsx", ".xlsm")
-
-_STATIC_DIR = Path(__file__).resolve().parent.parent / "static" / "shipment_manager"
-
-TEMPLATE_PATH = _STATIC_DIR / "WR_SKU_UPDATE_TEMPLATE.xlsx"
-PO_TEMPLATE_PATH = _STATIC_DIR / "WR_PO_IMPORT_TEMPLATE.xlsx"
+TEMPLATE_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "static"
+    / "shipment_manager"
+    / "WR_SKU_UPDATE_TEMPLATE.xlsx"
+)
 
 _MAX_ROWS_SCANNED = 20000
 _HEADER_SEARCH_LIMIT = 60
@@ -55,45 +49,6 @@ _META_SHIP_TO = "ship to"
 _META_BOXES = "boxes"
 
 _FNSKU_SUFFIX = re.compile(r"[-_\s]*FNSKU$", re.IGNORECASE)
-
-# --- PO Import template ---------------------------------------------------
-# Rows 1-4 are the banner and row 5 holds the headers, so data starts at row 6.
-_PO_FIRST_DATA_ROW = 6
-_PO_COL_PURCHASE_ORDER_NUMBER = 1
-_PO_COL_SUPPLIER_COMPANY_NAME = 2
-_PO_COL_ITEM_NUMBER = 5
-_PO_COL_ITEM_QUANTITY = 6
-# The template's own body typeface; blank columns keep the sheet default.
-_PO_BODY_FONT = Font(name="Open Sans", size=11, family=2)
-
-# Where the supplier name stops in an export's filename. Everything before the
-# first date, count or warehouse code is the supplier: "North Face WHRP 7.17.26
-# 1 OF 5.csv" -> "North Face".
-_SUPPLIER_STOP_WORDS = frozenset(
-    {
-        "box",
-        "boxes",
-        "contents",
-        "export",
-        "fba",
-        "individual",
-        "of",
-        "pallet",
-        "pallets",
-        "ship",
-        "shipment",
-        "shipments",
-        "sku",
-        "skus",
-        "to",
-        "unit",
-        "units",
-        "wh",
-        "whrep",
-        "whrp",
-    }
-)
-_SUPPLIER_TOKEN_SPLIT = re.compile(r"[\s_\-]+")
 
 
 class ShipmentManagerError(Exception):
@@ -314,74 +269,6 @@ def _build_workbook(sku_rows: Sequence[ShipmentSkuRow]) -> bytes:
             upc_cell.value = int(item.upc) if item.upc.isdigit() else item.upc or None
             upc_cell.number_format = _UPC_NUMBER_FORMAT
             sheet.cell(row=row_number, column=4, value=item.fnsku)
-        buffer = io.BytesIO()
-        workbook.save(buffer)
-        return buffer.getvalue()
-    finally:
-        workbook.close()
-
-
-def supplier_from_filename(filename: str) -> str:
-    """The leading words of an export's filename, which name the supplier.
-
-    Uploads are named after the vendor and the warehouse run — "North Face WHRP
-    7.17.26 1 OF 5.csv", "Dansko WHRP 8.1.26.csv" — so the supplier is every word
-    before the first warehouse code, date or count. A filename that starts with
-    the FBA id carries no supplier and yields "".
-    """
-    stem = (filename or "").replace("\\", "/").rsplit("/", 1)[-1].strip()
-    for suffix in INPUT_SUFFIXES:
-        if stem.lower().endswith(suffix):
-            stem = stem[: -len(suffix)]
-            break
-
-    words: List[str] = []
-    for token in _SUPPLIER_TOKEN_SPLIT.split(stem):
-        word = token.strip(" .,()[]{}")
-        if not word:
-            continue
-        if word.lower() in _SUPPLIER_STOP_WORDS or any(char.isdigit() for char in word):
-            break
-        words.append(word)
-    return " ".join(words)
-
-
-def po_import_filename(purchase_order_number: str, supplier: str) -> str:
-    """Name the PO Import download after whatever identifies the upload."""
-    label = " ".join(part for part in (supplier.strip(), purchase_order_number.strip()) if part)
-    return f"PO IMPORT {label}.xlsx" if label else "PO IMPORT.xlsx"
-
-
-def build_po_import_workbook(
-    sku_rows: Sequence[ShipmentSkuRow],
-    *,
-    purchase_order_number: str,
-    supplier: str,
-) -> bytes:
-    """Render one upload's rows into a copy of the Berry PO import template.
-
-    IssueDate, PONotes, Facility, ExpectedDate and LineItemNotes are left blank —
-    the FBA export does not carry them and the warehouse team fills them in.
-    """
-    if not PO_TEMPLATE_PATH.is_file():
-        raise ShipmentManagerError("The PO Import template file is missing on the server.")
-
-    workbook = load_workbook(PO_TEMPLATE_PATH)
-    try:
-        sheet = workbook.active
-        for offset, item in enumerate(sku_rows):
-            row_number = _PO_FIRST_DATA_ROW + offset
-            values = (
-                (_PO_COL_PURCHASE_ORDER_NUMBER, purchase_order_number.strip() or None),
-                (_PO_COL_SUPPLIER_COMPANY_NAME, supplier.strip() or None),
-                (_PO_COL_ITEM_NUMBER, item.sku or None),
-                (_PO_COL_ITEM_QUANTITY, item.total_units),
-            )
-            for column, value in values:
-                if value is None:
-                    continue
-                cell = sheet.cell(row=row_number, column=column, value=value)
-                cell.font = _PO_BODY_FONT
         buffer = io.BytesIO()
         workbook.save(buffer)
         return buffer.getvalue()

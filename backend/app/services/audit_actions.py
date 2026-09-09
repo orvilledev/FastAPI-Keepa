@@ -278,8 +278,6 @@ _ROUTES: Tuple[_Route, ...] = (
        "shipment.upload", "tool", "Uploaded an FBA export to a shipment"),
     _r("DELETE", r"^/api/v1/shipments/[^/]+/uploads/[^/]+$",
        "shipment.upload_remove", "tool", "Removed an upload from a shipment"),
-    _r("POST", r"^/api/v1/shipments/[^/]+/uploads/[^/]+/po-import$",
-       "shipment.po_import", "download", "Built a PO Import sheet for one upload"),
     _r("POST", r"^/api/v1/shipments/[^/]+/generate$",
        "shipment.generate", "download", "Compiled a shipment WR SKU Update sheet"),
     _r("POST", r"^/api/v1/cli-chat/turn$", "chat.turn", "tool", "Sent a CLI chat message"),

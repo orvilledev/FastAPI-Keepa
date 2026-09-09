@@ -1,4 +1,4 @@
-"""Tests for the Shipment Manager FBA export -> WR SKU Update / PO Import conversions."""
+"""Tests for the Shipment Manager FBA export -> WR SKU Update conversion."""
 import io
 
 import pytest
@@ -8,14 +8,11 @@ from app.services.shipment_manager import (
     OUTPUT_FILENAME,
     ShipmentManagerError,
     ShipmentSkuRow,
-    build_po_import_workbook,
     build_workbook,
     build_wr_sku_update,
     compile_stored_rows,
     dedupe_by_upc,
     parse_fba_export,
-    po_import_filename,
-    supplier_from_filename,
 )
 
 FBA_EXPORT = """Workflow name,wf5acb45b4-38bc-4c72-b878-c6b522ac6f99,,
@@ -189,109 +186,6 @@ def test_compile_stored_rows_merges_uploads_and_drops_duplicate_upcs():
     assert [row.upc for row in unique] == ["111", "222", "333"]
     assert unique[0].description == "First file"
     assert unique[2].description == "Second file new"
-
-
-# ---- PO Import sheet ----------------------------------------------------
-
-
-def _po_sheet(rows=None, *, purchase_order_number="FBA19JHYH77Q", supplier="North Face"):
-    rows = parse_fba_export("x.csv", FBA_EXPORT.encode("utf-8")).rows if rows is None else rows
-    workbook = load_workbook(
-        io.BytesIO(
-            build_po_import_workbook(
-                rows, purchase_order_number=purchase_order_number, supplier=supplier
-            )
-        )
-    )
-    return workbook.active
-
-
-@pytest.mark.parametrize(
-    "filename, expected",
-    [
-        ("North Face WHRP 7.17.26 1 OF 5.csv", "North Face"),
-        ("Dansko WHRP 8.1.26.xlsx", "Dansko"),
-        ("north-face-whrp-7.17.26.txt", "north face"),
-        ("Dansko 8.1.26 2 of 3.csv", "Dansko"),
-        ("C:\\Users\\me\\Downloads\\North Face WHRP 7.17.26.csv", "North Face"),
-        ("North Face.csv", "North Face"),
-        # No supplier in the title: the FBA id leads, so there is nothing to take.
-        ("FBA19JHYH77Q.csv", ""),
-        ("", ""),
-    ],
-)
-def test_supplier_is_the_leading_words_of_the_filename(filename, expected):
-    assert supplier_from_filename(filename) == expected
-
-
-def test_po_import_filename_names_the_supplier_and_purchase_order():
-    assert po_import_filename("FBA19JHYH77Q", "North Face") == "PO IMPORT North Face FBA19JHYH77Q.xlsx"
-    assert po_import_filename("FBA19JHYH77Q", "") == "PO IMPORT FBA19JHYH77Q.xlsx"
-    assert po_import_filename("", "") == "PO IMPORT.xlsx"
-
-
-def test_po_import_keeps_the_template_headers_and_banner():
-    sheet = _po_sheet()
-    assert sheet.title == "Purchase Order Import Template"
-    assert [sheet.cell(5, col).value for col in range(1, 10)] == [
-        "PurchaseOrderNumber",
-        "SupplierCompanyName",
-        "IssueDate",
-        "PONotes",
-        "ItemNumber",
-        "ItemQuantity",
-        "Facility",
-        "ExpectedDate",
-        "LineItemNotes",
-    ]
-    assert sheet["B1"].value.startswith("Purchase Order Import Template")
-    assert sheet["A5"].font.name == "Lato Black"
-    assert {str(rng) for rng in sheet.merged_cells.ranges} == {"A1:A4", "B1:I4"}
-    assert round(sheet.column_dimensions["B"].width, 4) == 52.4258
-
-
-def test_po_import_writes_one_line_per_sku_from_row_six():
-    sheet = _po_sheet()
-    assert [sheet.cell(row, 1).value for row in (6, 7)] == ["FBA19JHYH77Q", "FBA19JHYH77Q"]
-    assert [sheet.cell(row, 2).value for row in (6, 7)] == ["North Face", "North Face"]
-    assert [sheet.cell(row, 5).value for row in (6, 7)] == [
-        "197642130629-FNSKU",
-        "198268844372-FNSKU",
-    ]
-    assert [sheet.cell(row, 6).value for row in (6, 7)] == [139, 1]
-    assert sheet.max_row == 7
-
-
-def test_po_import_line_items_use_the_template_body_font():
-    sheet = _po_sheet()
-    assert sheet["A6"].font.name == "Open Sans"
-    assert sheet["F6"].font.sz == 11
-
-
-def test_po_import_leaves_the_optional_columns_blank():
-    sheet = _po_sheet()
-    # IssueDate, PONotes, Facility, ExpectedDate, LineItemNotes.
-    assert all(sheet.cell(row, col).value is None for row in (6, 7) for col in (3, 4, 7, 8, 9))
-
-
-def test_po_import_keeps_the_instructions_sheet():
-    rows = parse_fba_export("x.csv", FBA_EXPORT.encode("utf-8")).rows
-    workbook = load_workbook(
-        io.BytesIO(build_po_import_workbook(rows, purchase_order_number="X", supplier="Y"))
-    )
-    assert workbook.sheetnames == ["Purchase Order Import Template", "Instructions"]
-    assert workbook["Instructions"]["A5"].value == "To prepare the file for import:"
-
-
-def test_po_import_tolerates_a_missing_supplier_or_purchase_order():
-    sheet = _po_sheet(purchase_order_number="", supplier="")
-    assert sheet.cell(6, 1).value is None
-    assert sheet.cell(6, 2).value is None
-    assert sheet.cell(6, 5).value == "197642130629-FNSKU"
-
-
-def test_po_import_of_no_rows_is_just_the_template():
-    assert _po_sheet([]).max_row == 5
 
 
 def test_missing_sku_table_is_rejected():
