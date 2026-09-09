@@ -121,6 +121,8 @@ app.add_middleware(
         "X-Shipment-Sku-Count",
         "X-Shipment-Collected-Rows",
         "X-Shipment-Duplicates-Removed",
+        "X-Shipment-Po-Number",
+        "X-Shipment-Supplier",
     ],
 )
 

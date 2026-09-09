@@ -1815,6 +1815,52 @@ export type ShipmentCompileResult = {
   duplicatesRemoved: number
 }
 
+export type ShipmentPoImportResult = {
+  blob: Blob
+  filename: string
+  poNumber: string
+  supplier: string
+  skuCount: number
+}
+
+type ResponseHeaders = Record<string, unknown>
+
+function shipmentDownloadFilename(headers: ResponseHeaders, fallback: string): string {
+  const named = headers['x-shipment-filename']
+  if (typeof named === 'string' && named.trim()) return named
+  const disposition = headers['content-disposition']
+  if (typeof disposition === 'string') {
+    const match = /filename="?([^";]+)"?/i.exec(disposition)
+    if (match?.[1]) return match[1]
+  }
+  return fallback
+}
+
+/** A blob responseType hides FastAPI's JSON error body; unwrap it so callers see the detail. */
+async function rethrowShipmentDownloadError(err: unknown): Promise<never> {
+  const ax = err as {
+    response?: { data?: Blob | { detail?: string }; status?: number }
+    message?: string
+  }
+  const data = ax.response?.data
+  if (data instanceof Blob) {
+    try {
+      const text = await data.text()
+      const parsed = JSON.parse(text) as { detail?: string }
+      if (parsed?.detail) {
+        throw Object.assign(new Error(parsed.detail), {
+          response: { data: { detail: parsed.detail }, status: ax.response?.status },
+        })
+      }
+    } catch (inner) {
+      if (inner instanceof Error && (inner as { response?: unknown }).response) {
+        throw inner
+      }
+    }
+  }
+  throw err
+}
+
 export const shipmentsApi = {
   list: async (): Promise<ShipmentRecord[]> => {
     const response = await api.get<ShipmentRecord[]>('/api/v1/shipments')
@@ -1858,46 +1904,36 @@ export const shipmentsApi = {
         null,
         { responseType: 'blob', timeout: 180_000 },
       )
-      const headers = response.headers || {}
-      const filenameHeader = headers['x-shipment-filename']
-      const disposition = headers['content-disposition'] as string | undefined
-      let filename =
-        (typeof filenameHeader === 'string' && filenameHeader.trim()) ||
-        'WR SKU UPDATE TEMPLATE.xlsx'
-      if ((!filenameHeader || !String(filenameHeader).trim()) && disposition) {
-        const match = /filename="?([^";]+)"?/i.exec(disposition)
-        if (match?.[1]) filename = match[1]
-      }
+      const headers = (response.headers || {}) as ResponseHeaders
       return {
         blob: response.data,
-        filename,
+        filename: shipmentDownloadFilename(headers, 'WR SKU UPDATE TEMPLATE.xlsx'),
         shipmentName: String(headers['x-shipment-name'] || ''),
         skuCount: Number(headers['x-shipment-sku-count'] || 0),
         collectedRows: Number(headers['x-shipment-collected-rows'] || 0),
         duplicatesRemoved: Number(headers['x-shipment-duplicates-removed'] || 0),
       }
     } catch (err: unknown) {
-      const ax = err as {
-        response?: { data?: Blob | { detail?: string }; status?: number }
-        message?: string
+      return rethrowShipmentDownloadError(err)
+    }
+  },
+  poImport: async (shipmentId: string, uploadId: string): Promise<ShipmentPoImportResult> => {
+    try {
+      const response = await api.post<Blob>(
+        `/api/v1/shipments/${shipmentId}/uploads/${uploadId}/po-import`,
+        null,
+        { responseType: 'blob', timeout: 180_000 },
+      )
+      const headers = (response.headers || {}) as ResponseHeaders
+      return {
+        blob: response.data,
+        filename: shipmentDownloadFilename(headers, 'PO IMPORT.xlsx'),
+        poNumber: String(headers['x-shipment-po-number'] || ''),
+        supplier: String(headers['x-shipment-supplier'] || ''),
+        skuCount: Number(headers['x-shipment-sku-count'] || 0),
       }
-      const data = ax.response?.data
-      if (data instanceof Blob) {
-        try {
-          const text = await data.text()
-          const parsed = JSON.parse(text) as { detail?: string }
-          if (parsed?.detail) {
-            throw Object.assign(new Error(parsed.detail), {
-              response: { data: { detail: parsed.detail }, status: ax.response?.status },
-            })
-          }
-        } catch (inner) {
-          if (inner instanceof Error && (inner as { response?: unknown }).response) {
-            throw inner
-          }
-        }
-      }
-      throw err
+    } catch (err: unknown) {
+      return rethrowShipmentDownloadError(err)
     }
   },
 }
