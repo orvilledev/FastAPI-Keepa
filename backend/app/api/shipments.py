@@ -1,8 +1,10 @@
-"""Registered shipments — many users upload FBA exports, one compiled WR SKU sheet.
+"""Registered shipments — many users upload FBA exports, two kinds of sheet come out.
 
 A shipment stays in the app until its creator (or an admin) deletes it. Every
-upload keeps its own rows; duplicate UPCs are collapsed only when the sheet is
-compiled, so removing one upload never disturbs another's rows.
+upload keeps its own rows; duplicate UPCs are collapsed only when the WR SKU
+Update sheet is compiled, so removing one upload never disturbs another's rows.
+The PO Import sheet is built per upload instead of merged, because one purchase
+order covers one FBA shipment.
 """
 import logging
 from typing import List, Optional
@@ -26,11 +28,16 @@ from app.models.shipment import (
 )
 from app.repositories.shipment_repository import ShipmentRepository
 from app.services.shipment_manager import (
+    INPUT_SUFFIXES,
     OUTPUT_FILENAME,
     ShipmentManagerError,
+    build_po_import_workbook,
     build_workbook,
     compile_stored_rows,
     parse_fba_export,
+    po_import_filename,
+    stored_rows_to_sku_rows,
+    supplier_from_filename,
 )
 from app.utils.error_handler import handle_api_errors
 from app.utils.user_display_name import resolve_user_display_name
@@ -40,7 +47,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _MAX_BYTES = 15 * 1024 * 1024
-_ACCEPTED_SUFFIXES = (".csv", ".txt", ".tsv", ".xlsx", ".xlsm")
+_ACCEPTED_SUFFIXES = INPUT_SUFFIXES
 _XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
@@ -67,6 +74,16 @@ def _load_shipment(repo: ShipmentRepository, shipment_id: UUID) -> dict:
     if not shipment:
         raise HTTPException(status_code=404, detail="Shipment not found.")
     return shipment
+
+
+def _load_upload(repo: ShipmentRepository, shipment_id: UUID, upload_id: UUID) -> dict:
+    try:
+        upload = repo.get_upload(str(upload_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not upload or str(upload.get("shipment_id")) != str(shipment_id):
+        raise HTTPException(status_code=404, detail="Upload not found on this shipment.")
+    return upload
 
 
 def _display_names(db: Client, user_ids: List[str], emails: dict[str, str]) -> dict[str, str]:
@@ -456,12 +473,7 @@ def delete_shipment_upload(
     """Remove one upload and only the rows it contributed."""
     repo = ShipmentRepository(db)
     shipment = _load_shipment(repo, shipment_id)
-    try:
-        upload = repo.get_upload(str(upload_id))
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if not upload or str(upload.get("shipment_id")) != str(shipment_id):
-        raise HTTPException(status_code=404, detail="Upload not found on this shipment.")
+    upload = _load_upload(repo, shipment_id, upload_id)
 
     allowed = (
         str(upload.get("uploaded_by")) == current_user["id"]
@@ -523,5 +535,57 @@ async def generate_shipment_sheet(
         "X-Shipment-Sku-Count": str(len(rows)),
         "X-Shipment-Collected-Rows": str(collected),
         "X-Shipment-Duplicates-Removed": str(collected - len(rows)),
+    }
+    return Response(content=workbook_bytes, media_type=_XLSX_MEDIA_TYPE, headers=headers)
+
+
+@router.post("/shipments/{shipment_id}/uploads/{upload_id}/po-import", response_model=None)
+@limiter.limit(RateLimits.FILE_UPLOAD)
+@handle_api_errors("build shipment po import sheet")
+async def generate_upload_po_import(
+    request: Request,
+    shipment_id: UUID,
+    upload_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Build one upload's own PO Import sheet, never merged with the other uploads."""
+    repo = ShipmentRepository(db)
+    _load_shipment(repo, shipment_id)
+    upload = _load_upload(repo, shipment_id, upload_id)
+
+    try:
+        stored = repo.list_rows_for_upload(str(upload_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not stored:
+        raise HTTPException(status_code=400, detail="This upload has no SKU rows to write.")
+
+    rows = stored_rows_to_sku_rows(stored)
+    purchase_order_number = str(upload.get("amazon_shipment_id") or "")
+    supplier = supplier_from_filename(str(upload.get("filename") or ""))
+    try:
+        workbook_bytes = build_po_import_workbook(
+            rows,
+            purchase_order_number=purchase_order_number,
+            supplier=supplier,
+        )
+    except ShipmentManagerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    filename = _header_safe(po_import_filename(purchase_order_number, supplier)) or "PO IMPORT.xlsx"
+    logger.info(
+        "Shipment %s upload %s PO import built by %s: %s line(s)",
+        shipment_id,
+        upload_id,
+        current_user.get("email"),
+        len(rows),
+    )
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "X-Shipment-Filename": filename,
+        "X-Shipment-Po-Number": _header_safe(purchase_order_number),
+        "X-Shipment-Supplier": _header_safe(supplier),
+        "X-Shipment-Sku-Count": str(len(rows)),
     }
     return Response(content=workbook_bytes, media_type=_XLSX_MEDIA_TYPE, headers=headers)
