@@ -13,6 +13,9 @@ Two sheets come out of it:
   the sheet is compiled — so removing one upload never disturbs another's rows.
 * **PO Import** — the Berry purchase-order import template, built per upload
   rather than merged, because one purchase order covers one FBA shipment.
+* **Order Import** — the warehouse order import template, also per upload. The
+  ship-to block comes from the Ship To Address Catalog, looked up by the
+  fulfilment-centre code in the export's "Ship to" line (DEN8, ONT8, …).
 """
 import csv
 import io
@@ -23,7 +26,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
 from openpyxl import load_workbook
-from openpyxl.styles import Font
+from openpyxl.styles import Alignment, Font
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +38,7 @@ _STATIC_DIR = Path(__file__).resolve().parent.parent / "static" / "shipment_mana
 
 TEMPLATE_PATH = _STATIC_DIR / "WR_SKU_UPDATE_TEMPLATE.xlsx"
 PO_TEMPLATE_PATH = _STATIC_DIR / "WR_PO_IMPORT_TEMPLATE.xlsx"
+ORDER_TEMPLATE_PATH = _STATIC_DIR / "WR_ORDER_IMPORT_TEMPLATE.xlsx"
 
 _MAX_ROWS_SCANNED = 20000
 _HEADER_SEARCH_LIMIT = 60
@@ -131,6 +135,30 @@ _SUPPLIER_STOP_WORDS = frozenset(
 )
 _SUPPLIER_TOKEN_SPLIT = re.compile(r"[\s_\-]+")
 
+# --- Order Import template ------------------------------------------------
+# Row 1 holds the headers, so data starts at row 2.
+_ORDER_FIRST_DATA_ROW = 2
+_ORDER_COL_REFERENCE_NUMBER = 1
+_ORDER_COL_PURCHASE_ORDER_NUMBER = 2
+_ORDER_COL_SHIP_TO_COMPANY = 11
+_ORDER_COL_SHIP_TO_ADDRESS_1 = 12
+_ORDER_COL_SHIP_TO_ADDRESS_2 = 13
+_ORDER_COL_SHIP_TO_CITY = 14
+_ORDER_COL_SHIP_TO_STATE = 15
+_ORDER_COL_SHIP_TO_ZIP = 16
+_ORDER_COL_SHIP_TO_COUNTRY = 17
+_ORDER_COL_SKU = 24
+_ORDER_COL_QUANTITY = 25
+# Amazon fulfilment centres are entered as "DEN8 Amazon" on the order sheet.
+_ORDER_COMPANY_SUFFIX = "Amazon"
+_ORDER_COUNTRY = "US"
+# The template's own body typeface; column A also wraps.
+_ORDER_BODY_FONT = Font(name="Calibri", size=11, family=2)
+_ORDER_WRAP = Alignment(wrap_text=True)
+
+# Amazon fulfilment-centre codes are three letters and one or two digits.
+_SHIP_TO_CODE = re.compile(r"[A-Z]{3}[0-9]{1,2}", re.IGNORECASE)
+
 
 class ShipmentManagerError(Exception):
     """Raised when an uploaded shipment file cannot be converted."""
@@ -143,6 +171,23 @@ class ShipmentSkuRow:
     upc: str
     fnsku: str
     total_units: int = 0
+
+
+@dataclass
+class ShipToAddress:
+    """One Ship To Address Catalog entry, as the order sheet needs it."""
+
+    code: str
+    address_1: str = ""
+    address_2: str = ""
+    city: str = ""
+    state: str = ""
+    postal_code: str = ""
+    country: str = _ORDER_COUNTRY
+
+    @property
+    def company(self) -> str:
+        return f"{self.code} {_ORDER_COMPANY_SUFFIX}".strip()
 
 
 @dataclass
@@ -469,6 +514,85 @@ def build_po_import_workbook(
                     continue
                 cell = sheet.cell(row=row_number, column=column, value=value)
                 cell.font = _PO_BODY_FONT
+        buffer = io.BytesIO()
+        workbook.save(buffer)
+        return buffer.getvalue()
+    finally:
+        workbook.close()
+
+
+def ship_to_code(ship_to: str) -> str:
+    """The fulfilment-centre code in an export's "Ship to" line, e.g. 'DEN8'.
+
+    Exports name the destination as a bare code, sometimes followed by the
+    warehouse address. Everything after the code is ignored — the catalog is
+    keyed on the code alone.
+    """
+    match = _SHIP_TO_CODE.search(ship_to or "")
+    if match:
+        return match.group(0).upper()
+    first = (ship_to or "").replace(",", " ").split()
+    return first[0].upper() if first else ""
+
+
+def ship_to_address_from_catalog(code: str, record: dict) -> ShipToAddress:
+    """Build the order sheet's ship-to block from a catalog row."""
+    return ShipToAddress(
+        code=(code or record.get("code") or "").strip().upper(),
+        address_1=_normalize(record.get("address_1")),
+        city=_normalize(record.get("city")),
+        state=_normalize(record.get("state")),
+        postal_code=_normalize(record.get("postal_code")),
+    )
+
+
+def order_import_filename(reference_number: str, code: str) -> str:
+    """Name the Order Import download after the ship-to code and the FBA id."""
+    label = " ".join(part for part in (code.strip(), reference_number.strip()) if part)
+    return f"ORDER IMPORT {label}.xlsx" if label else "ORDER IMPORT.xlsx"
+
+
+def build_order_import_workbook(
+    sku_rows: Sequence[ShipmentSkuRow],
+    *,
+    reference_number: str,
+    address: ShipToAddress,
+) -> bytes:
+    """Render one upload's rows into a copy of the warehouse order import template.
+
+    Reference Number and Purchase Order Number are both the FBA shipment id, and
+    every line repeats the same ship-to block. The carrier, date, phone and
+    option columns stay blank — the FBA export does not carry them.
+    """
+    if not ORDER_TEMPLATE_PATH.is_file():
+        raise ShipmentManagerError("The Order Import template file is missing on the server.")
+
+    reference = reference_number.strip()
+    workbook = load_workbook(ORDER_TEMPLATE_PATH)
+    try:
+        sheet = workbook["Order Import Template"]
+        for offset, item in enumerate(sku_rows):
+            row_number = _ORDER_FIRST_DATA_ROW + offset
+            values = (
+                (_ORDER_COL_REFERENCE_NUMBER, reference or None),
+                (_ORDER_COL_PURCHASE_ORDER_NUMBER, reference or None),
+                (_ORDER_COL_SHIP_TO_COMPANY, address.company or None),
+                (_ORDER_COL_SHIP_TO_ADDRESS_1, address.address_1 or None),
+                (_ORDER_COL_SHIP_TO_ADDRESS_2, address.address_2 or None),
+                (_ORDER_COL_SHIP_TO_CITY, address.city or None),
+                (_ORDER_COL_SHIP_TO_STATE, address.state or None),
+                (_ORDER_COL_SHIP_TO_ZIP, address.postal_code or None),
+                (_ORDER_COL_SHIP_TO_COUNTRY, address.country or None),
+                (_ORDER_COL_SKU, item.sku or None),
+                (_ORDER_COL_QUANTITY, item.total_units),
+            )
+            for column, value in values:
+                if value is None:
+                    continue
+                cell = sheet.cell(row=row_number, column=column, value=value)
+                cell.font = _ORDER_BODY_FONT
+                if column == _ORDER_COL_REFERENCE_NUMBER:
+                    cell.alignment = _ORDER_WRAP
         buffer = io.BytesIO()
         workbook.save(buffer)
         return buffer.getvalue()

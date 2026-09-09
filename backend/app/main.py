@@ -123,6 +123,8 @@ app.add_middleware(
         "X-Shipment-Duplicates-Removed",
         "X-Shipment-Po-Number",
         "X-Shipment-Supplier",
+        "X-Shipment-Reference-Number",
+        "X-Shipment-Ship-To-Code",
     ],
 )
 

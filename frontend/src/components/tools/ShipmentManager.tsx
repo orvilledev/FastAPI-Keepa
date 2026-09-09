@@ -31,7 +31,7 @@ export default function ShipmentManager() {
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
   const [notes, setNotes] = useState('')
-  const [vendorPreset, setVendorPreset] = useState(SHIPMENT_VENDORS[0].code)
+  const [vendorPreset, setVendorPreset] = useState<string>(SHIPMENT_VENDORS[0].code)
   const [vendorCustom, setVendorCustom] = useState('')
   const [saving, setSaving] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)

@@ -85,6 +85,22 @@ class CatalogShipToRepository:
         )
         return response.data or [], int(response.count or 0)
 
+    def get_by_code(self, code: str) -> Optional[dict]:
+        """One address by its code. Codes are alphanumeric, so casing is the only variance."""
+        normalized = (code or "").strip()
+        if not normalized:
+            return None
+        candidates = list(dict.fromkeys([normalized, normalized.upper(), normalized.lower()]))
+        try:
+            response = (
+                self.db.table(_TABLE).select("*").in_("code", candidates).limit(1).execute()
+            )
+        except Exception as exc:
+            logger.error("catalog_ship_to lookup failed for %s: %s", normalized, exc, exc_info=True)
+            _raise_persist_error(exc, 0)
+        rows = response.data or []
+        return rows[0] if rows else None
+
     def find_existing_codes(self, codes: List[str]) -> List[str]:
         if not codes:
             return []

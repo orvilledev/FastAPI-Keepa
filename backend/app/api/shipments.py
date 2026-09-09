@@ -3,8 +3,8 @@
 A shipment stays in the app until its creator (or an admin) deletes it. Every
 upload keeps its own rows; duplicate UPCs are collapsed only when the WR SKU
 Update sheet is compiled, so removing one upload never disturbs another's rows.
-The PO Import sheet is built per upload instead of merged, because one purchase
-order covers one FBA shipment.
+The PO Import and Order Import sheets are built per upload instead of merged,
+because one purchase order covers one FBA shipment.
 """
 import logging
 from typing import List, Optional
@@ -26,17 +26,23 @@ from app.models.shipment import (
     ShipmentUploadResponse,
     ShipmentUploadResult,
 )
+from app.repositories.catalog_ship_to_repository import CatalogShipToRepository
 from app.repositories.shipment_repository import ShipmentRepository
 from app.services.shipment_manager import (
     INPUT_SUFFIXES,
     OUTPUT_FILENAME,
     ShipmentManagerError,
+    ShipmentSkuRow,
+    build_order_import_workbook,
     build_po_import_workbook,
     build_workbook,
     compile_stored_rows,
+    order_import_filename,
     parse_fba_export,
     po_import_filename,
     resolve_po_supplier,
+    ship_to_address_from_catalog,
+    ship_to_code,
     stored_rows_to_sku_rows,
 )
 from app.utils.error_handler import handle_api_errors
@@ -84,6 +90,17 @@ def _load_upload(repo: ShipmentRepository, shipment_id: UUID, upload_id: UUID) -
     if not upload or str(upload.get("shipment_id")) != str(shipment_id):
         raise HTTPException(status_code=404, detail="Upload not found on this shipment.")
     return upload
+
+
+def _upload_sku_rows(repo: ShipmentRepository, upload_id: UUID) -> List[ShipmentSkuRow]:
+    """One upload's own rows, never merged with the rest of the shipment."""
+    try:
+        stored = repo.list_rows_for_upload(str(upload_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not stored:
+        raise HTTPException(status_code=400, detail="This upload has no SKU rows to write.")
+    return stored_rows_to_sku_rows(stored)
 
 
 def _display_names(db: Client, user_ids: List[str], emails: dict[str, str]) -> dict[str, str]:
@@ -555,14 +572,7 @@ async def generate_upload_po_import(
     _load_shipment(repo, shipment_id)
     upload = _load_upload(repo, shipment_id, upload_id)
 
-    try:
-        stored = repo.list_rows_for_upload(str(upload_id))
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if not stored:
-        raise HTTPException(status_code=400, detail="This upload has no SKU rows to write.")
-
-    rows = stored_rows_to_sku_rows(stored)
+    rows = _upload_sku_rows(repo, upload_id)
     purchase_order_number = str(upload.get("amazon_shipment_id") or "")
     supplier = resolve_po_supplier(
         rows,
@@ -591,6 +601,74 @@ async def generate_upload_po_import(
         "X-Shipment-Filename": filename,
         "X-Shipment-Po-Number": _header_safe(purchase_order_number),
         "X-Shipment-Supplier": _header_safe(supplier),
+        "X-Shipment-Sku-Count": str(len(rows)),
+    }
+    return Response(content=workbook_bytes, media_type=_XLSX_MEDIA_TYPE, headers=headers)
+
+
+@router.post("/shipments/{shipment_id}/uploads/{upload_id}/order-import", response_model=None)
+@limiter.limit(RateLimits.FILE_UPLOAD)
+@handle_api_errors("build shipment order import sheet")
+async def generate_upload_order_import(
+    request: Request,
+    shipment_id: UUID,
+    upload_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Build one upload's own Order Import sheet, never merged with the other uploads.
+
+    The ship-to block is the Ship To Address Catalog entry for the fulfilment
+    centre code on the export's "Ship to" line.
+    """
+    repo = ShipmentRepository(db)
+    _load_shipment(repo, shipment_id)
+    upload = _load_upload(repo, shipment_id, upload_id)
+    rows = _upload_sku_rows(repo, upload_id)
+
+    code = ship_to_code(str(upload.get("ship_to") or ""))
+    if not code:
+        raise HTTPException(
+            status_code=400,
+            detail="This upload's FBA export has no Ship to code, so no address can be looked up.",
+        )
+    try:
+        record = CatalogShipToRepository(db).get_by_code(code)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not record:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{code} is not in the Ship To Address Catalog. Add it there, then try again.",
+        )
+
+    reference_number = str(upload.get("amazon_shipment_id") or "")
+    address = ship_to_address_from_catalog(code, record)
+    try:
+        workbook_bytes = build_order_import_workbook(
+            rows,
+            reference_number=reference_number,
+            address=address,
+        )
+    except ShipmentManagerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    filename = (
+        _header_safe(order_import_filename(reference_number, code)) or "ORDER IMPORT.xlsx"
+    )
+    logger.info(
+        "Shipment %s upload %s order import built by %s: %s line(s) to %s",
+        shipment_id,
+        upload_id,
+        current_user.get("email"),
+        len(rows),
+        code,
+    )
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "X-Shipment-Filename": filename,
+        "X-Shipment-Reference-Number": _header_safe(reference_number),
+        "X-Shipment-Ship-To-Code": _header_safe(code),
         "X-Shipment-Sku-Count": str(len(rows)),
     }
     return Response(content=workbook_bytes, media_type=_XLSX_MEDIA_TYPE, headers=headers)

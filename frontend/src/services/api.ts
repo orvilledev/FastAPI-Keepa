@@ -1823,6 +1823,14 @@ export type ShipmentPoImportResult = {
   skuCount: number
 }
 
+export type ShipmentOrderImportResult = {
+  blob: Blob
+  filename: string
+  referenceNumber: string
+  shipToCode: string
+  skuCount: number
+}
+
 type ResponseHeaders = Record<string, unknown>
 
 function shipmentDownloadFilename(headers: ResponseHeaders, fallback: string): string {
@@ -1930,6 +1938,28 @@ export const shipmentsApi = {
         filename: shipmentDownloadFilename(headers, 'PO IMPORT.xlsx'),
         poNumber: String(headers['x-shipment-po-number'] || ''),
         supplier: String(headers['x-shipment-supplier'] || ''),
+        skuCount: Number(headers['x-shipment-sku-count'] || 0),
+      }
+    } catch (err: unknown) {
+      return rethrowShipmentDownloadError(err)
+    }
+  },
+  orderImport: async (
+    shipmentId: string,
+    uploadId: string,
+  ): Promise<ShipmentOrderImportResult> => {
+    try {
+      const response = await api.post<Blob>(
+        `/api/v1/shipments/${shipmentId}/uploads/${uploadId}/order-import`,
+        null,
+        { responseType: 'blob', timeout: 180_000 },
+      )
+      const headers = (response.headers || {}) as ResponseHeaders
+      return {
+        blob: response.data,
+        filename: shipmentDownloadFilename(headers, 'ORDER IMPORT.xlsx'),
+        referenceNumber: String(headers['x-shipment-reference-number'] || ''),
+        shipToCode: String(headers['x-shipment-ship-to-code'] || ''),
         skuCount: Number(headers['x-shipment-sku-count'] || 0),
       }
     } catch (err: unknown) {

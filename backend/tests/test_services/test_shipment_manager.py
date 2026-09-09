@@ -1,4 +1,4 @@
-"""Tests for the Shipment Manager FBA export -> WR SKU Update / PO Import conversions."""
+"""Tests for the Shipment Manager FBA export -> WR SKU Update / PO Import / Order Import conversions."""
 import io
 
 import pytest
@@ -8,14 +8,18 @@ from app.services.shipment_manager import (
     OUTPUT_FILENAME,
     ShipmentManagerError,
     ShipmentSkuRow,
+    build_order_import_workbook,
     build_po_import_workbook,
     build_workbook,
     build_wr_sku_update,
     compile_stored_rows,
     dedupe_by_upc,
+    order_import_filename,
     parse_fba_export,
     po_import_filename,
     resolve_po_supplier,
+    ship_to_address_from_catalog,
+    ship_to_code,
     supplier_from_filename,
     supplier_from_title,
     supplier_from_titles,
@@ -354,6 +358,157 @@ def test_po_import_tolerates_a_missing_supplier_or_purchase_order():
 
 def test_po_import_of_no_rows_is_just_the_template():
     assert _po_sheet([]).max_row == 5
+
+
+# ---- Order Import sheet -------------------------------------------------
+
+DEN8 = {
+    "code": "DEN8",
+    "full_address": "21000 E 13th Ave, AURORA, CO, 80018",
+    "address_1": "21000 E 13th Ave",
+    "city": "AURORA",
+    "state": "CO",
+    "postal_code": "80018",
+}
+
+
+def _order_sheet(rows=None, *, reference_number="FBA19JHYH77Q", record=None):
+    rows = parse_fba_export("x.csv", FBA_EXPORT.encode("utf-8")).rows if rows is None else rows
+    address = ship_to_address_from_catalog("DEN8", record if record is not None else DEN8)
+    workbook = load_workbook(
+        io.BytesIO(
+            build_order_import_workbook(
+                rows, reference_number=reference_number, address=address
+            )
+        )
+    )
+    return workbook["Order Import Template"]
+
+
+@pytest.mark.parametrize(
+    "ship_to, expected",
+    [
+        ("DEN8", "DEN8"),
+        ("den8", "DEN8"),
+        ("ONT8, 2125 W San Bernardino Rd", "ONT8"),
+        ("Amazon DEN8", "DEN8"),
+        ("SCK4", "SCK4"),
+        ("MDW12", "MDW12"),
+        # No code pattern: the first word is the best guess.
+        ("Ontario", "ONTARIO"),
+        ("", ""),
+    ],
+)
+def test_ship_to_code_is_the_fulfilment_centre_code(ship_to, expected):
+    assert ship_to_code(ship_to) == expected
+
+
+def test_ship_to_address_reads_the_catalog_row():
+    address = ship_to_address_from_catalog("den8", DEN8)
+    assert address.code == "DEN8"
+    assert address.company == "DEN8 Amazon"
+    assert address.address_1 == "21000 E 13th Ave"
+    assert address.city == "AURORA"
+    assert address.state == "CO"
+    assert address.postal_code == "80018"
+    assert address.country == "US"
+
+
+def test_order_import_filename_names_the_code_and_reference():
+    assert order_import_filename("FBA19JHYH77Q", "DEN8") == "ORDER IMPORT DEN8 FBA19JHYH77Q.xlsx"
+    assert order_import_filename("", "DEN8") == "ORDER IMPORT DEN8.xlsx"
+    assert order_import_filename("", "") == "ORDER IMPORT.xlsx"
+
+
+def test_order_import_keeps_the_template_headers_and_helper_sheets():
+    workbook = load_workbook(
+        io.BytesIO(
+            build_order_import_workbook(
+                [],
+                reference_number="X",
+                address=ship_to_address_from_catalog("DEN8", DEN8),
+            )
+        )
+    )
+    assert workbook.sheetnames == [
+        "Order Import Template",
+        "Instructions",
+        "Country Values",
+        "State Values",
+    ]
+    sheet = workbook["Order Import Template"]
+    assert sheet.max_row == 1
+    assert sheet.max_column == 35
+    assert [sheet.cell(1, col).value for col in (1, 2, 11, 12, 13, 14, 15, 16, 17, 24, 25)] == [
+        "Reference Number",
+        "Purchase Order Number",
+        "Ship To Company",
+        "Ship To Address 1",
+        "Ship To Address 2",
+        "Ship To City",
+        "Ship To State",
+        "Ship To Zip",
+        "Ship To Country",
+        "SKU",
+        "Quantity",
+    ]
+    # The ship-to block carries the template's orange header fill.
+    assert sheet["K1"].fill.fgColor.rgb == "FFFF9E18"
+    assert sheet["K1"].font.b is True
+    assert round(sheet.column_dimensions["A"].width, 4) == 24.6641
+
+
+def test_order_import_writes_one_line_per_sku_from_row_two():
+    sheet = _order_sheet()
+    assert [sheet.cell(row, 1).value for row in (2, 3)] == ["FBA19JHYH77Q", "FBA19JHYH77Q"]
+    assert [sheet.cell(row, 2).value for row in (2, 3)] == ["FBA19JHYH77Q", "FBA19JHYH77Q"]
+    assert [sheet.cell(row, 24).value for row in (2, 3)] == [
+        "197642130629-FNSKU",
+        "198268844372-FNSKU",
+    ]
+    assert [sheet.cell(row, 25).value for row in (2, 3)] == [139, 1]
+    assert sheet.max_row == 3
+
+
+def test_order_import_repeats_the_catalog_address_on_every_line():
+    sheet = _order_sheet()
+    for row in (2, 3):
+        assert [sheet.cell(row, col).value for col in (11, 12, 14, 15, 16, 17)] == [
+            "DEN8 Amazon",
+            "21000 E 13th Ave",
+            "AURORA",
+            "CO",
+            "80018",
+            "US",
+        ]
+        assert sheet.cell(row, 13).value is None
+
+
+def test_order_import_line_items_use_the_template_body_font():
+    sheet = _order_sheet()
+    assert sheet["A2"].font.name == "Calibri"
+    assert sheet["A2"].font.sz == 11
+    assert sheet["A2"].alignment.wrap_text is True
+    assert sheet["X2"].font.name == "Calibri"
+
+
+def test_order_import_leaves_the_carrier_and_option_columns_blank():
+    sheet = _order_sheet()
+    # Ship Carrier..Ship To Name, then the phone/fax/email/id block and the trailing options.
+    blank = list(range(3, 11)) + list(range(18, 24)) + list(range(26, 36))
+    assert all(sheet.cell(row, col).value is None for row in (2, 3) for col in blank)
+
+
+def test_order_import_tolerates_a_catalog_row_with_gaps():
+    sheet = _order_sheet(record={"code": "DEN8", "address_1": "21000 E 13th Ave"})
+    assert sheet.cell(2, 11).value == "DEN8 Amazon"
+    assert sheet.cell(2, 12).value == "21000 E 13th Ave"
+    assert all(sheet.cell(2, col).value is None for col in (14, 15, 16))
+    assert sheet.cell(2, 17).value == "US"
+
+
+def test_order_import_of_no_rows_is_just_the_template():
+    assert _order_sheet([]).max_row == 1
 
 
 def test_missing_sku_table_is_rejected():

@@ -46,6 +46,7 @@ export default function ShipmentDetail() {
   const [generating, setGenerating] = useState(false)
   const [busyUploadId, setBusyUploadId] = useState<string | null>(null)
   const [poUploadId, setPoUploadId] = useState<string | null>(null)
+  const [orderUploadId, setOrderUploadId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
@@ -121,6 +122,25 @@ export default function ShipmentDetail() {
       setError(errorDetail(err, 'Could not build the PO Import sheet for this upload.'))
     } finally {
       setPoUploadId(null)
+    }
+  }
+
+  const handleOrderImport = async (upload: ShipmentUpload) => {
+    if (!shipmentId || orderUploadId) return
+    setOrderUploadId(upload.id)
+    setError(null)
+    setMessage(null)
+    try {
+      const result = await shipmentsApi.orderImport(shipmentId, upload.id)
+      downloadBlob(result.blob, result.filename)
+      setMessage(
+        `Downloaded ${result.filename} — ${result.skuCount} line item(s) from ${upload.filename} alone` +
+          (result.shipToCode ? `, shipping to ${result.shipToCode}.` : '.'),
+      )
+    } catch (err) {
+      setError(errorDetail(err, 'Could not build the Order Import sheet for this upload.'))
+    } finally {
+      setOrderUploadId(null)
     }
   }
 
@@ -399,9 +419,17 @@ export default function ShipmentDetail() {
                         type="button"
                         disabled={poUploadId === upload.id || busyUploadId === upload.id}
                         onClick={() => void handlePoImport(upload)}
-                        className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                        className="rounded-md bg-blue-800 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-900 disabled:opacity-50"
                       >
                         {poUploadId === upload.id ? 'Building…' : 'PO Import'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={orderUploadId === upload.id || busyUploadId === upload.id}
+                        onClick={() => void handleOrderImport(upload)}
+                        className="rounded-md bg-amber-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+                      >
+                        {orderUploadId === upload.id ? 'Building…' : 'Order Import'}
                       </button>
                       <button
                         type="button"
@@ -473,8 +501,18 @@ export default function ShipmentDetail() {
             North Face, Smartwool, Dansko, Oboz), and Facility is always WHREP Ontario.
           </li>
           <li>
+            <strong>Order Import</strong> is per upload too. Reference Number and Purchase Order
+            Number are both the FBA shipment id, and the ship-to block comes from the{' '}
+            <Link to="/ship-to-addresses" className="font-medium text-[#404040] hover:underline">
+              Ship To Address Catalog
+            </Link>{' '}
+            entry for the export's Ship to code — DEN8 becomes “DEN8 Amazon” with that code's
+            address, city, state and zip.
+          </li>
+          <li>
             The item and carton dimension columns stay blank; the FBA export does not contain them.
-            The PO sheet's date and notes columns stay blank as well.
+            The PO sheet's date and notes columns, and the order sheet's carrier, date and option
+            columns, stay blank as well.
           </li>
         </ul>
       </section>
