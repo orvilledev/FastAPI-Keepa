@@ -36,8 +36,8 @@ from app.services.shipment_manager import (
     compile_stored_rows,
     parse_fba_export,
     po_import_filename,
+    resolve_po_supplier,
     stored_rows_to_sku_rows,
-    supplier_from_filename,
 )
 from app.utils.error_handler import handle_api_errors
 from app.utils.user_display_name import resolve_user_display_name
@@ -564,7 +564,11 @@ async def generate_upload_po_import(
 
     rows = stored_rows_to_sku_rows(stored)
     purchase_order_number = str(upload.get("amazon_shipment_id") or "")
-    supplier = supplier_from_filename(str(upload.get("filename") or ""))
+    supplier = resolve_po_supplier(
+        rows,
+        filename=str(upload.get("filename") or ""),
+        shipment_name=str(upload.get("amazon_shipment_name") or ""),
+    )
     try:
         workbook_bytes = build_po_import_workbook(
             rows,

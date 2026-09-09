@@ -469,11 +469,12 @@ export default function ShipmentDetail() {
           <li>
             <strong>PO Import</strong> is per upload, not merged: each file gets its own purchase
             order sheet listing that file's SKUs and unit counts. The purchase order number is the
-            FBA shipment id and the supplier comes from the start of the uploaded file's name.
+            FBA shipment id, the supplier comes from the brand at the start of each Title (The
+            North Face, Smartwool, Dansko, Oboz), and Facility is always WHREP Ontario.
           </li>
           <li>
-            The item and carton dimensions, and the PO sheet's date, facility and notes columns,
-            stay blank; the FBA export does not contain them.
+            The item and carton dimension columns stay blank; the FBA export does not contain them.
+            The PO sheet's date and notes columns stay blank as well.
           </li>
         </ul>
       </section>

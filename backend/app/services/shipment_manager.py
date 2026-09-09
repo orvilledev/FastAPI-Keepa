@@ -63,8 +63,44 @@ _PO_COL_PURCHASE_ORDER_NUMBER = 1
 _PO_COL_SUPPLIER_COMPANY_NAME = 2
 _PO_COL_ITEM_NUMBER = 5
 _PO_COL_ITEM_QUANTITY = 6
+_PO_COL_FACILITY = 7
+_PO_FACILITY = "WHREP Ontario"
 # The template's own body typeface; blank columns keep the sheet default.
 _PO_BODY_FONT = Font(name="Open Sans", size=11, family=2)
+
+# Brand names as they appear at the start of an FBA Title, mapped to the
+# SupplierCompanyName Extensiv expects. Longer names are matched first.
+_SUPPLIER_BRANDS = (
+    ("the north face", "The North Face"),
+    ("north face", "The North Face"),
+    ("smartwool", "Smartwool"),
+    ("dansko", "Dansko"),
+    ("oboz", "Oboz"),
+    ("clarks", "Clarks"),
+    ("josef seibel", "Josef Seibel"),
+    ("josef siebel", "Josef Seibel"),
+    ("chaco", "Chaco"),
+    ("teva", "Teva"),
+    ("reef", "Reef"),
+    ("born", "Born"),
+    ("sofft", "Sofft"),
+    ("ugg", "UGG"),
+)
+_SUPPLIER_BRAND_BOUNDARY = re.compile(r"[\s,/'()\-]")
+_SUPPLIER_CODES = {
+    "nfa": "The North Face",
+    "dnk": "Dansko",
+    "smw": "Smartwool",
+    "obz": "Oboz",
+    "clk": "Clarks",
+    "jfs": "Josef Seibel",
+    "cha": "Chaco",
+    "tev": "Teva",
+    "ref": "Reef",
+    "bor": "Born",
+    "sff": "Sofft",
+    "ugg": "UGG",
+}
 
 # Where the supplier name stops in an export's filename. Everything before the
 # first date, count or warehouse code is the supplier: "North Face WHRP 7.17.26
@@ -346,6 +382,56 @@ def supplier_from_filename(filename: str) -> str:
     return " ".join(words)
 
 
+def supplier_from_title(title: str) -> str:
+    """The brand at the start of an FBA Title, e.g. 'The North Face Borealis…'."""
+    text = (title or "").strip()
+    if not text:
+        return ""
+    lowered = text.lower()
+    for needle, canonical in _SUPPLIER_BRANDS:
+        if not lowered.startswith(needle):
+            continue
+        rest = text[len(needle) :]
+        if rest and not _SUPPLIER_BRAND_BOUNDARY.match(rest[0]):
+            continue
+        return canonical
+    return ""
+
+
+def supplier_from_titles(titles: Sequence[str]) -> str:
+    """First known brand found in the SKU titles. One PO is one supplier."""
+    for title in titles:
+        brand = supplier_from_title(title)
+        if brand:
+            return brand
+    return ""
+
+
+def _supplier_from_code_token(text: str) -> str:
+    for token in _SUPPLIER_TOKEN_SPLIT.split(text or ""):
+        mapped = _SUPPLIER_CODES.get(token.strip().lower())
+        if mapped:
+            return mapped
+    return ""
+
+
+def resolve_po_supplier(
+    sku_rows: Sequence[ShipmentSkuRow],
+    *,
+    filename: str = "",
+    shipment_name: str = "",
+) -> str:
+    """Prefer the FBA Title brand, then the filename, then a vendor code in the shipment name."""
+    from_titles = supplier_from_titles(item.description for item in sku_rows)
+    if from_titles:
+        return from_titles
+    from_file_raw = supplier_from_filename(filename)
+    from_file = supplier_from_title(from_file_raw) or from_file_raw
+    if from_file:
+        return from_file
+    return _supplier_from_code_token(shipment_name) or _supplier_from_code_token(filename)
+
+
 def po_import_filename(purchase_order_number: str, supplier: str) -> str:
     """Name the PO Import download after whatever identifies the upload."""
     label = " ".join(part for part in (supplier.strip(), purchase_order_number.strip()) if part)
@@ -360,8 +446,8 @@ def build_po_import_workbook(
 ) -> bytes:
     """Render one upload's rows into a copy of the Berry PO import template.
 
-    IssueDate, PONotes, Facility, ExpectedDate and LineItemNotes are left blank —
-    the FBA export does not carry them and the warehouse team fills them in.
+    Facility is always WHREP Ontario. IssueDate, PONotes, ExpectedDate and
+    LineItemNotes stay blank — the FBA export does not carry them.
     """
     if not PO_TEMPLATE_PATH.is_file():
         raise ShipmentManagerError("The PO Import template file is missing on the server.")
@@ -376,6 +462,7 @@ def build_po_import_workbook(
                 (_PO_COL_SUPPLIER_COMPANY_NAME, supplier.strip() or None),
                 (_PO_COL_ITEM_NUMBER, item.sku or None),
                 (_PO_COL_ITEM_QUANTITY, item.total_units),
+                (_PO_COL_FACILITY, _PO_FACILITY),
             )
             for column, value in values:
                 if value is None:

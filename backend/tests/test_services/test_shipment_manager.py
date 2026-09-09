@@ -15,7 +15,10 @@ from app.services.shipment_manager import (
     dedupe_by_upc,
     parse_fba_export,
     po_import_filename,
+    resolve_po_supplier,
     supplier_from_filename,
+    supplier_from_title,
+    supplier_from_titles,
 )
 
 FBA_EXPORT = """Workflow name,wf5acb45b4-38bc-4c72-b878-c6b522ac6f99,,
@@ -268,10 +271,69 @@ def test_po_import_line_items_use_the_template_body_font():
     assert sheet["F6"].font.sz == 11
 
 
+def test_po_import_fills_facility_with_whrep_ontario():
+    sheet = _po_sheet()
+    assert [sheet.cell(row, 7).value for row in (6, 7)] == ["WHREP Ontario", "WHREP Ontario"]
+    assert sheet["G6"].font.name == "Open Sans"
+
+
 def test_po_import_leaves_the_optional_columns_blank():
     sheet = _po_sheet()
-    # IssueDate, PONotes, Facility, ExpectedDate, LineItemNotes.
-    assert all(sheet.cell(row, col).value is None for row in (6, 7) for col in (3, 4, 7, 8, 9))
+    # IssueDate, PONotes, ExpectedDate, LineItemNotes. Facility is always filled.
+    assert all(sheet.cell(row, col).value is None for row in (6, 7) for col in (3, 4, 8, 9))
+
+
+@pytest.mark.parametrize(
+    "title, expected",
+    [
+        ("The North Face Borealis Commuter Laptop Backpack, Blk/Blk-NPF, OSFA", "The North Face"),
+        ("THE NORTH FACE Evolution Simple Dome Hoodie, Pale Gy Hth, S", "The North Face"),
+        ("Smartwool Women's Classic Thermal Merino Base Layer Crew", "Smartwool"),
+        ("Dansko Women's Professional Clog", "Dansko"),
+        ("Oboz Bridger 7\" Insulated Waterproof Winter Boot", "Oboz"),
+        ("Borealis Backpack, Blk", ""),
+        ("", ""),
+    ],
+)
+def test_supplier_is_the_brand_at_the_start_of_the_title(title, expected):
+    assert supplier_from_title(title) == expected
+
+
+def test_supplier_from_titles_keeps_the_first_known_brand():
+    assert (
+        supplier_from_titles(
+            [
+                "Borealis Backpack, Blk",
+                "THE NORTH FACE Evolution Simple Dome Hoodie, Pale Gy Hth, S",
+                "Dansko Women's Professional Clog",
+            ]
+        )
+        == "The North Face"
+    )
+
+
+def test_resolve_po_supplier_prefers_the_title_over_the_filename():
+    rows = [
+        ShipmentSkuRow(
+            sku="197642130629-FNSKU",
+            description="The North Face Borealis Commuter Laptop Backpack, Blk/Blk-NPF, OSFA",
+            upc="197642130629",
+            fnsku="X0052Z3NU3",
+            total_units=139,
+        )
+    ]
+    assert (
+        resolve_po_supplier(rows, filename="FBA19JHYH77Q.csv", shipment_name="NFA WHRP 7.17.26")
+        == "The North Face"
+    )
+
+
+def test_resolve_po_supplier_falls_back_to_the_shipment_name_code():
+    rows = [_row("197642130629", description="Borealis Backpack, Blk")]
+    assert (
+        resolve_po_supplier(rows, filename="FBA19JHYH77Q.csv", shipment_name="NFA WHRP 7.17.26 1 OF 5")
+        == "The North Face"
+    )
 
 
 def test_po_import_keeps_the_instructions_sheet():
