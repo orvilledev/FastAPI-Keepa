@@ -44,13 +44,14 @@ from app.services.shipment_manager import (
     compile_stored_rows,
     ledger_filename,
     order_import_filename,
+    order_import_text_filename,
     parse_fba_export,
     po_import_filename,
+    po_import_text_filename,
     resolve_po_supplier,
     ship_to_address_from_catalog,
     ship_to_code,
     stored_rows_to_sku_rows,
-    text_filename,
 )
 from app.utils.error_handler import handle_api_errors
 from app.utils.user_display_name import resolve_user_display_name
@@ -736,7 +737,13 @@ async def generate_upload_po_import(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     filename = _header_safe(po_import_filename(purchase_order_number, supplier)) or "PO IMPORT.xlsx"
-    txt_name = text_filename(filename)
+    total_units = sum(item.total_units for item in rows)
+    box_count = int(upload.get("box_count") or 0)
+    txt_name = _header_safe(
+        po_import_text_filename(
+            purchase_order_number, box_count=box_count, total_units=total_units
+        )
+    ) or "WR PO Import.txt"
     bundle = _zip_import_pair(
         workbook_name=filename,
         workbook_bytes=workbook_bytes,
@@ -803,7 +810,13 @@ async def generate_upload_order_import(
     filename = (
         _header_safe(order_import_filename(reference_number, code)) or "ORDER IMPORT.xlsx"
     )
-    txt_name = text_filename(filename)
+    total_units = sum(item.total_units for item in rows)
+    box_count = int(upload.get("box_count") or 0)
+    txt_name = _header_safe(
+        order_import_text_filename(
+            reference_number, box_count=box_count, total_units=total_units
+        )
+    ) or "WR Order Import.txt"
     bundle = _zip_import_pair(
         workbook_name=filename,
         workbook_bytes=workbook_bytes,

@@ -639,10 +639,42 @@ def resolve_po_supplier(
     return _supplier_from_code_token(shipment_name) or _supplier_from_code_token(filename)
 
 
-def text_filename(workbook_filename: str) -> str:
-    """The .txt twin of an import workbook, so the pair is obviously one set."""
-    stem = re.sub(r"\.xlsx$", "", workbook_filename or "", flags=re.IGNORECASE)
-    return f"{stem}.txt" if stem else "IMPORT.txt"
+def _filename_label(value: str) -> str:
+    cleaned = re.sub(r'[\\/:*?"<>|]+', " ", (value or "").strip())
+    return " ".join(cleaned.split())
+
+
+def _import_text_filename(
+    shipment_id: str,
+    *,
+    box_count: int,
+    total_units: int,
+    kind: str,
+) -> str:
+    """Warehouse naming: '{ShipmentID} OF {boxes} {units} WR {kind}.txt'.
+
+    The shared samples follow this shape — e.g. ``FBA19JHYH77Q OF 38 157 WR PO
+    Import.txt`` — where ``38`` is the FBA export's box count and ``157`` is the
+    sum of units on the lines being exported.
+    """
+    label = _filename_label(shipment_id) or "IMPORT"
+    return f"{label} OF {int(box_count)} {int(total_units)} WR {kind}.txt"
+
+
+def po_import_text_filename(
+    shipment_id: str, *, box_count: int, total_units: int
+) -> str:
+    return _import_text_filename(
+        shipment_id, box_count=box_count, total_units=total_units, kind="PO Import"
+    )
+
+
+def order_import_text_filename(
+    shipment_id: str, *, box_count: int, total_units: int
+) -> str:
+    return _import_text_filename(
+        shipment_id, box_count=box_count, total_units=total_units, kind="Order Import"
+    )
 
 
 def _text_cell(value: object) -> str:

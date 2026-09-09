@@ -27,7 +27,8 @@ from app.services.shipment_manager import (
     supplier_from_filename,
     supplier_from_title,
     supplier_from_titles,
-    text_filename,
+    order_import_text_filename,
+    po_import_text_filename,
 )
 
 FBA_EXPORT = """Workflow name,wf5acb45b4-38bc-4c72-b878-c6b522ac6f99,,
@@ -521,10 +522,33 @@ def test_order_import_of_no_rows_is_just_the_template():
 # save-as: every column, no headers, CRLF endings and a trailing newline.
 
 
-def test_text_filename_is_the_workbook_name_with_a_txt_extension():
-    assert text_filename("PO IMPORT North Face FBA1.xlsx") == "PO IMPORT North Face FBA1.txt"
-    assert text_filename("ORDER IMPORT DEN8.XLSX") == "ORDER IMPORT DEN8.txt"
-    assert text_filename("") == "IMPORT.txt"
+def test_import_text_filenames_follow_the_warehouse_of_boxes_units_pattern():
+    assert (
+        po_import_text_filename("FBA19JHYH77Q", box_count=38, total_units=157)
+        == "FBA19JHYH77Q OF 38 157 WR PO Import.txt"
+    )
+    assert (
+        order_import_text_filename("FBA19JHYH77Q", box_count=38, total_units=157)
+        == "FBA19JHYH77Q OF 38 157 WR Order Import.txt"
+    )
+    assert (
+        po_import_text_filename("A3PUGGALCFA260625", box_count=2, total_units=12)
+        == "A3PUGGALCFA260625 OF 2 12 WR PO Import.txt"
+    )
+    assert po_import_text_filename("", box_count=0, total_units=0) == "IMPORT OF 0 0 WR PO Import.txt"
+    assert (
+        po_import_text_filename('FBA/1:"x"', box_count=1, total_units=5)
+        == "FBA 1 x OF 1 5 WR PO Import.txt"
+    )
+
+
+def test_po_import_text_filename_uses_boxes_and_units_from_the_export():
+    result = parse_fba_export("x.csv", FBA_EXPORT.encode("utf-8"))
+    assert po_import_text_filename(
+        result.shipment_id,
+        box_count=result.box_count,
+        total_units=result.total_units,
+    ) == "FBA19JHYH77Q OF 38 140 WR PO Import.txt"
 
 
 def _po_text_lines(rows=None, *, purchase_order_number="FBA19JHYH77Q", supplier="North Face"):
