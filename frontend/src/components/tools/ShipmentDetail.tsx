@@ -43,8 +43,8 @@ export default function ShipmentDetail() {
   const [isDragging, setIsDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [generating, setGenerating] = useState(false)
-  const [generatingPo, setGeneratingPo] = useState(false)
   const [busyUploadId, setBusyUploadId] = useState<string | null>(null)
+  const [poUploadId, setPoUploadId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
@@ -105,30 +105,21 @@ export default function ShipmentDetail() {
     [handleUpload],
   )
 
-  const handlePoImport = async () => {
-    if (!shipmentId || !shipment || generatingPo) return
-    if (shipment.uploads.length === 0) return
-    setGeneratingPo(true)
+  const handlePoImport = async (upload: ShipmentUpload) => {
+    if (!shipmentId || poUploadId) return
+    setPoUploadId(upload.id)
     setError(null)
     setMessage(null)
-    const downloaded: string[] = []
     try {
-      for (const upload of shipment.uploads) {
-        const result = await shipmentsApi.poImport(shipmentId, upload.id)
-        downloadBlob(result.blob, result.filename)
-        downloaded.push(result.filename)
-      }
-      if (downloaded.length === 1) {
-        setMessage(`Downloaded ${downloaded[0]}.`)
-      } else {
-        setMessage(
-          `Downloaded ${downloaded.length} PO Import sheets — one per upload, not merged.`,
-        )
-      }
+      const result = await shipmentsApi.poImport(shipmentId, upload.id)
+      downloadBlob(result.blob, result.filename)
+      setMessage(
+        `Downloaded ${result.filename} — ${result.skuCount} line item(s) from ${upload.filename} alone.`,
+      )
     } catch (err) {
-      setError(errorDetail(err, 'Could not build the PO Import sheet.'))
+      setError(errorDetail(err, 'Could not build the PO Import sheet for this upload.'))
     } finally {
-      setGeneratingPo(false)
+      setPoUploadId(null)
     }
   }
 
@@ -300,24 +291,14 @@ export default function ShipmentDetail() {
       <section className="rounded-xl border border-gray-200 bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
           <h2 className="font-semibold text-gray-900">Uploads</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              disabled={generatingPo || generating || shipment.upload_count === 0}
-              onClick={() => void handlePoImport()}
-              className="rounded-md bg-blue-900 px-4 py-2 text-sm font-medium text-white hover:bg-blue-950 disabled:opacity-50"
-            >
-              {generatingPo ? 'Building…' : 'Generate PO Import'}
-            </button>
-            <button
-              type="button"
-              disabled={generating || generatingPo || shipment.upload_count === 0}
-              onClick={() => void handleGenerate()}
-              className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-            >
-              {generating ? 'Compiling…' : 'Generate WR SKU Update'}
-            </button>
-          </div>
+          <button
+            type="button"
+            disabled={generating || shipment.upload_count === 0}
+            onClick={() => void handleGenerate()}
+            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {generating ? 'Compiling…' : 'Generate WR SKU Update'}
+          </button>
         </div>
         {shipment.upload_count > 0 && (
           <p className="border-b border-gray-100 px-4 py-2 text-sm text-gray-600">
@@ -372,15 +353,25 @@ export default function ShipmentDetail() {
                   </td>
                   <td className="px-4 py-2">{upload.row_count.toLocaleString()}</td>
                   <td className="px-4 py-2 text-gray-600">{formatDateTime(upload.created_at)}</td>
-                  <td className="px-4 py-2 text-right">
-                    <button
-                      type="button"
-                      disabled={busyUploadId === upload.id}
-                      onClick={() => void handleRemoveUpload(upload)}
-                      className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
-                    >
-                      {busyUploadId === upload.id ? 'Removing…' : 'Remove'}
-                    </button>
+                  <td className="px-4 py-2">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        disabled={poUploadId === upload.id || busyUploadId === upload.id}
+                        onClick={() => void handlePoImport(upload)}
+                        className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        {poUploadId === upload.id ? 'Building…' : 'PO Import'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busyUploadId === upload.id}
+                        onClick={() => void handleRemoveUpload(upload)}
+                        className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        {busyUploadId === upload.id ? 'Removing…' : 'Remove'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -436,10 +427,9 @@ export default function ShipmentDetail() {
             one row per UPC — when two uploads share a UPC, the earlier upload's row is kept.
           </li>
           <li>
-            <strong>Generate PO Import</strong> is per upload, not merged: each file gets its own
-            purchase order sheet listing that file's SKUs and unit counts. The purchase order
-            number is the FBA shipment id and the supplier comes from the start of the uploaded
-            file's name.
+            <strong>PO Import</strong> is per upload, not merged: each file gets its own purchase
+            order sheet listing that file's SKUs and unit counts. The purchase order number is the
+            FBA shipment id and the supplier comes from the start of the uploaded file's name.
           </li>
           <li>
             The item and carton dimensions, and the PO sheet's date, facility and notes columns,
