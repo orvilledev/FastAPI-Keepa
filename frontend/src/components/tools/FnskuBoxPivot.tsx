@@ -249,9 +249,9 @@ export default function FnskuBoxPivot() {
             SKU has 7 or fewer digits, otherwise UPC) and written as <code>{'{id}'}-FNSKU</code>.
           </li>
           <li>
-            Output has a <code>scanned data</code> sheet plus a <code>Sheet7</code> pivot of Sum of
+            Output has a <code>Scanned Data</code> sheet plus a <code>Pivot</code> sheet of Sum of
             QTY by merchant SKU (rows) and box number (columns). FNSKU and merchant SKU stay Excel
-            text; BOX# and QTY stay numbers so lookups match.
+            text; BOX# and QTY stay numbers so lookups match. Headers are bold with a dark fill.
           </li>
         </ul>
       </section>

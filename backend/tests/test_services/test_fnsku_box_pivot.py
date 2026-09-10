@@ -22,6 +22,9 @@ from app.services.fnsku_box_pivot import (
 
 SAMPLE_INPUT = Path(r"c:\Users\Administrator\Downloads\Input.xlsx")
 SAMPLE_OUTPUT = Path(r"c:\Users\Administrator\Downloads\Output.xlsx")
+# Older sample workbook used the previous tab names.
+_SAMPLE_PIVOT_SHEET = "Sheet7"
+_SAMPLE_SCANNED_SHEET = "scanned data"
 
 
 def _xlsx_with_rows(headers: list[str], rows: list[list[object]], sheet_name: str = "Sheet1") -> bytes:
@@ -161,6 +164,11 @@ def test_output_keeps_ids_as_text_and_qty_box_as_numbers():
         assert isinstance(pivot["C5"].value, int)
         assert pivot["D5"].data_type == "n"
         assert pivot["A7"].data_type == "s"
+        assert scanned["A1"].font.bold is True
+        assert scanned["A1"].fill.fgColor.rgb in ("00404040", "404040")
+        assert pivot["A4"].font.bold is True
+        assert pivot["A4"].fill.fgColor.rgb in ("00404040", "404040")
+        assert pivot["B4"].font.bold is True
     finally:
         workbook.close()
 
@@ -171,6 +179,8 @@ def test_template_has_expected_headers():
         sheet = workbook.active
         assert sheet["A1"].value == "FNSKU"
         assert sheet["B1"].value == "BOX#"
+        assert sheet["A1"].font.bold is True
+        assert sheet["B1"].font.bold is True
     finally:
         workbook.close()
 
@@ -209,7 +219,7 @@ def _pivot_map(sheet) -> dict[tuple[object, object], object]:
 def test_sample_input_matches_sample_output():
     sample = openpyxl.load_workbook(SAMPLE_OUTPUT, data_only=True)
     try:
-        scanned = sample[SCANNED_SHEET_NAME]
+        scanned = sample[_SAMPLE_SCANNED_SHEET]
         catalog = {}
         for row in range(2, scanned.max_row + 1):
             msku = scanned.cell(row, 1).value
@@ -231,7 +241,7 @@ def test_sample_input_matches_sample_output():
             )
             for row in range(1, scanned.max_row + 1)
         ]
-        expected_pivot_map = _pivot_map(sample[PIVOT_SHEET_NAME])
+        expected_pivot_map = _pivot_map(sample[_SAMPLE_PIVOT_SHEET])
     finally:
         sample.close()
 
