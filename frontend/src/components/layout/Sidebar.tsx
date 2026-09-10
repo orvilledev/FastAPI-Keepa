@@ -310,6 +310,19 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
                 <span className="shrink-0">{Icons.barcode}</span>
                 <span className="sidebar-link-label">Label Station</span>
               </Link>
+
+              <Link
+                to="/fnsku-pack-station"
+                onMouseEnter={() => setHoveredNav('fnsku-pack-station')}
+                className={`sidebar-link ${
+                  navHighlighted('fnsku-pack-station', isActive('/fnsku-pack-station'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.fnskuBoxPivot}</span>
+                <span className="sidebar-link-label">FNSKU Pack Station</span>
+              </Link>
             </div>
 
             <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />

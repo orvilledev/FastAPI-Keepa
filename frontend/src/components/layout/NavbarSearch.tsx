@@ -25,6 +25,7 @@ function buildSearchItems(
   if (isWarehouseOnly) {
     return [
       { label: 'Label Station', path: '/label-station', section: 'Tools' },
+      { label: 'FNSKU Pack Station', path: '/fnsku-pack-station', section: 'Tools' },
       { label: 'About', path: '/about', section: 'General' },
       { label: 'FAQ', path: '/faq', section: 'General' },
       { label: 'Feedback From Users', path: '/feedback', section: 'General' },

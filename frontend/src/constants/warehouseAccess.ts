@@ -4,6 +4,7 @@ export const WAREHOUSE_HOME_PATH = '/label-station'
 /** In-app routes warehouse accounts may open (sidebar + direct links). */
 export const WAREHOUSE_ALLOWED_PATHS = new Set([
   WAREHOUSE_HOME_PATH,
+  '/fnsku-pack-station',
   '/about',
   '/faq',
   '/feedback',
