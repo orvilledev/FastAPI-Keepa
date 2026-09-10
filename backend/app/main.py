@@ -331,7 +331,7 @@ app.include_router(tracking_scanner.router, prefix=settings.api_v1_str, tags=["t
 app.include_router(warehouse_products.router, prefix=settings.api_v1_str, tags=["warehouse-products"], dependencies=[Depends(require_app_access)])
 app.include_router(keepa_import_export.router, prefix=settings.api_v1_str, tags=["keepa-import-export"], dependencies=[Depends(require_app_access)])
 app.include_router(manifest_generator.router, prefix=settings.api_v1_str, tags=["manifest-generator"], dependencies=[Depends(require_app_access)])
-app.include_router(fnsku_box_pivot.router, prefix=settings.api_v1_str, tags=["fnsku-box-pivot"], dependencies=[Depends(require_app_access)])
+app.include_router(fnsku_box_pivot.router, prefix=settings.api_v1_str, tags=["fnsku-pack-station"], dependencies=[Depends(require_app_access)])
 app.include_router(dnk_all_inventory.router, prefix=settings.api_v1_str, tags=["dnk-all-inventory"], dependencies=[Depends(require_app_access)])
 app.include_router(freight_class_calculator.router, prefix=settings.api_v1_str, tags=["freight-class-calculator"], dependencies=[Depends(require_app_access)])
 app.include_router(shipments.router, prefix=settings.api_v1_str, tags=["shipments"], dependencies=[Depends(require_app_access)])

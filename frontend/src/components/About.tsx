@@ -181,7 +181,7 @@ export default function About() {
             or clear the full history.
           </li>
           <li>
-            <span className="font-semibold">FNSKU Box Pivot:</span> Upload an FNSKU + BOX# scan sheet. Each FNSKU is
+            <span className="font-semibold">FNSKU Pack Station:</span> Upload an FNSKU + BOX# scan sheet. Each FNSKU is
             looked up in the warehouse product catalog, then the download includes a scanned-data sheet and a quantity
             pivot by merchant SKU and box.
           </li>
@@ -202,7 +202,7 @@ export default function About() {
         </ul>
         <p className="mt-4 text-sm text-gray-600">
           Label Station requires Keepa access or a warehouse-only account. Micro Tools, Tracking Extractor, FNSKU Labels,
-          FNSKU Box Pivot, and Manifest Generator are available to all signed-in users.
+          FNSKU Pack Station, and Manifest Generator are available to all signed-in users.
         </p>
       </div>
 

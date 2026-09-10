@@ -9,15 +9,18 @@ import pytest
 from openpyxl.utils import get_column_letter
 
 from app.services.fnsku_box_pivot import (
+    DEFAULT_OUTPUT_FILENAME,
     OUTPUT_FILENAME,
     PIVOT_SHEET_NAME,
     SCANNED_SHEET_NAME,
+    TEMPLATE_FILENAME,
     FnskuBoxPivotError,
     ScanRow,
     apply_msku_lookup,
     build_template_workbook,
     generate_fnsku_box_pivot,
     parse_fnsku_box_rows,
+    sanitize_download_filename,
 )
 
 SAMPLE_INPUT = Path(r"c:\Users\Administrator\Downloads\Input.xlsx")
@@ -74,8 +77,8 @@ def test_generate_matches_excel_pivot_layout():
         "XB": {"fnsku": "XB", "sku": "", "upc": "190850809165"},
         "XC": {"fnsku": "XC", "sku": "190850809165-FNSKU", "upc": "190850809165"},
     }
-    result = generate_fnsku_box_pivot(raw, catalog)
-    assert result.filename == OUTPUT_FILENAME
+    result = generate_fnsku_box_pivot(raw, catalog, filename="My Scan Sheet.xlsx")
+    assert result.filename == "My Scan Sheet.xlsx"
     assert result.row_count == 5
     assert result.sku_count == 2
     assert result.unmatched_count == 1
@@ -171,6 +174,15 @@ def test_output_keeps_ids_as_text_and_qty_box_as_numbers():
         assert pivot["B4"].font.bold is True
     finally:
         workbook.close()
+
+
+def test_sanitize_download_filename_keeps_upload_basename():
+    assert sanitize_download_filename("Input.xlsx") == "Input.xlsx"
+    assert sanitize_download_filename(r"C:\temp\Input.xlsx") == "Input.xlsx"
+    assert sanitize_download_filename("") == DEFAULT_OUTPUT_FILENAME
+    assert sanitize_download_filename(None) == DEFAULT_OUTPUT_FILENAME
+    assert OUTPUT_FILENAME == DEFAULT_OUTPUT_FILENAME
+    assert TEMPLATE_FILENAME == "FNSKU Pack Station Template.xlsx"
 
 
 def test_template_has_expected_headers():

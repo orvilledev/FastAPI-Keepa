@@ -36,7 +36,7 @@ CLIENT_ACTIONS: Dict[str, tuple[str, str]] = {
     "label_station.download_pdf": ("download", "Downloaded a warehouse label PDF"),
     "label_station.template_download": ("download", "Downloaded the warehouse products template"),
     "manifest.template_download": ("download", "Downloaded the Manifest Generator template"),
-    "fnsku_box_pivot.template_download": ("download", "Downloaded the FNSKU Box Pivot template"),
+    "fnsku_box_pivot.template_download": ("download", "Downloaded the FNSKU Pack Station template"),
 }
 
 _MAX_METADATA_KEYS = 12

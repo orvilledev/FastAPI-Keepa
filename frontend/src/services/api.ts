@@ -1783,7 +1783,7 @@ export const fnskuBoxPivotApi = {
     const form = new FormData()
     form.append('file', file)
     try {
-      const response = await api.post<Blob>('/api/v1/fnsku-box-pivot/generate', form, {
+      const response = await api.post<Blob>('/api/v1/fnsku-pack-station/generate', form, {
         responseType: 'blob',
         timeout: 120_000,
       })
@@ -1791,7 +1791,7 @@ export const fnskuBoxPivotApi = {
       const filenameHeader = headers['x-box-pivot-filename']
       const disposition = headers['content-disposition'] as string | undefined
       let filename =
-        (typeof filenameHeader === 'string' && filenameHeader.trim()) || 'Output.xlsx'
+        (typeof filenameHeader === 'string' && filenameHeader.trim()) || file.name || 'Output.xlsx'
       if ((!filenameHeader || !String(filenameHeader).trim()) && disposition) {
         const match = /filename="?([^";]+)"?/i.exec(disposition)
         if (match?.[1]) filename = match[1]
@@ -1810,7 +1810,7 @@ export const fnskuBoxPivotApi = {
   },
   downloadTemplate: async (): Promise<{ blob: Blob; filename: string }> => {
     try {
-      const response = await api.get<Blob>('/api/v1/fnsku-box-pivot/template', {
+      const response = await api.get<Blob>('/api/v1/fnsku-pack-station/template', {
         responseType: 'blob',
         timeout: 30_000,
       })
@@ -1819,7 +1819,7 @@ export const fnskuBoxPivotApi = {
       const disposition = headers['content-disposition'] as string | undefined
       let filename =
         (typeof filenameHeader === 'string' && filenameHeader.trim()) ||
-        'FNSKU Box Pivot Template.xlsx'
+        'FNSKU Pack Station Template.xlsx'
       if ((!filenameHeader || !String(filenameHeader).trim()) && disposition) {
         const match = /filename="?([^";]+)"?/i.exec(disposition)
         if (match?.[1]) filename = match[1]

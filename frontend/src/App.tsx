@@ -439,7 +439,8 @@ function AppRoutes() {
           <Route path="keepa-import-export" element={<Navigate to="/dashboard" replace />} />
           <Route path="tracking-scanner" element={<TrackingScanner />} />
           <Route path="fnsku-labels" element={<FNSKULabelGenerator />} />
-          <Route path="fnsku-box-pivot" element={<FnskuBoxPivot />} />
+          <Route path="fnsku-pack-station" element={<FnskuBoxPivot />} />
+          <Route path="fnsku-box-pivot" element={<Navigate to="/fnsku-pack-station" replace />} />
           <Route path="manifest-generator" element={<ManifestGenerator />} />
           <Route path="dnk-all-inventory" element={<DnkAllInventory />} />
           <Route path="shipment-manager" element={<ShipmentManager />} />

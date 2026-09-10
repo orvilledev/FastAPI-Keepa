@@ -11,6 +11,7 @@ from __future__ import annotations
 import io
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from openpyxl import Workbook, load_workbook
@@ -46,7 +47,17 @@ _BOX_HEADERS = frozenset({"box#", "box #", "box", "box number", "box no", "boxno
 
 PIVOT_SHEET_NAME = "Pivot"
 SCANNED_SHEET_NAME = "Scanned Data"
-OUTPUT_FILENAME = "Output.xlsx"
+TEMPLATE_FILENAME = "FNSKU Pack Station Template.xlsx"
+DEFAULT_OUTPUT_FILENAME = "Output.xlsx"
+# Back-compat alias used by older imports/tests.
+OUTPUT_FILENAME = DEFAULT_OUTPUT_FILENAME
+
+
+def sanitize_download_filename(name: str | None, fallback: str = DEFAULT_OUTPUT_FILENAME) -> str:
+    """Return a safe download filename, preferring the uploaded file's basename."""
+    cleaned = (name or "").replace('"', "").replace("\r", "").replace("\n", "").strip()
+    base = Path(cleaned).name if cleaned else ""
+    return base or fallback
 
 
 class FnskuBoxPivotError(ValueError):
@@ -396,7 +407,7 @@ def build_output_workbook(rows: Sequence[ScannedDataRow]) -> bytes:
 def generate_fnsku_box_pivot(
     content: bytes,
     catalog_by_fnsku: Mapping[str, Mapping[str, Any]],
-    filename: str = OUTPUT_FILENAME,
+    filename: str = DEFAULT_OUTPUT_FILENAME,
     scan_rows: Sequence[ScanRow] | None = None,
 ) -> FnskuBoxPivotResult:
     if scan_rows is None:
@@ -406,7 +417,7 @@ def generate_fnsku_box_pivot(
     sku_count = len({row.msku for row in scanned if row.msku})
     return FnskuBoxPivotResult(
         file_bytes=file_bytes,
-        filename=filename or OUTPUT_FILENAME,
+        filename=sanitize_download_filename(filename),
         row_count=len(scanned),
         sku_count=sku_count,
         unmatched_count=len(unmatched),

@@ -85,8 +85,8 @@ export default function FnskuBoxPivot() {
         (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data
           ?.detail ||
         (err as { message?: string })?.message ||
-        'Failed to generate the box pivot workbook.'
-      setError(typeof msg === 'string' ? msg : 'Failed to generate the box pivot workbook.')
+        'Failed to generate the Pack Station workbook.'
+      setError(typeof msg === 'string' ? msg : 'Failed to generate the Pack Station workbook.')
     } finally {
       setGenerating(false)
     }
@@ -112,11 +112,11 @@ export default function FnskuBoxPivot() {
     <div className="mx-auto max-w-3xl space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">FNSKU Box Pivot</h1>
+          <h1 className="text-2xl font-bold text-gray-900">FNSKU Pack Station</h1>
           <p className="mt-1 text-sm text-gray-600">
             Upload an FNSKU + BOX# scan sheet. The tool looks up each FNSKU in the warehouse
             catalog and downloads a workbook with scanned rows and a quantity pivot by merchant SKU
-            and box.
+            and box. The download keeps the same filename as your upload.
           </p>
         </div>
         <button

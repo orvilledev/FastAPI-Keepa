@@ -466,16 +466,16 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
             </Link>
 
             <Link
-              to="/fnsku-box-pivot"
-              onMouseEnter={() => setHoveredNav('fnsku-box-pivot')}
+              to="/fnsku-pack-station"
+              onMouseEnter={() => setHoveredNav('fnsku-pack-station')}
               className={`sidebar-link ${
-                navHighlighted('fnsku-box-pivot', isActive('/fnsku-box-pivot'))
+                navHighlighted('fnsku-pack-station', isActive('/fnsku-pack-station'))
                   ? 'sidebar-link-active'
                   : 'sidebar-link-inactive'
               }`}
             >
               <span className="shrink-0">{Icons.fnskuBoxPivot}</span>
-              <span className="sidebar-link-label">FNSKU Box Pivot</span>
+              <span className="sidebar-link-label">FNSKU Pack Station</span>
             </Link>
 
             <Link

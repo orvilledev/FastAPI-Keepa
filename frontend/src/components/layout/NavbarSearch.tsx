@@ -63,7 +63,7 @@ function buildSearchItems(
     { label: 'Micro Tools', path: '/micro-tools', section: 'Tools' },
     { label: 'Tracking Extractor', path: '/tracking-scanner', section: 'Tools' },
     { label: 'FNSKU Labels', path: '/fnsku-labels', section: 'Tools' },
-    { label: 'FNSKU Box Pivot', path: '/fnsku-box-pivot', section: 'Tools' },
+    { label: 'FNSKU Pack Station', path: '/fnsku-pack-station', section: 'Tools' },
     { label: 'Manifest Generator', path: '/manifest-generator', section: 'Tools' },
     { label: 'DNK AllInventory', path: '/dnk-all-inventory', section: 'Tools' },
     { label: 'Shipment Manager', path: '/shipment-manager', section: 'Tools' },
