@@ -1,0 +1,24 @@
+MSW Overwatch 3.4.2 — desktop and web release
+
+Patch release since 3.4.1. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Projects
+- Personal **Projects** tracker in the Menu sidebar, restricted to an allowlisted set of users
+
+## Ship To Address
+- New **Ship To Address** catalog between Email List and Analytics
+- Upsert uploads by code, with replace confirmation and row delete
+
+## Shipment Manager
+- New **Shipment Manager** tool turns FBA shipment files into WR SKU update sheets
+- Shared registration workspace, one row per UPC, with vendor tags and list filters
+- Download Ledger Excel export, including an FBA Shipments tab
+- Per-upload PO Import and Order Import from the Ship To Address catalog
+- PO Import fills supplier from the FBA title and sets Facility to WHREP Ontario
+- PO and Order Import download as Excel plus matching tab-delimited text in one click
+- Text files named ShipmentID OF boxes units WR Import
+- North Face without “The” in PO exports, plus shipment status on the list
+- Reject uploads whose Ship to code is missing from the catalog
+
+## Upgrade from 3.4.1
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.4.2, download it, then prompt to install now or later. Web/PWA users get 3.4.2 on the next deploy/refresh.
