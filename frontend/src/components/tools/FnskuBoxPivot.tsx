@@ -29,6 +29,7 @@ export default function FnskuBoxPivot() {
   const [file, setFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<GenerateSummary | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -92,6 +93,8 @@ export default function FnskuBoxPivot() {
   }, [file, generating])
 
   const handleDownloadTemplate = useCallback(async () => {
+    if (downloadingTemplate) return
+    setDownloadingTemplate(true)
     setError(null)
     try {
       const result = await fnskuBoxPivotApi.downloadTemplate()
@@ -100,8 +103,10 @@ export default function FnskuBoxPivot() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to download template.'
       setError(msg)
+    } finally {
+      setDownloadingTemplate(false)
     }
-  }, [])
+  }, [downloadingTemplate])
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -117,9 +122,10 @@ export default function FnskuBoxPivot() {
         <button
           type="button"
           onClick={() => void handleDownloadTemplate()}
-          className="shrink-0 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100"
+          disabled={downloadingTemplate}
+          className="shrink-0 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100 disabled:opacity-50"
         >
-          Download Template
+          {downloadingTemplate ? 'Downloading…' : 'Download Template'}
         </button>
       </header>
 
@@ -211,6 +217,14 @@ export default function FnskuBoxPivot() {
             className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
           >
             {generating ? 'Generating…' : 'Generate pivot workbook'}
+          </button>
+          <button
+            type="button"
+            disabled={downloadingTemplate}
+            onClick={() => void handleDownloadTemplate()}
+            className="rounded-md border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100 disabled:opacity-50"
+          >
+            {downloadingTemplate ? 'Downloading…' : 'Download Template'}
           </button>
           {file && (
             <button
