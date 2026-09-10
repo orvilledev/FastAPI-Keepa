@@ -95,23 +95,72 @@ def test_generate_matches_excel_pivot_layout():
         assert pivot["A4"].value == "Row Labels"
         assert pivot["B4"].value == 1
         assert pivot["C4"].value == 2
-        assert pivot["D4"].value == "(blank)"
-        assert pivot["E4"].value == "Grand Total"
+        assert pivot["D4"].value == "Grand Total"
+        assert pivot["E4"].value is None
         assert pivot["A5"].value == "190850809165-FNSKU"
         assert pivot["B5"].value == 2
         assert pivot["C5"].value is None
-        assert pivot["E5"].value == 2
+        assert pivot["D5"].value == 2
         assert pivot["A6"].value == "9990001-FNSKU"
         assert pivot["C6"].value == 2
-        assert pivot["E6"].value == 2
-        assert pivot["A7"].value == "(blank)"
-        assert pivot["D7"].value == 1
-        assert pivot["E7"].value == 1
-        assert pivot["A8"].value == "Grand Total"
-        assert pivot["B8"].value == 2
-        assert pivot["C8"].value == 2
-        assert pivot["D8"].value == 1
-        assert pivot["E8"].value == 5
+        assert pivot["D6"].value == 2
+        assert pivot["A7"].value == "Grand Total"
+        assert pivot["B7"].value == 2
+        assert pivot["C7"].value == 2
+        assert pivot["D7"].value == 4
+        assert all(
+            cell.value != "(blank)"
+            for row in pivot.iter_rows(min_row=3, max_row=7, max_col=4)
+            for cell in row
+        )
+        assert abs((pivot.column_dimensions["B"].width or 0) - (35 - 5) / 7) < 0.01
+        assert abs((pivot.column_dimensions["C"].width or 0) - (35 - 5) / 7) < 0.01
+        assert abs((pivot.column_dimensions["D"].width or 0) - (35 - 5) / 7) < 0.01
+    finally:
+        workbook.close()
+
+
+def test_output_keeps_ids_as_text_and_qty_box_as_numbers():
+    raw = _xlsx_with_rows(
+        ["FNSKU", "BOX#"],
+        [["XA", "2"], ["XB", 3.0]],
+    )
+    catalog = {
+        "XA": {"fnsku": "XA", "sku": "9990001", "upc": "111"},
+        "XB": {"fnsku": "XB", "sku": "", "upc": "190850809165"},
+    }
+    result = generate_fnsku_box_pivot(raw, catalog)
+    workbook = openpyxl.load_workbook(BytesIO(result.file_bytes))
+    try:
+        scanned = workbook[SCANNED_SHEET_NAME]
+        assert scanned["A2"].value == "9990001-FNSKU"
+        assert scanned["A2"].data_type == "s"
+        assert scanned["A2"].number_format == "@"
+        assert scanned["B2"].value == "XA"
+        assert scanned["B2"].data_type == "s"
+        assert scanned["B2"].number_format == "@"
+        assert scanned["C2"].value == 2
+        assert isinstance(scanned["C2"].value, int)
+        assert scanned["C2"].data_type == "n"
+        assert scanned["D2"].value == 1
+        assert isinstance(scanned["D2"].value, int)
+        assert scanned["D2"].data_type == "n"
+        assert scanned["C3"].value == 3
+        assert scanned["C3"].data_type == "n"
+
+        pivot = workbook[PIVOT_SHEET_NAME]
+        assert pivot["A5"].data_type == "s"
+        assert pivot["A5"].number_format == "@"
+        assert pivot["B4"].value == 2
+        assert pivot["B4"].data_type == "n"
+        assert isinstance(pivot["B4"].value, int)
+        assert pivot["C4"].value == 3
+        assert pivot["C4"].data_type == "n"
+        assert pivot["C5"].value == 1
+        assert pivot["C5"].data_type == "n"
+        assert isinstance(pivot["C5"].value, int)
+        assert pivot["D5"].data_type == "n"
+        assert pivot["A7"].data_type == "s"
     finally:
         workbook.close()
 
@@ -142,12 +191,12 @@ def _pivot_map(sheet) -> dict[tuple[object, object], object]:
     headers = {}
     for col in range(2, sheet.max_column + 1):
         header = sheet.cell(4, col).value
-        if header is not None:
+        if header is not None and header != "(blank)":
             headers[col] = header
     mapped: dict[tuple[object, object], object] = {}
     for row in range(5, sheet.max_row + 1):
         label = sheet.cell(row, 1).value
-        if not label:
+        if not label or label == "(blank)":
             continue
         for col, header in headers.items():
             value = sheet.cell(row, col).value

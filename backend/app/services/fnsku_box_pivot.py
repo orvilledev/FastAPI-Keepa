@@ -22,6 +22,12 @@ from app.repositories.warehouse_product_repository import merchant_sku_from_cata
 
 _MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 _CALIBRI = Font(name="Calibri", size=11)
+_TEXT_FORMAT = "@"
+_INT_FORMAT = "0"
+_FLOAT_FORMAT = "0.##############"
+# Excel column width for 35px at the default 7px digit width: (pixels - 5) / 7.
+_PIVOT_DATA_COL_WIDTH = (35 - 5) / 7
+_PIVOT_LABEL_COL_WIDTH = 19.89
 
 _FNSKU_HEADERS = frozenset({"fnsku"})
 _BOX_HEADERS = frozenset({"box#", "box #", "box", "box number", "box no", "boxno"})
@@ -181,24 +187,66 @@ def apply_msku_lookup(
     return scanned, tuple(unmatched)
 
 
-def _set_cell(sheet: Worksheet, row: int, column: int, value: Any) -> None:
-    cell = sheet.cell(row=row, column=column, value=value)
+def _set_text_cell(sheet: Worksheet, row: int, column: int, value: Any) -> None:
+    """Write a lookup key as Excel text so VLOOKUP/XLOOKUP will not coerce it to a number."""
+    cell = sheet.cell(row=row, column=column)
     cell.font = _CALIBRI
+    cell.number_format = _TEXT_FORMAT
+    if value is None:
+        cell.value = None
+        return
+    text = str(value)
+    if not text:
+        cell.value = None
+        return
+    cell.value = text
+    cell.data_type = "s"
+
+
+def _set_number_cell(sheet: Worksheet, row: int, column: int, value: Any) -> None:
+    """Write a true Excel number. Non-numeric values fall back to text."""
+    cell = sheet.cell(row=row, column=column)
+    cell.font = _CALIBRI
+    if value is None or isinstance(value, bool):
+        cell.value = None
+        cell.number_format = _INT_FORMAT
+        return
+    if isinstance(value, int):
+        cell.value = value
+        cell.number_format = _INT_FORMAT
+        return
+    if isinstance(value, float):
+        if value.is_integer() and abs(value) < 2**53:
+            cell.value = int(value)
+            cell.number_format = _INT_FORMAT
+        else:
+            cell.value = value
+            cell.number_format = _FLOAT_FORMAT
+        return
+    parsed = _parse_box(value)
+    if isinstance(parsed, (int, float)):
+        _set_number_cell(sheet, row, column, parsed)
+        return
+    _set_text_cell(sheet, row, column, value)
 
 
 def _write_scanned_data(sheet: Worksheet, rows: Sequence[ScannedDataRow]) -> None:
     sheet.freeze_panes = "A2"
     for column, header in enumerate(("msku", "FNSKU", "BOX#", "QTY"), start=1):
-        _set_cell(sheet, 1, column, header)
+        _set_text_cell(sheet, 1, column, header)
     for index, row in enumerate(rows, start=2):
-        _set_cell(sheet, index, 1, row.msku or None)
-        _set_cell(sheet, index, 2, row.fnsku)
-        _set_cell(sheet, index, 3, row.box)
-        _set_cell(sheet, index, 4, row.qty)
+        _set_text_cell(sheet, index, 1, row.msku or None)
+        _set_text_cell(sheet, index, 2, row.fnsku)
+        _set_number_cell(sheet, index, 3, row.box)
+        _set_number_cell(sheet, index, 4, row.qty)
     sheet.column_dimensions["A"].width = 19.89
     sheet.column_dimensions["B"].width = 12
     sheet.column_dimensions["C"].width = 13
     sheet.column_dimensions["D"].width = 13
+    sheet.column_dimensions["A"].number_format = _TEXT_FORMAT
+    sheet.column_dimensions["B"].number_format = _TEXT_FORMAT
+    sheet.column_dimensions["C"].number_format = _INT_FORMAT
+    sheet.column_dimensions["D"].number_format = _INT_FORMAT
 
 
 def _write_pivot(sheet: Worksheet, rows: Sequence[ScannedDataRow]) -> None:
@@ -216,63 +264,50 @@ def _write_pivot(sheet: Worksheet, rows: Sequence[ScannedDataRow]) -> None:
     mskus: set[str] = set()
     for row in rows:
         msku = row.msku or ""
-        if msku:
-            mskus.add(msku)
+        if not msku or row.box is None:
+            continue
+        mskus.add(msku)
         key = (msku, row.box)
         counts[key] = counts.get(key, 0) + row.qty
 
     sorted_mskus = sorted(mskus)
-    box_columns = list(boxes) + [None]
-    grand_total_col = 2 + len(box_columns)
+    grand_total_col = 2 + len(boxes)
 
-    _set_cell(sheet, 3, 1, "Sum of QTY")
-    _set_cell(sheet, 3, 2, "Column Labels")
-    _set_cell(sheet, 4, 1, "Row Labels")
+    _set_text_cell(sheet, 3, 1, "Sum of QTY")
+    _set_text_cell(sheet, 3, 2, "Column Labels")
+    _set_text_cell(sheet, 4, 1, "Row Labels")
     for offset, box in enumerate(boxes, start=2):
-        _set_cell(sheet, 4, offset, box)
-    _set_cell(sheet, 4, 1 + len(boxes) + 1, "(blank)")
-    _set_cell(sheet, 4, grand_total_col, "Grand Total")
+        _set_number_cell(sheet, 4, offset, box)
+    _set_text_cell(sheet, 4, grand_total_col, "Grand Total")
 
-    column_totals = [0] * len(box_columns)
+    column_totals = [0] * len(boxes)
     current_row = 5
     for msku in sorted_mskus:
-        _set_cell(sheet, current_row, 1, msku)
+        _set_text_cell(sheet, current_row, 1, msku)
         row_total = 0
-        for offset, box in enumerate(box_columns):
+        for offset, box in enumerate(boxes):
             qty = counts.get((msku, box), 0)
             if qty:
-                _set_cell(sheet, current_row, offset + 2, qty)
+                _set_number_cell(sheet, current_row, offset + 2, qty)
                 row_total += qty
                 column_totals[offset] += qty
         if row_total:
-            _set_cell(sheet, current_row, grand_total_col, row_total)
+            _set_number_cell(sheet, current_row, grand_total_col, row_total)
         current_row += 1
 
-    blank_row = current_row
-    _set_cell(sheet, blank_row, 1, "(blank)")
-    blank_total = 0
-    for offset, box in enumerate(box_columns):
-        qty = counts.get(("", box), 0)
-        if qty:
-            _set_cell(sheet, blank_row, offset + 2, qty)
-            blank_total += qty
-            column_totals[offset] += qty
-    if blank_total:
-        _set_cell(sheet, blank_row, grand_total_col, blank_total)
-    current_row += 1
-
     total_row = current_row
-    _set_cell(sheet, total_row, 1, "Grand Total")
+    _set_text_cell(sheet, total_row, 1, "Grand Total")
     grand = 0
     for offset, qty in enumerate(column_totals):
         if qty:
-            _set_cell(sheet, total_row, offset + 2, qty)
+            _set_number_cell(sheet, total_row, offset + 2, qty)
             grand += qty
     if grand:
-        _set_cell(sheet, total_row, grand_total_col, grand)
+        _set_number_cell(sheet, total_row, grand_total_col, grand)
 
-    sheet.column_dimensions["A"].width = 19.89
-    sheet.column_dimensions[get_column_letter(grand_total_col)].width = 11.33
+    sheet.column_dimensions["A"].width = _PIVOT_LABEL_COL_WIDTH
+    for column in range(2, grand_total_col + 1):
+        sheet.column_dimensions[get_column_letter(column)].width = _PIVOT_DATA_COL_WIDTH
 
 
 def build_output_workbook(rows: Sequence[ScannedDataRow]) -> bytes:
@@ -314,10 +349,12 @@ def build_template_workbook() -> bytes:
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Sheet1"
-    sheet["A1"] = "FNSKU"
-    sheet["B1"] = "BOX#"
+    _set_text_cell(sheet, 1, 1, "FNSKU")
+    _set_text_cell(sheet, 1, 2, "BOX#")
     sheet.column_dimensions["A"].width = 16
     sheet.column_dimensions["B"].width = 12
+    sheet.column_dimensions["A"].number_format = _TEXT_FORMAT
+    sheet.column_dimensions["B"].number_format = _INT_FORMAT
     output = io.BytesIO()
     workbook.save(output)
     return output.getvalue()

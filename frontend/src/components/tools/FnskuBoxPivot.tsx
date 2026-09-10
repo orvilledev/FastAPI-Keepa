@@ -236,7 +236,8 @@ export default function FnskuBoxPivot() {
           </li>
           <li>
             Output has a <code>scanned data</code> sheet plus a <code>Sheet7</code> pivot of Sum of
-            QTY by merchant SKU (rows) and box number (columns).
+            QTY by merchant SKU (rows) and box number (columns). FNSKU and merchant SKU stay Excel
+            text; BOX# and QTY stay numbers so lookups match.
           </li>
         </ul>
       </section>
