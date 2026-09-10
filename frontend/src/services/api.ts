@@ -1745,6 +1745,92 @@ export const manifestGeneratorApi = {
   },
 }
 
+export type FnskuBoxPivotResult = {
+  blob: Blob
+  filename: string
+  rowCount: number
+  skuCount: number
+  unmatchedCount: number
+  unmatchedFnskus: string
+}
+
+async function readBlobError(err: unknown): Promise<never> {
+  const ax = err as {
+    response?: { data?: Blob | { detail?: string }; status?: number }
+    message?: string
+  }
+  const data = ax.response?.data
+  if (data instanceof Blob) {
+    try {
+      const text = await data.text()
+      const parsed = JSON.parse(text) as { detail?: string }
+      if (parsed?.detail) {
+        throw Object.assign(new Error(parsed.detail), {
+          response: { data: { detail: parsed.detail }, status: ax.response?.status },
+        })
+      }
+    } catch (inner) {
+      if (inner instanceof Error && (inner as { response?: unknown }).response) {
+        throw inner
+      }
+    }
+  }
+  throw err
+}
+
+export const fnskuBoxPivotApi = {
+  generate: async (file: File): Promise<FnskuBoxPivotResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    try {
+      const response = await api.post<Blob>('/api/v1/fnsku-box-pivot/generate', form, {
+        responseType: 'blob',
+        timeout: 120_000,
+      })
+      const headers = response.headers || {}
+      const filenameHeader = headers['x-box-pivot-filename']
+      const disposition = headers['content-disposition'] as string | undefined
+      let filename =
+        (typeof filenameHeader === 'string' && filenameHeader.trim()) || 'Output.xlsx'
+      if ((!filenameHeader || !String(filenameHeader).trim()) && disposition) {
+        const match = /filename="?([^";]+)"?/i.exec(disposition)
+        if (match?.[1]) filename = match[1]
+      }
+      return {
+        blob: response.data,
+        filename,
+        rowCount: Number(headers['x-box-pivot-row-count'] || 0),
+        skuCount: Number(headers['x-box-pivot-sku-count'] || 0),
+        unmatchedCount: Number(headers['x-box-pivot-unmatched-count'] || 0),
+        unmatchedFnskus: String(headers['x-box-pivot-unmatched-fnskus'] || ''),
+      }
+    } catch (err: unknown) {
+      return readBlobError(err)
+    }
+  },
+  downloadTemplate: async (): Promise<{ blob: Blob; filename: string }> => {
+    try {
+      const response = await api.get<Blob>('/api/v1/fnsku-box-pivot/template', {
+        responseType: 'blob',
+        timeout: 30_000,
+      })
+      const headers = response.headers || {}
+      const filenameHeader = headers['x-box-pivot-filename']
+      const disposition = headers['content-disposition'] as string | undefined
+      let filename =
+        (typeof filenameHeader === 'string' && filenameHeader.trim()) ||
+        'FNSKU Box Pivot Template.xlsx'
+      if ((!filenameHeader || !String(filenameHeader).trim()) && disposition) {
+        const match = /filename="?([^";]+)"?/i.exec(disposition)
+        if (match?.[1]) filename = match[1]
+      }
+      return { blob: response.data, filename }
+    } catch (err: unknown) {
+      return readBlobError(err)
+    }
+  },
+}
+
 export type DnkAllInventoryResult = {
   blob: Blob
   filename: string

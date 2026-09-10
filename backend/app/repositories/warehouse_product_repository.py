@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from supabase import Client
 
@@ -29,6 +30,27 @@ def uses_sku_for_scan(sku: str) -> bool:
     if not trimmed:
         return False
     return sku_digit_count(trimmed) <= 7
+
+
+_FNSKU_SUFFIX_RE = re.compile(r"[-_\s]*FNSKU\s*$", re.IGNORECASE)
+
+
+def merchant_sku_from_catalog_row(row: Optional[Mapping[str, Any]]) -> str:
+    """Amazon merchant SKU as used in FBA box-contents reports: ``{id}-FNSKU``.
+
+    Short catalog SKUs (≤7 digits) use the SKU; everything else uses the UPC.
+    A suffix already present on the base id is normalized to ``-FNSKU``.
+    """
+    if not row:
+        return ""
+    sku = str(row.get("sku") or "").strip()
+    upc = str(row.get("upc") or "").strip()
+    base = sku if uses_sku_for_scan(sku) else (upc or sku)
+    if not base:
+        return ""
+    if _FNSKU_SUFFIX_RE.search(base):
+        return _FNSKU_SUFFIX_RE.sub("-FNSKU", base)
+    return f"{base}-FNSKU"
 
 
 def build_warehouse_product_search_filter(search: Optional[str]) -> Optional[str]:
@@ -91,6 +113,28 @@ class WarehouseProductRepository:
             if uses_sku_for_scan(row.get("sku") or ""):
                 return row
         return None
+
+    def lookup_by_fnskus(self, fnskus: Sequence[str]) -> Dict[str, dict]:
+        """Return ``{fnsku: catalog row}`` for the given FNSKUs (first match wins)."""
+        unique = list(dict.fromkeys((value or "").strip() for value in fnskus if (value or "").strip()))
+        if not unique:
+            return {}
+
+        found: Dict[str, dict] = {}
+        chunk_size = 200
+        for index in range(0, len(unique), chunk_size):
+            chunk = unique[index : index + chunk_size]
+            response = (
+                self.db.table("warehouse_products")
+                .select("upc,sku,fnsku")
+                .in_("fnsku", chunk)
+                .execute()
+            )
+            for row in response.data or []:
+                key = (row.get("fnsku") or "").strip()
+                if key and key not in found:
+                    found[key] = row
+        return found
 
     def count(self, search: Optional[str] = None) -> int:
         query = self.db.table("warehouse_products").select("id", count="exact")

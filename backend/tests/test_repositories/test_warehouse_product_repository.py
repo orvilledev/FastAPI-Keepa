@@ -1,6 +1,7 @@
 from app.repositories.warehouse_product_repository import (
     apply_warehouse_product_search,
     build_warehouse_product_search_filter,
+    merchant_sku_from_catalog_row,
     sku_digit_count,
     uses_sku_for_scan,
 )
@@ -18,6 +19,37 @@ def test_uses_sku_for_scan_short_vs_long():
     assert uses_sku_for_scan("12345678") is False
     assert uses_sku_for_scan("") is False
     assert uses_sku_for_scan("   ") is False
+
+
+def test_merchant_sku_from_catalog_row_short_sku_and_upc():
+    assert merchant_sku_from_catalog_row({"sku": "9990318", "upc": "198269695379"}) == "9990318-FNSKU"
+    assert merchant_sku_from_catalog_row({"sku": "", "upc": "198269695379"}) == "198269695379-FNSKU"
+    assert merchant_sku_from_catalog_row({"sku": "198269695379-FNSKU", "upc": "198269695379"}) == "198269695379-FNSKU"
+    assert merchant_sku_from_catalog_row(None) == ""
+    assert merchant_sku_from_catalog_row({}) == ""
+
+
+def test_lookup_by_fnskus_batches_and_keeps_first_match():
+    from unittest.mock import MagicMock
+
+    from app.repositories.warehouse_product_repository import WarehouseProductRepository
+
+    first = {"upc": "111", "sku": "9990001", "fnsku": "XA"}
+    second = {"upc": "222", "sku": "", "fnsku": "XB"}
+    duplicate = {"upc": "333", "sku": "9990003", "fnsku": "XA"}
+
+    db = MagicMock()
+    chain = MagicMock()
+    chain.select.return_value = chain
+    chain.in_.return_value = chain
+    chain.execute.return_value = MagicMock(data=[first, second, duplicate])
+    db.table.return_value = chain
+
+    repo = WarehouseProductRepository(db)
+    found = repo.lookup_by_fnskus([" XA ", "XB", "XA", ""])
+    assert found == {"XA": first, "XB": second}
+    chain.in_.assert_called_once_with("fnsku", ["XA", "XB"])
+
 
 
 def test_lookup_by_upc_returns_short_sku_product():

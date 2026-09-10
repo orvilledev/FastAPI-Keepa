@@ -59,6 +59,7 @@ const MicroTools = lazy(() => import('./components/tools/MicroTools'))
 const TrackingScanner = lazy(() => import('./components/scanner/TrackingScanner'))
 const FNSKULabelGenerator = lazy(() => import('./components/scanner/FNSKULabelGenerator'))
 const ManifestGenerator = lazy(() => import('./components/tools/ManifestGenerator'))
+const FnskuBoxPivot = lazy(() => import('./components/tools/FnskuBoxPivot'))
 const DnkAllInventory = lazy(() => import('./components/tools/DnkAllInventory'))
 const ShipmentManager = lazy(() => import('./components/tools/ShipmentManager'))
 const ShipmentDetail = lazy(() => import('./components/tools/ShipmentDetail'))
@@ -438,6 +439,7 @@ function AppRoutes() {
           <Route path="keepa-import-export" element={<Navigate to="/dashboard" replace />} />
           <Route path="tracking-scanner" element={<TrackingScanner />} />
           <Route path="fnsku-labels" element={<FNSKULabelGenerator />} />
+          <Route path="fnsku-box-pivot" element={<FnskuBoxPivot />} />
           <Route path="manifest-generator" element={<ManifestGenerator />} />
           <Route path="dnk-all-inventory" element={<DnkAllInventory />} />
           <Route path="shipment-manager" element={<ShipmentManager />} />

@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.database import init_db
-from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, keepa_import_export, analytics, presence, manifest_generator, dnk_all_inventory, freight_class_calculator, audit, catalog_upc_dims, catalog_ship_to, master_sheet, projects, shipments
+from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, keepa_import_export, analytics, presence, manifest_generator, dnk_all_inventory, freight_class_calculator, audit, catalog_upc_dims, catalog_ship_to, master_sheet, projects, shipments, fnsku_box_pivot
 from app.scheduler import (
     setup_scheduler,
     setup_completed_jobs_retention_cleanup,
@@ -127,6 +127,11 @@ app.add_middleware(
         "X-Shipment-Ship-To-Code",
         "X-Shipment-Upload-Count",
         "X-Shipment-Text-Filename",
+        "X-Box-Pivot-Filename",
+        "X-Box-Pivot-Row-Count",
+        "X-Box-Pivot-Sku-Count",
+        "X-Box-Pivot-Unmatched-Count",
+        "X-Box-Pivot-Unmatched-Fnskus",
     ],
 )
 
@@ -326,6 +331,7 @@ app.include_router(tracking_scanner.router, prefix=settings.api_v1_str, tags=["t
 app.include_router(warehouse_products.router, prefix=settings.api_v1_str, tags=["warehouse-products"], dependencies=[Depends(require_app_access)])
 app.include_router(keepa_import_export.router, prefix=settings.api_v1_str, tags=["keepa-import-export"], dependencies=[Depends(require_app_access)])
 app.include_router(manifest_generator.router, prefix=settings.api_v1_str, tags=["manifest-generator"], dependencies=[Depends(require_app_access)])
+app.include_router(fnsku_box_pivot.router, prefix=settings.api_v1_str, tags=["fnsku-box-pivot"], dependencies=[Depends(require_app_access)])
 app.include_router(dnk_all_inventory.router, prefix=settings.api_v1_str, tags=["dnk-all-inventory"], dependencies=[Depends(require_app_access)])
 app.include_router(freight_class_calculator.router, prefix=settings.api_v1_str, tags=["freight-class-calculator"], dependencies=[Depends(require_app_access)])
 app.include_router(shipments.router, prefix=settings.api_v1_str, tags=["shipments"], dependencies=[Depends(require_app_access)])

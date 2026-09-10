@@ -113,6 +113,12 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
     </svg>
   ),
+  fnskuBoxPivot: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18M4 6h16a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V7a1 1 0 011-1z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 6v12" />
+    </svg>
+  ),
   manifestGenerator: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M9 8h1m5 0h.01M7 3h8l4 4v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z" />
@@ -457,6 +463,19 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
             >
               <span className="shrink-0">{Icons.fnskuLabels}</span>
               <span className="sidebar-link-label">FNSKU Labels</span>
+            </Link>
+
+            <Link
+              to="/fnsku-box-pivot"
+              onMouseEnter={() => setHoveredNav('fnsku-box-pivot')}
+              className={`sidebar-link ${
+                navHighlighted('fnsku-box-pivot', isActive('/fnsku-box-pivot'))
+                  ? 'sidebar-link-active'
+                  : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="shrink-0">{Icons.fnskuBoxPivot}</span>
+              <span className="sidebar-link-label">FNSKU Box Pivot</span>
             </Link>
 
             <Link
