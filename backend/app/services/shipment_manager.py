@@ -451,6 +451,7 @@ def build_shipment_ledger_workbook(
     summary_rows = (
         ("Shipment", shipment.get("name") or ""),
         ("Vendor", shipment.get("vendor") or ""),
+        ("Status", str(shipment.get("status") or "open").replace("_", " ").title()),
         ("Notes", shipment.get("notes") or ""),
         ("Registered by", registered_by or shipment.get("created_by_email") or ""),
         ("Registered at", registered_at),

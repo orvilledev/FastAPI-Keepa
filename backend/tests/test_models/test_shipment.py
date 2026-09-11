@@ -22,3 +22,17 @@ def test_create_rejects_an_invalid_vendor():
 
 def test_update_can_set_vendor():
     assert ShipmentUpdate(vendor="smw").vendor == "SMW"
+
+
+def test_create_defaults_status_to_open():
+    payload = ShipmentCreate(name="NFA WHRP 9.8.26", vendor="NFA")
+    assert payload.status == "open"
+
+
+def test_update_can_set_status():
+    assert ShipmentUpdate(status="Ready").status == "ready"
+
+
+def test_update_rejects_an_invalid_status():
+    with pytest.raises(ValidationError, match="Open, In Progress, Ready, or Closed"):
+        ShipmentUpdate(status="shipped")

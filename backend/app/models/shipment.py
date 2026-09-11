@@ -1,12 +1,15 @@
 """Pydantic models for registered shipments and their FBA uploads."""
 from datetime import datetime
 import re
-from typing import List, Optional
+from typing import List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 _VENDOR_RE = re.compile(r"^[A-Z0-9]{2,8}$")
+
+ShipmentStatus = Literal["open", "in_progress", "ready", "closed"]
+SHIPMENT_STATUSES: tuple[ShipmentStatus, ...] = ("open", "in_progress", "ready", "closed")
 
 
 def _normalize_vendor(value: Optional[str], *, required: bool) -> str:
@@ -20,10 +23,20 @@ def _normalize_vendor(value: Optional[str], *, required: bool) -> str:
     return cleaned
 
 
+def _normalize_status(value: Optional[str]) -> ShipmentStatus:
+    cleaned = (value or "").strip().lower().replace(" ", "_").replace("-", "_")
+    if cleaned not in SHIPMENT_STATUSES:
+        raise ValueError(
+            "Status must be one of: Open, In Progress, Ready, or Closed."
+        )
+    return cleaned  # type: ignore[return-value]
+
+
 class ShipmentCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     vendor: str = Field(..., min_length=1, max_length=8)
     notes: Optional[str] = Field(default=None, max_length=10_000)
+    status: ShipmentStatus = "open"
 
     @field_validator("name")
     @classmethod
@@ -45,11 +58,19 @@ class ShipmentCreate(BaseModel):
             return None
         return value.strip() or None
 
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_status(cls, value: object) -> ShipmentStatus:
+        if value is None or value == "":
+            return "open"
+        return _normalize_status(str(value))
+
 
 class ShipmentUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=200)
     vendor: Optional[str] = Field(default=None, max_length=8)
     notes: Optional[str] = Field(default=None, max_length=10_000)
+    status: Optional[ShipmentStatus] = None
 
     @field_validator("name")
     @classmethod
@@ -75,6 +96,13 @@ class ShipmentUpdate(BaseModel):
             return None
         return value.strip()
 
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_status(cls, value: object) -> Optional[ShipmentStatus]:
+        if value is None or value == "":
+            return None
+        return _normalize_status(str(value))
+
 
 class ShipmentUploadResponse(BaseModel):
     id: UUID
@@ -99,6 +127,7 @@ class ShipmentResponse(BaseModel):
     name: str
     notes: Optional[str] = None
     vendor: str = ""
+    status: ShipmentStatus = "open"
     created_by: UUID
     created_by_email: str = ""
     created_by_name: str = ""
@@ -111,6 +140,16 @@ class ShipmentResponse(BaseModel):
     can_delete: bool = False
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_status(cls, value: object) -> ShipmentStatus:
+        if value is None or value == "":
+            return "open"
+        try:
+            return _normalize_status(str(value))
+        except ValueError:
+            return "open"
 
 
 class ShipmentCompiledRow(BaseModel):

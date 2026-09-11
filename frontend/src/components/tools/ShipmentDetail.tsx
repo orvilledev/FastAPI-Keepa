@@ -2,6 +2,11 @@ import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { shipmentsApi } from '../../services/api'
 import { SHIPMENT_VENDORS } from '../../constants/shipmentVendors'
+import {
+  SHIPMENT_STATUSES,
+  shipmentStatusMeta,
+  type ShipmentStatusValue,
+} from '../../constants/shipmentStatuses'
 import type { ShipmentDetail as ShipmentDetailRecord, ShipmentUpload } from '../../types'
 
 const ACCEPTED =
@@ -225,6 +230,20 @@ export default function ShipmentDetail() {
     }
   }
 
+  const handleStatusChange = async (status: ShipmentStatusValue) => {
+    if (!shipment || !shipmentId || status === (shipment.status || 'open')) return
+    setError(null)
+    setMessage(null)
+    try {
+      const updated = await shipmentsApi.update(shipmentId, { status })
+      setShipment((prev) =>
+        prev ? { ...prev, status: updated.status, updated_at: updated.updated_at } : prev,
+      )
+    } catch (err) {
+      setError(errorDetail(err, 'Could not update the shipment status.'))
+    }
+  }
+
   if (loading) {
     return <p className="mx-auto max-w-4xl text-sm text-gray-600">Loading shipment…</p>
   }
@@ -257,31 +276,55 @@ export default function ShipmentDetail() {
             Registered by {shipment.created_by_name || shipment.created_by_email || 'unknown'} on{' '}
             {formatDateTime(shipment.created_at)}
           </p>
-          {shipment.can_delete ? (
-            <label className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-              <span>Vendor</span>
-              <select
-                value={shipment.vendor || ''}
-                onChange={(e) => void handleVendorChange(e.target.value)}
-                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm font-medium text-gray-900 focus:border-emerald-500 focus:outline-none"
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-600">
+            {shipment.can_delete ? (
+              <label className="flex items-center gap-2">
+                <span>Vendor</span>
+                <select
+                  value={shipment.vendor || ''}
+                  onChange={(e) => void handleVendorChange(e.target.value)}
+                  className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm font-medium text-gray-900 focus:border-emerald-500 focus:outline-none"
+                >
+                  {!shipment.vendor && <option value="">Choose vendor…</option>}
+                  {SHIPMENT_VENDORS.map((item) => (
+                    <option key={item.code} value={item.code}>
+                      {item.label}
+                    </option>
+                  ))}
+                  {shipment.vendor &&
+                    !SHIPMENT_VENDORS.some((item) => item.code === shipment.vendor) && (
+                      <option value={shipment.vendor}>{shipment.vendor}</option>
+                    )}
+                </select>
+              </label>
+            ) : (
+              shipment.vendor && (
+                <p className="font-medium text-gray-900">Vendor {shipment.vendor}</p>
+              )
+            )}
+            {shipment.can_delete ? (
+              <label className="flex items-center gap-2">
+                <span>Status</span>
+                <select
+                  value={shipment.status || 'open'}
+                  onChange={(e) => void handleStatusChange(e.target.value as ShipmentStatusValue)}
+                  className={`rounded-md border border-gray-300 px-2 py-1 text-sm font-medium focus:border-emerald-500 focus:outline-none ${shipmentStatusMeta(shipment.status).className}`}
+                >
+                  {SHIPMENT_STATUSES.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <span
+                className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${shipmentStatusMeta(shipment.status).className}`}
               >
-                {!shipment.vendor && <option value="">Choose vendor…</option>}
-                {SHIPMENT_VENDORS.map((item) => (
-                  <option key={item.code} value={item.code}>
-                    {item.label}
-                  </option>
-                ))}
-                {shipment.vendor &&
-                  !SHIPMENT_VENDORS.some((item) => item.code === shipment.vendor) && (
-                    <option value={shipment.vendor}>{shipment.vendor}</option>
-                  )}
-              </select>
-            </label>
-          ) : (
-            shipment.vendor && (
-              <p className="mt-1 text-sm font-medium text-gray-900">Vendor {shipment.vendor}</p>
-            )
-          )}
+                {shipmentStatusMeta(shipment.status).label}
+              </span>
+            )}
+          </div>
           {shipment.notes && <p className="mt-1 text-sm text-gray-600">{shipment.notes}</p>}
         </div>
         {shipment.can_delete && (

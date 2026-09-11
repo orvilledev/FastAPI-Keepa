@@ -91,6 +91,7 @@ export interface ShipmentRecord {
   name: string
   notes?: string | null
   vendor: string
+  status: 'open' | 'in_progress' | 'ready' | 'closed'
   created_by: string
   created_by_email: string
   created_by_name: string

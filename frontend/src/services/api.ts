@@ -2008,7 +2008,12 @@ export const shipmentsApi = {
   },
   update: async (
     shipmentId: string,
-    body: { name?: string; vendor?: string; notes?: string },
+    body: {
+      name?: string
+      vendor?: string
+      notes?: string
+      status?: 'open' | 'in_progress' | 'ready' | 'closed'
+    },
   ): Promise<ShipmentRecord> => {
     const response = await api.patch<ShipmentRecord>(`/api/v1/shipments/${shipmentId}`, body)
     return response.data

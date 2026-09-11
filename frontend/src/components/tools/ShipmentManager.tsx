@@ -5,6 +5,11 @@ import {
   SHIPMENT_VENDOR_OTHER,
   SHIPMENT_VENDORS,
 } from '../../constants/shipmentVendors'
+import {
+  SHIPMENT_STATUSES,
+  shipmentStatusMeta,
+  type ShipmentStatusValue,
+} from '../../constants/shipmentStatuses'
 import type { ShipmentRecord } from '../../types'
 
 function errorDetail(err: unknown, fallback: string): string {
@@ -33,29 +38,6 @@ function downloadBlob(blob: Blob, filename: string) {
 function resolveVendorCode(preset: string, custom: string): string {
   if (preset === SHIPMENT_VENDOR_OTHER) return custom.trim().toUpperCase()
   return preset
-}
-
-/** Workflow stage from upload/UPC counts — no DB field required. */
-function shipmentStatus(shipment: ShipmentRecord): {
-  label: string
-  className: string
-} {
-  if (shipment.upload_count === 0) {
-    return {
-      label: 'Empty',
-      className: 'bg-gray-100 text-gray-700',
-    }
-  }
-  if (shipment.unique_upc_count > 0) {
-    return {
-      label: 'Ready',
-      className: 'bg-emerald-100 text-emerald-800',
-    }
-  }
-  return {
-    label: 'In Progress',
-    className: 'bg-amber-100 text-amber-900',
-  }
 }
 
 export default function ShipmentManager() {
@@ -153,6 +135,27 @@ export default function ShipmentManager() {
       setError(errorDetail(err, 'Could not download the shipment ledger.'))
     } finally {
       setLedgerId(null)
+    }
+  }
+
+  const handleStatusChange = async (shipment: ShipmentRecord, status: ShipmentStatusValue) => {
+    if (status === (shipment.status || 'open') || busyId === shipment.id) return
+    setBusyId(shipment.id)
+    setError(null)
+    setMessage(null)
+    try {
+      const updated = await shipmentsApi.update(shipment.id, { status })
+      setShipments((prev) =>
+        prev.map((item) =>
+          item.id === shipment.id
+            ? { ...item, status: updated.status, updated_at: updated.updated_at }
+            : item,
+        ),
+      )
+    } catch (err) {
+      setError(errorDetail(err, 'Could not update the shipment status.'))
+    } finally {
+      setBusyId(null)
     }
   }
 
@@ -395,7 +398,7 @@ export default function ShipmentManager() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.map((shipment) => {
-                  const status = shipmentStatus(shipment)
+                  const status = shipmentStatusMeta(shipment.status)
                   return (
                   <tr key={shipment.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2">
@@ -413,11 +416,32 @@ export default function ShipmentManager() {
                       {shipment.vendor || '—'}
                     </td>
                     <td className="px-4 py-2">
-                      <span
-                        className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${status.className}`}
-                      >
-                        {status.label}
-                      </span>
+                      {shipment.can_delete ? (
+                        <select
+                          value={shipment.status || 'open'}
+                          disabled={busyId === shipment.id || ledgerId === shipment.id}
+                          onChange={(e) =>
+                            void handleStatusChange(
+                              shipment,
+                              e.target.value as ShipmentStatusValue,
+                            )
+                          }
+                          aria-label={`Status for ${shipment.name}`}
+                          className={`rounded-md border border-transparent px-2 py-0.5 text-xs font-medium focus:border-emerald-500 focus:outline-none disabled:opacity-50 ${status.className}`}
+                        >
+                          {SHIPMENT_STATUSES.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span
+                          className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${status.className}`}
+                        >
+                          {status.label}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-2">{shipment.upload_count}</td>
                     <td className="px-4 py-2">{shipment.contributor_count}</td>

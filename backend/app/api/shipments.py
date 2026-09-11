@@ -291,6 +291,7 @@ def create_shipment(
                 "name": payload.name,
                 "vendor": payload.vendor,
                 "notes": payload.notes,
+                "status": payload.status,
                 "created_by": current_user["id"],
                 "created_by_email": current_user.get("email") or "",
             }
@@ -378,7 +379,7 @@ def update_shipment(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ):
-    """Rename a shipment or edit its notes (creator or admin)."""
+    """Rename a shipment, change status, or edit notes (creator or admin)."""
     repo = ShipmentRepository(db)
     shipment = _load_shipment(repo, shipment_id)
     admin = _is_admin(db, current_user)

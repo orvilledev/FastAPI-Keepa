@@ -674,10 +674,11 @@ def test_shipment_ledger_has_summary_uploads_and_unique_lines():
     assert summary["A2"].value == "Shipment"
     assert summary["B2"].value == "NFA WHRP 7.17.26"
     assert summary["B3"].value == "NFA"
-    assert summary["B5"].value == "Orville"
-    assert summary["B7"].value == 1
-    assert summary["B10"].value == 2
-    assert summary["B11"].value == 140
+    assert summary["B4"].value == "Open"
+    assert summary["B6"].value == "Orville"
+    assert summary["B8"].value == 1
+    assert summary["B11"].value == 2
+    assert summary["B12"].value == 140
 
     fba = workbook["FBA Shipments"]
     assert [fba.cell(1, col).value for col in range(1, 6)] == [
@@ -769,7 +770,7 @@ def test_shipment_ledger_allows_empty_uploads():
             )
         )
     )
-    assert workbook["Summary"]["B7"].value == 0
+    assert workbook["Summary"]["B8"].value == 0
     assert workbook["FBA Shipments"].max_row == 1
     assert workbook["Uploads"].max_row == 1
     assert workbook["Lines"].max_row == 1
