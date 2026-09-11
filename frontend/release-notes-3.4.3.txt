@@ -1,0 +1,14 @@
+MSW Overwatch 3.4.3 — desktop and web release
+
+Patch release since 3.4.2. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## FNSKU Pack Station
+- New **FNSKU Pack Station** tool (formerly FNSKU Box Pivot) converts scan sheets into box-quantity workbooks
+- Download Template beside Generate for a ready-to-fill scan sheet
+- Typed FNSKU / UPC lookups and blank pivot columns dropped from the export
+- Pivot tab names and Excel header formatting polished for warehouse use
+- Download keeps the original upload filename
+- Warehouse-only accounts can open FNSKU Pack Station
+
+## Upgrade from 3.4.2
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.4.3, download it, then prompt to install now or later. Web/PWA users get 3.4.3 on the next deploy/refresh.
