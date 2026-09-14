@@ -9,8 +9,9 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
       <>
         {APP_NAME} is MetroShoe Warehouse&apos;s workspace for Keepa-based pricing compliance and day-to-day
         operational tools. The sidebar is organized into <strong>Menu</strong> (monitoring, project tracking, and shared data),{' '}
-        <strong>Tools</strong> (document and label utilities), and <strong>General</strong> (about, FAQ, and
-        feedback). Warehouse station accounts open <strong>Label Station</strong> only, plus General pages. See the{' '}
+        <strong>Tools</strong> (document, shipment, and label utilities), and <strong>General</strong> (about, FAQ, and
+        feedback). Warehouse station accounts open <strong>Label Station</strong> and{' '}
+        <strong>FNSKU Pack Station</strong>, plus General pages. See the{' '}
         <Link to="/about" className="text-[#404040] font-medium underline">
           About
         </Link>{' '}
@@ -24,9 +25,11 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
       <>
         Menu includes <strong>Dashboard</strong>, <strong>Notifications</strong>,{' '}
         <strong>Express Jobs</strong>, <strong>Daily Runs</strong>, <strong>Manage UPCs</strong>,{' '}
-        <strong>Manage MAP</strong>, <strong>Seller List</strong>, <strong>Email List</strong>, and{' '}
-        <strong>Projects</strong>. Express Jobs through Email List require Keepa access; Dashboard and Notifications are available to all signed-in
-        users. Projects is limited to Superadmin, Stephanie, Sunshine, Paolo, and John Bernard. Warehouse-only accounts do not see Projects or the notifications bell.
+        <strong>Manage MAP</strong>, <strong>Seller List</strong>, <strong>Email List</strong>,{' '}
+        <strong>Ship To Addresses</strong>, <strong>Analytics</strong>, and <strong>Projects</strong>. Express Jobs
+        through Analytics require Keepa access; Dashboard and Notifications are available to all signed-in users.
+        Projects is limited to Superadmin, Stephanie, Sunshine, Paolo, and John Bernard. Warehouse-only accounts do not
+        see Projects or the notifications bell.
       </>
     ),
   },
@@ -122,6 +125,37 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     ),
   },
   {
+    q: 'What is Ship To Addresses?',
+    a: (
+      <>
+        Ship To Addresses is the catalog of Amazon FC ship-to codes and addresses. Download the template, then upload a
+        matching workbook to add new codes or replace existing ones. Replacements are confirmed before they overwrite.
+        Requires Keepa access.
+      </>
+    ),
+  },
+  {
+    q: 'What is Analytics?',
+    a: (
+      <>
+        Analytics shows off-price hit trends by vendor, seller, and period, with Excel download and email report.{' '}
+        <strong>Hit Alert</strong> flags any vendor whose daily off-price listings jump by 100 or more versus that
+        vendor&apos;s last daily run (shown in red). Available in the browser and desktop app for Keepa accounts;
+        warehouse station accounts do not see this page.
+      </>
+    ),
+  },
+  {
+    q: 'What is Projects?',
+    a: (
+      <>
+        Projects is a personal work log. Set status (planning, in progress, on hold, complete, deployed, cancelled), keep
+        notes, and update or delete entries. Each signed-in user sees only their own projects. Access is allowlisted
+        (Superadmin, Stephanie, Sunshine, Paolo, and John Bernard) and does not require Keepa access.
+      </>
+    ),
+  },
+  {
     q: 'What gets flagged in Daily API runs: buy-box only or also non-buy-box sellers?',
     a: (
       <>
@@ -173,9 +207,11 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         Tools includes <strong>Micro Tools</strong>, <strong>Tracking Extractor</strong>, <strong>FNSKU Labels</strong>,{' '}
-        <strong>Manifest Generator</strong>, and <strong>Label Station</strong>. Micro Tools, Tracking Extractor, FNSKU
-        Labels, and Manifest Generator are available to all signed-in users. <strong>Label Station</strong> requires Keepa
-        access or a warehouse-only account.
+        <strong>FNSKU Pack Station</strong>, <strong>Manifest Generator</strong>, <strong>DNK AllInventory</strong>,{' '}
+        <strong>Shipment Manager</strong>, <strong>Freight Class Calculator</strong> (allowlisted), and{' '}
+        <strong>Label Station</strong>. Most document and shipment tools are available to all signed-in non-warehouse
+        users. <strong>Label Station</strong> requires Keepa access or a warehouse-only account. Warehouse-only accounts
+        also get <strong>FNSKU Pack Station</strong>.
       </>
     ),
   },
@@ -208,12 +244,51 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     ),
   },
   {
+    q: 'What is FNSKU Pack Station?',
+    a: (
+      <>
+        FNSKU Pack Station accepts an FNSKU + BOX# scan sheet. Each FNSKU is looked up in the warehouse product catalog,
+        then the download includes a scanned-data sheet and a quantity pivot by merchant SKU and box. Available to all
+        signed-in users, including warehouse-only station accounts.
+      </>
+    ),
+  },
+  {
     q: 'What is Manifest Generator?',
     a: (
       <>
         Manifest Generator turns a packing sheet into Amazon STA pack-group ZIP files for outbound shipments. Download
         the template from the tool, fill it in, then generate the pack-group archives. Available to all signed-in users
         under Tools.
+      </>
+    ),
+  },
+  {
+    q: 'What is DNK AllInventory?',
+    a: (
+      <>
+        DNK AllInventory turns a PMSH01 available-inventory export into a workbook with one worksheet per PONumber.
+        Quantities and UPCs are stored as numbers, not text. Available to all signed-in non-warehouse users under Tools.
+      </>
+    ),
+  },
+  {
+    q: 'What is Shipment Manager?',
+    a: (
+      <>
+        Shipment Manager lets you register a shipment, have teammates upload FBA exports into it, then compile one WR SKU
+        Update sheet with duplicates removed. Registered shipments stay listed until deleted. Available to all signed-in
+        non-warehouse users under Tools.
+      </>
+    ),
+  },
+  {
+    q: 'What is Freight Class Calculator?',
+    a: (
+      <>
+        Freight Class Calculator estimates NMFC freight class from density using XPO-compatible logic. Enter carton
+        details manually or bulk-upload a workbook from the template. Access is allowlisted (Superadmin, Stephanie,
+        Sunshine, Paolo, and John Bernard).
       </>
     ),
   },
@@ -297,7 +372,7 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
       <>
         Use the <strong>search box</strong> in the top bar. Type part of a page name (for example &quot;Express&quot;,
         &quot;MAP&quot;, or &quot;FAQ&quot;) and pick from the grouped results under Menu, Tools, or General.
-        Warehouse-only accounts see a shorter list focused on Label Station and General pages.
+        Warehouse-only accounts see a shorter list focused on Label Station, FNSKU Pack Station, and General pages.
       </>
     ),
   },
@@ -338,8 +413,9 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         Warehouse-only accounts are restricted logins for shared station PCs. The sidebar shows{' '}
-        <strong>Label Station</strong> plus General pages (About, FAQ, Feedback) — not the full Menu or other Tools.
-        This keeps packing stations focused on scan-and-print without access to unrelated compliance tools.
+        <strong>Label Station</strong>, <strong>FNSKU Pack Station</strong>, and General pages (About, FAQ, Feedback) —
+        not the full Menu or other Tools. This keeps packing stations focused on scan-and-print and pack pivots without
+        access to unrelated compliance tools.
       </>
     ),
   },
@@ -348,8 +424,8 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         Those Menu items require Keepa access on your account. If you have a warehouse-only login, you will only see
-        Label Station and General. If Keepa pages are missing from a normal account, ask an administrator to enable the
-        right permissions for your role.
+        Label Station, FNSKU Pack Station, and General. If Keepa pages are missing from a normal account, ask an
+        administrator to enable the right permissions for your role.
       </>
     ),
   },
@@ -400,8 +476,8 @@ export default function JobAids() {
       </div>
 
       <p className="text-xs text-gray-400">
-        Keepa-related Menu items and Label Station require the right account access; other Tools are available to all
-        signed-in users. Warehouse-only accounts see Label Station and General only.
+        Keepa-related Menu items and Label Station require the right account access; most other Tools are available to
+        signed-in non-warehouse users. Warehouse-only accounts see Label Station, FNSKU Pack Station, and General only.
       </p>
     </div>
   )

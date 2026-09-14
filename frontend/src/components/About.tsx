@@ -54,18 +54,19 @@ export default function About() {
           {APP_NAME} is MetroShoe Warehouse&apos;s workspace for Keepa-based pricing compliance and
           day-to-day operational tools. The sidebar is organized into{' '}
           <span className="font-semibold">Menu</span> (monitoring, project tracking, and shared data),{' '}
-          <span className="font-semibold">Tools</span> (document and label utilities), and{' '}
+          <span className="font-semibold">Tools</span> (document, shipment, and label utilities), and{' '}
           <span className="font-semibold">General</span> (about, FAQ, and feedback). Use the top-bar{' '}
           <span className="font-semibold">search</span> to jump to any page, the{' '}
           <span className="font-semibold">notifications</span> bell for completed runs, and the{' '}
           <span className="font-semibold">theme toggle</span> (moon/sun) for light or dark mode. Warehouse
-          station accounts open <span className="font-semibold">Label Station</span> only, plus General pages.
+          station accounts open <span className="font-semibold">Label Station</span> and{' '}
+          <span className="font-semibold">FNSKU Pack Station</span>, plus General pages.
         </p>
         <p className="mt-2 text-sm text-gray-600 max-w-4xl">
           <span className="font-semibold">Keepa access</span> unlocks the full Menu and Label Station in
-          Tools. <span className="font-semibold">Warehouse-only</span> accounts see Label Station and
-          General.           <span className="font-semibold">Superadmins</span> also get User Management, Audit Log, catalog tools, and
-          maintenance controls. Most staff accounts use{' '}
+          Tools. <span className="font-semibold">Warehouse-only</span> accounts see Label Station, FNSKU Pack
+          Station, and General. <span className="font-semibold">Superadmins</span> also get User Management,
+          Audit Log, catalog tools, and maintenance controls. Most staff accounts use{' '}
           <span className="font-semibold">two-factor authentication</span> (authenticator app) at sign-in;
           shared warehouse stations are exempt. After MFA, idle sessions ask for a fresh code after{' '}
           <span className="font-semibold">48 hours</span> without activity.
@@ -74,9 +75,9 @@ export default function About() {
         {!isElectron && (
           <p className="mt-2 text-sm text-gray-600 max-w-4xl">
             In the browser, use <span className="font-semibold">Download app</span> in the top bar to install
-            The desktop app includes Label Station Zebra printing and checks for updates
-            automatically. You can also use <span className="font-semibold">Check for Updates</span> in
-            About.
+            the Windows desktop client. The desktop app includes Label Station Zebra printing and checks for
+            updates automatically. You can also use <span className="font-semibold">Check for Updates</span>{' '}
+            in About.
           </p>
         )}
 
@@ -143,10 +144,15 @@ export default function About() {
             and daily runs.
           </li>
           <li>
+            <span className="font-semibold">Ship To Addresses:</span> Catalog of Amazon FC ship-to codes and addresses.
+            Download a template, then upload a matching workbook to add new codes or replace existing ones (replacements
+            are confirmed first).
+          </li>
+          <li>
             <span className="font-semibold">Analytics:</span> Off-price hit trends by vendor, seller, and period, with
-            Excel download and email report. In the browser, Hit Alert flags any vendor whose daily off-price listings
-            jump by 100 or more versus that vendor’s last daily run (shown in red). Available in the browser and the desktop app. Warehouse
-            station accounts do not see this page.
+            Excel download and email report. Hit Alert flags any vendor whose daily off-price listings jump by 100 or
+            more versus that vendor’s last daily run (shown in red). Available in the browser and the desktop app.
+            Warehouse station accounts do not see this page.
           </li>
           <li>
             <span className="font-semibold">Projects:</span> Personal work log for current projects. Set status
@@ -156,7 +162,7 @@ export default function About() {
           </li>
         </ul>
         <p className="mt-4 text-sm text-gray-600">
-          Express Jobs, Daily Runs, Manage UPCs, Manage MAP, Seller List, Email List, and Analytics
+          Express Jobs, Daily Runs, Manage UPCs, Manage MAP, Seller List, Email List, Ship To Addresses, and Analytics
           require Keepa access on your account. Projects is allowlisted separately and does not require Keepa access.
         </p>
       </div>
@@ -190,6 +196,19 @@ export default function About() {
             files for outbound shipments.
           </li>
           <li>
+            <span className="font-semibold">DNK AllInventory:</span> Upload a PMSH01 available-inventory export and build
+            one worksheet per PONumber, with quantities and UPCs stored as numbers (not text).
+          </li>
+          <li>
+            <span className="font-semibold">Shipment Manager:</span> Register a shipment, let teammates upload FBA exports
+            into it, then compile one WR SKU Update sheet with duplicates removed. Shipments stay listed until deleted.
+          </li>
+          <li>
+            <span className="font-semibold">Freight Class Calculator:</span> Estimate NMFC freight class from density
+            (XPO-compatible logic). Enter dimensions manually or bulk-upload a workbook from the template. Allowlisted
+            separately (Superadmin, Stephanie, Sunshine, Paolo, and John Bernard).
+          </li>
+          <li>
             <span className="font-semibold">Label Station:</span> Scan a product UPC, look up the warehouse catalog, and
             print a Zebra label (desktop app) or download a PDF (web). Catalog managers can import products from Excel.
             Staff always scan the UPC barcode. Use <span className="font-semibold">Print ID</span>:{' '}
@@ -201,8 +220,10 @@ export default function About() {
           </li>
         </ul>
         <p className="mt-4 text-sm text-gray-600">
-          Label Station requires Keepa access or a warehouse-only account. Micro Tools, Tracking Extractor, FNSKU Labels,
-          FNSKU Pack Station, and Manifest Generator are available to all signed-in users.
+          Label Station requires Keepa access or a warehouse-only account. FNSKU Pack Station is available to all
+          signed-in users, including warehouse-only stations. Micro Tools, Tracking Extractor, FNSKU Labels, Manifest
+          Generator, DNK AllInventory, and Shipment Manager are available to all signed-in non-warehouse users. Freight
+          Class Calculator is allowlisted separately.
         </p>
       </div>
 
