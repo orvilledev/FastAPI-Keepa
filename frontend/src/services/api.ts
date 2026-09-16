@@ -2018,6 +2018,16 @@ export const shipmentsApi = {
     const response = await api.patch<ShipmentRecord>(`/api/v1/shipments/${shipmentId}`, body)
     return response.data
   },
+  updateChecklist: async (
+    shipmentId: string,
+    body: { item_id: string; completed: boolean },
+  ): Promise<ShipmentRecord> => {
+    const response = await api.patch<ShipmentRecord>(
+      `/api/v1/shipments/${shipmentId}/checklist`,
+      body,
+    )
+    return response.data
+  },
   delete: async (shipmentId: string): Promise<void> => {
     await api.delete(`/api/v1/shipments/${shipmentId}`)
   },

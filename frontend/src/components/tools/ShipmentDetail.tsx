@@ -7,6 +7,7 @@ import {
   shipmentStatusMeta,
   type ShipmentStatusValue,
 } from '../../constants/shipmentStatuses'
+import { checklistForVendor, checklistProgress } from '../../constants/shipmentChecklists'
 import type { ShipmentDetail as ShipmentDetailRecord, ShipmentUpload } from '../../types'
 
 const ACCEPTED =
@@ -62,6 +63,7 @@ export default function ShipmentDetail() {
   const [busyUploadId, setBusyUploadId] = useState<string | null>(null)
   const [poUploadId, setPoUploadId] = useState<string | null>(null)
   const [orderUploadId, setOrderUploadId] = useState<string | null>(null)
+  const [checklistBusyId, setChecklistBusyId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
@@ -223,7 +225,14 @@ export default function ShipmentDetail() {
     try {
       const updated = await shipmentsApi.update(shipmentId, { vendor })
       setShipment((prev) =>
-        prev ? { ...prev, vendor: updated.vendor, updated_at: updated.updated_at } : prev,
+        prev
+          ? {
+              ...prev,
+              vendor: updated.vendor,
+              checklist: updated.checklist || {},
+              updated_at: updated.updated_at,
+            }
+          : prev,
       )
     } catch (err) {
       setError(errorDetail(err, 'Could not update the vendor.'))
@@ -244,6 +253,31 @@ export default function ShipmentDetail() {
     }
   }
 
+  const handleChecklistToggle = async (itemId: string, completed: boolean) => {
+    if (!shipment || !shipmentId || checklistBusyId) return
+    setChecklistBusyId(itemId)
+    setError(null)
+    try {
+      const updated = await shipmentsApi.updateChecklist(shipmentId, {
+        item_id: itemId,
+        completed,
+      })
+      setShipment((prev) =>
+        prev
+          ? {
+              ...prev,
+              checklist: updated.checklist || {},
+              updated_at: updated.updated_at,
+            }
+          : prev,
+      )
+    } catch (err) {
+      setError(errorDetail(err, 'Could not update the checklist.'))
+    } finally {
+      setChecklistBusyId(null)
+    }
+  }
+
   if (loading) {
     return <p className="mx-auto max-w-4xl text-sm text-gray-600">Loading shipment…</p>
   }
@@ -260,6 +294,9 @@ export default function ShipmentDetail() {
       </div>
     )
   }
+
+  const checklistItems = checklistForVendor(shipment.vendor || '')
+  const progress = checklistProgress(checklistItems, shipment.checklist)
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -353,6 +390,77 @@ export default function ShipmentDetail() {
           </div>
         ))}
       </section>
+
+      {checklistItems.length > 0 && (
+        <section className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-gray-900">Shipment checklist</h2>
+              <p className="mt-0.5 text-sm text-gray-600">
+                The North Face steps for this shipment group.
+              </p>
+            </div>
+            <p className="text-sm font-medium text-gray-700">
+              {progress.done} of {progress.total} complete
+            </p>
+          </div>
+
+          <div className="mt-3">
+            <div
+              className="h-2 overflow-hidden rounded-full bg-gray-100"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={progress.percent}
+              aria-label="Shipment checklist progress"
+            >
+              <div
+                className="h-full rounded-full bg-emerald-600 transition-[width] duration-300 ease-out"
+                style={{ width: `${progress.percent}%` }}
+              />
+            </div>
+            <p className="mt-1 text-xs text-gray-500">{progress.percent}%</p>
+          </div>
+
+          <ul className="mt-4 space-y-2">
+            {checklistItems.map((item, index) => {
+              const done = Boolean(shipment.checklist?.[item.id])
+              const busy = checklistBusyId === item.id
+              return (
+                <li key={item.id}>
+                  <label
+                    className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
+                      done
+                        ? 'border-emerald-200 bg-emerald-50'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    } ${busy ? 'opacity-60' : ''}`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                      checked={done}
+                      disabled={Boolean(checklistBusyId)}
+                      onChange={(e) => void handleChecklistToggle(item.id, e.target.checked)}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="text-xs font-medium uppercase tracking-wide text-gray-400">
+                        Step {index + 1}
+                      </span>
+                      <span
+                        className={`block text-sm ${
+                          done ? 'text-emerald-900 line-through' : 'text-gray-900'
+                        }`}
+                      >
+                        {item.label}
+                      </span>
+                    </span>
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">

@@ -20,6 +20,7 @@ from app.database import get_supabase
 from app.dependencies import get_current_user, is_superadmin_user
 from app.middleware.rate_limiter import RateLimits, limiter
 from app.models.shipment import (
+    ShipmentChecklistUpdate,
     ShipmentCompiledRow,
     ShipmentCreate,
     ShipmentDetailResponse,
@@ -28,6 +29,7 @@ from app.models.shipment import (
     ShipmentUploadResponse,
     ShipmentUploadResult,
 )
+from app.constants.shipment_checklists import known_checklist_ids, normalize_checklist
 from app.repositories.catalog_ship_to_repository import CatalogShipToRepository
 from app.repositories.shipment_repository import ShipmentRepository
 from app.services.shipment_manager import (
@@ -206,8 +208,12 @@ def _to_response(
     can_delete: bool,
     created_by_name: str = "",
 ) -> ShipmentResponse:
+    payload = dict(shipment)
+    payload["checklist"] = normalize_checklist(
+        str(payload.get("vendor") or ""), payload.get("checklist")
+    )
     return ShipmentResponse(
-        **shipment,
+        **payload,
         upload_count=upload_count,
         contributor_count=contributor_count,
         row_count=row_count,
@@ -348,8 +354,12 @@ def get_shipment(
             },
         },
     )
+    detail = dict(shipment)
+    detail["checklist"] = normalize_checklist(
+        str(detail.get("vendor") or ""), detail.get("checklist")
+    )
     return ShipmentDetailResponse(
-        **shipment,
+        **detail,
         upload_count=len(uploads),
         contributor_count=len({str(item.get("uploaded_by")) for item in uploads}),
         row_count=collected,
@@ -416,6 +426,68 @@ def update_shipment(
         row_count=row_count,
         unique_upc_count=unique_upc_count,
         can_delete=True,
+        created_by_name=_person_name(
+            names, updated.get("created_by"), updated.get("created_by_email")
+        ),
+    )
+
+
+@router.patch("/shipments/{shipment_id}/checklist", response_model=ShipmentResponse)
+@handle_api_errors("update shipment checklist")
+def update_shipment_checklist(
+    shipment_id: UUID,
+    payload: ShipmentChecklistUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Mark one vendor checklist step complete or incomplete.
+
+    Any signed-in teammate can update progress. Only vendors with a defined
+    checklist (currently NFA / The North Face) accept updates.
+    """
+    repo = ShipmentRepository(db)
+    shipment = _load_shipment(repo, shipment_id)
+    vendor = str(shipment.get("vendor") or "")
+    known = known_checklist_ids(vendor)
+    if not known:
+        raise HTTPException(
+            status_code=400,
+            detail="This vendor does not have a shipment checklist.",
+        )
+    if payload.item_id not in known:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown checklist step “{payload.item_id}” for vendor {vendor}.",
+        )
+
+    checklist = normalize_checklist(vendor, shipment.get("checklist"))
+    checklist[payload.item_id] = bool(payload.completed)
+    try:
+        updated = repo.update_shipment(str(shipment_id), {"checklist": checklist}) or {
+            **shipment,
+            "checklist": checklist,
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        uploads = repo.list_uploads(str(shipment_id))
+        row_count, unique_upc_count = repo.row_stats(str(shipment_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    names = _display_names(
+        db,
+        [str(updated.get("created_by") or "")],
+        {str(updated.get("created_by") or ""): str(updated.get("created_by_email") or "")},
+    )
+    admin = _is_admin(db, current_user)
+    return _to_response(
+        updated,
+        upload_count=len(uploads),
+        contributor_count=len({str(item.get("uploaded_by")) for item in uploads}),
+        row_count=row_count,
+        unique_upc_count=unique_upc_count,
+        can_delete=admin or str(updated.get("created_by")) == current_user["id"],
         created_by_name=_person_name(
             names, updated.get("created_by"), updated.get("created_by_email")
         ),

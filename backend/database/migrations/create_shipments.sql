@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS shipments (
   notes TEXT,
   vendor TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'open',
+  checklist JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_by UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   created_by_email TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT NOW(),

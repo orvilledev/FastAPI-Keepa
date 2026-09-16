@@ -21,6 +21,9 @@ _VENDOR_MIGRATION_HINT = (
 _STATUS_MIGRATION_HINT = (
     "Run backend/database/migrations/add_shipments_status.sql in the Supabase SQL Editor."
 )
+_CHECKLIST_MIGRATION_HINT = (
+    "Run backend/database/migrations/add_shipments_checklist.sql in the Supabase SQL Editor."
+)
 _ROW_CHUNK = 250
 
 
@@ -54,6 +57,16 @@ def _raise_persist_error(exc: Exception, table: str) -> None:
     if missing_status:
         raise ValueError(
             f"The shipments.status column is missing. {_STATUS_MIGRATION_HINT}"
+        ) from exc
+    missing_checklist = table == _SHIPMENTS and "checklist" in message and (
+        "column" in message
+        or "schema cache" in message
+        or "pgrst204" in message
+        or "could not find" in message
+    )
+    if missing_checklist:
+        raise ValueError(
+            f"The shipments.checklist column is missing. {_CHECKLIST_MIGRATION_HINT}"
         ) from exc
     if "row-level security" in message or "permission denied" in message:
         raise ValueError(

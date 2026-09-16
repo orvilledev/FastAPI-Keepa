@@ -1,7 +1,7 @@
 """Pydantic models for registered shipments and their FBA uploads."""
 from datetime import datetime
 import re
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -66,6 +66,21 @@ class ShipmentCreate(BaseModel):
         return _normalize_status(str(value))
 
 
+class ShipmentChecklistUpdate(BaseModel):
+    """Toggle one checklist step on a shipment that has a vendor checklist."""
+
+    item_id: str = Field(..., min_length=1, max_length=64)
+    completed: bool
+
+    @field_validator("item_id")
+    @classmethod
+    def strip_item_id(cls, value: str) -> str:
+        cleaned = (value or "").strip()
+        if not cleaned:
+            raise ValueError("Checklist item id is required.")
+        return cleaned
+
+
 class ShipmentUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=200)
     vendor: Optional[str] = Field(default=None, max_length=8)
@@ -128,6 +143,7 @@ class ShipmentResponse(BaseModel):
     notes: Optional[str] = None
     vendor: str = ""
     status: ShipmentStatus = "open"
+    checklist: Dict[str, bool] = Field(default_factory=dict)
     created_by: UUID
     created_by_email: str = ""
     created_by_name: str = ""
@@ -140,6 +156,15 @@ class ShipmentResponse(BaseModel):
     can_delete: bool = False
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("checklist", mode="before")
+    @classmethod
+    def coerce_checklist(cls, value: object) -> Dict[str, bool]:
+        if value is None or value == "":
+            return {}
+        if not isinstance(value, dict):
+            return {}
+        return {str(key): bool(flag) for key, flag in value.items()}
 
     @field_validator("status", mode="before")
     @classmethod
