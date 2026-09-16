@@ -6,6 +6,7 @@ import { canAccessMasterSheet } from '../../lib/masterSheetAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessProjects } from '../../lib/projectsAccess'
+import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 
 type SearchItem = {
   label: string
@@ -21,6 +22,7 @@ function buildSearchItems(
   showFreightClass: boolean,
   showAnalytics: boolean,
   showProjects: boolean,
+  showFbaBoxContents: boolean,
 ): SearchItem[] {
   if (isWarehouseOnly) {
     return [
@@ -70,6 +72,10 @@ function buildSearchItems(
     { label: 'Shipment Manager', path: '/shipment-manager', section: 'Tools' },
   )
 
+  if (showFbaBoxContents) {
+    items.push({ label: 'FBA Box Contents', path: '/fba-box-contents', section: 'Tools' })
+  }
+
   items.push(
     { label: 'About', path: '/about', section: 'General' },
     { label: 'FAQ', path: '/faq', section: 'General' },
@@ -117,6 +123,10 @@ export default function NavbarSearch() {
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
+  const showFbaBoxContents = canAccessFbaBoxContents(
+    userInfo?.email || authUser?.email,
+    isSuperadmin,
+  )
 
   const searchItems = useMemo(
     () =>
@@ -128,8 +138,9 @@ export default function NavbarSearch() {
         showFreightClass,
         showAnalytics,
         showProjects,
+        showFbaBoxContents,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showMasterSheet, showFreightClass, showAnalytics, showProjects],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showMasterSheet, showFreightClass, showAnalytics, showProjects, showFbaBoxContents],
   )
 
   const results = useMemo(() => {

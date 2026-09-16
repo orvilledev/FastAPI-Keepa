@@ -60,6 +60,7 @@ const TrackingScanner = lazy(() => import('./components/scanner/TrackingScanner'
 const FNSKULabelGenerator = lazy(() => import('./components/scanner/FNSKULabelGenerator'))
 const ManifestGenerator = lazy(() => import('./components/tools/ManifestGenerator'))
 const FnskuBoxPivot = lazy(() => import('./components/tools/FnskuBoxPivot'))
+const FbaBoxContents = lazy(() => import('./components/tools/FbaBoxContents'))
 const DnkAllInventory = lazy(() => import('./components/tools/DnkAllInventory'))
 const ShipmentManager = lazy(() => import('./components/tools/ShipmentManager'))
 const ShipmentDetail = lazy(() => import('./components/tools/ShipmentDetail'))
@@ -441,6 +442,14 @@ function AppRoutes() {
           <Route path="fnsku-labels" element={<FNSKULabelGenerator />} />
           <Route path="fnsku-pack-station" element={<FnskuBoxPivot />} />
           <Route path="fnsku-box-pivot" element={<Navigate to="/fnsku-pack-station" replace />} />
+          <Route
+            path="fba-box-contents"
+            element={
+              <ProtectedRoute requireFbaBoxContentsAccess={true}>
+                <FbaBoxContents />
+              </ProtectedRoute>
+            }
+          />
           <Route path="manifest-generator" element={<ManifestGenerator />} />
           <Route path="dnk-all-inventory" element={<DnkAllInventory />} />
           <Route path="shipment-manager" element={<ShipmentManager />} />

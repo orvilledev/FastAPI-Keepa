@@ -192,6 +192,11 @@ export default function About() {
             pivot by merchant SKU and box.
           </li>
           <li>
+            <span className="font-semibold">FBA Box Contents:</span> Upload an FBA Carton Detail report and download a
+            workbook with Box Contents (UPC, Box #, QTY, and a quantity pivot) and Dimensions. UPCs stay text; quantities
+            and dimensions stay numbers. Visible for now to Superadmin, Stephanie, Sunshine, Paolo, and John Bernard.
+          </li>
+          <li>
             <span className="font-semibold">Manifest Generator:</span> Turn a packing sheet into Amazon STA pack-group ZIP
             files for outbound shipments.
           </li>

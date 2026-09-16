@@ -7,6 +7,7 @@ import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessMasterSheet } from '../../lib/masterSheetAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { canAccessProjects } from '../../lib/projectsAccess'
+import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 
 // SVG Icon components that inherit text color via currentColor
 const Icons = {
@@ -119,6 +120,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 6v12" />
     </svg>
   ),
+  fbaBoxContents: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 3h3m3 0h.01M13 20h7" />
+    </svg>
+  ),
   manifestGenerator: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M9 8h1m5 0h.01M7 3h8l4 4v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z" />
@@ -172,6 +178,10 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
     isSuperadmin,
   )
   const canUseProjects = canAccessProjects(
+    userInfo?.email || authUser?.email,
+    isSuperadmin,
+  )
+  const canUseFbaBoxContents = canAccessFbaBoxContents(
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
@@ -490,6 +500,21 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
               <span className="shrink-0">{Icons.fnskuBoxPivot}</span>
               <span className="sidebar-link-label">FNSKU Pack Station</span>
             </Link>
+
+            {canUseFbaBoxContents && (
+              <Link
+                to="/fba-box-contents"
+                onMouseEnter={() => setHoveredNav('fba-box-contents')}
+                className={`sidebar-link ${
+                  navHighlighted('fba-box-contents', isActive('/fba-box-contents'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.fbaBoxContents}</span>
+                <span className="sidebar-link-label">FBA Box Contents</span>
+              </Link>
+            )}
 
             <Link
               to="/manifest-generator"

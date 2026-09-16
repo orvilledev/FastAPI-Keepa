@@ -2,6 +2,7 @@ import { Navigate } from 'react-router-dom'
 import { useUser } from '../../contexts/UserContext'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessProjects } from '../../lib/projectsAccess'
+import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -9,6 +10,7 @@ interface ProtectedRouteProps {
   requireLabelStationAccess?: boolean
   requireAnalyticsAccess?: boolean
   requireProjectsAccess?: boolean
+  requireFbaBoxContentsAccess?: boolean
 }
 
 export default function ProtectedRoute({
@@ -17,6 +19,7 @@ export default function ProtectedRoute({
   requireLabelStationAccess = false,
   requireAnalyticsAccess = false,
   requireProjectsAccess = false,
+  requireFbaBoxContentsAccess = false,
 }: ProtectedRouteProps) {
   const {
     hasKeepaAccess,
@@ -57,6 +60,13 @@ export default function ProtectedRoute({
   if (requireProjectsAccess) {
     const email = userInfo.email || authUser?.email || null
     if (!canAccessProjects(email, isSuperadmin)) {
+      return <Navigate to={isWarehouseOnly ? '/label-station' : '/dashboard'} replace />
+    }
+  }
+
+  if (requireFbaBoxContentsAccess) {
+    const email = userInfo.email || authUser?.email || null
+    if (!canAccessFbaBoxContents(email, isSuperadmin)) {
       return <Navigate to={isWarehouseOnly ? '/label-station' : '/dashboard'} replace />
     }
   }

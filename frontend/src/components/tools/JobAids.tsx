@@ -207,7 +207,8 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         Tools includes <strong>Micro Tools</strong>, <strong>Tracking Extractor</strong>, <strong>FNSKU Labels</strong>,{' '}
-        <strong>FNSKU Pack Station</strong>, <strong>Manifest Generator</strong>, <strong>DNK AllInventory</strong>,{' '}
+        <strong>FNSKU Pack Station</strong>, <strong>FBA Box Contents</strong> (allowlisted),{' '}
+        <strong>Manifest Generator</strong>, <strong>DNK AllInventory</strong>,{' '}
         <strong>Shipment Manager</strong>, <strong>Freight Class Calculator</strong> (allowlisted), and{' '}
         <strong>Label Station</strong>. Most document and shipment tools are available to all signed-in non-warehouse
         users. <strong>Label Station</strong> requires Keepa access or a warehouse-only account. Warehouse-only accounts
@@ -250,6 +251,17 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         FNSKU Pack Station accepts an FNSKU + BOX# scan sheet. Each FNSKU is looked up in the warehouse product catalog,
         then the download includes a scanned-data sheet and a quantity pivot by merchant SKU and box. Available to all
         signed-in users, including warehouse-only station accounts.
+      </>
+    ),
+  },
+  {
+    q: 'What is FBA Box Contents?',
+    a: (
+      <>
+        FBA Box Contents turns an Amazon FBA Carton Detail report into a workbook with a Box Contents sheet (UPC, Box #,
+        QTY, and a quantity pivot) and a Dimensions sheet. UPCs are stored as text; box numbers, quantities, and
+        dimensions are stored as numbers. Access is allowlisted (Superadmin, Stephanie, Sunshine, Paolo, and John
+        Bernard).
       </>
     ),
   },

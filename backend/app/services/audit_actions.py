@@ -230,6 +230,8 @@ _ROUTES: Tuple[_Route, ...] = (
        "fnsku_box_pivot.generate", "tool", "Generated an FNSKU Pack Station workbook"),
     _r("POST", r"^/api/v1/fnsku-box-pivot/generate$",
        "fnsku_box_pivot.generate", "tool", "Generated an FNSKU Pack Station workbook"),
+    _r("POST", r"^/api/v1/fba-box-contents/generate$",
+       "fba_box_contents.generate", "tool", "Generated an FBA Box Contents workbook"),
     _r("POST", r"^/api/v1/tracking-scanner/scan$",
        "tracking.scan", "tool", "Scanned PDFs with the Tracking Extractor"),
     _r("POST", r"^/api/v1/tracking-scanner/export-csv$",
