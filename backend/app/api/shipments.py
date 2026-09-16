@@ -585,22 +585,41 @@ def update_shipment_checklist(
         )
 
     checklist = normalize_checklist(shipment.get("checklist"), known_ids=known, vendor=vendor)
+    if payload.completed_by_name is not None and not is_superadmin_user(current_user, db):
+        raise HTTPException(
+            status_code=403,
+            detail="Only a superadmin can change who completed a checklist step.",
+        )
+
     if payload.completed:
-        actor_names = _display_names(
-            db,
-            [str(current_user["id"])],
-            {str(current_user["id"]): current_user.get("email") or ""},
-        )
-        display_name = _person_name(
-            actor_names, current_user["id"], current_user.get("email")
-        )
-        if not display_name:
-            display_name = resolve_user_display_name(
-                email=current_user.get("email")
-            ) or "Team member"
+        existing = checklist.get(payload.item_id) or empty_checklist_entry()
+        if payload.completed_by_name is not None:
+            display_name = payload.completed_by_name
+            user_id = str(existing.get("completed_by") or current_user["id"])
+            completed_at = (
+                existing.get("completed_at")
+                if existing.get("completed") and existing.get("completed_at")
+                else None
+            )
+        else:
+            actor_names = _display_names(
+                db,
+                [str(current_user["id"])],
+                {str(current_user["id"]): current_user.get("email") or ""},
+            )
+            display_name = _person_name(
+                actor_names, current_user["id"], current_user.get("email")
+            )
+            if not display_name:
+                display_name = resolve_user_display_name(
+                    email=current_user.get("email")
+                ) or "Team member"
+            user_id = str(current_user["id"])
+            completed_at = None
         checklist[payload.item_id] = completed_checklist_entry(
-            user_id=str(current_user["id"]),
+            user_id=user_id,
             display_name=display_name,
+            completed_at=completed_at,
         )
     else:
         checklist[payload.item_id] = empty_checklist_entry()

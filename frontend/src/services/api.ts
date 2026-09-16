@@ -2020,7 +2020,7 @@ export const shipmentsApi = {
   },
   updateChecklist: async (
     shipmentId: string,
-    body: { item_id: string; completed: boolean },
+    body: { item_id: string; completed: boolean; completed_by_name?: string },
   ): Promise<ShipmentRecord> => {
     const response = await api.patch<ShipmentRecord>(
       `/api/v1/shipments/${shipmentId}/checklist`,

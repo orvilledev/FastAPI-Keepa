@@ -100,6 +100,9 @@ export default function ShipmentDetail() {
   const [editingChecklist, setEditingChecklist] = useState(false)
   const [draftSteps, setDraftSteps] = useState<ShipmentChecklistItemDef[]>([])
   const [savingTemplate, setSavingTemplate] = useState(false)
+  const [editingCompleterId, setEditingCompleterId] = useState<string | null>(null)
+  const [completerDraft, setCompleterDraft] = useState('')
+  const [savingCompleter, setSavingCompleter] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
@@ -293,7 +296,7 @@ export default function ShipmentDetail() {
   }
 
   const handleChecklistToggle = async (itemId: string, completed: boolean) => {
-    if (!shipment || !shipmentId || checklistBusyId || editingChecklist) return
+    if (!shipment || !shipmentId || checklistBusyId || editingChecklist || editingCompleterId) return
     setChecklistBusyId(itemId)
     setError(null)
     const optimisticName = completed ? authDisplayName(authUser) : ''
@@ -336,6 +339,53 @@ export default function ShipmentDetail() {
       await load()
     } finally {
       setChecklistBusyId(null)
+    }
+  }
+
+  const startCompleterEdit = (itemId: string, currentName: string) => {
+    if (!shipment?.can_edit_checklist) return
+    setEditingCompleterId(itemId)
+    setCompleterDraft(currentName)
+    setError(null)
+  }
+
+  const cancelCompleterEdit = () => {
+    setEditingCompleterId(null)
+    setCompleterDraft('')
+  }
+
+  const saveCompleterEdit = async (itemId: string) => {
+    if (!shipment || !shipmentId || !shipment.can_edit_checklist || savingCompleter) return
+    const name = completerDraft.trim()
+    if (!name) {
+      setError('Enter a name for who completed this step.')
+      return
+    }
+    setSavingCompleter(true)
+    setError(null)
+    try {
+      const updated = await shipmentsApi.updateChecklist(shipmentId, {
+        item_id: itemId,
+        completed: true,
+        completed_by_name: name,
+      })
+      setShipment((prev) =>
+        prev
+          ? {
+              ...prev,
+              checklist: updated.checklist || {},
+              checklist_steps: updated.checklist_steps || prev.checklist_steps,
+              can_edit_checklist: updated.can_edit_checklist ?? prev.can_edit_checklist,
+              updated_at: updated.updated_at,
+            }
+          : prev,
+      )
+      setEditingCompleterId(null)
+      setCompleterDraft('')
+    } catch (err) {
+      setError(errorDetail(err, 'Could not update who completed this step.'))
+    } finally {
+      setSavingCompleter(false)
     }
   }
 
@@ -688,15 +738,61 @@ export default function ShipmentDetail() {
                         >
                           {item.label}
                         </span>
-                        {done && entry.completed_by_name ? (
-                          <span className="mt-0.5 block text-xs font-medium text-emerald-800">
-                            Completed by {entry.completed_by_name}
-                          </span>
-                        ) : null}
                       </span>
                     </label>
-                    {done && !entry.completed_by_name ? (
-                      <div className="mt-1 pl-7">
+                    {done && editingCompleterId === item.id ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-2 pl-7">
+                        <span className="text-xs font-medium text-emerald-800">Completed by</span>
+                        <input
+                          type="text"
+                          value={completerDraft}
+                          onChange={(e) => setCompleterDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              void saveCompleterEdit(item.id)
+                            }
+                            if (e.key === 'Escape') cancelCompleterEdit()
+                          }}
+                          className="min-w-[8rem] flex-1 rounded-md border border-emerald-300 px-2 py-1 text-xs text-gray-900 focus:border-emerald-500 focus:outline-none"
+                          placeholder="Name"
+                          autoFocus
+                          disabled={savingCompleter}
+                        />
+                        <button
+                          type="button"
+                          disabled={savingCompleter}
+                          onClick={() => void saveCompleterEdit(item.id)}
+                          className="rounded-md bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          {savingCompleter ? 'Saving…' : 'Save'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={savingCompleter}
+                          onClick={cancelCompleterEdit}
+                          className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : done && entry.completed_by_name ? (
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2 pl-7 text-xs font-medium text-emerald-800">
+                        <span>Completed by {entry.completed_by_name}</span>
+                        {canEditChecklist ? (
+                          <button
+                            type="button"
+                            disabled={Boolean(checklistBusyId) || savingCompleter}
+                            onClick={() => startCompleterEdit(item.id, entry.completed_by_name || '')}
+                            className="underline hover:text-emerald-950 disabled:opacity-50"
+                          >
+                            Edit
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {done && !entry.completed_by_name && editingCompleterId !== item.id ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-3 pl-7">
                         <button
                           type="button"
                           disabled={Boolean(checklistBusyId)}
@@ -705,6 +801,16 @@ export default function ShipmentDetail() {
                         >
                           {busy ? 'Saving…' : 'Add my name'}
                         </button>
+                        {canEditChecklist ? (
+                          <button
+                            type="button"
+                            disabled={Boolean(checklistBusyId) || savingCompleter}
+                            onClick={() => startCompleterEdit(item.id, '')}
+                            className="text-xs font-medium text-emerald-800 underline hover:text-emerald-950 disabled:opacity-50"
+                          >
+                            Set name
+                          </button>
+                        ) : null}
                       </div>
                     ) : null}
                   </li>

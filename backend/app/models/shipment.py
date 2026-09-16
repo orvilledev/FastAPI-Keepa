@@ -147,6 +147,8 @@ class ShipmentChecklistUpdate(BaseModel):
 
     item_id: str = Field(..., min_length=1, max_length=64)
     completed: bool
+    # Superadmin only: override the displayed completer name.
+    completed_by_name: Optional[str] = Field(default=None, max_length=120)
 
     @field_validator("item_id")
     @classmethod
@@ -155,6 +157,14 @@ class ShipmentChecklistUpdate(BaseModel):
         if not cleaned:
             raise ValueError("Checklist item id is required.")
         return cleaned
+
+    @field_validator("completed_by_name", mode="before")
+    @classmethod
+    def strip_completed_by_name(cls, value: object) -> Optional[str]:
+        if value is None:
+            return None
+        cleaned = str(value).strip()
+        return cleaned or None
 
 
 class ShipmentUpdate(BaseModel):

@@ -158,3 +158,21 @@ def test_checklist_update_strips_item_id():
     payload = ShipmentChecklistUpdate(item_id="  email_wr_sku_update  ", completed=True)
     assert payload.item_id == "email_wr_sku_update"
     assert payload.completed is True
+
+
+def test_checklist_update_strips_completed_by_name():
+    payload = ShipmentChecklistUpdate(
+        item_id="email_wr_sku_update",
+        completed=True,
+        completed_by_name="  Stephanie  ",
+    )
+    assert payload.completed_by_name == "Stephanie"
+
+
+def test_checklist_update_blank_completed_by_name_becomes_none():
+    payload = ShipmentChecklistUpdate(
+        item_id="email_wr_sku_update",
+        completed=True,
+        completed_by_name="   ",
+    )
+    assert payload.completed_by_name is None
