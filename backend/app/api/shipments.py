@@ -29,7 +29,12 @@ from app.models.shipment import (
     ShipmentUploadResponse,
     ShipmentUploadResult,
 )
-from app.constants.shipment_checklists import known_checklist_ids, normalize_checklist
+from app.constants.shipment_checklists import (
+    completed_checklist_entry,
+    empty_checklist_entry,
+    known_checklist_ids,
+    normalize_checklist,
+)
 from app.repositories.catalog_ship_to_repository import CatalogShipToRepository
 from app.repositories.shipment_repository import ShipmentRepository
 from app.services.shipment_manager import (
@@ -461,7 +466,21 @@ def update_shipment_checklist(
         )
 
     checklist = normalize_checklist(vendor, shipment.get("checklist"))
-    checklist[payload.item_id] = bool(payload.completed)
+    if payload.completed:
+        actor_names = _display_names(
+            db,
+            [current_user["id"]],
+            {current_user["id"]: current_user.get("email") or ""},
+        )
+        display_name = _person_name(
+            actor_names, current_user["id"], current_user.get("email")
+        )
+        checklist[payload.item_id] = completed_checklist_entry(
+            user_id=str(current_user["id"]),
+            display_name=display_name,
+        )
+    else:
+        checklist[payload.item_id] = empty_checklist_entry()
     try:
         updated = repo.update_shipment(str(shipment_id), {"checklist": checklist}) or {
             **shipment,

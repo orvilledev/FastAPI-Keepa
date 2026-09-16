@@ -3,8 +3,10 @@ import pytest
 from pydantic import ValidationError
 
 from app.constants.shipment_checklists import (
+    completed_checklist_entry,
     known_checklist_ids,
     normalize_checklist,
+    parse_checklist_entry,
 )
 from app.models.shipment import ShipmentChecklistUpdate, ShipmentCreate, ShipmentUpdate
 
@@ -57,16 +59,38 @@ def test_other_vendors_have_no_checklist():
 def test_normalize_checklist_keeps_only_known_nfa_ids():
     result = normalize_checklist(
         "NFA",
-        {"email_wr_sku_update": True, "bogus": True, "upload_po_import": 1},
+        {
+            "email_wr_sku_update": True,
+            "bogus": True,
+            "upload_po_import": {
+                "completed": True,
+                "completed_by_name": "Stephanie",
+            },
+        },
     )
-    assert result["email_wr_sku_update"] is True
-    assert result["upload_po_import"] is True
+    assert result["email_wr_sku_update"]["completed"] is True
+    assert result["upload_po_import"]["completed"] is True
+    assert result["upload_po_import"]["completed_by_name"] == "Stephanie"
     assert "bogus" not in result
-    assert result["send_box_labels"] is False
+    assert result["send_box_labels"]["completed"] is False
 
 
 def test_normalize_checklist_empty_for_other_vendors():
     assert normalize_checklist("DNK", {"email_wr_sku_update": True}) == {}
+
+
+def test_parse_checklist_entry_accepts_legacy_bool():
+    entry = parse_checklist_entry(True)
+    assert entry["completed"] is True
+    assert entry["completed_by_name"] == ""
+
+
+def test_completed_checklist_entry_stores_actor():
+    entry = completed_checklist_entry(user_id="abc", display_name="Stephanie")
+    assert entry["completed"] is True
+    assert entry["completed_by"] == "abc"
+    assert entry["completed_by_name"] == "Stephanie"
+    assert entry["completed_at"]
 
 
 def test_checklist_update_strips_item_id():

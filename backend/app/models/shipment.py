@@ -1,7 +1,7 @@
 """Pydantic models for registered shipments and their FBA uploads."""
 from datetime import datetime
 import re
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -64,6 +64,29 @@ class ShipmentCreate(BaseModel):
         if value is None or value == "":
             return "open"
         return _normalize_status(str(value))
+
+
+class ShipmentChecklistEntry(BaseModel):
+    """One checklist step's completion state and who marked it done."""
+
+    completed: bool = False
+    completed_by: str = ""
+    completed_by_name: str = ""
+    completed_at: Optional[datetime] = None
+
+    @field_validator("completed_by", "completed_by_name", mode="before")
+    @classmethod
+    def coerce_text(cls, value: object) -> str:
+        if value is None:
+            return ""
+        return str(value).strip()
+
+    @field_validator("completed_at", mode="before")
+    @classmethod
+    def coerce_completed_at(cls, value: object) -> Optional[datetime]:
+        if value is None or value == "":
+            return None
+        return value  # type: ignore[return-value]
 
 
 class ShipmentChecklistUpdate(BaseModel):
@@ -143,7 +166,7 @@ class ShipmentResponse(BaseModel):
     notes: Optional[str] = None
     vendor: str = ""
     status: ShipmentStatus = "open"
-    checklist: Dict[str, bool] = Field(default_factory=dict)
+    checklist: Dict[str, ShipmentChecklistEntry] = Field(default_factory=dict)
     created_by: UUID
     created_by_email: str = ""
     created_by_name: str = ""
@@ -159,12 +182,14 @@ class ShipmentResponse(BaseModel):
 
     @field_validator("checklist", mode="before")
     @classmethod
-    def coerce_checklist(cls, value: object) -> Dict[str, bool]:
+    def coerce_checklist(cls, value: object) -> Dict[str, Any]:
         if value is None or value == "":
             return {}
         if not isinstance(value, dict):
             return {}
-        return {str(key): bool(flag) for key, flag in value.items()}
+        from app.constants.shipment_checklists import parse_checklist_entry
+
+        return {str(key): parse_checklist_entry(raw) for key, raw in value.items()}
 
     @field_validator("status", mode="before")
     @classmethod

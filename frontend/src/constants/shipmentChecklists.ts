@@ -9,6 +9,16 @@ export type ShipmentChecklistItemDef = {
   label: string
 }
 
+/** Completion state for one checklist step (API may also send legacy booleans). */
+export type ShipmentChecklistEntry = {
+  completed: boolean
+  completed_by?: string
+  completed_by_name?: string
+  completed_at?: string | null
+}
+
+export type ShipmentChecklistMap = Record<string, ShipmentChecklistEntry | boolean>
+
 export const NFA_SHIPMENT_CHECKLIST: ShipmentChecklistItemDef[] = [
   { id: 'email_wr_sku_update', label: 'Email WR SKU Update to Warehouse Republic' },
   { id: 'update_label_station', label: 'Update Label Station with SKUs' },
@@ -28,12 +38,38 @@ export function checklistForVendor(vendor: string): ShipmentChecklistItemDef[] {
   return SHIPMENT_CHECKLISTS[(vendor || '').trim().toUpperCase()] || []
 }
 
+export function checklistEntry(
+  value: ShipmentChecklistEntry | boolean | null | undefined,
+): ShipmentChecklistEntry {
+  if (typeof value === 'boolean') {
+    return { completed: value, completed_by_name: '' }
+  }
+  if (!value || typeof value !== 'object') {
+    return { completed: false, completed_by_name: '' }
+  }
+  return {
+    completed: Boolean(value.completed),
+    completed_by: value.completed_by || '',
+    completed_by_name: (value.completed_by_name || '').trim(),
+    completed_at: value.completed_at ?? null,
+  }
+}
+
+export function isChecklistItemDone(
+  value: ShipmentChecklistEntry | boolean | null | undefined,
+): boolean {
+  return checklistEntry(value).completed
+}
+
 export function checklistProgress(
   items: ShipmentChecklistItemDef[],
-  completed: Record<string, boolean> | null | undefined,
+  completed: ShipmentChecklistMap | null | undefined,
 ): { done: number; total: number; percent: number } {
   const total = items.length
   if (total === 0) return { done: 0, total: 0, percent: 0 }
-  const done = items.reduce((count, item) => count + (completed?.[item.id] ? 1 : 0), 0)
+  const done = items.reduce(
+    (count, item) => count + (isChecklistItemDone(completed?.[item.id]) ? 1 : 0),
+    0,
+  )
   return { done, total, percent: Math.round((done / total) * 100) }
 }

@@ -92,8 +92,17 @@ export interface ShipmentRecord {
   notes?: string | null
   vendor: string
   status: 'open' | 'in_progress' | 'ready' | 'closed'
-  /** Vendor checklist completion map (item id -> done). Empty for vendors without a checklist. */
-  checklist?: Record<string, boolean>
+  /** Vendor checklist completion map (item id -> entry). Empty for vendors without a checklist. */
+  checklist?: Record<
+    string,
+    | boolean
+    | {
+        completed: boolean
+        completed_by?: string
+        completed_by_name?: string
+        completed_at?: string | null
+      }
+  >
   created_by: string
   created_by_email: string
   created_by_name: string

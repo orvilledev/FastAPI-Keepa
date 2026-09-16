@@ -7,7 +7,7 @@ import {
   shipmentStatusMeta,
   type ShipmentStatusValue,
 } from '../../constants/shipmentStatuses'
-import { checklistForVendor, checklistProgress } from '../../constants/shipmentChecklists'
+import { checklistForVendor, checklistProgress, checklistEntry } from '../../constants/shipmentChecklists'
 import type { ShipmentDetail as ShipmentDetailRecord, ShipmentUpload } from '../../types'
 
 const ACCEPTED =
@@ -424,7 +424,8 @@ export default function ShipmentDetail() {
 
           <ul className="mt-4 space-y-2">
             {checklistItems.map((item, index) => {
-              const done = Boolean(shipment.checklist?.[item.id])
+              const entry = checklistEntry(shipment.checklist?.[item.id])
+              const done = entry.completed
               const busy = checklistBusyId === item.id
               return (
                 <li key={item.id}>
@@ -453,6 +454,11 @@ export default function ShipmentDetail() {
                       >
                         {item.label}
                       </span>
+                      {done && entry.completed_by_name ? (
+                        <span className="mt-0.5 block text-xs font-medium text-emerald-700">
+                          Completed by {entry.completed_by_name}
+                        </span>
+                      ) : null}
                     </span>
                   </label>
                 </li>
