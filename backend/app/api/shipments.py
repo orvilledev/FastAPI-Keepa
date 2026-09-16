@@ -17,9 +17,12 @@ from supabase import Client
 
 from app.api.auth import _ensure_profile_row
 from app.database import get_supabase
-from app.dependencies import get_current_user, is_superadmin_user
+from app.dependencies import get_current_user, get_superadmin_user, is_superadmin_user
 from app.middleware.rate_limiter import RateLimits, limiter
 from app.models.shipment import (
+    ShipmentChecklistStep,
+    ShipmentChecklistTemplateResponse,
+    ShipmentChecklistTemplateUpdate,
     ShipmentChecklistUpdate,
     ShipmentCompiledRow,
     ShipmentCreate,
@@ -30,12 +33,19 @@ from app.models.shipment import (
     ShipmentUploadResult,
 )
 from app.constants.shipment_checklists import (
+    apply_checklist_actor_names,
+    checklist_actor_ids,
+    coerce_template_steps,
     completed_checklist_entry,
     empty_checklist_entry,
-    known_checklist_ids,
+    known_ids_from_steps,
     normalize_checklist,
+    resolve_checklist_steps,
 )
 from app.repositories.catalog_ship_to_repository import CatalogShipToRepository
+from app.repositories.shipment_checklist_template_repository import (
+    ShipmentChecklistTemplateRepository,
+)
 from app.repositories.shipment_repository import ShipmentRepository
 from app.services.shipment_manager import (
     INPUT_SUFFIXES,
@@ -203,6 +213,19 @@ def _person_name(names: dict[str, str], user_id: object, email: object) -> str:
     return names.get(uid) or resolve_user_display_name(email=mail) or mail
 
 
+def _load_vendor_checklist_steps(db: Client, vendor: str) -> List[dict]:
+    """Resolved template steps for a vendor (DB row or built-in defaults)."""
+    code = (vendor or "").strip().upper()
+    if not code:
+        return []
+    try:
+        stored = ShipmentChecklistTemplateRepository(db).get_steps(code)
+    except ValueError:
+        # Table missing: fall back to code defaults so checklists still work.
+        stored = None
+    return resolve_checklist_steps(code, stored)
+
+
 def _to_response(
     shipment: dict,
     *,
@@ -212,13 +235,22 @@ def _to_response(
     unique_upc_count: int,
     can_delete: bool,
     created_by_name: str = "",
+    checklist_names: Optional[dict[str, str]] = None,
+    checklist_steps: Optional[List[dict]] = None,
+    can_edit_checklist: bool = False,
 ) -> ShipmentResponse:
     payload = dict(shipment)
-    payload["checklist"] = normalize_checklist(
-        str(payload.get("vendor") or ""), payload.get("checklist")
-    )
+    vendor = str(payload.get("vendor") or "")
+    steps = checklist_steps if checklist_steps is not None else []
+    known = known_ids_from_steps(steps)
+    checklist = normalize_checklist(payload.get("checklist"), known_ids=known, vendor=vendor)
+    if checklist_names:
+        checklist = apply_checklist_actor_names(checklist, checklist_names)
+    payload["checklist"] = checklist
     return ShipmentResponse(
         **payload,
+        checklist_steps=[ShipmentChecklistStep(**step) for step in steps],
+        can_edit_checklist=can_edit_checklist,
         upload_count=upload_count,
         contributor_count=contributor_count,
         row_count=row_count,
@@ -227,6 +259,21 @@ def _to_response(
         created_by_name=created_by_name
         or _person_name({}, shipment.get("created_by"), shipment.get("created_by_email")),
     )
+
+
+def _checklist_names_for_progress(
+    db: Client, checklist: dict[str, dict]
+) -> dict[str, str]:
+    """Resolve display names for anyone recorded on checklist steps."""
+    actor_ids = checklist_actor_ids(checklist)
+    if not actor_ids:
+        return {}
+    emails: dict[str, str] = {}
+    for entry in checklist.values():
+        uid = str(entry.get("completed_by") or "").strip()
+        if uid:
+            emails.setdefault(uid, "")
+    return _display_names(db, actor_ids, emails)
 
 
 def _upload_response(item: dict, names: dict[str, str]) -> ShipmentUploadResponse:
@@ -327,6 +374,64 @@ def create_shipment(
     )
 
 
+@router.get(
+    "/shipments/checklist-templates/{vendor}",
+    response_model=ShipmentChecklistTemplateResponse,
+)
+@handle_api_errors("load shipment checklist template")
+def get_shipment_checklist_template(
+    vendor: str,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Return the checklist steps for a vendor (built-in defaults or DB override)."""
+    code = (vendor or "").strip().upper()
+    if not code:
+        raise HTTPException(status_code=400, detail="Vendor is required.")
+    steps = _load_vendor_checklist_steps(db, code)
+    return ShipmentChecklistTemplateResponse(
+        vendor=code,
+        steps=[ShipmentChecklistStep(**step) for step in steps],
+    )
+
+
+@router.put(
+    "/shipments/checklist-templates/{vendor}",
+    response_model=ShipmentChecklistTemplateResponse,
+)
+@handle_api_errors("save shipment checklist template")
+def put_shipment_checklist_template(
+    vendor: str,
+    payload: ShipmentChecklistTemplateUpdate,
+    current_user: dict = Depends(get_superadmin_user),
+    db: Client = Depends(get_supabase),
+):
+    """Replace a vendor's checklist template. Superadmin only."""
+    code = (vendor or "").strip().upper()
+    if not code:
+        raise HTTPException(status_code=400, detail="Vendor is required.")
+    steps = coerce_template_steps([step.model_dump() for step in payload.steps])
+    try:
+        saved = ShipmentChecklistTemplateRepository(db).upsert_steps(
+            code,
+            steps,
+            updated_by=str(current_user["id"]),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    cleaned = resolve_checklist_steps(code, saved)
+    logger.info(
+        "Checklist template for %s updated by %s (%s step(s))",
+        code,
+        current_user.get("email"),
+        len(cleaned),
+    )
+    return ShipmentChecklistTemplateResponse(
+        vendor=code,
+        steps=[ShipmentChecklistStep(**step) for step in cleaned],
+    )
+
+
 @router.get("/shipments/{shipment_id}", response_model=ShipmentDetailResponse)
 @handle_api_errors("load shipment")
 def get_shipment(
@@ -360,11 +465,20 @@ def get_shipment(
         },
     )
     detail = dict(shipment)
-    detail["checklist"] = normalize_checklist(
-        str(detail.get("vendor") or ""), detail.get("checklist")
-    )
+    vendor = str(detail.get("vendor") or "")
+    steps = _load_vendor_checklist_steps(db, vendor)
+    known = known_ids_from_steps(steps)
+    checklist = normalize_checklist(detail.get("checklist"), known_ids=known, vendor=vendor)
+    actor_ids = checklist_actor_ids(checklist)
+    if actor_ids:
+        actor_names = _display_names(db, actor_ids, {uid: "" for uid in actor_ids})
+        checklist = apply_checklist_actor_names(checklist, actor_names)
+        names.update(actor_names)
+    detail["checklist"] = checklist
     return ShipmentDetailResponse(
         **detail,
+        checklist_steps=[ShipmentChecklistStep(**step) for step in steps],
+        can_edit_checklist=is_superadmin_user(current_user, db),
         upload_count=len(uploads),
         contributor_count=len({str(item.get("uploaded_by")) for item in uploads}),
         row_count=collected,
@@ -424,6 +538,8 @@ def update_shipment(
         [str(updated.get("created_by") or "")],
         {str(updated.get("created_by") or ""): str(updated.get("created_by_email") or "")},
     )
+    vendor = str(updated.get("vendor") or "")
+    steps = _load_vendor_checklist_steps(db, vendor)
     return _to_response(
         updated,
         upload_count=len(uploads),
@@ -434,6 +550,8 @@ def update_shipment(
         created_by_name=_person_name(
             names, updated.get("created_by"), updated.get("created_by_email")
         ),
+        checklist_steps=steps,
+        can_edit_checklist=is_superadmin_user(current_user, db),
     )
 
 
@@ -447,13 +565,14 @@ def update_shipment_checklist(
 ):
     """Mark one vendor checklist step complete or incomplete.
 
-    Any signed-in teammate can update progress. Only vendors with a defined
-    checklist (currently NFA / The North Face) accept updates.
+    Any signed-in teammate can update progress. The vendor must have a checklist
+    template (built-in or superadmin-configured).
     """
     repo = ShipmentRepository(db)
     shipment = _load_shipment(repo, shipment_id)
     vendor = str(shipment.get("vendor") or "")
-    known = known_checklist_ids(vendor)
+    steps = _load_vendor_checklist_steps(db, vendor)
+    known = known_ids_from_steps(steps)
     if not known:
         raise HTTPException(
             status_code=400,
@@ -465,16 +584,20 @@ def update_shipment_checklist(
             detail=f"Unknown checklist step “{payload.item_id}” for vendor {vendor}.",
         )
 
-    checklist = normalize_checklist(vendor, shipment.get("checklist"))
+    checklist = normalize_checklist(shipment.get("checklist"), known_ids=known, vendor=vendor)
     if payload.completed:
         actor_names = _display_names(
             db,
-            [current_user["id"]],
-            {current_user["id"]: current_user.get("email") or ""},
+            [str(current_user["id"])],
+            {str(current_user["id"]): current_user.get("email") or ""},
         )
         display_name = _person_name(
             actor_names, current_user["id"], current_user.get("email")
         )
+        if not display_name:
+            display_name = resolve_user_display_name(
+                email=current_user.get("email")
+            ) or "Team member"
         checklist[payload.item_id] = completed_checklist_entry(
             user_id=str(current_user["id"]),
             display_name=display_name,
@@ -500,6 +623,7 @@ def update_shipment_checklist(
         {str(updated.get("created_by") or ""): str(updated.get("created_by_email") or "")},
     )
     admin = _is_admin(db, current_user)
+    progress = normalize_checklist(updated.get("checklist"), known_ids=known, vendor=vendor)
     return _to_response(
         updated,
         upload_count=len(uploads),
@@ -510,6 +634,9 @@ def update_shipment_checklist(
         created_by_name=_person_name(
             names, updated.get("created_by"), updated.get("created_by_email")
         ),
+        checklist_names=_checklist_names_for_progress(db, progress),
+        checklist_steps=steps,
+        can_edit_checklist=is_superadmin_user(current_user, db),
     )
 
 

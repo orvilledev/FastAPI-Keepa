@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { shipmentsApi } from '../../services/api'
-import { SHIPMENT_VENDORS } from '../../constants/shipmentVendors'
+import { useAuth } from '../../hooks/useAuth'
+import { SHIPMENT_VENDORS, shipmentVendorLabel } from '../../constants/shipmentVendors'
 import {
   SHIPMENT_STATUSES,
   shipmentStatusMeta,
   type ShipmentStatusValue,
 } from '../../constants/shipmentStatuses'
-import { checklistForVendor, checklistProgress, checklistEntry } from '../../constants/shipmentChecklists'
+import {
+  checklistProgress,
+  checklistEntry,
+  type ShipmentChecklistItemDef,
+} from '../../constants/shipmentChecklists'
 import type { ShipmentDetail as ShipmentDetailRecord, ShipmentUpload } from '../../types'
 
 const ACCEPTED =
@@ -50,9 +55,37 @@ function formatDateTime(value: string): string {
   return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleString()
 }
 
+function titleCaseName(value: string): string {
+  return value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+function authDisplayName(user: {
+  display_name?: string
+  email?: string
+  user_metadata?: Record<string, unknown>
+} | null): string {
+  if (!user) return ''
+  const meta = user.user_metadata || {}
+  const fromMeta =
+    (typeof meta.display_name === 'string' && meta.display_name) ||
+    (typeof meta.name === 'string' && meta.name) ||
+    ''
+  const raw =
+    (user.display_name || '').trim() ||
+    fromMeta.trim() ||
+    (user.email || '').split('@')[0].replace(/[._-]+/g, ' ')
+  return titleCaseName(raw)
+}
+
 export default function ShipmentDetail() {
   const { shipmentId } = useParams<{ shipmentId: string }>()
   const navigate = useNavigate()
+  const { user: authUser } = useAuth()
   const [shipment, setShipment] = useState<ShipmentDetailRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -64,6 +97,9 @@ export default function ShipmentDetail() {
   const [poUploadId, setPoUploadId] = useState<string | null>(null)
   const [orderUploadId, setOrderUploadId] = useState<string | null>(null)
   const [checklistBusyId, setChecklistBusyId] = useState<string | null>(null)
+  const [editingChecklist, setEditingChecklist] = useState(false)
+  const [draftSteps, setDraftSteps] = useState<ShipmentChecklistItemDef[]>([])
+  const [savingTemplate, setSavingTemplate] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
@@ -230,10 +266,13 @@ export default function ShipmentDetail() {
               ...prev,
               vendor: updated.vendor,
               checklist: updated.checklist || {},
+              checklist_steps: updated.checklist_steps || [],
+              can_edit_checklist: updated.can_edit_checklist,
               updated_at: updated.updated_at,
             }
           : prev,
       )
+      setEditingChecklist(false)
     } catch (err) {
       setError(errorDetail(err, 'Could not update the vendor.'))
     }
@@ -254,9 +293,28 @@ export default function ShipmentDetail() {
   }
 
   const handleChecklistToggle = async (itemId: string, completed: boolean) => {
-    if (!shipment || !shipmentId || checklistBusyId) return
+    if (!shipment || !shipmentId || checklistBusyId || editingChecklist) return
     setChecklistBusyId(itemId)
     setError(null)
+    const optimisticName = completed ? authDisplayName(authUser) : ''
+    if (completed && optimisticName) {
+      setShipment((prev) =>
+        prev
+          ? {
+              ...prev,
+              checklist: {
+                ...(prev.checklist || {}),
+                [itemId]: {
+                  completed: true,
+                  completed_by: authUser?.id || '',
+                  completed_by_name: optimisticName,
+                  completed_at: new Date().toISOString(),
+                },
+              },
+            }
+          : prev,
+      )
+    }
     try {
       const updated = await shipmentsApi.updateChecklist(shipmentId, {
         item_id: itemId,
@@ -267,14 +325,85 @@ export default function ShipmentDetail() {
           ? {
               ...prev,
               checklist: updated.checklist || {},
+              checklist_steps: updated.checklist_steps || prev.checklist_steps,
+              can_edit_checklist: updated.can_edit_checklist ?? prev.can_edit_checklist,
               updated_at: updated.updated_at,
             }
           : prev,
       )
     } catch (err) {
       setError(errorDetail(err, 'Could not update the checklist.'))
+      await load()
     } finally {
       setChecklistBusyId(null)
+    }
+  }
+
+  const startChecklistEdit = () => {
+    if (!shipment?.can_edit_checklist) return
+    setDraftSteps(
+      (shipment.checklist_steps || []).map((step) => ({ id: step.id, label: step.label })),
+    )
+    setEditingChecklist(true)
+    setError(null)
+    setMessage(null)
+  }
+
+  const cancelChecklistEdit = () => {
+    setEditingChecklist(false)
+    setDraftSteps([])
+  }
+
+  const addDraftStep = () => {
+    setDraftSteps((prev) => [...prev, { id: '', label: '' }])
+  }
+
+  const updateDraftStepLabel = (index: number, label: string) => {
+    setDraftSteps((prev) => prev.map((step, i) => (i === index ? { ...step, label } : step)))
+  }
+
+  const removeDraftStep = (index: number) => {
+    setDraftSteps((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const saveChecklistTemplate = async () => {
+    if (!shipment || !shipmentId || !shipment.can_edit_checklist || savingTemplate) return
+    const vendor = (shipment.vendor || '').trim().toUpperCase()
+    if (!vendor) {
+      setError('Set a vendor on this shipment before editing the checklist.')
+      return
+    }
+    const steps = draftSteps
+      .map((step) => ({
+        id: step.id || undefined,
+        label: step.label.trim(),
+      }))
+      .filter((step) => step.label)
+    setSavingTemplate(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const saved = await shipmentsApi.saveChecklistTemplate(vendor, steps)
+      setShipment((prev) =>
+        prev
+          ? {
+              ...prev,
+              checklist_steps: saved.steps,
+            }
+          : prev,
+      )
+      setEditingChecklist(false)
+      setDraftSteps([])
+      setMessage(
+        steps.length === 0
+          ? `Cleared the ${vendor} checklist template.`
+          : `Saved ${saved.steps.length} checklist step(s) for ${vendor}.`,
+      )
+      await load()
+    } catch (err) {
+      setError(errorDetail(err, 'Could not save the checklist template.'))
+    } finally {
+      setSavingTemplate(false)
     }
   }
 
@@ -295,8 +424,11 @@ export default function ShipmentDetail() {
     )
   }
 
-  const checklistItems = checklistForVendor(shipment.vendor || '')
+  const checklistItems = shipment.checklist_steps || []
   const progress = checklistProgress(checklistItems, shipment.checklist)
+  const canEditChecklist = Boolean(shipment.can_edit_checklist)
+  const showChecklist = checklistItems.length > 0 || canEditChecklist
+  const vendorLabel = shipmentVendorLabel(shipment.vendor || '') || shipment.vendor || 'this vendor'
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -391,80 +523,195 @@ export default function ShipmentDetail() {
         ))}
       </section>
 
-      {checklistItems.length > 0 && (
+      {showChecklist && (
         <section className="rounded-xl border border-gray-200 bg-white p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="font-semibold text-gray-900">Shipment checklist</h2>
               <p className="mt-0.5 text-sm text-gray-600">
-                The North Face steps for this shipment group.
+                {vendorLabel} steps for this shipment group.
               </p>
             </div>
-            <p className="text-sm font-medium text-gray-700">
-              {progress.done} of {progress.total} complete
-            </p>
-          </div>
-
-          <div className="mt-3">
-            <div
-              className="h-2 overflow-hidden rounded-full bg-gray-100"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={progress.percent}
-              aria-label="Shipment checklist progress"
-            >
-              <div
-                className="h-full rounded-full bg-emerald-600 transition-[width] duration-300 ease-out"
-                style={{ width: `${progress.percent}%` }}
-              />
+            <div className="flex flex-wrap items-center gap-2">
+              {!editingChecklist && checklistItems.length > 0 && (
+                <p className="text-sm font-medium text-gray-700">
+                  {progress.done} of {progress.total} complete
+                </p>
+              )}
+              {canEditChecklist && !editingChecklist && (
+                <>
+                  <button
+                    type="button"
+                    onClick={startChecklistEdit}
+                    className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraftSteps([
+                        ...(shipment.checklist_steps || []).map((step) => ({
+                          id: step.id,
+                          label: step.label,
+                        })),
+                        { id: '', label: '' },
+                      ])
+                      setEditingChecklist(true)
+                      setError(null)
+                      setMessage(null)
+                    }}
+                    className="rounded-md bg-[#404040] px-3 py-1.5 text-sm font-medium text-white hover:bg-black"
+                  >
+                    Add step
+                  </button>
+                </>
+              )}
+              {canEditChecklist && editingChecklist && (
+                <>
+                  <button
+                    type="button"
+                    disabled={savingTemplate}
+                    onClick={addDraftStep}
+                    className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Add step
+                  </button>
+                  <button
+                    type="button"
+                    disabled={savingTemplate}
+                    onClick={() => void saveChecklistTemplate()}
+                    className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {savingTemplate ? 'Saving…' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={savingTemplate}
+                    onClick={cancelChecklistEdit}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
             </div>
-            <p className="mt-1 text-xs text-gray-500">{progress.percent}%</p>
           </div>
 
-          <ul className="mt-4 space-y-2">
-            {checklistItems.map((item, index) => {
-              const entry = checklistEntry(shipment.checklist?.[item.id])
-              const done = entry.completed
-              const busy = checklistBusyId === item.id
-              return (
-                <li key={item.id}>
-                  <label
-                    className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
+          {!editingChecklist && checklistItems.length > 0 && (
+            <div className="mt-3">
+              <div
+                className="h-2 overflow-hidden rounded-full bg-gray-100"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={progress.percent}
+                aria-label="Shipment checklist progress"
+              >
+                <div
+                  className="h-full rounded-full bg-emerald-600 transition-[width] duration-300 ease-out"
+                  style={{ width: `${progress.percent}%` }}
+                />
+              </div>
+              <p className="mt-1 text-xs text-gray-500">{progress.percent}%</p>
+            </div>
+          )}
+
+          {editingChecklist ? (
+            <ul className="mt-4 space-y-2">
+              {draftSteps.length === 0 ? (
+                <li className="rounded-lg border border-dashed border-gray-300 px-3 py-4 text-center text-sm text-gray-600">
+                  No steps yet. Click Add step to create the first one for {vendorLabel}.
+                </li>
+              ) : (
+                draftSteps.map((step, index) => (
+                  <li
+                    key={`${step.id || 'new'}-${index}`}
+                    className="flex items-start gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5"
+                  >
+                    <span className="mt-2 w-14 shrink-0 text-xs font-medium uppercase tracking-wide text-gray-400">
+                      Step {index + 1}
+                    </span>
+                    <input
+                      type="text"
+                      value={step.label}
+                      onChange={(e) => updateDraftStepLabel(index, e.target.value)}
+                      placeholder="Checklist step label"
+                      className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeDraftStep(index)}
+                      className="mt-0.5 rounded-md border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          ) : checklistItems.length === 0 ? (
+            <p className="mt-4 text-sm text-gray-600">
+              No checklist steps for {vendorLabel} yet. Use Add step to create them.
+            </p>
+          ) : (
+            <ul className="mt-4 space-y-2">
+              {checklistItems.map((item, index) => {
+                const entry = checklistEntry(shipment.checklist?.[item.id])
+                const done = entry.completed
+                const busy = checklistBusyId === item.id
+                return (
+                  <li
+                    key={item.id}
+                    className={`rounded-lg border px-3 py-2.5 transition-colors ${
                       done
                         ? 'border-emerald-200 bg-emerald-50'
                         : 'border-gray-200 bg-white hover:border-gray-300'
                     } ${busy ? 'opacity-60' : ''}`}
                   >
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                      checked={done}
-                      disabled={Boolean(checklistBusyId)}
-                      onChange={(e) => void handleChecklistToggle(item.id, e.target.checked)}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="text-xs font-medium uppercase tracking-wide text-gray-400">
-                        Step {index + 1}
-                      </span>
-                      <span
-                        className={`block text-sm ${
-                          done ? 'text-emerald-900 line-through' : 'text-gray-900'
-                        }`}
-                      >
-                        {item.label}
-                      </span>
-                      {done && entry.completed_by_name ? (
-                        <span className="mt-0.5 block text-xs font-medium text-emerald-700">
-                          Completed by {entry.completed_by_name}
+                    <label className="flex cursor-pointer items-start gap-3">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                        checked={done}
+                        disabled={Boolean(checklistBusyId)}
+                        onChange={(e) => void handleChecklistToggle(item.id, e.target.checked)}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="text-xs font-medium uppercase tracking-wide text-gray-400">
+                          Step {index + 1}
                         </span>
-                      ) : null}
-                    </span>
-                  </label>
-                </li>
-              )
-            })}
-          </ul>
+                        <span
+                          className={`block text-sm ${
+                            done ? 'text-emerald-900 line-through' : 'text-gray-900'
+                          }`}
+                        >
+                          {item.label}
+                        </span>
+                        {done && entry.completed_by_name ? (
+                          <span className="mt-0.5 block text-xs font-medium text-emerald-800">
+                            Completed by {entry.completed_by_name}
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                    {done && !entry.completed_by_name ? (
+                      <div className="mt-1 pl-7">
+                        <button
+                          type="button"
+                          disabled={Boolean(checklistBusyId)}
+                          onClick={() => void handleChecklistToggle(item.id, true)}
+                          className="text-xs font-medium text-emerald-800 underline hover:text-emerald-950 disabled:opacity-50"
+                        >
+                          {busy ? 'Saving…' : 'Add my name'}
+                        </button>
+                      </div>
+                    ) : null}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
         </section>
       )}
 

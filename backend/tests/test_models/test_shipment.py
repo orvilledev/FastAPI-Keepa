@@ -1,12 +1,18 @@
-"""Vendor field validation for registered shipments."""
+"""Vendor field validation and checklist helpers for registered shipments."""
 import pytest
 from pydantic import ValidationError
 
 from app.constants.shipment_checklists import (
+    apply_checklist_actor_names,
+    checklist_actor_ids,
+    coerce_template_steps,
     completed_checklist_entry,
     known_checklist_ids,
+    known_ids_from_steps,
     normalize_checklist,
     parse_checklist_entry,
+    resolve_checklist_steps,
+    slugify_step_id,
 )
 from app.models.shipment import ShipmentChecklistUpdate, ShipmentCreate, ShipmentUpdate
 
@@ -51,14 +57,13 @@ def test_nfa_has_checklist_steps():
     assert len(ids) == 8
 
 
-def test_other_vendors_have_no_checklist():
+def test_other_vendors_have_no_builtin_checklist():
     assert known_checklist_ids("DNK") == set()
     assert known_checklist_ids("SMW") == set()
 
 
 def test_normalize_checklist_keeps_only_known_nfa_ids():
     result = normalize_checklist(
-        "NFA",
         {
             "email_wr_sku_update": True,
             "bogus": True,
@@ -67,6 +72,7 @@ def test_normalize_checklist_keeps_only_known_nfa_ids():
                 "completed_by_name": "Stephanie",
             },
         },
+        vendor="NFA",
     )
     assert result["email_wr_sku_update"]["completed"] is True
     assert result["upload_po_import"]["completed"] is True
@@ -76,7 +82,31 @@ def test_normalize_checklist_keeps_only_known_nfa_ids():
 
 
 def test_normalize_checklist_empty_for_other_vendors():
-    assert normalize_checklist("DNK", {"email_wr_sku_update": True}) == {}
+    assert normalize_checklist({"email_wr_sku_update": True}, vendor="DNK") == {}
+
+
+def test_resolve_checklist_steps_uses_db_over_defaults():
+    steps = resolve_checklist_steps(
+        "NFA",
+        [{"id": "custom_step", "label": "Custom Step"}],
+    )
+    assert steps == [{"id": "custom_step", "label": "Custom Step"}]
+
+
+def test_resolve_checklist_steps_empty_db_row_means_no_steps():
+    assert resolve_checklist_steps("NFA", []) == []
+
+
+def test_coerce_template_steps_generates_ids():
+    steps = coerce_template_steps([{"label": "Send box labels to Warehouse Republic"}])
+    assert len(steps) == 1
+    assert steps[0]["id"] == "send_box_labels_to_warehouse_republic"
+    assert steps[0]["label"].startswith("Send box labels")
+
+
+def test_slugify_avoids_collisions():
+    existing = {"send_box_labels"}
+    assert slugify_step_id("Send box labels", existing) == "send_box_labels_2"
 
 
 def test_parse_checklist_entry_accepts_legacy_bool():
@@ -91,6 +121,37 @@ def test_completed_checklist_entry_stores_actor():
     assert entry["completed_by"] == "abc"
     assert entry["completed_by_name"] == "Stephanie"
     assert entry["completed_at"]
+
+
+def test_apply_checklist_actor_names_fills_blank_names():
+    checklist = normalize_checklist(
+        {
+            "email_wr_sku_update": {
+                "completed": True,
+                "completed_by": "user-1",
+                "completed_by_name": "",
+            }
+        },
+        known_ids={"email_wr_sku_update"},
+    )
+    filled = apply_checklist_actor_names(checklist, {"user-1": "Stephanie"})
+    assert filled["email_wr_sku_update"]["completed_by_name"] == "Stephanie"
+
+
+def test_checklist_actor_ids_lists_completers():
+    checklist = normalize_checklist(
+        {
+            "email_wr_sku_update": {
+                "completed": True,
+                "completed_by": "user-1",
+                "completed_by_name": "Stephanie",
+            },
+            "send_box_labels": True,
+        },
+        known_ids={"email_wr_sku_update", "send_box_labels"},
+    )
+    assert checklist_actor_ids(checklist) == ["user-1"]
+    assert known_ids_from_steps([{"id": "a", "label": "A"}]) == {"a"}
 
 
 def test_checklist_update_strips_item_id():

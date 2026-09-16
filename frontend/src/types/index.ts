@@ -103,6 +103,10 @@ export interface ShipmentRecord {
         completed_at?: string | null
       }
   >
+  /** Template steps for this shipment's vendor (from DB or built-in defaults). */
+  checklist_steps?: Array<{ id: string; label: string }>
+  /** Superadmin-only: can edit the vendor checklist template. */
+  can_edit_checklist?: boolean
   created_by: string
   created_by_email: string
   created_by_name: string

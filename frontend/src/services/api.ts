@@ -2028,6 +2028,24 @@ export const shipmentsApi = {
     )
     return response.data
   },
+  getChecklistTemplate: async (
+    vendor: string,
+  ): Promise<{ vendor: string; steps: Array<{ id: string; label: string }> }> => {
+    const response = await api.get<{ vendor: string; steps: Array<{ id: string; label: string }> }>(
+      `/api/v1/shipments/checklist-templates/${encodeURIComponent(vendor)}`,
+    )
+    return response.data
+  },
+  saveChecklistTemplate: async (
+    vendor: string,
+    steps: Array<{ id?: string; label: string }>,
+  ): Promise<{ vendor: string; steps: Array<{ id: string; label: string }> }> => {
+    const response = await api.put<{ vendor: string; steps: Array<{ id: string; label: string }> }>(
+      `/api/v1/shipments/checklist-templates/${encodeURIComponent(vendor)}`,
+      { steps },
+    )
+    return response.data
+  },
   delete: async (shipmentId: string): Promise<void> => {
     await api.delete(`/api/v1/shipments/${shipmentId}`)
   },

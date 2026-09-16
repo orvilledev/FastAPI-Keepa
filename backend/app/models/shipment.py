@@ -89,6 +89,59 @@ class ShipmentChecklistEntry(BaseModel):
         return value  # type: ignore[return-value]
 
 
+class ShipmentChecklistStep(BaseModel):
+    """One step in a vendor checklist template."""
+
+    id: str = Field(..., min_length=1, max_length=64)
+    label: str = Field(..., min_length=1, max_length=300)
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def normalize_id(cls, value: object) -> str:
+        return str(value or "").strip().lower()
+
+    @field_validator("label")
+    @classmethod
+    def strip_label(cls, value: str) -> str:
+        cleaned = (value or "").strip()
+        if not cleaned:
+            raise ValueError("Checklist step label is required.")
+        return cleaned
+
+
+class ShipmentChecklistStepInput(BaseModel):
+    """Template step from the editor; id is optional and generated when missing."""
+
+    id: Optional[str] = Field(default=None, max_length=64)
+    label: str = Field(..., min_length=1, max_length=300)
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def normalize_id(cls, value: object) -> Optional[str]:
+        if value is None or value == "":
+            return None
+        return str(value).strip().lower() or None
+
+    @field_validator("label")
+    @classmethod
+    def strip_label(cls, value: str) -> str:
+        cleaned = (value or "").strip()
+        if not cleaned:
+            raise ValueError("Checklist step label is required.")
+        return cleaned
+
+
+class ShipmentChecklistTemplateUpdate(BaseModel):
+    """Replace the checklist template for one vendor (superadmin)."""
+
+    steps: List[ShipmentChecklistStepInput] = Field(default_factory=list)
+
+
+class ShipmentChecklistTemplateResponse(BaseModel):
+    vendor: str
+    steps: List[ShipmentChecklistStep] = Field(default_factory=list)
+
+
 class ShipmentChecklistUpdate(BaseModel):
     """Toggle one checklist step on a shipment that has a vendor checklist."""
 
@@ -167,6 +220,8 @@ class ShipmentResponse(BaseModel):
     vendor: str = ""
     status: ShipmentStatus = "open"
     checklist: Dict[str, ShipmentChecklistEntry] = Field(default_factory=dict)
+    checklist_steps: List[ShipmentChecklistStep] = Field(default_factory=list)
+    can_edit_checklist: bool = False
     created_by: UUID
     created_by_email: str = ""
     created_by_name: str = ""
