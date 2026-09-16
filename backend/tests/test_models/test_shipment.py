@@ -54,12 +54,17 @@ def test_nfa_has_checklist_steps():
     ids = known_checklist_ids("NFA")
     assert "email_wr_sku_update" in ids
     assert "generate_pallet_labels_bols" in ids
-    assert len(ids) == 8
+    assert "upload_pallet_labels_and_bols_to_extensiv" in ids
+    assert len(ids) == 9
+
+
+def test_smw_shares_nfa_checklist_defaults():
+    assert known_checklist_ids("SMW") == known_checklist_ids("NFA")
 
 
 def test_other_vendors_have_no_builtin_checklist():
     assert known_checklist_ids("DNK") == set()
-    assert known_checklist_ids("SMW") == set()
+    assert known_checklist_ids("CLK") == set()
 
 
 def test_normalize_checklist_keeps_only_known_nfa_ids():

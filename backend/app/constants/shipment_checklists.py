@@ -15,17 +15,20 @@ ChecklistItemDef = Tuple[str, str]
 NFA_CHECKLIST: List[ChecklistItemDef] = [
     ("email_wr_sku_update", "Email WR SKU Update to Warehouse Republic"),
     ("update_label_station", "Update Label Station with SKUs"),
-    ("send_box_labels", "Send box labels to Warehouse Republic"),
+    ("send_box_labels", "Send box labels to NFA and MetroShoe Team."),
     ("received_wr_confirmation", "Received Confirmation from Warehouse Republic"),
     ("upload_po_import", "Upload PO Import to Extensiv"),
     ("upload_order_import", "Upload Order Import to Extensiv"),
     ("received_pallet_dimensions", "Received Pallet Dimensions from Warehouse Republic"),
     ("generate_pallet_labels_bols", "Generate Pallet Labels and BOLs"),
+    ("upload_pallet_labels_and_bols_to_extensiv", "Upload Pallet Labels and BOLs to Extensiv."),
 ]
 
 # Built-in defaults used when the DB has no row for that vendor yet.
+# SMW shares the same workflow as NFA / The North Face.
 DEFAULT_SHIPMENT_CHECKLISTS: Dict[str, List[ChecklistItemDef]] = {
     "NFA": NFA_CHECKLIST,
+    "SMW": list(NFA_CHECKLIST),
 }
 
 _STEP_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_]{0,63}$")

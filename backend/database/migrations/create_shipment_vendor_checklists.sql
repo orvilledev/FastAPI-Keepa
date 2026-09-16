@@ -15,21 +15,37 @@ CREATE TABLE IF NOT EXISTS shipment_vendor_checklists (
 COMMENT ON TABLE shipment_vendor_checklists IS
   'Per-vendor shipment checklist templates. Superadmins edit steps; teammates mark progress on shipments.';
 
--- Seed The North Face (NFA) default workflow if not already present.
+-- Seed The North Face (NFA) and Smartwool (SMW) default workflow if not already present.
 INSERT INTO shipment_vendor_checklists (vendor, steps)
-VALUES (
-  'NFA',
-  '[
-    {"id": "email_wr_sku_update", "label": "Email WR SKU Update to Warehouse Republic"},
-    {"id": "update_label_station", "label": "Update Label Station with SKUs"},
-    {"id": "send_box_labels", "label": "Send box labels to Warehouse Republic"},
-    {"id": "received_wr_confirmation", "label": "Received Confirmation from Warehouse Republic"},
-    {"id": "upload_po_import", "label": "Upload PO Import to Extensiv"},
-    {"id": "upload_order_import", "label": "Upload Order Import to Extensiv"},
-    {"id": "received_pallet_dimensions", "label": "Received Pallet Dimensions from Warehouse Republic"},
-    {"id": "generate_pallet_labels_bols", "label": "Generate Pallet Labels and BOLs"}
-  ]'::jsonb
-)
+VALUES
+  (
+    'NFA',
+    '[
+      {"id": "email_wr_sku_update", "label": "Email WR SKU Update to Warehouse Republic"},
+      {"id": "update_label_station", "label": "Update Label Station with SKUs"},
+      {"id": "send_box_labels", "label": "Send box labels to NFA and MetroShoe Team."},
+      {"id": "received_wr_confirmation", "label": "Received Confirmation from Warehouse Republic"},
+      {"id": "upload_po_import", "label": "Upload PO Import to Extensiv"},
+      {"id": "upload_order_import", "label": "Upload Order Import to Extensiv"},
+      {"id": "received_pallet_dimensions", "label": "Received Pallet Dimensions from Warehouse Republic"},
+      {"id": "generate_pallet_labels_bols", "label": "Generate Pallet Labels and BOLs"},
+      {"id": "upload_pallet_labels_and_bols_to_extensiv", "label": "Upload Pallet Labels and BOLs to Extensiv."}
+    ]'::jsonb
+  ),
+  (
+    'SMW',
+    '[
+      {"id": "email_wr_sku_update", "label": "Email WR SKU Update to Warehouse Republic"},
+      {"id": "update_label_station", "label": "Update Label Station with SKUs"},
+      {"id": "send_box_labels", "label": "Send box labels to NFA and MetroShoe Team."},
+      {"id": "received_wr_confirmation", "label": "Received Confirmation from Warehouse Republic"},
+      {"id": "upload_po_import", "label": "Upload PO Import to Extensiv"},
+      {"id": "upload_order_import", "label": "Upload Order Import to Extensiv"},
+      {"id": "received_pallet_dimensions", "label": "Received Pallet Dimensions from Warehouse Republic"},
+      {"id": "generate_pallet_labels_bols", "label": "Generate Pallet Labels and BOLs"},
+      {"id": "upload_pallet_labels_and_bols_to_extensiv", "label": "Upload Pallet Labels and BOLs to Extensiv."}
+    ]'::jsonb
+  )
 ON CONFLICT (vendor) DO NOTHING;
 
 ALTER TABLE shipment_vendor_checklists ENABLE ROW LEVEL SECURITY;
