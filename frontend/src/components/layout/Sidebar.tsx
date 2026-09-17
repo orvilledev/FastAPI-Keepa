@@ -5,7 +5,6 @@ import { APP_NAME } from '../../constants/app'
 import AppLogo from '../common/AppLogo'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessMasterSheet } from '../../lib/masterSheetAccess'
-import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { canAccessProjects } from '../../lib/projectsAccess'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 
@@ -173,10 +172,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
-  const canUseFreightClass = canAccessFreightClassCalculator(
-    userInfo?.email || authUser?.email,
-    isSuperadmin,
-  )
   const canUseProjects = canAccessProjects(
     userInfo?.email || authUser?.email,
     isSuperadmin,
@@ -332,6 +327,19 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
               >
                 <span className="shrink-0">{Icons.fnskuBoxPivot}</span>
                 <span className="sidebar-link-label">FNSKU Pack Station</span>
+              </Link>
+
+              <Link
+                to="/freight-class-calculator"
+                onMouseEnter={() => setHoveredNav('freight-class-calculator')}
+                className={`sidebar-link ${
+                  navHighlighted('freight-class-calculator', isActive('/freight-class-calculator'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.freightClassCalculator}</span>
+                <span className="sidebar-link-label">Freight Class</span>
               </Link>
             </div>
 
@@ -555,20 +563,18 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
               <span className="sidebar-link-label">Shipment Manager</span>
             </Link>
 
-            {canUseFreightClass && (
-              <Link
-                to="/freight-class-calculator"
-                onMouseEnter={() => setHoveredNav('freight-class-calculator')}
-                className={`sidebar-link ${
-                  navHighlighted('freight-class-calculator', isActive('/freight-class-calculator'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.freightClassCalculator}</span>
-                <span className="sidebar-link-label">Freight Class</span>
-              </Link>
-            )}
+            <Link
+              to="/freight-class-calculator"
+              onMouseEnter={() => setHoveredNav('freight-class-calculator')}
+              className={`sidebar-link ${
+                navHighlighted('freight-class-calculator', isActive('/freight-class-calculator'))
+                  ? 'sidebar-link-active'
+                  : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="shrink-0">{Icons.freightClassCalculator}</span>
+              <span className="sidebar-link-label">Freight Class</span>
+            </Link>
 
             {hasKeepaAccess && (
               <Link

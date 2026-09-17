@@ -1,12 +1,10 @@
 import { useCallback, useRef, useState, type DragEvent, type ReactNode } from 'react'
-import { useUser } from '../../contexts/UserContext'
 import {
   freightClassCalculatorApi,
   type FreightCalculationResult,
   type FreightShipmentResult,
 } from '../../services/api'
 import { auditAction } from '../../lib/auditEvents'
-import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { classBadgeStyle, copySummaryToClipboard } from '../../utils/freightClassExport'
 
 const ACCEPTED =
@@ -325,8 +323,6 @@ function TruckIcon({ className }: { className?: string }) {
 }
 
 export default function FreightClassCalculator() {
-  const { isSuperadmin, userInfo, authUser } = useUser()
-  const canUse = canAccessFreightClassCalculator(userInfo?.email || authUser?.email, isSuperadmin)
   const [activeTab, setActiveTab] = useState<TabId>('manual')
   const [skipSeventyFiveRule, setSkipSeventyFiveRule] = useState(false)
   const [manualRows, setManualRows] = useState<ManualRow[]>([emptyRow()])
@@ -474,22 +470,6 @@ export default function FreightClassCalculator() {
     setError(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }, [])
-
-  if (!canUse) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center px-4">
-        <div className="max-w-sm rounded-2xl border border-border bg-surface p-8 text-center shadow-sm">
-          <IconBox>
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </IconBox>
-          <h2 className="mt-4 text-lg font-semibold text-content">Access restricted</h2>
-          <p className="mt-2 text-sm text-content-muted">This tool is limited to authorized users.</p>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="mx-auto max-w-3xl px-1 pb-16 pt-2">

@@ -1,4 +1,4 @@
-"""Freight Class Calculator API — NMFC density-based LTL class (authorized users)."""
+"""Freight Class Calculator API — NMFC density-based LTL class (all signed-in users)."""
 import logging
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile

@@ -5,6 +5,7 @@ export const WAREHOUSE_HOME_PATH = '/label-station'
 export const WAREHOUSE_ALLOWED_PATHS = new Set([
   WAREHOUSE_HOME_PATH,
   '/fnsku-pack-station',
+  '/freight-class-calculator',
   '/about',
   '/faq',
   '/feedback',

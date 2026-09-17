@@ -189,7 +189,7 @@ class Settings(BaseSettings):
         "johnbernard@metroshoewarehouse.com"
     )
 
-    # Comma-separated emails allowed to use the Freight Class Calculator (plus superadmin).
+    # Legacy: Freight Class is open to all signed-in users; this setting is unused.
     freight_class_allowed_emails: str = (
         "sunshine@metroshoewarehouse.com,"
         "stephanie@metroshoewarehouse.com,"

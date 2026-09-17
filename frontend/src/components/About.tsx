@@ -59,13 +59,14 @@ export default function About() {
           <span className="font-semibold">search</span> to jump to any page, the{' '}
           <span className="font-semibold">notifications</span> bell for completed runs, and the{' '}
           <span className="font-semibold">theme toggle</span> (moon/sun) for light or dark mode. Warehouse
-          station accounts open <span className="font-semibold">Label Station</span> and{' '}
-          <span className="font-semibold">FNSKU Pack Station</span>, plus General pages.
+          station accounts open <span className="font-semibold">Label Station</span>,{' '}
+          <span className="font-semibold">FNSKU Pack Station</span>, and{' '}
+          <span className="font-semibold">Freight Class</span>, plus General pages.
         </p>
         <p className="mt-2 text-sm text-gray-600 max-w-4xl">
           <span className="font-semibold">Keepa access</span> unlocks the full Menu and Label Station in
           Tools. <span className="font-semibold">Warehouse-only</span> accounts see Label Station, FNSKU Pack
-          Station, and General. <span className="font-semibold">Superadmins</span> also get User Management,
+          Station, Freight Class, and General. <span className="font-semibold">Superadmins</span> also get User Management,
           Audit Log, catalog tools, and maintenance controls. Most staff accounts use{' '}
           <span className="font-semibold">two-factor authentication</span> (authenticator app) at sign-in;
           shared warehouse stations are exempt. After MFA, idle sessions ask for a fresh code after{' '}
@@ -210,8 +211,8 @@ export default function About() {
           </li>
           <li>
             <span className="font-semibold">Freight Class Calculator:</span> Estimate NMFC freight class from density
-            (XPO-compatible logic). Enter dimensions manually or bulk-upload a workbook from the template. Allowlisted
-            separately (Superadmin, Stephanie, Sunshine, Paolo, and John Bernard).
+            (XPO-compatible logic). Enter dimensions manually or bulk-upload a workbook from the template. Available to
+            all signed-in users, including warehouse-only station accounts.
           </li>
           <li>
             <span className="font-semibold">Label Station:</span> Scan a product UPC, look up the warehouse catalog, and
@@ -225,10 +226,10 @@ export default function About() {
           </li>
         </ul>
         <p className="mt-4 text-sm text-gray-600">
-          Label Station requires Keepa access or a warehouse-only account. FNSKU Pack Station is available to all
-          signed-in users, including warehouse-only stations. Micro Tools, Tracking Extractor, FNSKU Labels, Manifest
-          Generator, DNK AllInventory, and Shipment Manager are available to all signed-in non-warehouse users. Freight
-          Class Calculator is allowlisted separately.
+          Label Station requires Keepa access or a warehouse-only account. FNSKU Pack Station and Freight Class
+          Calculator are available to all signed-in users, including warehouse-only stations. Micro Tools, Tracking
+          Extractor, FNSKU Labels, Manifest Generator, DNK AllInventory, and Shipment Manager are available to all
+          signed-in non-warehouse users.
         </p>
       </div>
 

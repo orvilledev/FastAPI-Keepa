@@ -10,8 +10,8 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         {APP_NAME} is MetroShoe Warehouse&apos;s workspace for Keepa-based pricing compliance and day-to-day
         operational tools. The sidebar is organized into <strong>Menu</strong> (monitoring, project tracking, and shared data),{' '}
         <strong>Tools</strong> (document, shipment, and label utilities), and <strong>General</strong> (about, FAQ, and
-        feedback). Warehouse station accounts open <strong>Label Station</strong> and{' '}
-        <strong>FNSKU Pack Station</strong>, plus General pages. See the{' '}
+        feedback). Warehouse station accounts open <strong>Label Station</strong>,{' '}
+        <strong>FNSKU Pack Station</strong>, and <strong>Freight Class</strong>, plus General pages. See the{' '}
         <Link to="/about" className="text-[#404040] font-medium underline">
           About
         </Link>{' '}
@@ -209,10 +209,10 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         Tools includes <strong>Micro Tools</strong>, <strong>Tracking Extractor</strong>, <strong>FNSKU Labels</strong>,{' '}
         <strong>FNSKU Pack Station</strong>, <strong>FBA Box Contents</strong> (allowlisted),{' '}
         <strong>Manifest Generator</strong>, <strong>DNK AllInventory</strong>,{' '}
-        <strong>Shipment Manager</strong>, <strong>Freight Class Calculator</strong> (allowlisted), and{' '}
+        <strong>Shipment Manager</strong>, <strong>Freight Class Calculator</strong>, and{' '}
         <strong>Label Station</strong>. Most document and shipment tools are available to all signed-in non-warehouse
         users. <strong>Label Station</strong> requires Keepa access or a warehouse-only account. Warehouse-only accounts
-        also get <strong>FNSKU Pack Station</strong>.
+        also get <strong>FNSKU Pack Station</strong> and <strong>Freight Class Calculator</strong>.
       </>
     ),
   },
@@ -299,8 +299,8 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         Freight Class Calculator estimates NMFC freight class from density using XPO-compatible logic. Enter carton
-        details manually or bulk-upload a workbook from the template. Access is allowlisted (Superadmin, Stephanie,
-        Sunshine, Paolo, and John Bernard).
+        details manually or bulk-upload a workbook from the template. Available to all signed-in users, including
+        warehouse-only station accounts.
       </>
     ),
   },
@@ -384,7 +384,8 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
       <>
         Use the <strong>search box</strong> in the top bar. Type part of a page name (for example &quot;Express&quot;,
         &quot;MAP&quot;, or &quot;FAQ&quot;) and pick from the grouped results under Menu, Tools, or General.
-        Warehouse-only accounts see a shorter list focused on Label Station, FNSKU Pack Station, and General pages.
+        Warehouse-only accounts see a shorter list focused on Label Station, FNSKU Pack Station, Freight Class, and
+        General pages.
       </>
     ),
   },
@@ -425,9 +426,9 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         Warehouse-only accounts are restricted logins for shared station PCs. The sidebar shows{' '}
-        <strong>Label Station</strong>, <strong>FNSKU Pack Station</strong>, and General pages (About, FAQ, Feedback) —
-        not the full Menu or other Tools. This keeps packing stations focused on scan-and-print and pack pivots without
-        access to unrelated compliance tools.
+        <strong>Label Station</strong>, <strong>FNSKU Pack Station</strong>, <strong>Freight Class</strong>, and General
+        pages (About, FAQ, Feedback) — not the full Menu or other Tools. This keeps packing stations focused on
+        scan-and-print, pack pivots, and freight class without access to unrelated compliance tools.
       </>
     ),
   },
@@ -436,8 +437,8 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         Those Menu items require Keepa access on your account. If you have a warehouse-only login, you will only see
-        Label Station, FNSKU Pack Station, and General. If Keepa pages are missing from a normal account, ask an
-        administrator to enable the right permissions for your role.
+        Label Station, FNSKU Pack Station, Freight Class, and General. If Keepa pages are missing from a normal account,
+        ask an administrator to enable the right permissions for your role.
       </>
     ),
   },
@@ -489,7 +490,8 @@ export default function JobAids() {
 
       <p className="text-xs text-gray-400">
         Keepa-related Menu items and Label Station require the right account access; most other Tools are available to
-        signed-in non-warehouse users. Warehouse-only accounts see Label Station, FNSKU Pack Station, and General only.
+        signed-in non-warehouse users. Warehouse-only accounts see Label Station, FNSKU Pack Station, Freight Class, and
+        General only.
       </p>
     </div>
   )

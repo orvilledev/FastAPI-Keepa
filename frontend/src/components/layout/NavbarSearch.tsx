@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useUser } from '../../contexts/UserContext'
 import { canAccessMasterSheet } from '../../lib/masterSheetAccess'
-import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessProjects } from '../../lib/projectsAccess'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
@@ -19,7 +18,6 @@ function buildSearchItems(
   isWarehouseOnly: boolean,
   isSuperadmin: boolean,
   showMasterSheet: boolean,
-  showFreightClass: boolean,
   showAnalytics: boolean,
   showProjects: boolean,
   showFbaBoxContents: boolean,
@@ -28,6 +26,7 @@ function buildSearchItems(
     return [
       { label: 'Label Station', path: '/label-station', section: 'Tools' },
       { label: 'FNSKU Pack Station', path: '/fnsku-pack-station', section: 'Tools' },
+      { label: 'Freight Class Calculator', path: '/freight-class-calculator', section: 'Tools' },
       { label: 'About', path: '/about', section: 'General' },
       { label: 'FAQ', path: '/faq', section: 'General' },
       { label: 'Feedback From Users', path: '/feedback', section: 'General' },
@@ -70,6 +69,7 @@ function buildSearchItems(
     { label: 'Manifest Generator', path: '/manifest-generator', section: 'Tools' },
     { label: 'DNK AllInventory', path: '/dnk-all-inventory', section: 'Tools' },
     { label: 'Shipment Manager', path: '/shipment-manager', section: 'Tools' },
+    { label: 'Freight Class Calculator', path: '/freight-class-calculator', section: 'Tools' },
   )
 
   if (showFbaBoxContents) {
@@ -81,10 +81,6 @@ function buildSearchItems(
     { label: 'FAQ', path: '/faq', section: 'General' },
     { label: 'Feedback From Users', path: '/feedback', section: 'General' },
   )
-
-  if (showFreightClass) {
-    items.push({ label: 'Freight Class Calculator', path: '/freight-class-calculator', section: 'Tools' })
-  }
 
   if (isSuperadmin) {
     items.push(
@@ -114,10 +110,6 @@ export default function NavbarSearch() {
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
-  const showFreightClass = canAccessFreightClassCalculator(
-    userInfo?.email || authUser?.email,
-    isSuperadmin,
-  )
   const showAnalytics = canAccessWebAnalytics(userInfo?.email || authUser?.email)
   const showProjects = canAccessProjects(
     userInfo?.email || authUser?.email,
@@ -135,12 +127,11 @@ export default function NavbarSearch() {
         isWarehouseOnly,
         isSuperadmin,
         showMasterSheet,
-        showFreightClass,
         showAnalytics,
         showProjects,
         showFbaBoxContents,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showMasterSheet, showFreightClass, showAnalytics, showProjects, showFbaBoxContents],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showMasterSheet, showAnalytics, showProjects, showFbaBoxContents],
   )
 
   const results = useMemo(() => {
