@@ -81,7 +81,7 @@ export default function ShipmentManager() {
   const [contributorFilter, setContributorFilter] = useState('all')
   const [uploadsFilter, setUploadsFilter] = useState<'all' | 'with' | 'empty'>('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [showFolderForm, setShowFolderForm] = useState(false)
   const [folderName, setFolderName] = useState('')
   const [folderBusy, setFolderBusy] = useState(false)
@@ -459,8 +459,8 @@ export default function ShipmentManager() {
     })
   }
 
-  const toggleFolderCollapsed = (folderId: string) => {
-    setCollapsedFolders((prev) => {
+  const toggleFolderExpanded = (folderId: string) => {
+    setExpandedFolders((prev) => {
       const next = new Set(prev)
       if (next.has(folderId)) next.delete(folderId)
       else next.add(folderId)
@@ -474,8 +474,15 @@ export default function ShipmentManager() {
   const renderShipmentRow = (shipment: ShipmentRecord, indent: boolean) => {
     const status = shipmentStatusMeta(shipment.status)
     return (
-      <tr key={shipment.id} className="hover:bg-gray-50">
-        <td className="px-4 py-2">
+      <tr
+        key={shipment.id}
+        className={
+          indent
+            ? 'border-l-4 border-l-emerald-300 bg-emerald-50/80 hover:bg-emerald-100/90'
+            : 'hover:bg-gray-50'
+        }
+      >
+        <td className={`px-4 py-2 ${indent ? 'pl-10' : ''}`}>
           <input
             type="checkbox"
             checked={selectedIds.has(shipment.id)}
@@ -484,7 +491,7 @@ export default function ShipmentManager() {
             className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
           />
         </td>
-        <td className={`px-4 py-2 ${indent ? 'pl-10' : ''}`}>
+        <td className={`px-4 py-2 ${indent ? 'pl-14' : ''}`}>
           <Link
             to={`/shipment-manager/${shipment.id}`}
             className="font-semibold text-[#404040] hover:underline"
@@ -860,7 +867,7 @@ export default function ShipmentManager() {
                     return renderShipmentRow(row.shipment, false)
                   }
                   const { folder, members } = row
-                  const collapsed = collapsedFolders.has(folder.id)
+                  const collapsed = !expandedFolders.has(folder.id)
                   const isRenaming = renamingFolderId === folder.id
                   return (
                     <FragmentFolder
@@ -871,7 +878,7 @@ export default function ShipmentManager() {
                       isRenaming={isRenaming}
                       renameValue={renameValue}
                       folderBusy={folderBusy}
-                      onToggle={() => toggleFolderCollapsed(folder.id)}
+                      onToggle={() => toggleFolderExpanded(folder.id)}
                       onStartRename={() => {
                         setRenamingFolderId(folder.id)
                         setRenameValue(folder.name)
