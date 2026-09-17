@@ -1,0 +1,10 @@
+MSW Overwatch 3.5.1 — desktop and web release
+
+Patch release since 3.5.0. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Warehouse access
+- **Freight Class** is now visible to all signed-in users, including warehouse-only stations (Warehouse1 and hello@warehouserepublic.com)
+- Warehouse sidebar, search, and route allowlist include Freight Class Calculator
+
+## Upgrade from 3.5.0
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.5.1, download it, then prompt to install now or later. Web/PWA users get 3.5.1 on the next deploy/refresh.
