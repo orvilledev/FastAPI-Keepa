@@ -12,6 +12,8 @@ import {
 } from '../../constants/shipmentStatuses'
 import type { ShipmentFolder, ShipmentRecord } from '../../types'
 
+const STARRED_SECTION_ID = '__starred__'
+
 function errorDetail(err: unknown, fallback: string): string {
   const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
   if (typeof detail === 'string' && detail.trim()) return detail
@@ -58,6 +60,18 @@ function suggestFolderName(names: string[]): string {
   return prefix || stripped[0]
 }
 
+function bySortOrder<T extends { sort_order?: number; name?: string; created_at?: string; id: string }>(
+  items: T[],
+): T[] {
+  return [...items].sort((a, b) => {
+    const orderDiff = (a.sort_order ?? 0) - (b.sort_order ?? 0)
+    if (orderDiff !== 0) return orderDiff
+    const nameDiff = (a.name || '').localeCompare(b.name || '')
+    if (nameDiff !== 0) return nameDiff
+    return (b.created_at || '').localeCompare(a.created_at || '')
+  })
+}
+
 type ListRow =
   | { kind: 'folder'; folder: ShipmentFolder; members: ShipmentRecord[] }
   | { kind: 'shipment'; shipment: ShipmentRecord }
@@ -75,13 +89,16 @@ export default function ShipmentManager() {
   const [saving, setSaving] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [ledgerId, setLedgerId] = useState<string | null>(null)
+  const [clusterGenerateId, setClusterGenerateId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [vendorFilter, setVendorFilter] = useState('all')
   const [contributorFilter, setContributorFilter] = useState('all')
   const [uploadsFilter, setUploadsFilter] = useState<'all' | 'with' | 'empty'>('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
+    () => new Set([STARRED_SECTION_ID]),
+  )
   const [showFolderForm, setShowFolderForm] = useState(false)
   const [folderName, setFolderName] = useState('')
   const [folderBusy, setFolderBusy] = useState(false)
@@ -222,11 +239,7 @@ export default function ShipmentManager() {
         name: folderName.trim(),
         shipment_ids: ids,
       })
-      setFolders((prev) =>
-        [...prev.filter((item) => item.id !== created.id), created].sort((a, b) =>
-          a.name.localeCompare(b.name),
-        ),
-      )
+      setFolders((prev) => bySortOrder([...prev.filter((item) => item.id !== created.id), created]))
       setShipments((prev) =>
         prev.map((item) =>
           ids.includes(item.id)
@@ -256,9 +269,9 @@ export default function ShipmentManager() {
     try {
       const updated = await shipmentsApi.renameFolder(folder.id, nextName)
       setFolders((prev) =>
-        prev
-          .map((item) => (item.id === folder.id ? { ...item, name: updated.name } : item))
-          .sort((a, b) => a.name.localeCompare(b.name)),
+        bySortOrder(
+          prev.map((item) => (item.id === folder.id ? { ...item, name: updated.name } : item)),
+        ),
       )
       setShipments((prev) =>
         prev.map((item) =>
@@ -353,6 +366,124 @@ export default function ShipmentManager() {
     }
   }
 
+  const handleMoveFolder = async (folder: ShipmentFolder, direction: 'up' | 'down') => {
+    if (folderBusy) return
+    setFolderBusy(true)
+    setError(null)
+    try {
+      const nextFolders = await shipmentsApi.moveFolder(folder.id, direction)
+      setFolders(bySortOrder(nextFolders))
+    } catch (err) {
+      setError(errorDetail(err, 'Could not reorder this folder.'))
+    } finally {
+      setFolderBusy(false)
+    }
+  }
+
+  const handleMoveShipment = async (shipment: ShipmentRecord, direction: 'up' | 'down') => {
+    if (folderBusy || busyId) return
+    setBusyId(shipment.id)
+    setError(null)
+    try {
+      const siblings = await shipmentsApi.moveShipment(shipment.id, direction)
+      const byId = new Map(siblings.map((item) => [item.id, item]))
+      setShipments((prev) =>
+        prev.map((item) => {
+          const updated = byId.get(item.id)
+          return updated
+            ? {
+                ...item,
+                sort_order: updated.sort_order,
+                folder_id: updated.folder_id,
+                folder_name: updated.folder_name,
+                starred: updated.starred ?? item.starred,
+              }
+            : item
+        }),
+      )
+    } catch (err) {
+      setError(errorDetail(err, 'Could not reorder this shipment.'))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleToggleShipmentStar = async (shipment: ShipmentRecord) => {
+    if (busyId === shipment.id || folderBusy) return
+    setBusyId(shipment.id)
+    setError(null)
+    try {
+      const updated = shipment.starred
+        ? await shipmentsApi.unstarShipment(shipment.id)
+        : await shipmentsApi.starShipment(shipment.id)
+      setShipments((prev) =>
+        prev.map((item) =>
+          item.id === shipment.id ? { ...item, starred: Boolean(updated.starred) } : item,
+        ),
+      )
+      if (updated.starred) {
+        setExpandedFolders((prev) => {
+          const next = new Set(prev)
+          next.add(STARRED_SECTION_ID)
+          return next
+        })
+      }
+    } catch (err) {
+      setError(errorDetail(err, 'Could not update star for this shipment.'))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleToggleFolderStar = async (folder: ShipmentFolder) => {
+    if (folderBusy) return
+    setFolderBusy(true)
+    setError(null)
+    try {
+      const updated = folder.starred
+        ? await shipmentsApi.unstarFolder(folder.id)
+        : await shipmentsApi.starFolder(folder.id)
+      setFolders((prev) =>
+        prev.map((item) =>
+          item.id === folder.id ? { ...item, starred: Boolean(updated.starred) } : item,
+        ),
+      )
+      if (updated.starred) {
+        setExpandedFolders((prev) => {
+          const next = new Set(prev)
+          next.add(STARRED_SECTION_ID)
+          return next
+        })
+      }
+    } catch (err) {
+      setError(errorDetail(err, 'Could not update star for this folder.'))
+    } finally {
+      setFolderBusy(false)
+    }
+  }
+
+  const handleGenerateClustered = async (folder: ShipmentFolder) => {
+    if (clusterGenerateId || folderBusy) return
+    setClusterGenerateId(folder.id)
+    setError(null)
+    setMessage(null)
+    try {
+      const result = await shipmentsApi.generateClusteredFolder(folder.id)
+      downloadBlob(result.blob, result.filename)
+      setMessage(
+        `Downloaded ${result.filename} — ${result.skuCount.toLocaleString()} unique UPC` +
+          `${result.skuCount === 1 ? '' : 's'} from ${result.collectedRows.toLocaleString()} collected` +
+          (result.duplicatesRemoved > 0
+            ? `, ${result.duplicatesRemoved.toLocaleString()} duplicate(s) removed.`
+            : '.'),
+      )
+    } catch (err) {
+      setError(errorDetail(err, 'Could not compile the clustered WR SKU Update sheet.'))
+    } finally {
+      setClusterGenerateId(null)
+    }
+  }
+
   const vendorOptions = useMemo(() => {
     const codes = new Set(
       shipments.map((item) => (item.vendor || '').trim().toUpperCase()).filter(Boolean),
@@ -408,10 +539,10 @@ export default function ShipmentManager() {
     }
 
     const rows: ListRow[] = []
-    const folderOrder = [...folders].sort((a, b) => a.name.localeCompare(b.name))
+    const folderOrder = bySortOrder(folders)
     for (const folder of folderOrder) {
-      const members = byFolder.get(folder.id)
-      if (!members || members.length === 0) {
+      const members = bySortOrder(byFolder.get(folder.id) || [])
+      if (members.length === 0) {
         // Keep empty folders visible only when no filters hide all members.
         if (!filtersActiveLike(search, vendorFilter, contributorFilter, uploadsFilter)) {
           rows.push({ kind: 'folder', folder, members: [] })
@@ -427,11 +558,28 @@ export default function ShipmentManager() {
         ungrouped.push(shipment)
       }
     }
-    for (const shipment of ungrouped) {
+    for (const shipment of bySortOrder(ungrouped)) {
       rows.push({ kind: 'shipment', shipment })
     }
     return rows
   }, [filtered, folders, search, vendorFilter, contributorFilter, uploadsFilter])
+
+  const starredFolders = useMemo(
+    () => bySortOrder(folders.filter((folder) => folder.starred)),
+    [folders],
+  )
+
+  const starredShipments = useMemo(() => {
+    const starredFolderIds = new Set(starredFolders.map((folder) => folder.id))
+    // Prefer starring a whole folder over duplicating every member under Starred.
+    return bySortOrder(
+      filtered.filter(
+        (item) => item.starred && (!item.folder_id || !starredFolderIds.has(item.folder_id)),
+      ),
+    )
+  }, [filtered, starredFolders])
+
+  const hasStarred = starredFolders.length > 0 || starredShipments.length > 0
 
   const filtersActive =
     search.trim() !== '' ||
@@ -471,11 +619,17 @@ export default function ShipmentManager() {
   const selectClass =
     'rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none'
 
-  const renderShipmentRow = (shipment: ShipmentRecord, indent: boolean) => {
+  const renderShipmentRow = (
+    shipment: ShipmentRecord,
+    indent: boolean,
+    canMoveUp: boolean,
+    canMoveDown: boolean,
+    rowKeyPrefix = '',
+  ) => {
     const status = shipmentStatusMeta(shipment.status)
     return (
       <tr
-        key={shipment.id}
+        key={`${rowKeyPrefix}${shipment.id}`}
         className={
           indent
             ? 'border-l-4 border-l-emerald-300 bg-emerald-50/80 hover:bg-emerald-100/90'
@@ -534,6 +688,42 @@ export default function ShipmentManager() {
         <td className="px-4 py-2 text-gray-600">{formatDate(shipment.created_at)}</td>
         <td className="px-4 py-2 text-right">
           <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              disabled={busyId === shipment.id || folderBusy}
+              onClick={() => void handleToggleShipmentStar(shipment)}
+              aria-label={
+                shipment.starred ? `Unstar ${shipment.name}` : `Star ${shipment.name}`
+              }
+              title={shipment.starred ? 'Remove from Starred' : 'Add to Starred'}
+              className={`rounded-md border px-2 py-1 text-xs font-medium disabled:opacity-50 ${
+                shipment.starred
+                  ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                  : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {shipment.starred ? '★' : '☆'}
+            </button>
+            <div className="inline-flex overflow-hidden rounded-md border border-gray-300">
+              <button
+                type="button"
+                disabled={!canMoveUp || folderBusy || busyId === shipment.id}
+                onClick={() => void handleMoveShipment(shipment, 'up')}
+                aria-label={`Move ${shipment.name} up`}
+                className="px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                disabled={!canMoveDown || folderBusy || busyId === shipment.id}
+                onClick={() => void handleMoveShipment(shipment, 'down')}
+                aria-label={`Move ${shipment.name} down`}
+                className="border-l border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+              >
+                ↓
+              </button>
+            </div>
             <Link
               to={`/shipment-manager/${shipment.id}`}
               className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
@@ -582,7 +772,8 @@ export default function ShipmentManager() {
           <p className="mt-1 text-sm text-gray-600">
             Register a shipment, let everyone upload their FBA exports into it, then compile one
             WR SKU Update sheet with duplicates removed. Shipments stay here until deleted. Select
-            related groups to cluster them into an editable folder.
+            related groups to cluster them into an editable folder. Star a shipment or folder to
+            keep it in your personal Starred section at the top.
           </p>
         </div>
         <button
@@ -862,11 +1053,112 @@ export default function ShipmentManager() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
+                {hasStarred && (
+                  <>
+                    <tr className="bg-amber-50/90">
+                      <td className="px-4 py-2" colSpan={2}>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleFolderExpanded(STARRED_SECTION_ID)}
+                            aria-label={
+                              expandedFolders.has(STARRED_SECTION_ID)
+                                ? 'Collapse Starred'
+                                : 'Expand Starred'
+                            }
+                            className="rounded p-0.5 text-amber-700 hover:bg-amber-100"
+                          >
+                            <span className="inline-block w-4 text-center text-xs">
+                              {expandedFolders.has(STARRED_SECTION_ID) ? '▼' : '▶'}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleFolderExpanded(STARRED_SECTION_ID)}
+                            className="truncate text-left text-sm font-semibold text-amber-900 hover:underline"
+                          >
+                            ★ Starred
+                          </button>
+                          <span className="shrink-0 text-xs text-amber-800/80">
+                            {starredFolders.length + starredShipments.length} follow
+                            {starredFolders.length + starredShipments.length === 1 ? '' : 's'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-amber-800/60">—</td>
+                      <td className="px-4 py-2 text-amber-800/60">—</td>
+                      <td className="px-4 py-2 text-amber-800/60">—</td>
+                      <td className="px-4 py-2 text-amber-800/60">—</td>
+                      <td className="px-4 py-2 text-amber-800/60">—</td>
+                      <td className="px-4 py-2 text-amber-800/60">—</td>
+                      <td className="px-4 py-2 text-right text-xs text-amber-800/70">
+                        Your follows
+                      </td>
+                    </tr>
+                    {expandedFolders.has(STARRED_SECTION_ID) &&
+                      starredFolders.map((folder) => {
+                        const members = bySortOrder(
+                          filtered.filter((item) => item.folder_id === folder.id),
+                        )
+                        const collapsed = !expandedFolders.has(`starred-folder-${folder.id}`)
+                        return (
+                          <FragmentFolder
+                            key={`starred-folder-${folder.id}`}
+                            folder={folder}
+                            members={members}
+                            collapsed={collapsed}
+                            isRenaming={false}
+                            renameValue=""
+                            folderBusy={folderBusy}
+                            canMoveUp={false}
+                            canMoveDown={false}
+                            starredSection
+                            generatingClustered={clusterGenerateId === folder.id}
+                            hasUploads={shipments.some(
+                              (item) => item.folder_id === folder.id && item.upload_count > 0,
+                            )}
+                            onToggle={() =>
+                              toggleFolderExpanded(`starred-folder-${folder.id}`)
+                            }
+                            onMoveUp={() => undefined}
+                            onMoveDown={() => undefined}
+                            onStartRename={() => undefined}
+                            onRenameValue={() => undefined}
+                            onSaveRename={() => undefined}
+                            onCancelRename={() => undefined}
+                            onDelete={() => undefined}
+                            onToggleStar={() => void handleToggleFolderStar(folder)}
+                            onGenerateClustered={() => void handleGenerateClustered(folder)}
+                            renderMember={(shipment) =>
+                              renderShipmentRow(shipment, true, false, false, 'starred-')
+                            }
+                          />
+                        )
+                      })}
+                    {expandedFolders.has(STARRED_SECTION_ID) &&
+                      starredShipments.map((shipment) =>
+                        renderShipmentRow(shipment, true, false, false, 'starred-'),
+                      )}
+                  </>
+                )}
                 {listRows.map((row) => {
                   if (row.kind === 'shipment') {
-                    return renderShipmentRow(row.shipment, false)
+                    const ungrouped = listRows.filter((item) => item.kind === 'shipment')
+                    const index = ungrouped.findIndex(
+                      (item) => item.kind === 'shipment' && item.shipment.id === row.shipment.id,
+                    )
+                    return renderShipmentRow(
+                      row.shipment,
+                      false,
+                      index > 0,
+                      index >= 0 && index < ungrouped.length - 1,
+                    )
                   }
                   const { folder, members } = row
+                  const folderRows = listRows.filter((item) => item.kind === 'folder')
+                  const folderIndex = folderRows.findIndex(
+                    (item) => item.kind === 'folder' && item.folder.id === folder.id,
+                  )
                   const collapsed = !expandedFolders.has(folder.id)
                   const isRenaming = renamingFolderId === folder.id
                   return (
@@ -878,7 +1170,15 @@ export default function ShipmentManager() {
                       isRenaming={isRenaming}
                       renameValue={renameValue}
                       folderBusy={folderBusy}
+                      canMoveUp={folderIndex > 0}
+                      canMoveDown={folderIndex >= 0 && folderIndex < folderRows.length - 1}
+                      generatingClustered={clusterGenerateId === folder.id}
+                      hasUploads={shipments.some(
+                        (item) => item.folder_id === folder.id && item.upload_count > 0,
+                      )}
                       onToggle={() => toggleFolderExpanded(folder.id)}
+                      onMoveUp={() => void handleMoveFolder(folder, 'up')}
+                      onMoveDown={() => void handleMoveFolder(folder, 'down')}
                       onStartRename={() => {
                         setRenamingFolderId(folder.id)
                         setRenameValue(folder.name)
@@ -887,7 +1187,11 @@ export default function ShipmentManager() {
                       onSaveRename={() => void handleRenameFolder(folder)}
                       onCancelRename={() => setRenamingFolderId(null)}
                       onDelete={() => void handleDeleteFolder(folder)}
-                      renderMember={(shipment) => renderShipmentRow(shipment, true)}
+                      onToggleStar={() => void handleToggleFolderStar(folder)}
+                      onGenerateClustered={() => void handleGenerateClustered(folder)}
+                      renderMember={(shipment, index, total) =>
+                        renderShipmentRow(shipment, true, index > 0, index < total - 1)
+                      }
                     />
                   )
                 })}
@@ -934,12 +1238,21 @@ function FragmentFolder({
   isRenaming,
   renameValue,
   folderBusy,
+  canMoveUp,
+  canMoveDown,
+  starredSection = false,
+  generatingClustered = false,
+  hasUploads,
   onToggle,
+  onMoveUp,
+  onMoveDown,
   onStartRename,
   onRenameValue,
   onSaveRename,
   onCancelRename,
   onDelete,
+  onToggleStar,
+  onGenerateClustered,
   renderMember,
 }: {
   folder: ShipmentFolder
@@ -948,17 +1261,27 @@ function FragmentFolder({
   isRenaming: boolean
   renameValue: string
   folderBusy: boolean
+  canMoveUp: boolean
+  canMoveDown: boolean
+  starredSection?: boolean
+  generatingClustered?: boolean
+  hasUploads?: boolean
   onToggle: () => void
+  onMoveUp: () => void
+  onMoveDown: () => void
   onStartRename: () => void
   onRenameValue: (value: string) => void
   onSaveRename: () => void
   onCancelRename: () => void
   onDelete: () => void
-  renderMember: (shipment: ShipmentRecord) => ReactNode
+  onToggleStar?: () => void
+  onGenerateClustered?: () => void
+  renderMember: (shipment: ShipmentRecord, index: number, total: number) => ReactNode
 }) {
+  const canGenerate = hasUploads ?? members.some((item) => item.upload_count > 0)
   return (
     <>
-      <tr className="bg-slate-50/90">
+      <tr className={starredSection ? 'bg-amber-50/70' : 'bg-slate-50/90'}>
         <td className="px-4 py-2" colSpan={2}>
           <div className="flex min-w-0 items-center gap-2">
             <button
@@ -1006,7 +1329,33 @@ function FragmentFolder({
         <td className="px-4 py-2 text-gray-400">—</td>
         <td className="px-4 py-2 text-gray-400">—</td>
         <td className="px-4 py-2 text-right">
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {onToggleStar && (
+              <button
+                type="button"
+                disabled={folderBusy}
+                onClick={onToggleStar}
+                aria-label={folder.starred ? `Unstar ${folder.name}` : `Star ${folder.name}`}
+                title={folder.starred ? 'Remove from Starred' : 'Add to Starred'}
+                className={`rounded-md border px-2 py-1 text-xs font-medium disabled:opacity-50 ${
+                  folder.starred
+                    ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                    : 'border-gray-300 text-gray-600 hover:bg-white'
+                }`}
+              >
+                {folder.starred ? '★' : '☆'}
+              </button>
+            )}
+            {onGenerateClustered && (
+              <button
+                type="button"
+                disabled={folderBusy || generatingClustered || !canGenerate}
+                onClick={onGenerateClustered}
+                className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {generatingClustered ? 'Compiling…' : 'Generate Clustered WR SKU Update'}
+              </button>
+            )}
             {isRenaming ? (
               <>
                 <button
@@ -1025,8 +1374,28 @@ function FragmentFolder({
                   Cancel
                 </button>
               </>
-            ) : (
+            ) : starredSection ? null : (
               <>
+                <div className="inline-flex overflow-hidden rounded-md border border-gray-300">
+                  <button
+                    type="button"
+                    disabled={!canMoveUp || folderBusy}
+                    onClick={onMoveUp}
+                    aria-label={`Move ${folder.name} up`}
+                    className="px-2 py-1 text-xs font-medium text-gray-700 hover:bg-white disabled:opacity-40"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canMoveDown || folderBusy}
+                    onClick={onMoveDown}
+                    aria-label={`Move ${folder.name} down`}
+                    className="border-l border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-white disabled:opacity-40"
+                  >
+                    ↓
+                  </button>
+                </div>
                 <button
                   type="button"
                   disabled={folderBusy}
@@ -1048,7 +1417,8 @@ function FragmentFolder({
           </div>
         </td>
       </tr>
-      {!collapsed && members.map((shipment) => renderMember(shipment))}
+      {!collapsed &&
+        members.map((shipment, index) => renderMember(shipment, index, members.length))}
     </>
   )
 }

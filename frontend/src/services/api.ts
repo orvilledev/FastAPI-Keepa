@@ -2076,6 +2076,42 @@ export const shipmentsApi = {
   deleteFolder: async (folderId: string): Promise<void> => {
     await api.delete(`/api/v1/shipments/folders/${folderId}`)
   },
+  moveFolder: async (
+    folderId: string,
+    direction: 'up' | 'down',
+  ): Promise<ShipmentFolder[]> => {
+    const response = await api.post<ShipmentFolder[]>(
+      `/api/v1/shipments/folders/${folderId}/move`,
+      { direction },
+    )
+    return response.data
+  },
+  moveShipment: async (
+    shipmentId: string,
+    direction: 'up' | 'down',
+  ): Promise<ShipmentRecord[]> => {
+    const response = await api.post<ShipmentRecord[]>(
+      `/api/v1/shipments/${shipmentId}/move`,
+      { direction },
+    )
+    return response.data
+  },
+  starShipment: async (shipmentId: string): Promise<ShipmentRecord> => {
+    const response = await api.post<ShipmentRecord>(`/api/v1/shipments/${shipmentId}/star`)
+    return response.data
+  },
+  unstarShipment: async (shipmentId: string): Promise<ShipmentRecord> => {
+    const response = await api.delete<ShipmentRecord>(`/api/v1/shipments/${shipmentId}/star`)
+    return response.data
+  },
+  starFolder: async (folderId: string): Promise<ShipmentFolder> => {
+    const response = await api.post<ShipmentFolder>(`/api/v1/shipments/folders/${folderId}/star`)
+    return response.data
+  },
+  unstarFolder: async (folderId: string): Promise<ShipmentFolder> => {
+    const response = await api.delete<ShipmentFolder>(`/api/v1/shipments/folders/${folderId}/star`)
+    return response.data
+  },
   get: async (shipmentId: string): Promise<ShipmentDetail> => {
     const response = await api.get<ShipmentDetail>(`/api/v1/shipments/${shipmentId}`)
     return response.data
@@ -2151,6 +2187,26 @@ export const shipmentsApi = {
       return {
         blob: response.data,
         filename: shipmentDownloadFilename(headers, 'WR SKU UPDATE TEMPLATE.xlsx'),
+        shipmentName: String(headers['x-shipment-name'] || ''),
+        skuCount: Number(headers['x-shipment-sku-count'] || 0),
+        collectedRows: Number(headers['x-shipment-collected-rows'] || 0),
+        duplicatesRemoved: Number(headers['x-shipment-duplicates-removed'] || 0),
+      }
+    } catch (err: unknown) {
+      return rethrowShipmentDownloadError(err)
+    }
+  },
+  generateClusteredFolder: async (folderId: string): Promise<ShipmentCompileResult> => {
+    try {
+      const response = await api.post<Blob>(
+        `/api/v1/shipments/folders/${folderId}/generate`,
+        null,
+        { responseType: 'blob', timeout: 180_000 },
+      )
+      const headers = (response.headers || {}) as ResponseHeaders
+      return {
+        blob: response.data,
+        filename: shipmentDownloadFilename(headers, 'CLUSTERED WR SKU UPDATE.xlsx'),
         shipmentName: String(headers['x-shipment-name'] || ''),
         skuCount: Number(headers['x-shipment-sku-count'] || 0),
         collectedRows: Number(headers['x-shipment-collected-rows'] || 0),

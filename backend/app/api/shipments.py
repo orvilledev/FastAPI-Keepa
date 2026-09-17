@@ -31,6 +31,7 @@ from app.models.shipment import (
     ShipmentFolderMembers,
     ShipmentFolderResponse,
     ShipmentFolderUpdate,
+    ShipmentMoveRequest,
     ShipmentResponse,
     ShipmentUpdate,
     ShipmentUploadResponse,
@@ -62,6 +63,7 @@ from app.services.shipment_manager import (
     build_po_import_workbook,
     build_shipment_ledger_workbook,
     build_workbook,
+    clustered_wr_sku_filename,
     compile_stored_rows,
     ledger_filename,
     order_import_filename,
@@ -243,6 +245,7 @@ def _to_response(
     checklist_steps: Optional[List[dict]] = None,
     can_edit_checklist: bool = False,
     folder_name: Optional[str] = None,
+    starred: bool = False,
 ) -> ShipmentResponse:
     payload = dict(shipment)
     vendor = str(payload.get("vendor") or "")
@@ -267,6 +270,7 @@ def _to_response(
         can_delete=can_delete,
         created_by_name=created_by_name
         or _person_name({}, shipment.get("created_by"), shipment.get("created_by_email")),
+        starred=starred,
     )
 
 
@@ -282,15 +286,26 @@ def _folder_name_map(repo: ShipmentRepository) -> dict[str, str]:
     }
 
 
-def _to_folder_response(folder: dict, shipment_count: int = 0) -> ShipmentFolderResponse:
+def _user_star_sets(repo: ShipmentRepository, user_id: str) -> tuple[set[str], set[str]]:
+    try:
+        return repo.star_sets_for_user(user_id)
+    except ValueError:
+        return set(), set()
+
+
+def _to_folder_response(
+    folder: dict, shipment_count: int = 0, *, starred: bool = False
+) -> ShipmentFolderResponse:
     return ShipmentFolderResponse(
         id=folder["id"],
         name=folder["name"],
+        sort_order=int(folder.get("sort_order") or 0),
         created_by=folder["created_by"],
         created_by_email=folder.get("created_by_email") or "",
         created_at=folder["created_at"],
         updated_at=folder["updated_at"],
         shipment_count=shipment_count,
+        starred=starred,
     )
 
 
@@ -338,6 +353,7 @@ def list_shipments(
         by_shipment.setdefault(str(upload.get("shipment_id")), []).append(upload)
 
     folder_names = _folder_name_map(repo)
+    starred_shipments, _starred_folders = _user_star_sets(repo, current_user["id"])
 
     names = _display_names(
         db,
@@ -365,6 +381,7 @@ def list_shipments(
                     names, shipment.get("created_by"), shipment.get("created_by_email")
                 ),
                 folder_name=folder_names.get(str(folder_id)) if folder_id else None,
+                starred=key in starred_shipments,
             )
         )
     return results
@@ -387,6 +404,7 @@ def create_shipment(
                 "vendor": payload.vendor,
                 "notes": payload.notes,
                 "status": payload.status,
+                "sort_order": repo.next_shipment_sort_order(None),
                 "created_by": current_user["id"],
                 "created_by_email": current_user.get("email") or "",
             }
@@ -424,13 +442,21 @@ def list_shipment_folders(
         shipments = repo.list_shipments()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _starred_shipments, starred_folders = _user_star_sets(repo, current_user["id"])
     counts: dict[str, int] = {}
     for shipment in shipments:
         folder_id = shipment.get("folder_id")
         if folder_id:
             key = str(folder_id)
             counts[key] = counts.get(key, 0) + 1
-    return [_to_folder_response(folder, counts.get(str(folder["id"]), 0)) for folder in folders]
+    return [
+        _to_folder_response(
+            folder,
+            counts.get(str(folder["id"]), 0),
+            starred=str(folder["id"]) in starred_folders,
+        )
+        for folder in folders
+    ]
 
 
 @router.post("/shipments/folders", response_model=ShipmentFolderResponse, status_code=201)
@@ -451,12 +477,18 @@ def create_shipment_folder(
         folder = repo.create_folder(
             {
                 "name": payload.name,
+                "sort_order": repo.next_folder_sort_order(),
                 "created_by": current_user["id"],
                 "created_by_email": current_user.get("email") or "",
             }
         )
         if shipment_ids:
-            repo.set_shipments_folder(shipment_ids, str(folder["id"]))
+            for shipment_id in shipment_ids:
+                order = repo.next_shipment_sort_order(str(folder["id"]))
+                repo.update_shipment(
+                    shipment_id,
+                    {"folder_id": str(folder["id"]), "sort_order": order},
+                )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     logger.info(
@@ -493,6 +525,107 @@ def rename_shipment_folder(
     return _to_folder_response(updated, count)
 
 
+@router.post("/shipments/folders/{folder_id}/move", response_model=List[ShipmentFolderResponse])
+@handle_api_errors("move shipment folder")
+def move_shipment_folder(
+    folder_id: UUID,
+    payload: ShipmentMoveRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Move a folder up or down among other folders."""
+    repo = ShipmentRepository(db)
+    try:
+        folder = repo.get_folder(str(folder_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found.")
+    try:
+        folders = repo.move_folder(str(folder_id), payload.direction)
+        shipments = repo.list_shipments()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    counts: dict[str, int] = {}
+    for shipment in shipments:
+        fid = shipment.get("folder_id")
+        if fid:
+            key = str(fid)
+            counts[key] = counts.get(key, 0) + 1
+    _starred_shipments, starred_folders = _user_star_sets(repo, current_user["id"])
+    return [
+        _to_folder_response(
+            item,
+            counts.get(str(item["id"]), 0),
+            starred=str(item["id"]) in starred_folders,
+        )
+        for item in folders
+    ]
+
+
+@router.post("/shipments/{shipment_id}/move", response_model=List[ShipmentResponse])
+@handle_api_errors("move shipment")
+def move_shipment(
+    shipment_id: UUID,
+    payload: ShipmentMoveRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Move a shipment up or down among siblings in the same folder (or ungrouped)."""
+    repo = ShipmentRepository(db)
+    shipment = _load_shipment(repo, shipment_id)
+    try:
+        repo.move_shipment(str(shipment_id), payload.direction)
+        shipments = repo.list_shipments()
+        ids = [str(row["id"]) for row in shipments]
+        uploads = repo.list_uploads_for_shipments(ids)
+        upcs = repo.upcs_for_shipments(ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    folder_key = str(shipment.get("folder_id") or "") or None
+    siblings = [
+        row
+        for row in shipments
+        if (str(row.get("folder_id") or "") or None) == folder_key
+    ]
+    admin = _is_admin(db, current_user)
+    by_shipment: dict[str, list[dict]] = {}
+    for upload in uploads:
+        by_shipment.setdefault(str(upload.get("shipment_id")), []).append(upload)
+    folder_names = _folder_name_map(repo)
+    starred_shipments, _starred_folders = _user_star_sets(repo, current_user["id"])
+    names = _display_names(
+        db,
+        [str(row.get("created_by") or "") for row in siblings],
+        {
+            str(row.get("created_by") or ""): str(row.get("created_by_email") or "")
+            for row in siblings
+        },
+    )
+    results: List[ShipmentResponse] = []
+    for row in siblings:
+        key = str(row["id"])
+        group = by_shipment.get(key, [])
+        folder_id = row.get("folder_id")
+        results.append(
+            _to_response(
+                row,
+                upload_count=len(group),
+                contributor_count=len({str(item.get("uploaded_by")) for item in group}),
+                row_count=sum(int(item.get("row_count") or 0) for item in group),
+                unique_upc_count=len(upcs.get(key, set())),
+                can_delete=admin or str(row.get("created_by")) == current_user["id"],
+                created_by_name=_person_name(
+                    names, row.get("created_by"), row.get("created_by_email")
+                ),
+                folder_name=folder_names.get(str(folder_id)) if folder_id else None,
+                starred=key in starred_shipments,
+            )
+        )
+    return results
+
+
 @router.post("/shipments/folders/{folder_id}/members", response_model=ShipmentFolderResponse)
 @handle_api_errors("add shipments to folder")
 def add_shipments_to_folder(
@@ -513,7 +646,12 @@ def add_shipments_to_folder(
     for shipment_id in shipment_ids:
         _load_shipment(repo, UUID(shipment_id))
     try:
-        repo.set_shipments_folder(shipment_ids, str(folder_id))
+        for shipment_id in shipment_ids:
+            order = repo.next_shipment_sort_order(str(folder_id))
+            repo.update_shipment(
+                shipment_id,
+                {"folder_id": str(folder_id), "sort_order": order},
+            )
         shipments = repo.list_shipments()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -543,7 +681,12 @@ def remove_shipments_from_folder(
         if str(shipment.get("folder_id") or "") != str(folder_id):
             continue
     try:
-        repo.set_shipments_folder(shipment_ids, None)
+        for shipment_id in shipment_ids:
+            order = repo.next_shipment_sort_order(None)
+            repo.update_shipment(
+                shipment_id,
+                {"folder_id": None, "sort_order": order},
+            )
         shipments = repo.list_shipments()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -571,6 +714,118 @@ def delete_shipment_folder(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/shipments/{shipment_id}/star", response_model=ShipmentResponse)
+@handle_api_errors("star shipment")
+def star_shipment(
+    shipment_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Follow a shipment — appears in this user's Starred section."""
+    _ensure_profile_row(db, current_user)
+    repo = ShipmentRepository(db)
+    shipment = _load_shipment(repo, shipment_id)
+    try:
+        repo.add_shipment_star(current_user["id"], str(shipment_id))
+        uploads = repo.list_uploads(str(shipment_id))
+        upcs = repo.upcs_for_shipments([str(shipment_id)])
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    folder_names = _folder_name_map(repo)
+    folder_id = shipment.get("folder_id")
+    admin = _is_admin(db, current_user)
+    return _to_response(
+        shipment,
+        upload_count=len(uploads),
+        contributor_count=len({str(item.get("uploaded_by")) for item in uploads}),
+        row_count=sum(int(item.get("row_count") or 0) for item in uploads),
+        unique_upc_count=len(upcs.get(str(shipment_id), set())),
+        can_delete=admin or str(shipment.get("created_by")) == current_user["id"],
+        folder_name=folder_names.get(str(folder_id)) if folder_id else None,
+        starred=True,
+    )
+
+
+@router.delete("/shipments/{shipment_id}/star", response_model=ShipmentResponse)
+@handle_api_errors("unstar shipment")
+def unstar_shipment(
+    shipment_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Stop following a shipment."""
+    repo = ShipmentRepository(db)
+    shipment = _load_shipment(repo, shipment_id)
+    try:
+        repo.remove_shipment_star(current_user["id"], str(shipment_id))
+        uploads = repo.list_uploads(str(shipment_id))
+        upcs = repo.upcs_for_shipments([str(shipment_id)])
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    folder_names = _folder_name_map(repo)
+    folder_id = shipment.get("folder_id")
+    admin = _is_admin(db, current_user)
+    return _to_response(
+        shipment,
+        upload_count=len(uploads),
+        contributor_count=len({str(item.get("uploaded_by")) for item in uploads}),
+        row_count=sum(int(item.get("row_count") or 0) for item in uploads),
+        unique_upc_count=len(upcs.get(str(shipment_id), set())),
+        can_delete=admin or str(shipment.get("created_by")) == current_user["id"],
+        folder_name=folder_names.get(str(folder_id)) if folder_id else None,
+        starred=False,
+    )
+
+
+@router.post("/shipments/folders/{folder_id}/star", response_model=ShipmentFolderResponse)
+@handle_api_errors("star shipment folder")
+def star_shipment_folder(
+    folder_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Follow a folder — appears in this user's Starred section."""
+    _ensure_profile_row(db, current_user)
+    repo = ShipmentRepository(db)
+    try:
+        folder = repo.get_folder(str(folder_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found.")
+    try:
+        repo.add_folder_star(current_user["id"], str(folder_id))
+        shipments = repo.list_shipments()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    count = sum(1 for item in shipments if str(item.get("folder_id") or "") == str(folder_id))
+    return _to_folder_response(folder, count, starred=True)
+
+
+@router.delete("/shipments/folders/{folder_id}/star", response_model=ShipmentFolderResponse)
+@handle_api_errors("unstar shipment folder")
+def unstar_shipment_folder(
+    folder_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Stop following a folder."""
+    repo = ShipmentRepository(db)
+    try:
+        folder = repo.get_folder(str(folder_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found.")
+    try:
+        repo.remove_folder_star(current_user["id"], str(folder_id))
+        shipments = repo.list_shipments()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    count = sum(1 for item in shipments if str(item.get("folder_id") or "") == str(folder_id))
+    return _to_folder_response(folder, count, starred=False)
 
 
 @router.get(
@@ -678,6 +933,7 @@ def get_shipment(
     if folder_id:
         folder_names = _folder_name_map(repo)
         detail["folder_name"] = folder_names.get(str(folder_id))
+    starred_shipments, _starred_folders = _user_star_sets(repo, current_user["id"])
     return ShipmentDetailResponse(
         **detail,
         checklist_steps=[ShipmentChecklistStep(**step) for step in steps],
@@ -690,6 +946,7 @@ def get_shipment(
         created_by_name=_person_name(
             names, shipment.get("created_by"), shipment.get("created_by_email")
         ),
+        starred=str(shipment_id) in starred_shipments,
         uploads=[_upload_response(item, names) for item in uploads],
         compiled_rows=[
             ShipmentCompiledRow(
@@ -1058,6 +1315,84 @@ async def generate_shipment_sheet(
         "X-Shipment-Sku-Count": str(len(rows)),
         "X-Shipment-Collected-Rows": str(collected),
         "X-Shipment-Duplicates-Removed": str(collected - len(rows)),
+    }
+    return Response(content=workbook_bytes, media_type=_XLSX_MEDIA_TYPE, headers=headers)
+
+
+@router.post("/shipments/folders/{folder_id}/generate", response_model=None)
+@limiter.limit(RateLimits.FILE_UPLOAD)
+@handle_api_errors("compile clustered folder sku sheet")
+async def generate_folder_clustered_sheet(
+    request: Request,
+    folder_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Compile every shipment in a folder into one WR SKU Update sheet (deduped by UPC)."""
+    repo = ShipmentRepository(db)
+    try:
+        folder = repo.get_folder(str(folder_id))
+        shipments = repo.list_shipments()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found.")
+
+    members = sorted(
+        [
+            row
+            for row in shipments
+            if str(row.get("folder_id") or "") == str(folder_id)
+        ],
+        key=lambda row: (
+            int(row.get("sort_order") or 0),
+            str(row.get("created_at") or ""),
+            str(row.get("id") or ""),
+        ),
+    )
+    if not members:
+        raise HTTPException(
+            status_code=400, detail="This folder has no shipments to compile."
+        )
+
+    member_ids = [str(row["id"]) for row in members]
+    try:
+        stored = repo.list_rows_merged_for_shipments(member_ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not stored:
+        raise HTTPException(
+            status_code=400,
+            detail="No files have been uploaded to the shipments in this folder yet.",
+        )
+
+    rows, collected = compile_stored_rows(stored)
+    try:
+        workbook_bytes = build_workbook(rows)
+    except ShipmentManagerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    folder_name = str(folder.get("name") or "")
+    filename = (
+        _header_safe(clustered_wr_sku_filename(folder_name))
+        or "CLUSTERED WR SKU UPDATE.xlsx"
+    )
+    logger.info(
+        "Folder %s clustered sheet by %s: %s unique UPCs from %s collected rows across %s shipment(s)",
+        folder_id,
+        current_user.get("email"),
+        len(rows),
+        collected,
+        len(member_ids),
+    )
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "X-Shipment-Filename": filename,
+        "X-Shipment-Name": _header_safe(folder_name),
+        "X-Shipment-Sku-Count": str(len(rows)),
+        "X-Shipment-Collected-Rows": str(collected),
+        "X-Shipment-Duplicates-Removed": str(collected - len(rows)),
+        "X-Shipment-Member-Count": str(len(member_ids)),
     }
     return Response(content=workbook_bytes, media_type=_XLSX_MEDIA_TYPE, headers=headers)
 

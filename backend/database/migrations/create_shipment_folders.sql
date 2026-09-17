@@ -5,6 +5,7 @@
 CREATE TABLE IF NOT EXISTS shipment_folders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
   created_by UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   created_by_email TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -15,11 +16,18 @@ CREATE INDEX IF NOT EXISTS idx_shipment_folders_created_at
   ON shipment_folders (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_shipment_folders_name
   ON shipment_folders (name);
+CREATE INDEX IF NOT EXISTS idx_shipment_folders_sort_order
+  ON shipment_folders (sort_order, name);
 
 ALTER TABLE shipments
   ADD COLUMN IF NOT EXISTS folder_id UUID REFERENCES shipment_folders(id) ON DELETE SET NULL;
 
+ALTER TABLE shipments
+  ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+
 CREATE INDEX IF NOT EXISTS idx_shipments_folder_id ON shipments (folder_id);
+CREATE INDEX IF NOT EXISTS idx_shipments_sort_order
+  ON shipments (folder_id, sort_order, created_at DESC);
 
 ALTER TABLE shipment_folders ENABLE ROW LEVEL SECURITY;
 

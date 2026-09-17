@@ -237,13 +237,19 @@ class ShipmentFolderMembers(BaseModel):
 class ShipmentFolderResponse(BaseModel):
     id: UUID
     name: str
+    sort_order: int = 0
     created_by: UUID
     created_by_email: str = ""
     created_at: datetime
     updated_at: datetime
     shipment_count: int = 0
+    starred: bool = False
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ShipmentMoveRequest(BaseModel):
+    direction: Literal["up", "down"]
 
 
 class ShipmentUploadResponse(BaseModel):
@@ -272,6 +278,7 @@ class ShipmentResponse(BaseModel):
     status: ShipmentStatus = "open"
     folder_id: Optional[UUID] = None
     folder_name: Optional[str] = None
+    sort_order: int = 0
     checklist: Dict[str, ShipmentChecklistEntry] = Field(default_factory=dict)
     checklist_steps: List[ShipmentChecklistStep] = Field(default_factory=list)
     can_edit_checklist: bool = False
@@ -285,6 +292,7 @@ class ShipmentResponse(BaseModel):
     row_count: int = 0
     unique_upc_count: int = 0
     can_delete: bool = False
+    starred: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

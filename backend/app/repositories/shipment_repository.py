@@ -13,6 +13,7 @@ _SHIPMENTS = "shipments"
 _UPLOADS = "shipment_uploads"
 _ROWS = "shipment_sku_rows"
 _FOLDERS = "shipment_folders"
+_STARS = "shipment_stars"
 _MIGRATION_HINT = (
     "Run backend/database/migrations/create_shipments.sql in the Supabase SQL Editor."
 )
@@ -28,6 +29,12 @@ _CHECKLIST_MIGRATION_HINT = (
 _FOLDER_MIGRATION_HINT = (
     "Run backend/database/migrations/create_shipment_folders.sql in the Supabase SQL Editor."
 )
+_SORT_ORDER_MIGRATION_HINT = (
+    "Run backend/database/migrations/add_shipment_sort_order.sql in the Supabase SQL Editor."
+)
+_STARS_MIGRATION_HINT = (
+    "Run backend/database/migrations/create_shipment_stars.sql in the Supabase SQL Editor."
+)
 _ROW_CHUNK = 250
 
 
@@ -41,7 +48,12 @@ def _raise_persist_error(exc: Exception, table: str) -> None:
         or "could not find the table" in message
     )
     if missing_table:
-        hint = _FOLDER_MIGRATION_HINT if table == _FOLDERS else _MIGRATION_HINT
+        if table == _FOLDERS:
+            hint = _FOLDER_MIGRATION_HINT
+        elif table == _STARS:
+            hint = _STARS_MIGRATION_HINT
+        else:
+            hint = _MIGRATION_HINT
         raise ValueError(f"The {table} table is missing. {hint}") from exc
     missing_vendor = table == _SHIPMENTS and "vendor" in message and (
         "column" in message
@@ -72,6 +84,16 @@ def _raise_persist_error(exc: Exception, table: str) -> None:
     if missing_checklist:
         raise ValueError(
             f"The shipments.checklist column is missing. {_CHECKLIST_MIGRATION_HINT}"
+        ) from exc
+    missing_sort = "sort_order" in message and (
+        "column" in message
+        or "schema cache" in message
+        or "pgrst204" in message
+        or "could not find" in message
+    )
+    if missing_sort:
+        raise ValueError(
+            f"Shipment sort order is not set up yet. {_SORT_ORDER_MIGRATION_HINT}"
         ) from exc
     missing_folder = (
         (table == _SHIPMENTS and "folder_id" in message)
@@ -106,11 +128,29 @@ class ShipmentRepository:
     def list_shipments(self) -> List[dict]:
         try:
             response = (
-                self.db.table(_SHIPMENTS).select("*").order("created_at", desc=True).execute()
+                self.db.table(_SHIPMENTS)
+                .select("*")
+                .order("sort_order")
+                .order("created_at", desc=True)
+                .execute()
             )
         except Exception as exc:
-            logger.error("shipment list failed: %s", exc, exc_info=True)
-            _raise_persist_error(exc, _SHIPMENTS)
+            # Older DBs without sort_order still list by created_at.
+            message = str(exc).lower()
+            if "sort_order" in message:
+                try:
+                    response = (
+                        self.db.table(_SHIPMENTS)
+                        .select("*")
+                        .order("created_at", desc=True)
+                        .execute()
+                    )
+                except Exception as inner:
+                    logger.error("shipment list failed: %s", inner, exc_info=True)
+                    _raise_persist_error(inner, _SHIPMENTS)
+            else:
+                logger.error("shipment list failed: %s", exc, exc_info=True)
+                _raise_persist_error(exc, _SHIPMENTS)
         return response.data or []
 
     def get_shipment(self, shipment_id: str) -> Optional[dict]:
@@ -168,12 +208,100 @@ class ShipmentRepository:
     def list_folders(self) -> List[dict]:
         try:
             response = (
-                self.db.table(_FOLDERS).select("*").order("name", desc=False).execute()
+                self.db.table(_FOLDERS)
+                .select("*")
+                .order("sort_order")
+                .order("name")
+                .execute()
             )
         except Exception as exc:
-            logger.error("shipment folder list failed: %s", exc, exc_info=True)
-            _raise_persist_error(exc, _FOLDERS)
+            message = str(exc).lower()
+            if "sort_order" in message:
+                try:
+                    response = (
+                        self.db.table(_FOLDERS).select("*").order("name", desc=False).execute()
+                    )
+                except Exception as inner:
+                    logger.error("shipment folder list failed: %s", inner, exc_info=True)
+                    _raise_persist_error(inner, _FOLDERS)
+            else:
+                logger.error("shipment folder list failed: %s", exc, exc_info=True)
+                _raise_persist_error(exc, _FOLDERS)
         return response.data or []
+
+    def next_folder_sort_order(self) -> int:
+        folders = self.list_folders()
+        if not folders:
+            return 0
+        return max(int(item.get("sort_order") or 0) for item in folders) + 1
+
+    def next_shipment_sort_order(self, folder_id: Optional[str] = None) -> int:
+        shipments = self.list_shipments()
+        siblings = [
+            item
+            for item in shipments
+            if (str(item.get("folder_id") or "") or None) == (folder_id or None)
+        ]
+        if not siblings:
+            return 0
+        return max(int(item.get("sort_order") or 0) for item in siblings) + 1
+
+    def move_folder(self, folder_id: str, direction: str) -> List[dict]:
+        folders = sorted(
+            self.list_folders(),
+            key=lambda item: (int(item.get("sort_order") or 0), str(item.get("name") or "")),
+        )
+        index = next(
+            (i for i, item in enumerate(folders) if str(item.get("id")) == str(folder_id)),
+            None,
+        )
+        if index is None:
+            raise ValueError("Folder not found.")
+        swap_index = index - 1 if direction == "up" else index + 1
+        if swap_index < 0 or swap_index >= len(folders):
+            return folders
+        left, right = folders[index], folders[swap_index]
+        left_order = int(left.get("sort_order") or index)
+        right_order = int(right.get("sort_order") or swap_index)
+        self.update_folder(str(left["id"]), {"sort_order": right_order})
+        self.update_folder(str(right["id"]), {"sort_order": left_order})
+        return self.list_folders()
+
+    def move_shipment(self, shipment_id: str, direction: str) -> List[dict]:
+        shipment = self.get_shipment(shipment_id)
+        if not shipment:
+            raise ValueError("Shipment not found.")
+        folder_key = str(shipment.get("folder_id") or "") or None
+        siblings = [
+            item
+            for item in self.list_shipments()
+            if (str(item.get("folder_id") or "") or None) == folder_key
+        ]
+        siblings.sort(
+            key=lambda item: (
+                int(item.get("sort_order") or 0),
+                str(item.get("created_at") or ""),
+            )
+        )
+        index = next(
+            (i for i, item in enumerate(siblings) if str(item.get("id")) == str(shipment_id)),
+            None,
+        )
+        if index is None:
+            raise ValueError("Shipment not found.")
+        swap_index = index - 1 if direction == "up" else index + 1
+        if swap_index < 0 or swap_index >= len(siblings):
+            return siblings
+        left, right = siblings[index], siblings[swap_index]
+        left_order = int(left.get("sort_order") or index)
+        right_order = int(right.get("sort_order") or swap_index)
+        self.update_shipment(str(left["id"]), {"sort_order": right_order})
+        self.update_shipment(str(right["id"]), {"sort_order": left_order})
+        return [
+            item
+            for item in self.list_shipments()
+            if (str(item.get("folder_id") or "") or None) == folder_key
+        ]
 
     def get_folder(self, folder_id: str) -> Optional[dict]:
         try:
@@ -236,6 +364,108 @@ class ShipmentRepository:
         except Exception as exc:
             logger.error("shipment folder assign failed: %s", exc, exc_info=True)
             _raise_persist_error(exc, _SHIPMENTS)
+
+    # ---- stars (per-user follows) --------------------------------------
+
+    def list_stars_for_user(self, user_id: str) -> List[dict]:
+        try:
+            response = (
+                self.db.table(_STARS)
+                .select("*")
+                .eq("user_id", user_id)
+                .order("created_at", desc=True)
+                .execute()
+            )
+        except Exception as exc:
+            logger.error("shipment stars list failed: %s", exc, exc_info=True)
+            _raise_persist_error(exc, _STARS)
+        return response.data or []
+
+    def star_sets_for_user(self, user_id: str) -> Tuple[set[str], set[str]]:
+        """Return (starred_shipment_ids, starred_folder_ids) for this user."""
+        try:
+            rows = self.list_stars_for_user(user_id)
+        except ValueError as exc:
+            # Stars table optional until migration runs.
+            if "shipment_stars" in str(exc).lower() or "not set up" in str(exc).lower() or "missing" in str(exc).lower():
+                return set(), set()
+            raise
+        shipment_ids: set[str] = set()
+        folder_ids: set[str] = set()
+        for row in rows:
+            if row.get("shipment_id"):
+                shipment_ids.add(str(row["shipment_id"]))
+            if row.get("folder_id"):
+                folder_ids.add(str(row["folder_id"]))
+        return shipment_ids, folder_ids
+
+    def add_shipment_star(self, user_id: str, shipment_id: str) -> dict:
+        try:
+            existing = (
+                self.db.table(_STARS)
+                .select("*")
+                .eq("user_id", user_id)
+                .eq("shipment_id", shipment_id)
+                .limit(1)
+                .execute()
+            )
+            if existing.data:
+                return existing.data[0]
+            response = (
+                self.db.table(_STARS)
+                .insert({"user_id": user_id, "shipment_id": shipment_id})
+                .execute()
+            )
+        except Exception as exc:
+            logger.error("shipment star insert failed: %s", exc, exc_info=True)
+            _raise_persist_error(exc, _STARS)
+        data = response.data or []
+        if not data:
+            raise ValueError(f"Could not star this shipment. {_STARS_MIGRATION_HINT}")
+        return data[0]
+
+    def add_folder_star(self, user_id: str, folder_id: str) -> dict:
+        try:
+            existing = (
+                self.db.table(_STARS)
+                .select("*")
+                .eq("user_id", user_id)
+                .eq("folder_id", folder_id)
+                .limit(1)
+                .execute()
+            )
+            if existing.data:
+                return existing.data[0]
+            response = (
+                self.db.table(_STARS)
+                .insert({"user_id": user_id, "folder_id": folder_id})
+                .execute()
+            )
+        except Exception as exc:
+            logger.error("folder star insert failed: %s", exc, exc_info=True)
+            _raise_persist_error(exc, _STARS)
+        data = response.data or []
+        if not data:
+            raise ValueError(f"Could not star this folder. {_STARS_MIGRATION_HINT}")
+        return data[0]
+
+    def remove_shipment_star(self, user_id: str, shipment_id: str) -> None:
+        try:
+            self.db.table(_STARS).delete().eq("user_id", user_id).eq(
+                "shipment_id", shipment_id
+            ).execute()
+        except Exception as exc:
+            logger.error("shipment star delete failed: %s", exc, exc_info=True)
+            _raise_persist_error(exc, _STARS)
+
+    def remove_folder_star(self, user_id: str, folder_id: str) -> None:
+        try:
+            self.db.table(_STARS).delete().eq("user_id", user_id).eq(
+                "folder_id", folder_id
+            ).execute()
+        except Exception as exc:
+            logger.error("folder star delete failed: %s", exc, exc_info=True)
+            _raise_persist_error(exc, _STARS)
 
     # ---- uploads -------------------------------------------------------
 
@@ -348,6 +578,13 @@ class ShipmentRepository:
         merged: List[dict] = []
         for upload in uploads:
             merged.extend(self.list_rows_for_upload(str(upload["id"])))
+        return merged
+
+    def list_rows_merged_for_shipments(self, shipment_ids: List[str]) -> List[dict]:
+        """Concatenate rows across shipments (caller order), each upload oldest-first."""
+        merged: List[dict] = []
+        for shipment_id in shipment_ids:
+            merged.extend(self.list_rows_merged(shipment_id))
         return merged
 
     def upcs_for_shipments(self, shipment_ids: List[str]) -> Dict[str, set[str]]:

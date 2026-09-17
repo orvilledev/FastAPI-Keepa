@@ -402,6 +402,15 @@ def ledger_filename(shipment_name: str) -> str:
     return f"LEDGER {cleaned}.xlsx" if cleaned else "LEDGER.xlsx"
 
 
+def clustered_wr_sku_filename(folder_name: str) -> str:
+    """Name the clustered WR SKU Update download after the folder."""
+    cleaned = re.sub(r'[\\/:*?"<>|]+', " ", (folder_name or "").strip())
+    cleaned = " ".join(cleaned.split())
+    if cleaned:
+        return f"{cleaned} CLUSTERED WR SKU UPDATE.xlsx"
+    return "CLUSTERED WR SKU UPDATE.xlsx"
+
+
 def _ledger_autosize(sheet, min_width: float = 12, max_width: float = 48) -> None:
     for column_cells in sheet.columns:
         letter = get_column_letter(column_cells[0].column)
