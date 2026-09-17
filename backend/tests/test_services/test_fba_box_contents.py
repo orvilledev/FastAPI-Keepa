@@ -58,6 +58,18 @@ def test_sanitize_filename_adds_output_suffix():
     assert sanitize_download_filename(None) == DEFAULT_OUTPUT_FILENAME
 
 
+def _assert_header_style(cell) -> None:
+    assert cell.font.bold is True, f"{cell.coordinate} header should be bold"
+    assert (cell.fill.fgColor.rgb or "").upper().endswith("E0B0FF"), (
+        f"{cell.coordinate} header fill should be #E0B0FF, got {cell.fill.fgColor.rgb!r}"
+    )
+
+
+def _assert_not_header_style(cell) -> None:
+    fill_rgb = (cell.fill.fgColor.rgb or "").upper() if cell.fill.fgColor else ""
+    assert not fill_rgb.endswith("E0B0FF"), f"{cell.coordinate} data cell should not use header fill"
+
+
 def test_parse_requires_carton_headers():
     raw = _xlsx_carton_detail([["001830-M", "196248203201", "SOCK", 48, 5.2]])
     with pytest.raises(FbaBoxContentsError, match="Carton#"):
@@ -154,6 +166,45 @@ def test_generate_writes_strict_types_and_tabs():
         assert type(dims["D3"].value) is int
         assert dims["E3"].value == 11
         assert type(dims["E3"].value) is int
+    finally:
+        workbook.close()
+
+
+def test_output_headers_use_mauve_bold_fill():
+    raw = _xlsx_carton_detail(
+        [
+            ["Carton#:", "00001111", 18.71, 13.71, 7.29],
+            ["001830-M", "196248203201", "W EVY CBLE CRW", 48.0, 5.2896],
+            ["Total", 48, " 8.15"],
+            ["Carton#:", "00002222", 24.0, 16.0, 11.0],
+            ["001735-L", "196009151451", "EVY ANCH CRW", 10, 1.23],
+            ["Total", 10, " 3.00"],
+        ]
+    )
+    result = generate_fba_box_contents(raw, "style-check.xls")
+    workbook = openpyxl.load_workbook(BytesIO(result.file_bytes))
+    try:
+        contents = workbook[BOX_CONTENTS_SHEET]
+        dims = workbook[DIMENSIONS_SHEET]
+
+        for coord in ("A1", "B1", "C1", "G1", "H1", "G2", "H2", "I2", "J2"):
+            _assert_header_style(contents[coord])
+        assert contents["J2"].value == "Grand Total"
+
+        for col in range(1, 6):
+            _assert_header_style(dims.cell(1, col))
+
+        # Data / totals keep values and are not painted with the header fill.
+        _assert_not_header_style(contents["A2"])
+        _assert_not_header_style(contents["B2"])
+        _assert_not_header_style(contents["C2"])
+        _assert_not_header_style(contents["G3"])
+        _assert_not_header_style(dims["A2"])
+        _assert_not_header_style(dims["B2"])
+        assert contents["A2"].value == "196248203201"
+        assert contents["B2"].value == 1
+        assert contents["C2"].value == 48
+        assert dims["B2"].value == 5.3
     finally:
         workbook.close()
 

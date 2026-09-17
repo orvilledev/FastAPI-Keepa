@@ -20,14 +20,17 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from openpyxl import Workbook, load_workbook
-from openpyxl.styles import Alignment, Font
+from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 _MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 _CALIBRI = Font(name="Calibri", size=11)
 _CALIBRI_BOLD = Font(name="Calibri", size=11, bold=True)
+_HEADER_FONT = Font(name="Calibri", size=11, bold=True)
+_HEADER_FILL = PatternFill("solid", fgColor="E0B0FF")
 _LEFT = Alignment(horizontal="left", vertical="center")
+_CENTER = Alignment(horizontal="center", vertical="center")
 _TEXT_FORMAT = "@"
 _GENERAL = "General"
 
@@ -366,6 +369,13 @@ def parse_carton_detail(content: bytes) -> ParsedCartonDetail:
     )
 
 
+def _style_header_cell(cell) -> None:
+    """Bold mauve header look — does not change value or number format."""
+    cell.font = _HEADER_FONT
+    cell.fill = _HEADER_FILL
+    cell.alignment = _CENTER
+
+
 def _set_text_cell(
     sheet: Worksheet,
     row: int,
@@ -373,18 +383,22 @@ def _set_text_cell(
     value: str | None,
     *,
     bold: bool = False,
+    header: bool = False,
     align_left: bool = False,
 ) -> None:
     cell = sheet.cell(row=row, column=column)
     cell.number_format = _TEXT_FORMAT
-    cell.font = _CALIBRI_BOLD if bold else _CALIBRI
     if align_left:
         cell.alignment = _LEFT
     if value is None or value == "":
         cell.value = None
-        return
-    cell.value = str(value)
-    cell.data_type = "s"
+    else:
+        cell.value = str(value)
+        cell.data_type = "s"
+    if header:
+        _style_header_cell(cell)
+    else:
+        cell.font = _CALIBRI_BOLD if bold else _CALIBRI
 
 
 def _set_number_cell(
@@ -394,33 +408,35 @@ def _set_number_cell(
     value: int | float | None,
     *,
     bold: bool = False,
+    header: bool = False,
     align_left: bool = False,
 ) -> None:
     cell = sheet.cell(row=row, column=column)
-    cell.font = _CALIBRI_BOLD if bold else _CALIBRI
     cell.number_format = _GENERAL
     if align_left:
         cell.alignment = _LEFT
     if value is None or isinstance(value, bool):
         cell.value = None
-        return
-    if isinstance(value, int):
+    elif isinstance(value, int):
         cell.value = int(value)
-        return
-    if isinstance(value, float):
+    elif isinstance(value, float):
         if value.is_integer() and abs(value) < 2**53:
             cell.value = int(value)
         else:
             cell.value = float(value)
-        return
-    raise TypeError(f"Expected a number, got {type(value).__name__}")
+    else:
+        raise TypeError(f"Expected a number, got {type(value).__name__}")
+    if header:
+        _style_header_cell(cell)
+    else:
+        cell.font = _CALIBRI_BOLD if bold else _CALIBRI
 
 
 def _write_box_contents(sheet: Worksheet, rows: Sequence[ContentRow]) -> int | float:
     sheet.sheet_view.showGridLines = True
-    _set_text_cell(sheet, 1, 1, "UPC")
-    _set_text_cell(sheet, 1, 2, "Box #")
-    _set_text_cell(sheet, 1, 3, "QTY")
+    _set_text_cell(sheet, 1, 1, "UPC", header=True)
+    _set_text_cell(sheet, 1, 2, "Box #", header=True)
+    _set_text_cell(sheet, 1, 3, "QTY", header=True)
 
     total_qty: int | float = 0
     for index, row in enumerate(rows, start=2):
@@ -445,12 +461,12 @@ def _write_box_contents(sheet: Worksheet, rows: Sequence[ContentRow]) -> int | f
     sorted_upcs = sorted(upcs)
     grand_total_col = PIVOT_START_COL + 1 + len(boxes)
 
-    _set_text_cell(sheet, 1, PIVOT_START_COL, "Sum of QTY")
-    _set_text_cell(sheet, 1, PIVOT_START_COL + 1, "Column Labels")
-    _set_text_cell(sheet, 2, PIVOT_START_COL, "Row Labels")
+    _set_text_cell(sheet, 1, PIVOT_START_COL, "Sum of QTY", header=True)
+    _set_text_cell(sheet, 1, PIVOT_START_COL + 1, "Column Labels", header=True)
+    _set_text_cell(sheet, 2, PIVOT_START_COL, "Row Labels", header=True)
     for offset, box in enumerate(boxes):
-        _set_number_cell(sheet, 2, PIVOT_START_COL + 1 + offset, box)
-    _set_text_cell(sheet, 2, grand_total_col, "Grand Total")
+        _set_number_cell(sheet, 2, PIVOT_START_COL + 1 + offset, box, header=True)
+    _set_text_cell(sheet, 2, grand_total_col, "Grand Total", header=True)
 
     column_totals: list[int | float] = [0] * len(boxes)
     current_row = 3
@@ -485,7 +501,7 @@ def _write_dimensions(sheet: Worksheet, cartons: Sequence[Carton]) -> None:
     sheet.sheet_view.showGridLines = True
     headers = ("Box #", "Weight", "Length", "Width", "Height")
     for column, header in enumerate(headers, start=1):
-        _set_text_cell(sheet, 1, column, header, bold=True, align_left=True)
+        _set_text_cell(sheet, 1, column, header, header=True)
 
     for carton in cartons:
         row = carton.box_number + 1
