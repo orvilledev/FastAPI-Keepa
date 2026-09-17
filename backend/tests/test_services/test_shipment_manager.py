@@ -204,6 +204,23 @@ def test_compile_stored_rows_merges_uploads_and_drops_duplicate_upcs():
     assert unique[2].description == "Second file new"
 
 
+def test_compile_stored_rows_collapses_numeric_upc_variants():
+    """Clustered sheets must not keep UPCs that Excel would show as the same number."""
+    stored = [
+        {"sku": "0123-FNSKU", "description": "Leading zero", "upc": "0123", "fnsku": "XA", "total_units": 1},
+        {"sku": "123-FNSKU", "description": "No leading zero", "upc": "123", "fnsku": "XB", "total_units": 2},
+        {"sku": "456-FNSKU", "description": "Dashed", "upc": "456", "fnsku": "XC", "total_units": 1},
+        {"sku": "456-FNSKU", "description": "Float-ish", "upc": "456.0", "fnsku": "XD", "total_units": 9},
+        {"sku": "789-FNSKU", "description": "From SKU only", "upc": "", "fnsku": "XE", "total_units": 1},
+    ]
+    unique, collected = compile_stored_rows(stored)
+    assert collected == 5
+    assert [row.upc for row in unique] == ["0123", "456", ""]
+    assert unique[0].description == "Leading zero"
+    assert unique[1].description == "Dashed"
+    assert unique[2].sku == "789-FNSKU"
+
+
 # ---- PO Import sheet ----------------------------------------------------
 
 

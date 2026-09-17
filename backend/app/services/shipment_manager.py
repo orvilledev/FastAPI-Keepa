@@ -371,15 +371,38 @@ def compile_stored_rows(stored: Sequence[dict]) -> tuple[List[ShipmentSkuRow], i
     return dedupe_by_upc(sku_rows), len(sku_rows)
 
 
+def _upc_dedupe_key(upc: str) -> str:
+    """Normalize a UPC for uniqueness — matches how the sheet writes numeric UPCs."""
+    text = _FNSKU_SUFFIX.sub("", (upc or "").strip()).strip()
+    if not text:
+        return ""
+    # Float-ish values from spreadsheets ("194868729123.0") before digit cleanup.
+    try:
+        as_float = float(text)
+        if as_float.is_integer() and as_float >= 0:
+            return str(int(as_float))
+    except (TypeError, ValueError):
+        pass
+    # Digits-only barcode (optional spaces/dashes) collapses to the same Excel number.
+    if re.fullmatch(r"[\d\s\-]+", text):
+        digits = re.sub(r"\D", "", text)
+        if digits:
+            try:
+                return str(int(digits))
+            except ValueError:
+                return digits
+    return text.casefold()
+
+
 def dedupe_by_upc(sku_rows: Sequence[ShipmentSkuRow]) -> List[ShipmentSkuRow]:
     """Collapse rows to one per UPC, keeping the first occurrence."""
     seen: set[str] = set()
     unique: List[ShipmentSkuRow] = []
     for item in sku_rows:
-        upc = (item.upc or "").strip()
-        if not upc or upc in seen:
+        key = _upc_dedupe_key(item.upc) or _upc_dedupe_key(_upc_from_sku(item.sku))
+        if not key or key in seen:
             continue
-        seen.add(upc)
+        seen.add(key)
         unique.append(item)
     return unique
 
