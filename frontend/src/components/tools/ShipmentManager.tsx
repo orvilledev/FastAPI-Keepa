@@ -1351,7 +1351,7 @@ function FragmentFolder({
                 type="button"
                 disabled={folderBusy || generatingClustered || !canGenerate}
                 onClick={onGenerateClustered}
-                className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                className="rounded-md bg-pink-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-pink-600 disabled:opacity-50"
               >
                 {generatingClustered ? 'Compiling…' : 'Generate Clustered WR SKU Update'}
               </button>
