@@ -92,6 +92,9 @@ export interface ShipmentRecord {
   notes?: string | null
   vendor: string
   status: 'open' | 'in_progress' | 'ready' | 'closed'
+  /** Optional folder this shipment is clustered under. */
+  folder_id?: string | null
+  folder_name?: string | null
   /** Vendor checklist completion map (item id -> entry). Empty for vendors without a checklist. */
   checklist?: Record<
     string,
@@ -117,6 +120,17 @@ export interface ShipmentRecord {
   row_count: number
   unique_upc_count: number
   can_delete: boolean
+}
+
+/** Editable cluster of related shipments in Shipment Manager. */
+export interface ShipmentFolder {
+  id: string
+  name: string
+  created_by: string
+  created_by_email: string
+  created_at: string
+  updated_at: string
+  shipment_count: number
 }
 
 /** One FBA export added to a shipment. */

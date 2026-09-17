@@ -9,7 +9,7 @@ import type {
   ManualEmailDraftOpenResult,
   WarehouseProductLookup, WarehouseProductImportResult, WarehouseProduct,
   CatalogImportResult, CatalogUpcListResponse, CatalogDimsListResponse, CatalogShipToListResponse, CatalogShipToImportResult, CatalogShipToImportPreview, ProjectRecord, ProjectStatus,
-  ShipmentRecord, ShipmentDetail, ShipmentUploadResult } from '../types'
+  ShipmentRecord, ShipmentDetail, ShipmentUploadResult, ShipmentFolder } from '../types'
 
 /** All request paths begin with `/api/v1`. Strip a mistaken `/api/v1` suffix from env to avoid doubled paths (404 Not Found). */
 function normalizeApiBaseUrl(raw: string): string {
@@ -2041,6 +2041,40 @@ export const shipmentsApi = {
   list: async (): Promise<ShipmentRecord[]> => {
     const response = await api.get<ShipmentRecord[]>('/api/v1/shipments')
     return response.data
+  },
+  listFolders: async (): Promise<ShipmentFolder[]> => {
+    const response = await api.get<ShipmentFolder[]>('/api/v1/shipments/folders')
+    return response.data
+  },
+  createFolder: async (body: {
+    name: string
+    shipment_ids?: string[]
+  }): Promise<ShipmentFolder> => {
+    const response = await api.post<ShipmentFolder>('/api/v1/shipments/folders', body)
+    return response.data
+  },
+  renameFolder: async (folderId: string, name: string): Promise<ShipmentFolder> => {
+    const response = await api.patch<ShipmentFolder>(`/api/v1/shipments/folders/${folderId}`, {
+      name,
+    })
+    return response.data
+  },
+  addToFolder: async (folderId: string, shipmentIds: string[]): Promise<ShipmentFolder> => {
+    const response = await api.post<ShipmentFolder>(
+      `/api/v1/shipments/folders/${folderId}/members`,
+      { shipment_ids: shipmentIds },
+    )
+    return response.data
+  },
+  removeFromFolder: async (folderId: string, shipmentIds: string[]): Promise<ShipmentFolder> => {
+    const response = await api.delete<ShipmentFolder>(
+      `/api/v1/shipments/folders/${folderId}/members`,
+      { data: { shipment_ids: shipmentIds } },
+    )
+    return response.data
+  },
+  deleteFolder: async (folderId: string): Promise<void> => {
+    await api.delete(`/api/v1/shipments/folders/${folderId}`)
   },
   get: async (shipmentId: string): Promise<ShipmentDetail> => {
     const response = await api.get<ShipmentDetail>(`/api/v1/shipments/${shipmentId}`)

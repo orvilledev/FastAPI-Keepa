@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 _SHIPMENTS = "shipments"
 _UPLOADS = "shipment_uploads"
 _ROWS = "shipment_sku_rows"
+_FOLDERS = "shipment_folders"
 _MIGRATION_HINT = (
     "Run backend/database/migrations/create_shipments.sql in the Supabase SQL Editor."
 )
@@ -23,6 +24,9 @@ _STATUS_MIGRATION_HINT = (
 )
 _CHECKLIST_MIGRATION_HINT = (
     "Run backend/database/migrations/add_shipments_checklist.sql in the Supabase SQL Editor."
+)
+_FOLDER_MIGRATION_HINT = (
+    "Run backend/database/migrations/create_shipment_folders.sql in the Supabase SQL Editor."
 )
 _ROW_CHUNK = 250
 
@@ -37,7 +41,8 @@ def _raise_persist_error(exc: Exception, table: str) -> None:
         or "could not find the table" in message
     )
     if missing_table:
-        raise ValueError(f"The {table} table is missing. {_MIGRATION_HINT}") from exc
+        hint = _FOLDER_MIGRATION_HINT if table == _FOLDERS else _MIGRATION_HINT
+        raise ValueError(f"The {table} table is missing. {hint}") from exc
     missing_vendor = table == _SHIPMENTS and "vendor" in message and (
         "column" in message
         or "schema cache" in message
@@ -67,6 +72,22 @@ def _raise_persist_error(exc: Exception, table: str) -> None:
     if missing_checklist:
         raise ValueError(
             f"The shipments.checklist column is missing. {_CHECKLIST_MIGRATION_HINT}"
+        ) from exc
+    missing_folder = (
+        (table == _SHIPMENTS and "folder_id" in message)
+        or (table == _FOLDERS)
+    ) and (
+        "column" in message
+        or "schema cache" in message
+        or "pgrst204" in message
+        or "pgrst205" in message
+        or "could not find" in message
+        or "does not exist" in message
+        or "relation" in message
+    )
+    if missing_folder:
+        raise ValueError(
+            f"Shipment folders are not set up yet. {_FOLDER_MIGRATION_HINT}"
         ) from exc
     if "row-level security" in message or "permission denied" in message:
         raise ValueError(
@@ -140,6 +161,80 @@ class ShipmentRepository:
             self.db.table(_SHIPMENTS).delete().eq("id", shipment_id).execute()
         except Exception as exc:
             logger.error("shipment delete failed: %s", exc, exc_info=True)
+            _raise_persist_error(exc, _SHIPMENTS)
+
+    # ---- folders -------------------------------------------------------
+
+    def list_folders(self) -> List[dict]:
+        try:
+            response = (
+                self.db.table(_FOLDERS).select("*").order("name", desc=False).execute()
+            )
+        except Exception as exc:
+            logger.error("shipment folder list failed: %s", exc, exc_info=True)
+            _raise_persist_error(exc, _FOLDERS)
+        return response.data or []
+
+    def get_folder(self, folder_id: str) -> Optional[dict]:
+        try:
+            response = (
+                self.db.table(_FOLDERS).select("*").eq("id", folder_id).limit(1).execute()
+            )
+        except Exception as exc:
+            logger.error("shipment folder fetch failed: %s", exc, exc_info=True)
+            _raise_persist_error(exc, _FOLDERS)
+        rows = response.data or []
+        return rows[0] if rows else None
+
+    def create_folder(self, row: Dict[str, Any]) -> dict:
+        try:
+            response = self.db.table(_FOLDERS).insert(row).execute()
+        except Exception as exc:
+            logger.error("shipment folder create failed: %s", exc, exc_info=True)
+            _raise_persist_error(exc, _FOLDERS)
+        data = response.data or []
+        if not data:
+            raise ValueError(f"The folder could not be saved. {_FOLDER_MIGRATION_HINT}")
+        return data[0]
+
+    def update_folder(self, folder_id: str, patch: Dict[str, Any]) -> Optional[dict]:
+        patch = dict(patch)
+        patch["updated_at"] = datetime.utcnow().isoformat()
+        try:
+            response = (
+                self.db.table(_FOLDERS).update(patch).eq("id", folder_id).execute()
+            )
+        except Exception as exc:
+            logger.error("shipment folder update failed: %s", exc, exc_info=True)
+            _raise_persist_error(exc, _FOLDERS)
+        rows = response.data or []
+        return rows[0] if rows else None
+
+    def delete_folder(self, folder_id: str) -> None:
+        # Clear memberships first so the folder never leaves orphaned folder_ids
+        # if ON DELETE SET NULL is missing on an older database.
+        try:
+            self.db.table(_SHIPMENTS).update({"folder_id": None}).eq(
+                "folder_id", folder_id
+            ).execute()
+        except Exception as exc:
+            logger.error("shipment folder clear failed: %s", exc, exc_info=True)
+            _raise_persist_error(exc, _SHIPMENTS)
+        try:
+            self.db.table(_FOLDERS).delete().eq("id", folder_id).execute()
+        except Exception as exc:
+            logger.error("shipment folder delete failed: %s", exc, exc_info=True)
+            _raise_persist_error(exc, _FOLDERS)
+
+    def set_shipments_folder(self, shipment_ids: List[str], folder_id: Optional[str]) -> None:
+        if not shipment_ids:
+            return
+        try:
+            self.db.table(_SHIPMENTS).update(
+                {"folder_id": folder_id, "updated_at": datetime.utcnow().isoformat()}
+            ).in_("id", shipment_ids).execute()
+        except Exception as exc:
+            logger.error("shipment folder assign failed: %s", exc, exc_info=True)
             _raise_persist_error(exc, _SHIPMENTS)
 
     # ---- uploads -------------------------------------------------------

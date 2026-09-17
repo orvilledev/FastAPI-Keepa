@@ -205,6 +205,47 @@ class ShipmentUpdate(BaseModel):
         return _normalize_status(str(value))
 
 
+class ShipmentFolderCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    shipment_ids: List[UUID] = Field(default_factory=list)
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str) -> str:
+        cleaned = (value or "").strip()
+        if not cleaned:
+            raise ValueError("Folder name is required.")
+        return cleaned
+
+
+class ShipmentFolderUpdate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str) -> str:
+        cleaned = (value or "").strip()
+        if not cleaned:
+            raise ValueError("Folder name is required.")
+        return cleaned
+
+
+class ShipmentFolderMembers(BaseModel):
+    shipment_ids: List[UUID] = Field(..., min_length=1)
+
+
+class ShipmentFolderResponse(BaseModel):
+    id: UUID
+    name: str
+    created_by: UUID
+    created_by_email: str = ""
+    created_at: datetime
+    updated_at: datetime
+    shipment_count: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ShipmentUploadResponse(BaseModel):
     id: UUID
     shipment_id: UUID
@@ -229,6 +270,8 @@ class ShipmentResponse(BaseModel):
     notes: Optional[str] = None
     vendor: str = ""
     status: ShipmentStatus = "open"
+    folder_id: Optional[UUID] = None
+    folder_name: Optional[str] = None
     checklist: Dict[str, ShipmentChecklistEntry] = Field(default_factory=dict)
     checklist_steps: List[ShipmentChecklistStep] = Field(default_factory=list)
     can_edit_checklist: bool = False

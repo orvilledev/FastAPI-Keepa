@@ -27,6 +27,10 @@ from app.models.shipment import (
     ShipmentCompiledRow,
     ShipmentCreate,
     ShipmentDetailResponse,
+    ShipmentFolderCreate,
+    ShipmentFolderMembers,
+    ShipmentFolderResponse,
+    ShipmentFolderUpdate,
     ShipmentResponse,
     ShipmentUpdate,
     ShipmentUploadResponse,
@@ -238,6 +242,7 @@ def _to_response(
     checklist_names: Optional[dict[str, str]] = None,
     checklist_steps: Optional[List[dict]] = None,
     can_edit_checklist: bool = False,
+    folder_name: Optional[str] = None,
 ) -> ShipmentResponse:
     payload = dict(shipment)
     vendor = str(payload.get("vendor") or "")
@@ -247,6 +252,10 @@ def _to_response(
     if checklist_names:
         checklist = apply_checklist_actor_names(checklist, checklist_names)
     payload["checklist"] = checklist
+    if folder_name is not None:
+        payload["folder_name"] = folder_name
+    elif payload.get("folder_id") and not payload.get("folder_name"):
+        payload["folder_name"] = None
     return ShipmentResponse(
         **payload,
         checklist_steps=[ShipmentChecklistStep(**step) for step in steps],
@@ -258,6 +267,30 @@ def _to_response(
         can_delete=can_delete,
         created_by_name=created_by_name
         or _person_name({}, shipment.get("created_by"), shipment.get("created_by_email")),
+    )
+
+
+def _folder_name_map(repo: ShipmentRepository) -> dict[str, str]:
+    try:
+        folders = repo.list_folders()
+    except ValueError:
+        return {}
+    return {
+        str(row.get("id")): str(row.get("name") or "").strip()
+        for row in folders
+        if row.get("id")
+    }
+
+
+def _to_folder_response(folder: dict, shipment_count: int = 0) -> ShipmentFolderResponse:
+    return ShipmentFolderResponse(
+        id=folder["id"],
+        name=folder["name"],
+        created_by=folder["created_by"],
+        created_by_email=folder.get("created_by_email") or "",
+        created_at=folder["created_at"],
+        updated_at=folder["updated_at"],
+        shipment_count=shipment_count,
     )
 
 
@@ -304,6 +337,8 @@ def list_shipments(
     for upload in uploads:
         by_shipment.setdefault(str(upload.get("shipment_id")), []).append(upload)
 
+    folder_names = _folder_name_map(repo)
+
     names = _display_names(
         db,
         [str(row.get("created_by") or "") for row in shipments],
@@ -317,6 +352,7 @@ def list_shipments(
     for shipment in shipments:
         key = str(shipment["id"])
         group = by_shipment.get(key, [])
+        folder_id = shipment.get("folder_id")
         results.append(
             _to_response(
                 shipment,
@@ -328,6 +364,7 @@ def list_shipments(
                 created_by_name=_person_name(
                     names, shipment.get("created_by"), shipment.get("created_by_email")
                 ),
+                folder_name=folder_names.get(str(folder_id)) if folder_id else None,
             )
         )
     return results
@@ -372,6 +409,168 @@ def create_shipment(
         can_delete=True,
         created_by_name=_person_name(names, current_user["id"], current_user.get("email")),
     )
+
+
+@router.get("/shipments/folders", response_model=List[ShipmentFolderResponse])
+@handle_api_errors("list shipment folders")
+def list_shipment_folders(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Every shipment folder, with how many shipments are inside."""
+    repo = ShipmentRepository(db)
+    try:
+        folders = repo.list_folders()
+        shipments = repo.list_shipments()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    counts: dict[str, int] = {}
+    for shipment in shipments:
+        folder_id = shipment.get("folder_id")
+        if folder_id:
+            key = str(folder_id)
+            counts[key] = counts.get(key, 0) + 1
+    return [_to_folder_response(folder, counts.get(str(folder["id"]), 0)) for folder in folders]
+
+
+@router.post("/shipments/folders", response_model=ShipmentFolderResponse, status_code=201)
+@handle_api_errors("create shipment folder")
+def create_shipment_folder(
+    payload: ShipmentFolderCreate,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Create an editable folder and optionally move shipments into it."""
+    _ensure_profile_row(db, current_user)
+    repo = ShipmentRepository(db)
+    shipment_ids = [str(item) for item in payload.shipment_ids]
+    if shipment_ids:
+        for shipment_id in shipment_ids:
+            _load_shipment(repo, UUID(shipment_id))
+    try:
+        folder = repo.create_folder(
+            {
+                "name": payload.name,
+                "created_by": current_user["id"],
+                "created_by_email": current_user.get("email") or "",
+            }
+        )
+        if shipment_ids:
+            repo.set_shipments_folder(shipment_ids, str(folder["id"]))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    logger.info(
+        "Shipment folder %s created by %s (%s members)",
+        folder.get("id"),
+        current_user.get("email"),
+        len(shipment_ids),
+    )
+    return _to_folder_response(folder, len(shipment_ids))
+
+
+@router.patch("/shipments/folders/{folder_id}", response_model=ShipmentFolderResponse)
+@handle_api_errors("rename shipment folder")
+def rename_shipment_folder(
+    folder_id: UUID,
+    payload: ShipmentFolderUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Rename a folder. Does not change the shipments inside it."""
+    repo = ShipmentRepository(db)
+    try:
+        folder = repo.get_folder(str(folder_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found.")
+    try:
+        updated = repo.update_folder(str(folder_id), {"name": payload.name}) or folder
+        shipments = repo.list_shipments()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    count = sum(1 for item in shipments if str(item.get("folder_id") or "") == str(folder_id))
+    return _to_folder_response(updated, count)
+
+
+@router.post("/shipments/folders/{folder_id}/members", response_model=ShipmentFolderResponse)
+@handle_api_errors("add shipments to folder")
+def add_shipments_to_folder(
+    folder_id: UUID,
+    payload: ShipmentFolderMembers,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Move one or more shipments into an existing folder."""
+    repo = ShipmentRepository(db)
+    try:
+        folder = repo.get_folder(str(folder_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found.")
+    shipment_ids = [str(item) for item in payload.shipment_ids]
+    for shipment_id in shipment_ids:
+        _load_shipment(repo, UUID(shipment_id))
+    try:
+        repo.set_shipments_folder(shipment_ids, str(folder_id))
+        shipments = repo.list_shipments()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    count = sum(1 for item in shipments if str(item.get("folder_id") or "") == str(folder_id))
+    return _to_folder_response(folder, count)
+
+
+@router.delete("/shipments/folders/{folder_id}/members", response_model=ShipmentFolderResponse)
+@handle_api_errors("remove shipments from folder")
+def remove_shipments_from_folder(
+    folder_id: UUID,
+    payload: ShipmentFolderMembers,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Remove shipments from a folder without deleting the shipments."""
+    repo = ShipmentRepository(db)
+    try:
+        folder = repo.get_folder(str(folder_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found.")
+    shipment_ids = [str(item) for item in payload.shipment_ids]
+    for shipment_id in shipment_ids:
+        shipment = _load_shipment(repo, UUID(shipment_id))
+        if str(shipment.get("folder_id") or "") != str(folder_id):
+            continue
+    try:
+        repo.set_shipments_folder(shipment_ids, None)
+        shipments = repo.list_shipments()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    count = sum(1 for item in shipments if str(item.get("folder_id") or "") == str(folder_id))
+    return _to_folder_response(folder, count)
+
+
+@router.delete("/shipments/folders/{folder_id}", status_code=status.HTTP_204_NO_CONTENT)
+@handle_api_errors("delete shipment folder")
+def delete_shipment_folder(
+    folder_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Delete a folder and ungroup its shipments (shipments themselves are kept)."""
+    repo = ShipmentRepository(db)
+    try:
+        folder = repo.get_folder(str(folder_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found.")
+    try:
+        repo.delete_folder(str(folder_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(
@@ -475,6 +674,10 @@ def get_shipment(
         checklist = apply_checklist_actor_names(checklist, actor_names)
         names.update(actor_names)
     detail["checklist"] = checklist
+    folder_id = detail.get("folder_id")
+    if folder_id:
+        folder_names = _folder_name_map(repo)
+        detail["folder_name"] = folder_names.get(str(folder_id))
     return ShipmentDetailResponse(
         **detail,
         checklist_steps=[ShipmentChecklistStep(**step) for step in steps],
