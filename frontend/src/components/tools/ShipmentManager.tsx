@@ -914,6 +914,19 @@ function filtersActiveLike(
   )
 }
 
+function folderVendorLabel(members: ShipmentRecord[]): string {
+  const codes = Array.from(
+    new Set(
+      members
+        .map((item) => (item.vendor || '').trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  ).sort()
+  if (codes.length === 0) return '—'
+  if (codes.length === 1) return codes[0]
+  return codes.join(', ')
+}
+
 function FragmentFolder({
   folder,
   members,
@@ -986,9 +999,12 @@ function FragmentFolder({
             </span>
           </div>
         </td>
-        <td className="px-4 py-2 text-gray-400" colSpan={6}>
-          Folder
-        </td>
+        <td className="px-4 py-2 font-medium text-gray-900">{folderVendorLabel(members)}</td>
+        <td className="px-4 py-2 text-gray-400">—</td>
+        <td className="px-4 py-2 text-gray-400">—</td>
+        <td className="px-4 py-2 text-gray-400">—</td>
+        <td className="px-4 py-2 text-gray-400">—</td>
+        <td className="px-4 py-2 text-gray-400">—</td>
         <td className="px-4 py-2 text-right">
           <div className="flex items-center justify-end gap-2">
             {isRenaming ? (
