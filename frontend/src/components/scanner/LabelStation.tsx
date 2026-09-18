@@ -779,7 +779,8 @@ export default function LabelStation() {
                 Custom ({labelSizeDimensionsLabel('custom')})
               </span>
               <p className="text-xs text-gray-500 mt-0.5">
-                Square notice label — headline, barcode, title, then print ID and condition
+                Square notice label — headline, FNSKU above barcode, title, then print ID and
+                condition
               </p>
             </div>
             {selectedSize === 'custom' && (

@@ -18,8 +18,8 @@ import { jsPDF } from 'jspdf'
  * vertically centred inside the margins so nothing is ever clipped.
  *
  * A fourth size, `custom`, is a 3" × 3" label with its own layout: an editable
- * notice ("SOLD AS SET / DO NOT SEPARATE" by default), then the barcode, product
- * title, and a bottom row with the print ID and condition.
+ * notice ("SOLD AS SET / DO NOT SEPARATE" by default), the FNSKU above the
+ * barcode, product title, and a bottom row with the print ID and condition.
  */
 
 /** Base design grid at 203 dpi. All layout numbers below are in these units. */
@@ -164,7 +164,8 @@ const SIZE_LAYOUTS: Record<StandardLabelSize, SizeLayout> = {
 /**
  * 3" × 3" custom label (base 203-dpi units, 609 × 609). The notice at the top
  * is auto-shrunk per line to fit the margins, so longer wording stays on the
- * label; the print ID / condition row is anchored to the bottom edge.
+ * label; FNSKU sits directly above the barcode; the print ID / condition row
+ * is anchored to the bottom edge.
  */
 const CUSTOM_LAYOUT = {
   pad: 24,
@@ -174,8 +175,11 @@ const CUSTOM_LAYOUT = {
   noticeMaxFont: 76,
   noticeMinFont: 12,
   noticeLineGap: 10,
-  /** Space between the notice block and the barcode. */
-  gapNoticeBarcode: 124,
+  /** Space between the notice block and the FNSKU (keeps barcode position stable). */
+  gapNoticeFnsku: 82,
+  /** Human-readable FNSKU centred above the barcode. */
+  fnskuFont: 32,
+  gapFnskuBarcode: 10,
   barcodeHeight: 134,
   gapBarcodeTitle: 26,
   titleFont: 20,
@@ -494,8 +498,8 @@ function drawStandardLabel(
 }
 
 /**
- * 3" × 3" custom notice label: editable headline, barcode, wrapped title, then
- * print ID (lower left) and condition (lower right).
+ * 3" × 3" custom notice label: editable headline, FNSKU above barcode, wrapped
+ * title, then print ID (lower left) and condition (lower right).
  */
 function drawCustomLabel(
   ctx: CanvasRenderingContext2D,
@@ -527,7 +531,17 @@ function drawCustomLabel(
     ctx.fillText(line, W / 2, y)
     y += d(layout.noticeLineGap)
   }
-  y += d(layout.gapNoticeBarcode)
+  y += d(layout.gapNoticeFnsku)
+
+  // FNSKU human-readable line centred directly above the barcode.
+  const fnsku = (product.fnsku || '').trim()
+  const fnskuFont = d(layout.fnskuFont)
+  if (fnsku) {
+    y += fnskuFont
+    ctx.font = `${fnskuFont}px ${FONT_FAMILY}`
+    ctx.fillText(fnsku, W / 2, y)
+    y += d(layout.gapFnskuBarcode)
+  }
 
   const barcode = renderBarcodeCanvas(product.fnsku, W, scale, layout.pad, layout.barcodeHeight)
   if (barcode) {
