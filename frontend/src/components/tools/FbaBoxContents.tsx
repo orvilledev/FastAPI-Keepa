@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type DragEvent } from 'react'
+import { useCallback, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import { fbaBoxContentsApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
@@ -28,16 +28,30 @@ type GenerateSummary = {
   shipmentId: string
 }
 
-export default function FbaBoxContents() {
-  const { isSuperadmin, userInfoLoading, userInfo, authUser } = useUser()
-  const canUse = canAccessFbaBoxContents(userInfo?.email || authUser?.email, isSuperadmin)
+type ToolPanelProps = {
+  title: string
+  description: ReactNode
+  expectedInput: ReactNode
+  defaultFilename: string
+  generate: (file: File) => Promise<{
+    blob: Blob
+    filename: string
+    rowCount: number
+    boxCount: number
+    upcCount: number
+    totalQty: number
+    shipmentId: string
+  }>
+}
+
+function ToolPanel({ title, description, expectedInput, defaultFilename, generate }: ToolPanelProps) {
   const [file, setFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<GenerateSummary | null>(null)
   const [resultBlob, setResultBlob] = useState<Blob | null>(null)
-  const [resultFilename, setResultFilename] = useState('FBA Box Contents Output.xlsx')
+  const [resultFilename, setResultFilename] = useState(defaultFilename)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const reset = useCallback(() => {
@@ -55,7 +69,7 @@ export default function FbaBoxContents() {
     if (!incoming) return
     const name = incoming.name.toLowerCase()
     if (!name.endsWith('.xls') && !name.endsWith('.xlsx') && !name.endsWith('.xlsm')) {
-      setError('Only FBA Carton Detail .xls or .xlsx Excel files are supported.')
+      setError('Only .xls or .xlsx Excel files are supported.')
       setFile(null)
       return
     }
@@ -78,7 +92,7 @@ export default function FbaBoxContents() {
     setError(null)
     setSuccess(null)
     try {
-      const result = await fbaBoxContentsApi.generate(file)
+      const result = await generate(file)
       setResultBlob(result.blob)
       setResultFilename(result.filename)
       setSuccess({
@@ -112,43 +126,19 @@ export default function FbaBoxContents() {
     } finally {
       setGenerating(false)
     }
-  }, [file, generating])
+  }, [file, generating, generate])
 
   const handleDownloadResult = useCallback(() => {
     if (!resultBlob) return
     downloadBlob(resultBlob, resultFilename)
   }, [resultBlob, resultFilename])
 
-  if (userInfoLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#404040] border-t-transparent" />
-      </div>
-    )
-  }
-
-  if (!canUse) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center px-4">
-        <div className="max-w-sm rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900">Access restricted</h2>
-          <p className="mt-2 text-sm text-gray-600">This tool is limited to authorized users.</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-gray-900">FBA Box Contents</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Upload an FBA Carton Detail report. The tool numbers each carton as Box # 1, 2, 3… and
-          downloads an Excel workbook with a <strong>Box Contents</strong> sheet (UPC, Box #, QTY plus
-          a quantity pivot) and a <strong>Dimensions</strong> sheet (weight, length, width, height).
-          UPCs stay text; box numbers, quantities, and dimensions stay numbers.
-        </p>
-      </header>
+    <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+        <p className="mt-1 text-sm text-gray-600">{description}</p>
+      </div>
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -165,11 +155,11 @@ export default function FbaBoxContents() {
         </div>
       )}
 
-      <section
+      <div
         className={`rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
           isDragging
             ? 'border-indigo-500 bg-indigo-50'
-            : 'border-gray-300 bg-white hover:border-gray-400'
+            : 'border-gray-300 bg-gray-50 hover:border-gray-400'
         }`}
         onDragOver={(e) => {
           e.preventDefault()
@@ -198,7 +188,7 @@ export default function FbaBoxContents() {
           />
         </svg>
         <p className="mt-3 text-sm text-gray-600">
-          Drag and drop an FBA Carton Detail <strong>.xls</strong> or <strong>.xlsx</strong> here, or
+          Drag and drop a <strong>.xls</strong> or <strong>.xlsx</strong> here, or
         </p>
         <input
           ref={fileInputRef}
@@ -251,30 +241,121 @@ export default function FbaBoxContents() {
             </button>
           )}
         </div>
-      </section>
+      </div>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600">
-        <h2 className="font-semibold text-gray-900">Expected input</h2>
-        <p className="mt-1">
-          Amazon FBA Carton Detail export (the file whose first row is “FBA Carton Detail”). Each
-          carton starts with <code>Carton#:</code>, followed by item lines and a Total row.
+      <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm text-gray-600">
+        {expectedInput}
+      </div>
+    </section>
+  )
+}
+
+export default function FbaBoxContents() {
+  const { isSuperadmin, userInfoLoading, userInfo, authUser } = useUser()
+  const canUse = canAccessFbaBoxContents(userInfo?.email || authUser?.email, isSuperadmin)
+
+  if (userInfoLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#404040] border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (!canUse) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center px-4">
+        <div className="max-w-sm rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900">Access restricted</h2>
+          <p className="mt-2 text-sm text-gray-600">This tool is limited to authorized users.</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-8">
+      <header>
+        <h1 className="text-2xl font-bold text-gray-900">FBA Box Contents</h1>
+        <p className="mt-1 text-sm text-gray-600">
+          Two separate converters on this page. Use the tool that matches your input file format —
+          each has its own upload and download.
         </p>
-        <ul className="mt-2 list-disc space-y-1 pl-5">
-          <li>
-            <code>Box Contents</code>: UPC as Excel text, Box # and QTY as numbers, plus a Sum of QTY
-            pivot by UPC (rows) and box (columns). Duplicate UPC lines in the same box stay separate
-            on the left and are summed in the pivot.
-          </li>
-          <li>
-            <code>Dimensions</code>: one row per carton — Box #, Weight (item weights rounded up to 1
-            decimal), Length, Width, Height, all stored as numbers.
-          </li>
-          <li>
-            The download is named <code>{'{filename} Output.xlsx'}</code>, for example{' '}
-            <code>FBA19NT5WH3J Output.xlsx</code>.
-          </li>
-        </ul>
-      </section>
+      </header>
+
+      <ToolPanel
+        title="Tool #1"
+        description={
+          <>
+            Upload an FBA Carton Detail report. Numbers each carton as Box # 1, 2, 3… and downloads a
+            workbook with <strong>Box Contents</strong> (UPC, Box #, QTY plus a quantity pivot) and{' '}
+            <strong>Dimensions</strong> (Box #, weight rounded up from item weights, length, width,
+            height).
+          </>
+        }
+        defaultFilename="FBA Box Contents Output.xlsx"
+        generate={fbaBoxContentsApi.generate}
+        expectedInput={
+          <>
+            <h3 className="font-semibold text-gray-900">Expected input</h3>
+            <p className="mt-1">
+              Amazon FBA Carton Detail export (first row “FBA Carton Detail”). Each carton starts with{' '}
+              <code>Carton#:</code>, followed by item lines and a Total row.
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              <li>
+                <code>Box Contents</code>: UPC as Excel text, Box # and QTY as numbers, plus a Sum of
+                QTY pivot by UPC (rows) and box (columns).
+              </li>
+              <li>
+                <code>Dimensions</code>: Box #, Weight (item weights rounded up to 1 decimal), Length,
+                Width, Height — all numbers.
+              </li>
+              <li>
+                Download named <code>{'{filename} Output.xlsx'}</code>.
+              </li>
+            </ul>
+          </>
+        }
+      />
+
+      <ToolPanel
+        title="Tool #2"
+        description={
+          <>
+            Upload a spaced-column carton dump (starts with <code>PO#:</code>). Numbers each carton as
+            Box Number 1, 2, 3… and downloads <strong>Box Contents</strong> (UPC, Box Number, QTY plus
+            pivot) and <strong>Dimensions</strong> (Weight from each carton Total row as text, Length,
+            Width, Height — no Box # column).
+          </>
+        }
+        defaultFilename="FBA Box Contents Output.xlsx"
+        generate={fbaBoxContentsApi.generateTool2}
+        expectedInput={
+          <>
+            <h3 className="font-semibold text-gray-900">Expected input</h3>
+            <p className="mt-1">
+              Carton export whose first row is <code>PO#:</code> / shipment id, with blank spacer
+              columns between Sku, UPC, Qty, Weight, and carton dimensions. Each carton starts with{' '}
+              <code>Carton#:</code>, then item lines, then a Total row.
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              <li>
+                <code>Box Contents</code>: UPC (text), Box Number and QTY (numbers), Sum of QTY pivot —
+                no Total QTY footer.
+              </li>
+              <li>
+                <code>Dimensions</code>: Weight (copied from the Total row, often with a leading
+                space), Length, Width, Height.
+              </li>
+              <li>
+                Download named <code>{'{filename} Output.xlsx'}</code>, for example{' '}
+                <code>FBA19PLBV097 Output.xlsx</code>.
+              </li>
+            </ul>
+          </>
+        }
+      />
     </div>
   )
 }

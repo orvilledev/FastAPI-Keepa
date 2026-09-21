@@ -1873,6 +1873,38 @@ export const fbaBoxContentsApi = {
       return readBlobError(err)
     }
   },
+
+  generateTool2: async (file: File): Promise<FbaBoxContentsResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    try {
+      const response = await api.post<Blob>('/api/v1/fba-box-contents/generate-tool2', form, {
+        responseType: 'blob',
+        timeout: 120_000,
+      })
+      const headers = response.headers || {}
+      const filenameHeader = headers['x-fba-filename']
+      const disposition = headers['content-disposition'] as string | undefined
+      let filename =
+        (typeof filenameHeader === 'string' && filenameHeader.trim()) ||
+        file.name.replace(/\.(xls|xlsx|xlsm)$/i, '') + ' Output.xlsx'
+      if ((!filenameHeader || !String(filenameHeader).trim()) && disposition) {
+        const match = /filename="?([^";]+)"?/i.exec(disposition)
+        if (match?.[1]) filename = match[1]
+      }
+      return {
+        blob: response.data,
+        filename,
+        rowCount: Number(headers['x-fba-row-count'] || 0),
+        boxCount: Number(headers['x-fba-box-count'] || 0),
+        upcCount: Number(headers['x-fba-upc-count'] || 0),
+        totalQty: Number(headers['x-fba-total-qty'] || 0),
+        shipmentId: String(headers['x-fba-shipment-id'] || ''),
+      }
+    } catch (err: unknown) {
+      return readBlobError(err)
+    }
+  },
 }
 
 export type DnkAllInventoryResult = {
