@@ -136,6 +136,32 @@ class WarehouseProductRepository:
                     found[key] = row
         return found
 
+    def lookup_by_skus(self, skus: Sequence[str]) -> Dict[str, List[dict]]:
+        """Return ``{sku: [catalog rows...]}`` for exact SKU matches (preserves all UPCs)."""
+        unique = list(
+            dict.fromkeys((value or "").strip() for value in skus if (value or "").strip())
+        )
+        if not unique:
+            return {}
+
+        found: Dict[str, List[dict]] = {}
+        chunk_size = 200
+        select_cols = "upc,sku,fnsku,style_name,condition"
+        for index in range(0, len(unique), chunk_size):
+            chunk = unique[index : index + chunk_size]
+            response = (
+                self.db.table("warehouse_products")
+                .select(select_cols)
+                .in_("sku", chunk)
+                .execute()
+            )
+            for row in response.data or []:
+                key = (row.get("sku") or "").strip()
+                if not key:
+                    continue
+                found.setdefault(key, []).append(row)
+        return found
+
     def count(self, search: Optional[str] = None) -> int:
         query = self.db.table("warehouse_products").select("id", count="exact")
         query = apply_warehouse_product_search(query, search)

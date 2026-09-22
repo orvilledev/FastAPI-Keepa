@@ -1,9 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { warehouseProductsApi } from '../../services/api'
-import type { WarehouseProduct } from '../../types'
+import type { WarehouseProduct, WarehouseSkuCheckResult } from '../../types'
 import { getCatalogScanInput } from '../../utils/warehouseLabel'
 
 const PAGE_SIZE = 50
+
+const ACCEPTED_SKU_CHECK =
+  '.txt,.csv,.xlsx,.xls,.xlsm,text/plain,text/csv,application/vnd.ms-excel,' +
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
 
 type WarehouseProductCatalogProps = {
   onSelectUpc?: (upc: string) => void
@@ -31,7 +46,11 @@ export default function WarehouseProductCatalog({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deletingUpc, setDeletingUpc] = useState<string | null>(null)
+  const [skuCheckBusy, setSkuCheckBusy] = useState(false)
+  const [skuCheckError, setSkuCheckError] = useState<string | null>(null)
+  const [skuCheckResult, setSkuCheckResult] = useState<WarehouseSkuCheckResult | null>(null)
   const loadRequestId = useRef(0)
+  const skuCheckInputRef = useRef<HTMLInputElement>(null)
 
   const loadCatalog = useCallback(async () => {
       const requestId = ++loadRequestId.current
@@ -114,6 +133,25 @@ export default function WarehouseProductCatalog({
     }
   }
 
+  const handleSkuCheck = async (file: File) => {
+    setSkuCheckBusy(true)
+    setSkuCheckError(null)
+    setSkuCheckResult(null)
+    try {
+      const result = await warehouseProductsApi.checkSkus(file)
+      setSkuCheckResult(result)
+      downloadBlob(result.blob, result.filename)
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data
+          ?.detail || (err as { message?: string })?.message
+      setSkuCheckError(typeof detail === 'string' ? detail : 'SKU check failed')
+    } finally {
+      setSkuCheckBusy(false)
+      if (skuCheckInputRef.current) skuCheckInputRef.current.value = ''
+    }
+  }
+
   return (
     <section className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
       <h2>
@@ -150,7 +188,7 @@ export default function WarehouseProductCatalog({
       </h2>
 
       <div id="catalog-panel" hidden={!open}>
-        <div className="border-b border-gray-200 px-4 py-3">
+        <div className="space-y-3 border-b border-gray-200 px-4 py-3">
           <label htmlFor="catalog-search" className="sr-only">
             Search catalog
           </label>
@@ -162,6 +200,52 @@ export default function WarehouseProductCatalog({
             placeholder="Search UPC, SKU, FNSKU, style…"
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#404040] focus:ring-1 focus:ring-[#404040] sm:w-72"
           />
+
+          <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3">
+            <p className="text-sm font-medium text-gray-800">Bulk SKU check</p>
+            <p className="mt-0.5 text-xs text-gray-600">
+              Upload a .txt (one SKU per line), .csv, or .xlsx with a SKU column. Downloads a result
+              workbook showing which SKUs already exist in the catalog.
+            </p>
+            <input
+              ref={skuCheckInputRef}
+              type="file"
+              accept={ACCEPTED_SKU_CHECK}
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) void handleSkuCheck(file)
+              }}
+            />
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={skuCheckBusy}
+                onClick={() => skuCheckInputRef.current?.click()}
+                className="rounded-md bg-[#404040] px-3 py-1.5 text-sm font-medium text-white hover:bg-black disabled:opacity-50"
+              >
+                {skuCheckBusy ? 'Checking…' : 'Upload SKU list'}
+              </button>
+              {skuCheckResult && (
+                <button
+                  type="button"
+                  onClick={() => downloadBlob(skuCheckResult.blob, skuCheckResult.filename)}
+                  className="rounded-md border border-sky-200 bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-800 hover:bg-sky-100"
+                >
+                  Download result again
+                </button>
+              )}
+            </div>
+            {skuCheckResult && (
+              <p className="mt-2 text-xs text-green-800">
+                Checked {skuCheckResult.total.toLocaleString()} unique SKU
+                {skuCheckResult.total === 1 ? '' : 's'}: {skuCheckResult.found.toLocaleString()}{' '}
+                found, {skuCheckResult.missing.toLocaleString()} missing. Downloaded{' '}
+                <span className="font-medium">{skuCheckResult.filename}</span>.
+              </p>
+            )}
+            {skuCheckError && <p className="mt-2 text-xs text-red-700">{skuCheckError}</p>}
+          </div>
         </div>
 
         {error && (

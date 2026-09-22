@@ -7,7 +7,7 @@ import type {
   MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, MicroToolRecord, JobAid, Notification, ComprehensiveReportRow, SellerName, CliChatSession, CliChatMessage, TrackingHistorySummary, TrackingHistoryDetail, TrackingScannerRow,
   ManualEmailDraft,
   ManualEmailDraftOpenResult,
-  WarehouseProductLookup, WarehouseProductImportResult, WarehouseProduct,
+  WarehouseProductLookup, WarehouseProductImportResult, WarehouseProduct, WarehouseSkuCheckResult,
   CatalogImportResult, CatalogUpcListResponse, CatalogDimsListResponse, CatalogShipToListResponse, CatalogShipToImportResult, CatalogShipToImportPreview, ProjectRecord, ProjectStatus,
   ShipmentRecord, ShipmentDetail, ShipmentUploadResult, ShipmentFolder } from '../types'
 
@@ -2468,6 +2468,35 @@ export const warehouseProductsApi = {
       { timeout: 120_000 }
     )
     return response.data
+  },
+  checkSkus: async (file: File): Promise<WarehouseSkuCheckResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    try {
+      const response = await api.post<Blob>('/api/v1/warehouse-products/check-skus', form, {
+        responseType: 'blob',
+        timeout: 120_000,
+      })
+      const headers = response.headers || {}
+      const filenameHeader = headers['x-sku-check-filename']
+      const disposition = headers['content-disposition'] as string | undefined
+      let filename =
+        (typeof filenameHeader === 'string' && filenameHeader.trim()) ||
+        'SKU Existence Check.xlsx'
+      if ((!filenameHeader || !String(filenameHeader).trim()) && disposition) {
+        const match = /filename="?([^";]+)"?/i.exec(disposition)
+        if (match?.[1]) filename = match[1]
+      }
+      return {
+        blob: response.data,
+        filename,
+        total: Number(headers['x-sku-check-total'] || 0),
+        found: Number(headers['x-sku-check-found'] || 0),
+        missing: Number(headers['x-sku-check-missing'] || 0),
+      }
+    } catch (err: unknown) {
+      return readBlobError(err)
+    }
   },
   delete: async (upc: string): Promise<void> => {
     await api.delete(`/api/v1/warehouse-products/${encodeURIComponent(upc.trim())}`)

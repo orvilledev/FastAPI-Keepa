@@ -245,6 +245,8 @@ _ROUTES: Tuple[_Route, ...] = (
        "tracking.history_delete", "data", "Deleted a Tracking Extractor scan"),
     _r("POST", r"^/api/v1/warehouse-products/import$",
        "warehouse.import", "upload", "Imported the warehouse products spreadsheet"),
+    _r("POST", r"^/api/v1/warehouse-products/check-skus$",
+       "warehouse.check_skus", "tool", "Checked bulk SKUs against the Label Station catalog"),
     _r("DELETE", r"^/api/v1/warehouse-products/[^/]+$",
        "warehouse.delete", "data", "Deleted a warehouse product"),
 

@@ -138,6 +138,10 @@ app.add_middleware(
         "X-Fba-Upc-Count",
         "X-Fba-Total-Qty",
         "X-Fba-Shipment-Id",
+        "X-Sku-Check-Filename",
+        "X-Sku-Check-Total",
+        "X-Sku-Check-Found",
+        "X-Sku-Check-Missing",
     ],
 )
 

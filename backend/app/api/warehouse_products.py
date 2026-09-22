@@ -3,6 +3,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import Response
 from supabase import Client
 
 from app.database import get_supabase
@@ -22,6 +23,11 @@ from app.services.warehouse_product_import import (
     dedupe_by_upc,
     parse_products_spreadsheet,
 )
+from app.services.warehouse_sku_check import (
+    WarehouseSkuCheckError,
+    generate_sku_check_workbook,
+    parse_sku_list_file,
+)
 from app.utils.error_handler import handle_api_errors
 
 logger = logging.getLogger(__name__)
@@ -30,6 +36,7 @@ router = APIRouter()
 
 _MAX_IMPORT_BYTES = 15 * 1024 * 1024
 _ACCEPTED_SUFFIXES = (".csv", ".xlsx", ".xlsm", ".xls")
+_ACCEPTED_SKU_CHECK_SUFFIXES = (".txt", ".csv", ".xlsx", ".xlsm", ".xls")
 
 
 def _validate_import_file(file: UploadFile) -> None:
@@ -38,6 +45,15 @@ def _validate_import_file(file: UploadFile) -> None:
         raise HTTPException(
             status_code=400,
             detail="Upload a .csv or .xlsx file with UPC, SKU, fnsku, STYLE NAME, and Condition columns.",
+        )
+
+
+def _validate_sku_check_file(file: UploadFile) -> None:
+    name = (file.filename or "").lower()
+    if not any(name.endswith(suffix) for suffix in _ACCEPTED_SKU_CHECK_SUFFIXES):
+        raise HTTPException(
+            status_code=400,
+            detail="Upload a .txt, .csv, or .xlsx file listing SKUs to check.",
         )
 
 
@@ -89,6 +105,51 @@ def list_warehouse_products(
         total=total,
         limit=limit,
         offset=offset,
+    )
+
+
+@router.post("/warehouse-products/check-skus", response_model=None)
+@limiter.limit(RateLimits.FILE_UPLOAD)
+@handle_api_errors("check warehouse product SKUs")
+async def check_warehouse_product_skus(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_label_station_user),
+    db: Client = Depends(get_supabase),
+):
+    """Check a bulk SKU list against the catalog and download an Excel result."""
+    _ = current_user
+    _validate_sku_check_file(file)
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    if len(raw) > _MAX_IMPORT_BYTES:
+        raise HTTPException(status_code=400, detail="File exceeds 15 MB limit.")
+
+    try:
+        skus = parse_sku_list_file(file.filename or "skus.txt", raw)
+    except WarehouseSkuCheckError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    repo = WarehouseProductRepository(db)
+    found_by_sku = repo.lookup_by_skus(skus)
+    result = generate_sku_check_workbook(
+        skus,
+        found_by_sku,
+        filename="SKU Existence Check.xlsx",
+    )
+
+    headers = {
+        "Content-Disposition": f'attachment; filename="{result.filename}"',
+        "X-Sku-Check-Filename": result.filename,
+        "X-Sku-Check-Total": str(result.total),
+        "X-Sku-Check-Found": str(result.found),
+        "X-Sku-Check-Missing": str(result.missing),
+    }
+    return Response(
+        content=result.file_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
     )
 
 

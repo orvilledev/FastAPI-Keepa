@@ -490,6 +490,14 @@ export interface WarehouseProductImportResult {
   total_in_file: number
 }
 
+export interface WarehouseSkuCheckResult {
+  blob: Blob
+  filename: string
+  total: number
+  found: number
+  missing: number
+}
+
 export interface CatalogImportResult {
   imported: number
   invalid: number
