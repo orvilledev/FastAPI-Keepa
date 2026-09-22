@@ -1,12 +1,14 @@
-"""Tests for bulk SKU existence check against the Label Station catalog."""
+"""Tests for bulk catalog existence check (SKU / UPC / FNSKU)."""
 from __future__ import annotations
 
 from io import BytesIO
+from unittest.mock import MagicMock
 
 import openpyxl
 import pytest
 from openpyxl import Workbook
 
+from app.repositories.warehouse_product_repository import WarehouseProductRepository
 from app.services.warehouse_sku_check import (
     WarehouseSkuCheckError,
     generate_sku_check_workbook,
@@ -29,9 +31,19 @@ def test_parse_txt_one_per_line_dedupes_and_skips_header():
     assert parse_sku_list_file("skus.txt", raw) == ["9990357", "ABC-100"]
 
 
-def test_parse_csv_with_sku_column():
-    raw = b"SKU,Other\n9990357,x\nMISSING,y\n"
-    assert parse_sku_list_file("list.csv", raw) == ["9990357", "MISSING"]
+def test_parse_txt_skips_upc_and_fnsku_headers():
+    raw = b"UPC\n198269695492\nFNSKU\nX0052JFNEN\n"
+    assert parse_sku_list_file("ids.txt", raw) == ["198269695492", "X0052JFNEN"]
+
+
+def test_parse_csv_with_upc_column():
+    raw = b"UPC,Other\n198269695492,x\nMISSING,y\n"
+    assert parse_sku_list_file("list.csv", raw) == ["198269695492", "MISSING"]
+
+
+def test_parse_xlsx_with_fnsku_header():
+    raw = _xlsx_bytes([["FNSKU", "Note"], ["X0052JFNEN", "a"], ["XB", "b"]])
+    assert parse_sku_list_file("list.xlsx", raw) == ["X0052JFNEN", "XB"]
 
 
 def test_parse_xlsx_with_sku_header():
@@ -45,12 +57,12 @@ def test_parse_xlsx_first_column_when_no_header():
 
 
 def test_parse_empty_raises():
-    with pytest.raises(WarehouseSkuCheckError, match="No SKUs"):
+    with pytest.raises(WarehouseSkuCheckError, match="No identifiers"):
         parse_sku_list_file("empty.txt", b"\n\n")
 
 
-def test_generate_workbook_marks_found_and_missing():
-    skus = ["9990357", "MISSING"]
+def test_generate_workbook_marks_found_and_missing_with_matched_on():
+    queries = ["9990357", "MISSING", "X0052JFNEN"]
     found = {
         "9990357": [
             {
@@ -60,46 +72,82 @@ def test_generate_workbook_marks_found_and_missing():
                 "style_name": "Sample",
                 "condition": "New",
             }
-        ]
+        ],
+        "X0052JFNEN": [
+            {
+                "upc": "198269695492",
+                "sku": "9990357",
+                "fnsku": "X0052JFNEN",
+                "style_name": "Sample",
+                "condition": "New",
+            }
+        ],
     }
-    result = generate_sku_check_workbook(skus, found)
-    assert result.total == 2
-    assert result.found == 1
+    result = generate_sku_check_workbook(queries, found)
+    assert result.total == 3
+    assert result.found == 2
     assert result.missing == 1
-    assert result.filename == "SKU Existence Check.xlsx"
+    assert result.filename == "Catalog Existence Check.xlsx"
 
     workbook = openpyxl.load_workbook(BytesIO(result.file_bytes))
     try:
-        sheet = workbook["SKU Check"]
-        assert sheet["A1"].value == "SKU"
-        assert sheet["B1"].value == "Exists"
+        sheet = workbook["Existence Check"]
+        assert sheet["A1"].value == "Input"
+        assert sheet["C1"].value == "Matched On"
         assert sheet["A2"].value == "9990357"
         assert sheet["B2"].value == "Yes"
-        assert sheet["C2"].value == "198269695492"
+        assert sheet["C2"].value == "SKU"
+        assert sheet["D2"].value == "9990357"
         assert sheet["A3"].value == "MISSING"
         assert sheet["B3"].value == "No"
-        assert sheet["G3"].value == 0
+        assert sheet["A4"].value == "X0052JFNEN"
+        assert sheet["B4"].value == "Yes"
+        assert sheet["C4"].value == "FNSKU"
     finally:
         workbook.close()
 
 
-def test_lookup_by_skus_batches_and_groups_matches():
-    from unittest.mock import MagicMock
-
-    from app.repositories.warehouse_product_repository import WarehouseProductRepository
-
-    row_a = {"upc": "111", "sku": "SKU-A", "fnsku": "XA", "style_name": "A", "condition": "New"}
-    row_a2 = {"upc": "112", "sku": "SKU-A", "fnsku": "XA2", "style_name": "A2", "condition": "New"}
-    row_b = {"upc": "222", "sku": "SKU-B", "fnsku": "XB", "style_name": "B", "condition": "New"}
+def test_lookup_by_identifiers_matches_sku_upc_and_fnsku():
+    row = {
+        "upc": "198269695492",
+        "sku": "9990357",
+        "fnsku": "X0052JFNEN",
+        "style_name": "Sample",
+        "condition": "New",
+    }
 
     db = MagicMock()
-    chain = MagicMock()
-    chain.select.return_value = chain
-    chain.in_.return_value = chain
-    chain.execute.return_value = MagicMock(data=[row_a, row_a2, row_b])
-    db.table.return_value = chain
+    calls: list[tuple[str, list[str]]] = []
 
+    def table_side_effect(_name):
+        chain = MagicMock()
+        chain.select.return_value = chain
+
+        def in_side_effect(column, values):
+            calls.append((column, list(values)))
+            # Return the row only for the matching column query.
+            if column == "sku" and "9990357" in values:
+                chain.execute.return_value = MagicMock(data=[row])
+            elif column == "upc" and "198269695492" in values:
+                chain.execute.return_value = MagicMock(data=[row])
+            elif column == "fnsku" and "X0052JFNEN" in values:
+                chain.execute.return_value = MagicMock(data=[row])
+            else:
+                chain.execute.return_value = MagicMock(data=[])
+            return chain
+
+        chain.in_.side_effect = in_side_effect
+        return chain
+
+    db.table.side_effect = table_side_effect
     repo = WarehouseProductRepository(db)
-    found = repo.lookup_by_skus([" SKU-A ", "SKU-B", "SKU-A", ""])
-    assert found == {"SKU-A": [row_a, row_a2], "SKU-B": [row_b]}
-    chain.in_.assert_called_once_with("sku", ["SKU-A", "SKU-B"])
+    found = repo.lookup_by_identifiers(
+        ["9990357", "198269695492", "X0052JFNEN", "MISSING", "9990357"]
+    )
+
+    assert set(found.keys()) == {"9990357", "198269695492", "X0052JFNEN"}
+    assert found["9990357"] == [row]
+    assert found["198269695492"] == [row]
+    assert found["X0052JFNEN"] == [row]
+    assert "MISSING" not in found
+    assert [c[0] for c in calls] == ["sku", "upc", "fnsku"]

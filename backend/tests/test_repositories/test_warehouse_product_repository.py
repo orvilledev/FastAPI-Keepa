@@ -112,3 +112,38 @@ def test_apply_search_adds_or_query_param():
     query = apply_warehouse_product_search(FakeQuery(), "190038644151")
     assert "or" in str(query.params)
     assert "190038644151" in str(query.params)
+
+
+def test_lookup_by_identifiers_queries_sku_upc_and_fnsku():
+    from unittest.mock import MagicMock
+
+    from app.repositories.warehouse_product_repository import WarehouseProductRepository
+
+    row = {
+        "upc": "UPC1",
+        "sku": "SKU1",
+        "fnsku": "FN1",
+        "style_name": "Style",
+        "condition": "New",
+    }
+
+    db = MagicMock()
+    columns_seen: list[str] = []
+
+    def table_side_effect(_name):
+        chain = MagicMock()
+        chain.select.return_value = chain
+
+        def in_side_effect(column, _values):
+            columns_seen.append(column)
+            chain.execute.return_value = MagicMock(data=[row] if column == "upc" else [])
+            return chain
+
+        chain.in_.side_effect = in_side_effect
+        return chain
+
+    db.table.side_effect = table_side_effect
+    repo = WarehouseProductRepository(db)
+    found = repo.lookup_by_identifiers(["UPC1", "MISSING"])
+    assert columns_seen == ["sku", "upc", "fnsku"]
+    assert found == {"UPC1": [row]}

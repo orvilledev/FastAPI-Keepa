@@ -162,6 +162,55 @@ class WarehouseProductRepository:
                 found.setdefault(key, []).append(row)
         return found
 
+    def lookup_by_identifiers(self, identifiers: Sequence[str]) -> Dict[str, List[dict]]:
+        """Match identifiers against ``sku``, ``upc``, and ``fnsku``.
+
+        Returns ``{query: [catalog rows...]}`` keyed by the uploaded value.
+        A row is included under a query when any of its sku/upc/fnsku equals that query.
+        """
+        unique = list(
+            dict.fromkeys(
+                (value or "").strip() for value in identifiers if (value or "").strip()
+            )
+        )
+        if not unique:
+            return {}
+
+        select_cols = "upc,sku,fnsku,style_name,condition"
+        chunk_size = 200
+        # Collect unique rows by upc (catalog PK), then index under each matching query.
+        rows_by_upc: Dict[str, dict] = {}
+
+        def _ingest(chunk: Sequence[str], column: str) -> None:
+            response = (
+                self.db.table("warehouse_products")
+                .select(select_cols)
+                .in_(column, list(chunk))
+                .execute()
+            )
+            for row in response.data or []:
+                upc = (row.get("upc") or "").strip()
+                key = upc or f"{row.get('sku')}|{row.get('fnsku')}"
+                if key and key not in rows_by_upc:
+                    rows_by_upc[key] = row
+
+        for index in range(0, len(unique), chunk_size):
+            chunk = unique[index : index + chunk_size]
+            _ingest(chunk, "sku")
+            _ingest(chunk, "upc")
+            _ingest(chunk, "fnsku")
+
+        wanted = set(unique)
+        found: Dict[str, List[dict]] = {query: [] for query in unique}
+        for row in rows_by_upc.values():
+            for field in ("sku", "upc", "fnsku"):
+                value = (row.get(field) or "").strip()
+                if value in wanted:
+                    bucket = found[value]
+                    if row not in bucket:
+                        bucket.append(row)
+        return {key: rows for key, rows in found.items() if rows}
+
     def count(self, search: Optional[str] = None) -> int:
         query = self.db.table("warehouse_products").select("id", count="exact")
         query = apply_warehouse_product_search(query, search)

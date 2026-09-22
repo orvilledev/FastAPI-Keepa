@@ -145,7 +145,7 @@ export default function WarehouseProductCatalog({
       const detail =
         (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data
           ?.detail || (err as { message?: string })?.message
-      setSkuCheckError(typeof detail === 'string' ? detail : 'SKU check failed')
+      setSkuCheckError(typeof detail === 'string' ? detail : 'Existence check failed')
     } finally {
       setSkuCheckBusy(false)
       if (skuCheckInputRef.current) skuCheckInputRef.current.value = ''
@@ -202,10 +202,11 @@ export default function WarehouseProductCatalog({
           />
 
           <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3">
-            <p className="text-sm font-medium text-gray-800">Bulk SKU check</p>
+            <p className="text-sm font-medium text-gray-800">Bulk existence check</p>
             <p className="mt-0.5 text-xs text-gray-600">
-              Upload a .txt (one SKU per line), .csv, or .xlsx with a SKU column. Downloads a result
-              workbook showing which SKUs already exist in the catalog.
+              Upload a .txt (one value per line), .csv, or .xlsx with a SKU, UPC, or FNSKU column.
+              Each value is checked against the catalog and a result workbook downloads
+              automatically.
             </p>
             <input
               ref={skuCheckInputRef}
@@ -224,7 +225,7 @@ export default function WarehouseProductCatalog({
                 onClick={() => skuCheckInputRef.current?.click()}
                 className="rounded-md bg-[#404040] px-3 py-1.5 text-sm font-medium text-white hover:bg-black disabled:opacity-50"
               >
-                {skuCheckBusy ? 'Checking…' : 'Upload SKU list'}
+                {skuCheckBusy ? 'Checking…' : 'Upload list'}
               </button>
               {skuCheckResult && (
                 <button
@@ -238,7 +239,7 @@ export default function WarehouseProductCatalog({
             </div>
             {skuCheckResult && (
               <p className="mt-2 text-xs text-green-800">
-                Checked {skuCheckResult.total.toLocaleString()} unique SKU
+                Checked {skuCheckResult.total.toLocaleString()} unique value
                 {skuCheckResult.total === 1 ? '' : 's'}: {skuCheckResult.found.toLocaleString()}{' '}
                 found, {skuCheckResult.missing.toLocaleString()} missing. Downloaded{' '}
                 <span className="font-medium">{skuCheckResult.filename}</span>.

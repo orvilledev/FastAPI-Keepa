@@ -53,7 +53,7 @@ def _validate_sku_check_file(file: UploadFile) -> None:
     if not any(name.endswith(suffix) for suffix in _ACCEPTED_SKU_CHECK_SUFFIXES):
         raise HTTPException(
             status_code=400,
-            detail="Upload a .txt, .csv, or .xlsx file listing SKUs to check.",
+            detail="Upload a .txt, .csv, or .xlsx file listing SKU, UPC, or FNSKU values to check.",
         )
 
 
@@ -117,7 +117,7 @@ async def check_warehouse_product_skus(
     current_user: dict = Depends(get_label_station_user),
     db: Client = Depends(get_supabase),
 ):
-    """Check a bulk SKU list against the catalog and download an Excel result."""
+    """Check a bulk SKU/UPC/FNSKU list against the catalog and download Excel results."""
     _ = current_user
     _validate_sku_check_file(file)
     raw = await file.read()
@@ -127,16 +127,16 @@ async def check_warehouse_product_skus(
         raise HTTPException(status_code=400, detail="File exceeds 15 MB limit.")
 
     try:
-        skus = parse_sku_list_file(file.filename or "skus.txt", raw)
+        identifiers = parse_sku_list_file(file.filename or "skus.txt", raw)
     except WarehouseSkuCheckError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     repo = WarehouseProductRepository(db)
-    found_by_sku = repo.lookup_by_skus(skus)
+    found_by_query = repo.lookup_by_identifiers(identifiers)
     result = generate_sku_check_workbook(
-        skus,
-        found_by_sku,
-        filename="SKU Existence Check.xlsx",
+        identifiers,
+        found_by_query,
+        filename="Catalog Existence Check.xlsx",
     )
 
     headers = {

@@ -2482,7 +2482,7 @@ export const warehouseProductsApi = {
       const disposition = headers['content-disposition'] as string | undefined
       let filename =
         (typeof filenameHeader === 'string' && filenameHeader.trim()) ||
-        'SKU Existence Check.xlsx'
+        'Catalog Existence Check.xlsx'
       if ((!filenameHeader || !String(filenameHeader).trim()) && disposition) {
         const match = /filename="?([^";]+)"?/i.exec(disposition)
         if (match?.[1]) filename = match[1]

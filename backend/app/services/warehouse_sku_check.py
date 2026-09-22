@@ -1,4 +1,8 @@
-"""Parse a bulk SKU list and build an existence-check workbook."""
+"""Parse a bulk identifier list and build a catalog existence-check workbook.
+
+Uploaded values are matched against warehouse_products ``sku``, ``upc``, and
+``fnsku`` (exact match after trim).
+"""
 from __future__ import annotations
 
 import csv
@@ -11,27 +15,40 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font
 
 _MAX_UPLOAD_BYTES = 15 * 1024 * 1024
-_MAX_SKUS = 25_000
+_MAX_IDS = 25_000
 _CALIBRI = Font(name="Calibri", size=11)
 _CALIBRI_BOLD = Font(name="Calibri", size=11, bold=True)
 
 _HEADER_ALIASES = {
-    "sku": "sku",
-    "skus": "sku",
-    "merchant sku": "sku",
-    "merchant_sku": "sku",
-    "product sku": "sku",
+    "sku": "id",
+    "skus": "id",
+    "merchant sku": "id",
+    "merchant_sku": "id",
+    "product sku": "id",
+    "upc": "id",
+    "upcs": "id",
+    "fnsku": "id",
+    "fnskus": "id",
+    "id": "id",
+    "identifier": "id",
+    "identifiers": "id",
+    "value": "id",
+    "code": "id",
 }
+
+_SKIP_HEADERS = frozenset(_HEADER_ALIASES.keys())
 
 
 class WarehouseSkuCheckError(ValueError):
-    """User-correctable SKU check input problems."""
+    """User-correctable catalog existence-check input problems."""
 
 
 @dataclass(frozen=True)
 class SkuCheckRow:
-    sku: str
+    query: str
     exists: bool
+    matched_on: str = ""
+    sku: str = ""
     upc: str = ""
     fnsku: str = ""
     style_name: str = ""
@@ -73,11 +90,11 @@ def _split_tokens(text: str) -> list[str]:
     return [part.strip() for part in parts if part.strip()]
 
 
-def _is_sku_header(value: str) -> bool:
-    return _normalize_header(value) == "sku"
+def _is_header_label(value: str) -> bool:
+    return value.strip().lower() in _SKIP_HEADERS
 
 
-def _skus_from_table(rows: Sequence[Sequence[Any]]) -> list[str]:
+def _ids_from_table(rows: Sequence[Sequence[Any]]) -> list[str]:
     if not rows:
         return []
     header = rows[0]
@@ -87,8 +104,8 @@ def _skus_from_table(rows: Sequence[Sequence[Any]]) -> list[str]:
         if normalized and normalized not in mapping:
             mapping[normalized] = idx
 
-    if "sku" in mapping:
-        col = mapping["sku"]
+    if "id" in mapping:
+        col = mapping["id"]
         values: list[str] = []
         for row in rows[1:]:
             if col < len(row):
@@ -97,7 +114,7 @@ def _skus_from_table(rows: Sequence[Sequence[Any]]) -> list[str]:
                     values.append(text)
         return values
 
-    # No SKU header — take the first non-empty cell per row (including row 0).
+    # No recognized header — take the first non-empty cell per row (including row 0).
     values: list[str] = []
     for row in rows:
         for cell in row:
@@ -117,7 +134,7 @@ def _parse_csv_bytes(content: bytes) -> list[str]:
     text = content.decode("utf-8-sig", errors="replace")
     reader = csv.reader(io.StringIO(text))
     rows = [tuple(row) for row in reader]
-    return _skus_from_table(rows)
+    return _ids_from_table(rows)
 
 
 def _parse_excel(content: bytes) -> list[str]:
@@ -130,7 +147,7 @@ def _parse_excel(content: bytes) -> list[str]:
     try:
         sheet = workbook[workbook.sheetnames[0]]
         rows = [tuple(row) for row in sheet.iter_rows(values_only=True)]
-        return _skus_from_table(rows)
+        return _ids_from_table(rows)
     finally:
         workbook.close()
 
@@ -149,7 +166,7 @@ def _parse_xls(content: bytes) -> list[str]:
             tuple(sheet.cell_value(r, c) for c in range(sheet.ncols))
             for r in range(sheet.nrows)
         ]
-        return _skus_from_table(rows)
+        return _ids_from_table(rows)
     except WarehouseSkuCheckError:
         raise
     except Exception as exc:
@@ -159,7 +176,7 @@ def _parse_xls(content: bytes) -> list[str]:
 
 
 def parse_sku_list_file(filename: str | None, content: bytes) -> list[str]:
-    """Extract unique SKUs from .txt / .csv / .xlsx / .xls, preserving order."""
+    """Extract unique identifiers from .txt / .csv / .xlsx / .xls, preserving order."""
     if not content:
         raise WarehouseSkuCheckError("Uploaded file is empty.")
     if len(content) > _MAX_UPLOAD_BYTES:
@@ -167,51 +184,70 @@ def parse_sku_list_file(filename: str | None, content: bytes) -> list[str]:
 
     name = (filename or "upload.txt").lower()
     if name.endswith((".xlsx", ".xlsm")) or content.startswith(b"PK"):
-        skus = _parse_excel(content)
+        values = _parse_excel(content)
     elif name.endswith(".xls"):
-        skus = _parse_xls(content)
+        values = _parse_xls(content)
     elif name.endswith(".csv"):
-        skus = _parse_csv_bytes(content)
+        values = _parse_csv_bytes(content)
     else:
-        skus = _parse_text(content)
+        values = _parse_text(content)
 
     cleaned: list[str] = []
     seen: set[str] = set()
-    for sku in skus:
-        key = sku.strip()
-        if not key or _is_sku_header(key):
+    for value in values:
+        key = value.strip()
+        if not key or _is_header_label(key):
             continue
         if key in seen:
             continue
         seen.add(key)
         cleaned.append(key)
-        if len(cleaned) > _MAX_SKUS:
+        if len(cleaned) > _MAX_IDS:
             raise WarehouseSkuCheckError(
-                f"Too many SKUs (max {_MAX_SKUS:,}). Split the file and try again."
+                f"Too many identifiers (max {_MAX_IDS:,}). Split the file and try again."
             )
 
     if not cleaned:
         raise WarehouseSkuCheckError(
-            "No SKUs found. Use a .txt (one SKU per line), .csv, or .xlsx with a SKU column."
+            "No identifiers found. Use a .txt (one SKU/UPC/FNSKU per line), "
+            ".csv, or .xlsx with a SKU, UPC, or FNSKU column."
         )
     return cleaned
 
 
+def _matched_fields(query: str, row: Mapping[str, Any]) -> list[str]:
+    fields: list[str] = []
+    if str(row.get("sku") or "").strip() == query:
+        fields.append("SKU")
+    if str(row.get("upc") or "").strip() == query:
+        fields.append("UPC")
+    if str(row.get("fnsku") or "").strip() == query:
+        fields.append("FNSKU")
+    return fields
+
+
 def build_check_rows(
-    skus: Sequence[str],
-    found_by_sku: Mapping[str, Sequence[Mapping[str, Any]]],
+    queries: Sequence[str],
+    found_by_query: Mapping[str, Sequence[Mapping[str, Any]]],
 ) -> list[SkuCheckRow]:
     rows: list[SkuCheckRow] = []
-    for sku in skus:
-        matches = list(found_by_sku.get(sku) or [])
+    for query in queries:
+        matches = list(found_by_query.get(query) or [])
         if not matches:
-            rows.append(SkuCheckRow(sku=sku, exists=False, match_count=0))
+            rows.append(SkuCheckRow(query=query, exists=False, match_count=0))
             continue
         first = matches[0]
+        matched_set: list[str] = []
+        for match in matches:
+            for field in _matched_fields(query, match):
+                if field not in matched_set:
+                    matched_set.append(field)
         rows.append(
             SkuCheckRow(
-                sku=sku,
+                query=query,
                 exists=True,
+                matched_on=", ".join(matched_set),
+                sku=str(first.get("sku") or ""),
                 upc=str(first.get("upc") or ""),
                 fnsku=str(first.get("fnsku") or ""),
                 style_name=str(first.get("style_name") or ""),
@@ -225,16 +261,28 @@ def build_check_rows(
 def build_sku_check_workbook(rows: Sequence[SkuCheckRow]) -> bytes:
     workbook = Workbook()
     sheet = workbook.active
-    sheet.title = "SKU Check"
-    headers = ("SKU", "Exists", "UPC", "FNSKU", "Style Name", "Condition", "Match Count")
+    sheet.title = "Existence Check"
+    headers = (
+        "Input",
+        "Exists",
+        "Matched On",
+        "SKU",
+        "UPC",
+        "FNSKU",
+        "Style Name",
+        "Condition",
+        "Match Count",
+    )
     for col, header in enumerate(headers, start=1):
         cell = sheet.cell(row=1, column=col, value=header)
         cell.font = _CALIBRI_BOLD
 
     for index, row in enumerate(rows, start=2):
         values = (
-            row.sku,
+            row.query,
             "Yes" if row.exists else "No",
+            row.matched_on or None,
+            row.sku or None,
             row.upc or None,
             row.fnsku or None,
             row.style_name or None,
@@ -244,16 +292,22 @@ def build_sku_check_workbook(rows: Sequence[SkuCheckRow]) -> bytes:
         for col, value in enumerate(values, start=1):
             cell = sheet.cell(row=index, column=col, value=value)
             cell.font = _CALIBRI
-            if col == 1:
+            if col in (1, 4, 5, 6):
                 cell.number_format = "@"
 
-    sheet.column_dimensions["A"].width = 16
-    sheet.column_dimensions["B"].width = 10
-    sheet.column_dimensions["C"].width = 16
-    sheet.column_dimensions["D"].width = 14
-    sheet.column_dimensions["E"].width = 40
-    sheet.column_dimensions["F"].width = 12
-    sheet.column_dimensions["G"].width = 12
+    widths = {
+        "A": 18,
+        "B": 10,
+        "C": 14,
+        "D": 16,
+        "E": 16,
+        "F": 14,
+        "G": 40,
+        "H": 12,
+        "I": 12,
+    }
+    for letter, width in widths.items():
+        sheet.column_dimensions[letter].width = width
 
     output = io.BytesIO()
     workbook.save(output)
@@ -261,12 +315,12 @@ def build_sku_check_workbook(rows: Sequence[SkuCheckRow]) -> bytes:
 
 
 def generate_sku_check_workbook(
-    skus: Sequence[str],
-    found_by_sku: Mapping[str, Sequence[Mapping[str, Any]]],
+    queries: Sequence[str],
+    found_by_query: Mapping[str, Sequence[Mapping[str, Any]]],
     *,
-    filename: str = "SKU Existence Check.xlsx",
+    filename: str = "Catalog Existence Check.xlsx",
 ) -> SkuCheckResult:
-    rows = build_check_rows(skus, found_by_sku)
+    rows = build_check_rows(queries, found_by_query)
     found = sum(1 for row in rows if row.exists)
     missing = len(rows) - found
     return SkuCheckResult(
