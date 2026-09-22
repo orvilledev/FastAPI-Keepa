@@ -1,0 +1,12 @@
+MSW Overwatch 3.5.3 — desktop and web release
+
+Patch release since 3.5.2. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Label Station
+- Product catalog bulk existence check: upload a .txt / .csv / .xlsx list of SKU, UPC, or FNSKU values and download a workbook of found vs missing matches (including which field matched)
+
+## FBA Box Contents
+- Tool #2: convert spaced PO# carton dumps into Box Number + Dimensions workbooks (Tool #1 unchanged)
+
+## Upgrade from 3.5.2
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.5.3, download it, then prompt to install now or later. Web/PWA users get 3.5.3 on the next deploy/refresh.
