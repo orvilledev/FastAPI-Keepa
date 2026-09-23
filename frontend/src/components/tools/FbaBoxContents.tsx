@@ -278,49 +278,51 @@ export default function FbaBoxContents() {
       <header>
         <h1 className="text-2xl font-bold text-gray-900">FBA Box Contents</h1>
         <p className="mt-1 text-sm text-gray-600">
-          Two separate converters on this page. Use the tool that matches your input file format —
-          each has its own upload and download.
+          Convert a spaced-column carton dump into a Box Contents workbook with Dimensions.
         </p>
       </header>
 
-      <ToolPanel
-        title="Tool #1"
-        description={
-          <>
-            Upload an FBA Carton Detail report. Numbers each carton as Box # 1, 2, 3… and downloads a
-            workbook with <strong>Box Contents</strong> (UPC, Box #, QTY plus a quantity pivot) and{' '}
-            <strong>Dimensions</strong> (Box #, weight rounded up from item weights, length, width,
-            height).
-          </>
-        }
-        defaultFilename="FBA Box Contents Output.xlsx"
-        generate={fbaBoxContentsApi.generate}
-        expectedInput={
-          <>
-            <h3 className="font-semibold text-gray-900">Expected input</h3>
-            <p className="mt-1">
-              Amazon FBA Carton Detail export (first row “FBA Carton Detail”). Each carton starts with{' '}
-              <code>Carton#:</code>, followed by item lines and a Total row.
-            </p>
-            <ul className="mt-2 list-disc space-y-1 pl-5">
-              <li>
-                <code>Box Contents</code>: UPC as Excel text, Box # and QTY as numbers, plus a Sum of
-                QTY pivot by UPC (rows) and box (columns).
-              </li>
-              <li>
-                <code>Dimensions</code>: Box #, Weight (item weights rounded up to 1 decimal), Length,
-                Width, Height — all numbers.
-              </li>
-              <li>
-                Download named <code>{'{filename} Output.xlsx'}</code>.
-              </li>
-            </ul>
-          </>
-        }
-      />
+      {/* Tool #1 kept in code but hidden from the UI for now. */}
+      {false && (
+        <ToolPanel
+          title="Tool #1"
+          description={
+            <>
+              Upload an FBA Carton Detail report. Numbers each carton as Box # 1, 2, 3… and downloads a
+              workbook with <strong>Box Contents</strong> (UPC, Box #, QTY plus a quantity pivot) and{' '}
+              <strong>Dimensions</strong> (Box #, weight rounded up from item weights, length, width,
+              height).
+            </>
+          }
+          defaultFilename="FBA Box Contents Output.xlsx"
+          generate={fbaBoxContentsApi.generate}
+          expectedInput={
+            <>
+              <h3 className="font-semibold text-gray-900">Expected input</h3>
+              <p className="mt-1">
+                Amazon FBA Carton Detail export (first row “FBA Carton Detail”). Each carton starts with{' '}
+                <code>Carton#:</code>, followed by item lines and a Total row.
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>
+                  <code>Box Contents</code>: UPC as Excel text, Box # and QTY as numbers, plus a Sum of
+                  QTY pivot by UPC (rows) and box (columns).
+                </li>
+                <li>
+                  <code>Dimensions</code>: Box #, Weight (item weights rounded up to 1 decimal), Length,
+                  Width, Height — all numbers.
+                </li>
+                <li>
+                  Download named <code>{'{filename} Output.xlsx'}</code>.
+                </li>
+              </ul>
+            </>
+          }
+        />
+      )}
 
       <ToolPanel
-        title="Tool #2"
+        title="NFA and SMW Tool"
         description={
           <>
             Upload a spaced-column carton dump (starts with <code>PO#:</code>). Numbers each carton as
