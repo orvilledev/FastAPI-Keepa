@@ -117,11 +117,11 @@ def parse_old_skus_spreadsheet(filename: str, content: bytes) -> Tuple[List[Dict
 
 
 def old_sku_row_to_record(row_data: Dict[str, str]) -> Dict[str, Any]:
+    """Map spreadsheet columns to DB fields (row_data is hydrated on read)."""
     return {
         "old_sku": (row_data.get("OLD SKU") or "").strip(),
         "vendor_name": (row_data.get("Vendor Name") or "").strip(),
         "upc_code": (row_data.get("UPC Code") or "").strip(),
-        "row_data": row_data,
     }
 
 

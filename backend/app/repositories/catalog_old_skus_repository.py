@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+from postgrest.types import ReturnMethod
 from supabase import Client
 
 logger = logging.getLogger(__name__)
@@ -19,6 +21,9 @@ _SEARCH_COLS = (
     "vendor_name",
     "upc_code",
 )
+# Larger chunks + parallel workers cut ~64k-row imports from many minutes to tens of seconds.
+_INSERT_CHUNK_SIZE = 2000
+_INSERT_WORKERS = 4
 
 
 def _build_or_filter(search: Optional[str], columns: Tuple[str, ...]) -> Optional[str]:
@@ -38,6 +43,19 @@ def _apply_search(query, search: Optional[str], columns: Tuple[str, ...]):
     if search_filter:
         query.params = query.params.add("or", f"({search_filter})")
     return query
+
+
+def _hydrate_row_data(row: dict) -> dict:
+    """Build display row_data from columns when missing (imports omit the JSON blob)."""
+    existing = row.get("row_data")
+    if isinstance(existing, dict) and existing:
+        return row
+    row["row_data"] = {
+        "OLD SKU": row.get("old_sku") or "",
+        "Vendor Name": row.get("vendor_name") or "",
+        "UPC Code": row.get("upc_code") or "",
+    }
+    return row
 
 
 def _raise_persist_error(exc: Exception, chunk_size: int) -> None:
@@ -80,12 +98,26 @@ class CatalogOldSkusRepository:
             .range(offset, offset + limit - 1)
             .execute()
         )
-        return response.data or [], int(response.count or 0)
+        items = [_hydrate_row_data(row) for row in (response.data or [])]
+        return items, int(response.count or 0)
+
+    def _insert_chunk(self, chunk: List[Dict[str, Any]]) -> int:
+        try:
+            self.db.table(_TABLE).insert(
+                chunk,
+                returning=ReturnMethod.minimal,
+            ).execute()
+        except Exception as exc:
+            logger.error("catalog_old_skus insert failed: %s", exc, exc_info=True)
+            _raise_persist_error(exc, len(chunk))
+        return len(chunk)
 
     def replace_all(self, rows: List[Dict[str, Any]]) -> Dict[str, int]:
         """Replace the entire Old SKUs catalog with the uploaded file contents."""
         try:
-            self.db.table(_TABLE).delete().neq("old_sku", "").execute()
+            self.db.table(_TABLE).delete(
+                returning=ReturnMethod.minimal,
+            ).neq("old_sku", "").execute()
         except Exception as exc:
             logger.error("catalog_old_skus delete failed: %s", exc, exc_info=True)
             _raise_persist_error(exc, 0)
@@ -94,23 +126,30 @@ class CatalogOldSkusRepository:
             return {"imported": 0}
 
         now = datetime.utcnow().isoformat()
+        prepared: List[Dict[str, Any]] = []
         for row in rows:
-            row["updated_at"] = now
-            row.pop("created_at", None)
-            row.pop("id", None)
+            prepared.append(
+                {
+                    "old_sku": row.get("old_sku") or "",
+                    "vendor_name": row.get("vendor_name") or "",
+                    "upc_code": row.get("upc_code") or "",
+                    # Omit bulky duplicated JSON on write; hydrate on read.
+                    "row_data": {},
+                    "updated_at": now,
+                }
+            )
 
-        chunk_size = 250
+        chunks = [
+            prepared[i : i + _INSERT_CHUNK_SIZE]
+            for i in range(0, len(prepared), _INSERT_CHUNK_SIZE)
+        ]
+
         imported = 0
-        for i in range(0, len(rows), chunk_size):
-            chunk = rows[i : i + chunk_size]
-            try:
-                response = self.db.table(_TABLE).insert(chunk).execute()
-            except Exception as exc:
-                logger.error("catalog_old_skus insert failed: %s", exc, exc_info=True)
-                _raise_persist_error(exc, len(chunk))
-            if response.data == []:
-                raise ValueError(
-                    f"Old SKUs import returned no saved rows. {_MIGRATION_HINT}"
-                )
-            imported += len(chunk)
+        # Parallelize PostgREST inserts — sequential 250-row chunks were too slow for ~64k rows.
+        workers = min(_INSERT_WORKERS, max(1, len(chunks)))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [pool.submit(self._insert_chunk, chunk) for chunk in chunks]
+            for future in as_completed(futures):
+                imported += future.result()
+
         return {"imported": imported}
