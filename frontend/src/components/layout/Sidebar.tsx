@@ -130,6 +130,12 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 3h3m3 0h.01M13 20h7" />
     </svg>
   ),
+  fbaUploadCompare: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h8M8 12h5m-9 8h14a2 2 0 002-2V7a2 2 0 00-2-2h-3.5a1 1 0 01-.8-.4l-.9-1.2A1 1 0 0010.7 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 14l2 2 4-4" />
+    </svg>
+  ),
   manifestGenerator: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M9 8h1m5 0h.01M7 3h8l4 4v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z" />
@@ -546,6 +552,21 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
               >
                 <span className="shrink-0">{Icons.fbaBoxContents}</span>
                 <span className="sidebar-link-label">FBA Box Contents</span>
+              </Link>
+            )}
+
+            {canUseOldSkus && (
+              <Link
+                to="/fba-upload-compare"
+                onMouseEnter={() => setHoveredNav('fba-upload-compare')}
+                className={`sidebar-link ${
+                  navHighlighted('fba-upload-compare', isActive('/fba-upload-compare'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.fbaUploadCompare}</span>
+                <span className="sidebar-link-label">FBA Upload Compare</span>
               </Link>
             )}
 

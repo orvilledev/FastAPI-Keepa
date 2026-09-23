@@ -101,6 +101,46 @@ class CatalogOldSkusRepository:
         items = [_hydrate_row_data(row) for row in (response.data or [])]
         return items, int(response.count or 0)
 
+    def lookup_by_upcs_and_old_skus(
+        self,
+        upcs: List[str],
+        old_skus: List[str],
+    ) -> List[dict]:
+        """Return catalog rows matching any of the given UPC codes or old SKUs."""
+        upc_values = sorted({(u or "").strip() for u in upcs if (u or "").strip()})
+        sku_values = sorted({(s or "").strip() for s in old_skus if (s or "").strip()})
+        if not upc_values and not sku_values:
+            return []
+
+        found: Dict[str, dict] = {}
+        chunk_size = 200
+
+        for i in range(0, len(upc_values), chunk_size):
+            chunk = upc_values[i : i + chunk_size]
+            response = (
+                self.db.table(_TABLE)
+                .select("old_sku,vendor_name,upc_code")
+                .in_("upc_code", chunk)
+                .execute()
+            )
+            for row in response.data or []:
+                key = f"{row.get('old_sku')}|{row.get('upc_code')}"
+                found[key] = row
+
+        for i in range(0, len(sku_values), chunk_size):
+            chunk = sku_values[i : i + chunk_size]
+            response = (
+                self.db.table(_TABLE)
+                .select("old_sku,vendor_name,upc_code")
+                .in_("old_sku", chunk)
+                .execute()
+            )
+            for row in response.data or []:
+                key = f"{row.get('old_sku')}|{row.get('upc_code')}"
+                found[key] = row
+
+        return list(found.values())
+
     def _insert_chunk(self, chunk: List[Dict[str, Any]]) -> int:
         try:
             self.db.table(_TABLE).insert(

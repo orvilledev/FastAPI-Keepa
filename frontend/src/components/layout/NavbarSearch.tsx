@@ -61,6 +61,7 @@ function buildSearchItems(
 
   if (showOldSkus) {
     items.push({ label: 'Old SKUs', path: '/catalog/old-skus', section: 'Menu' })
+    items.push({ label: 'FBA Upload Compare', path: '/fba-upload-compare', section: 'Tools' })
   }
 
   if (hasKeepaAccess) {

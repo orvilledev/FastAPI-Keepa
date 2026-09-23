@@ -1907,6 +1907,55 @@ export const fbaBoxContentsApi = {
   },
 }
 
+export type FbaUploadCompareResult = {
+  blob: Blob
+  filename: string
+  rowCount: number
+  boxCount: number
+  upcCount: number
+  totalQty: number
+  remappedCount: number
+  missingCount: number
+  shipmentId: string
+}
+
+export const fbaUploadCompareApi = {
+  generate: async (outputFile: File, amzFile: File): Promise<FbaUploadCompareResult> => {
+    const form = new FormData()
+    form.append('output_file', outputFile)
+    form.append('amz_file', amzFile)
+    try {
+      const response = await api.post<Blob>('/api/v1/fba-upload-compare/generate', form, {
+        responseType: 'blob',
+        timeout: 120_000,
+      })
+      const headers = response.headers || {}
+      const filenameHeader = headers['x-fba-filename']
+      const disposition = headers['content-disposition'] as string | undefined
+      let filename =
+        (typeof filenameHeader === 'string' && filenameHeader.trim()) ||
+        outputFile.name.replace(/\s*Output\.(xls|xlsx|xlsm)$/i, '') + ' Result.xlsx'
+      if ((!filenameHeader || !String(filenameHeader).trim()) && disposition) {
+        const match = /filename="?([^";]+)"?/i.exec(disposition)
+        if (match?.[1]) filename = match[1]
+      }
+      return {
+        blob: response.data,
+        filename,
+        rowCount: Number(headers['x-fba-row-count'] || 0),
+        boxCount: Number(headers['x-fba-box-count'] || 0),
+        upcCount: Number(headers['x-fba-upc-count'] || 0),
+        totalQty: Number(headers['x-fba-total-qty'] || 0),
+        remappedCount: Number(headers['x-fba-remapped-count'] || 0),
+        missingCount: Number(headers['x-fba-missing-count'] || 0),
+        shipmentId: String(headers['x-fba-shipment-id'] || ''),
+      }
+    } catch (err: unknown) {
+      return readBlobError(err)
+    }
+  },
+}
+
 export type DnkAllInventoryResult = {
   blob: Blob
   filename: string
