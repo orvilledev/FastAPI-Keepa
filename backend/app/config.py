@@ -216,6 +216,15 @@ class Settings(BaseSettings):
         "johnbernard@metroshoewarehouse.com"
     )
 
+    # Comma-separated emails allowed to use the Old SKUs catalog (plus superadmin).
+    old_skus_allowed_emails: str = (
+        "sunshine@metroshoewarehouse.com,"
+        "stephanie@metroshoewarehouse.com,"
+        "paolo@metroshoewarehouse.com,"
+        "paulo@metroshoewarehouse.com,"
+        "johnbernard@metroshoewarehouse.com"
+    )
+
     # Report: comma-separated substrings matched case-insensitively (after removing
     # spaces/punctuation) against resolved seller display text. Rows for matching
     # sellers are omitted from off-price Excel/CSV. Default drops MetroShoe variants.
@@ -312,6 +321,14 @@ class Settings(BaseSettings):
     def fba_box_contents_allowed_emails_list(self) -> List[str]:
         """Normalized emails allowed to use the FBA Box Contents tool."""
         raw = (self.fba_box_contents_allowed_emails or "").strip()
+        if not raw:
+            return []
+        return [email.strip().lower() for email in raw.split(",") if email.strip()]
+
+    @property
+    def old_skus_allowed_emails_list(self) -> List[str]:
+        """Normalized emails allowed to use the Old SKUs catalog."""
+        raw = (self.old_skus_allowed_emails or "").strip()
         if not raw:
             return []
         return [email.strip().lower() for email in raw.split(",") if email.strip()]

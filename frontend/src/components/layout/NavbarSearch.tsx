@@ -6,6 +6,7 @@ import { canAccessMasterSheet } from '../../lib/masterSheetAccess'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessProjects } from '../../lib/projectsAccess'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
+import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 
 type SearchItem = {
   label: string
@@ -21,6 +22,7 @@ function buildSearchItems(
   showAnalytics: boolean,
   showProjects: boolean,
   showFbaBoxContents: boolean,
+  showOldSkus: boolean,
 ): SearchItem[] {
   if (isWarehouseOnly) {
     return [
@@ -55,6 +57,10 @@ function buildSearchItems(
 
   if (showProjects) {
     items.push({ label: 'Projects', path: '/projects', section: 'Menu' })
+  }
+
+  if (showOldSkus) {
+    items.push({ label: 'Old SKUs', path: '/catalog/old-skus', section: 'Menu' })
   }
 
   if (hasKeepaAccess) {
@@ -119,6 +125,10 @@ export default function NavbarSearch() {
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
+  const showOldSkus = canAccessOldSkus(
+    userInfo?.email || authUser?.email,
+    isSuperadmin,
+  )
 
   const searchItems = useMemo(
     () =>
@@ -130,8 +140,9 @@ export default function NavbarSearch() {
         showAnalytics,
         showProjects,
         showFbaBoxContents,
+        showOldSkus,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showMasterSheet, showAnalytics, showProjects, showFbaBoxContents],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showMasterSheet, showAnalytics, showProjects, showFbaBoxContents, showOldSkus],
   )
 
   const results = useMemo(() => {

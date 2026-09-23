@@ -3,6 +3,7 @@ import { useUser } from '../../contexts/UserContext'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessProjects } from '../../lib/projectsAccess'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
+import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -11,6 +12,7 @@ interface ProtectedRouteProps {
   requireAnalyticsAccess?: boolean
   requireProjectsAccess?: boolean
   requireFbaBoxContentsAccess?: boolean
+  requireOldSkusAccess?: boolean
 }
 
 export default function ProtectedRoute({
@@ -20,6 +22,7 @@ export default function ProtectedRoute({
   requireAnalyticsAccess = false,
   requireProjectsAccess = false,
   requireFbaBoxContentsAccess = false,
+  requireOldSkusAccess = false,
 }: ProtectedRouteProps) {
   const {
     hasKeepaAccess,
@@ -67,6 +70,13 @@ export default function ProtectedRoute({
   if (requireFbaBoxContentsAccess) {
     const email = userInfo.email || authUser?.email || null
     if (!canAccessFbaBoxContents(email, isSuperadmin)) {
+      return <Navigate to={isWarehouseOnly ? '/label-station' : '/dashboard'} replace />
+    }
+  }
+
+  if (requireOldSkusAccess) {
+    const email = userInfo.email || authUser?.email || null
+    if (!canAccessOldSkus(email, isSuperadmin)) {
       return <Navigate to={isWarehouseOnly ? '/label-station' : '/dashboard'} replace />
     }
   }

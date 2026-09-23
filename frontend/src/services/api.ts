@@ -8,7 +8,7 @@ import type {
   ManualEmailDraft,
   ManualEmailDraftOpenResult,
   WarehouseProductLookup, WarehouseProductImportResult, WarehouseProduct, WarehouseSkuCheckResult,
-  CatalogImportResult, CatalogUpcListResponse, CatalogDimsListResponse, CatalogShipToListResponse, CatalogShipToImportResult, CatalogShipToImportPreview, ProjectRecord, ProjectStatus,
+  CatalogImportResult, CatalogUpcListResponse, CatalogDimsListResponse, CatalogShipToListResponse, CatalogShipToImportResult, CatalogShipToImportPreview, CatalogOldSkusListResponse, CatalogOldSkusImportResult, ProjectRecord, ProjectStatus,
   ShipmentRecord, ShipmentDetail, ShipmentUploadResult, ShipmentFolder } from '../types'
 
 /** All request paths begin with `/api/v1`. Strip a mistaken `/api/v1` suffix from env to avoid doubled paths (404 Not Found). */
@@ -2562,6 +2562,33 @@ export const catalogShipToApi = {
   },
   downloadTemplate: async (): Promise<Blob> => {
     const response = await api.get('/api/v1/catalog-ship-to/template', {
+      responseType: 'blob',
+    })
+    return response.data
+  },
+}
+
+export const catalogOldSkusApi = {
+  list: async (
+    limit = 50,
+    offset = 0,
+    search?: string
+  ): Promise<CatalogOldSkusListResponse> => {
+    const response = await api.get('/api/v1/catalog-old-skus', {
+      params: { limit, offset, search: search || undefined },
+    })
+    return response.data
+  },
+  importFile: async (file: File): Promise<CatalogOldSkusImportResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    const response = await api.post('/api/v1/catalog-old-skus/import', form, {
+      timeout: 300_000,
+    })
+    return response.data
+  },
+  downloadTemplate: async (): Promise<Blob> => {
+    const response = await api.get('/api/v1/catalog-old-skus/template', {
       responseType: 'blob',
     })
     return response.data

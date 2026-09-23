@@ -7,6 +7,7 @@ import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessMasterSheet } from '../../lib/masterSheetAccess'
 import { canAccessProjects } from '../../lib/projectsAccess'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
+import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 
 // SVG Icon components that inherit text color via currentColor
 const Icons = {
@@ -93,6 +94,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
   ),
+  oldSkus: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+    </svg>
+  ),
   feedback: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.018c8.836 0 16 8.058 16 9.036v7.964a1 1 0 01-1.618.794L17 21" />
@@ -177,6 +183,10 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
     isSuperadmin,
   )
   const canUseFbaBoxContents = canAccessFbaBoxContents(
+    userInfo?.email || authUser?.email,
+    isSuperadmin,
+  )
+  const canUseOldSkus = canAccessOldSkus(
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
@@ -447,6 +457,21 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
               >
                 <span className="shrink-0">{Icons.projects}</span>
                 <span className="sidebar-link-label">Projects</span>
+              </Link>
+            )}
+
+            {canUseOldSkus && (
+              <Link
+                to="/catalog/old-skus"
+                onMouseEnter={() => setHoveredNav('old-skus')}
+                className={`sidebar-link ${
+                  navHighlighted('old-skus', isActive('/catalog/old-skus'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.oldSkus}</span>
+                <span className="sidebar-link-label">Old SKUs</span>
               </Link>
             )}
           </div>

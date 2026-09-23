@@ -585,3 +585,28 @@ export interface CatalogShipToImportPreview {
   total_in_file: number
 }
 
+export interface CatalogOldSkusRecord {
+  id: string
+  old_sku: string
+  vendor_name: string
+  upc_code: string
+  row_data: Record<string, string>
+  created_at: string
+  updated_at: string
+}
+
+export interface CatalogOldSkusListResponse {
+  items: CatalogOldSkusRecord[]
+  total: number
+  limit: number
+  offset: number
+  columns: string[]
+}
+
+export interface CatalogOldSkusImportResult {
+  imported: number
+  invalid: number
+  total_in_file: number
+  replaced: boolean
+}
+

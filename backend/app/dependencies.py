@@ -271,6 +271,30 @@ def get_projects_user(
     return current_user
 
 
+def is_old_skus_allowed_user(current_user: dict, db: Client) -> bool:
+    """True for superadmin or emails on the Old SKUs catalog allowlist."""
+    if is_superadmin_user(current_user, db):
+        return True
+    email = (current_user.get("email") or "").strip().lower()
+    if not email:
+        return False
+    allowed = set(settings.old_skus_allowed_emails_list)
+    return email in allowed
+
+
+def get_old_skus_user(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+) -> dict:
+    """Verify user may use the Old SKUs catalog."""
+    if not is_old_skus_allowed_user(current_user, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Old SKUs catalog is restricted to authorized users",
+        )
+    return current_user
+
+
 def is_fba_box_contents_allowed_user(current_user: dict, db: Client) -> bool:
     """True for superadmin or emails on the FBA Box Contents allowlist."""
     if is_superadmin_user(current_user, db):
