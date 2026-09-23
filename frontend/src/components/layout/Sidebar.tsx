@@ -8,6 +8,7 @@ import { canAccessMasterSheet } from '../../lib/masterSheetAccess'
 import { canAccessProjects } from '../../lib/projectsAccess'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
+import { canAccessBcTools } from '../../lib/bcToolsAccess'
 
 // SVG Icon components that inherit text color via currentColor
 const Icons = {
@@ -193,6 +194,10 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
     isSuperadmin,
   )
   const canUseOldSkus = canAccessOldSkus(
+    userInfo?.email || authUser?.email,
+    isSuperadmin,
+  )
+  const canUseBcTools = canAccessBcTools(
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
@@ -540,36 +545,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
               <span className="sidebar-link-label">FNSKU Pack Station</span>
             </Link>
 
-            {canUseFbaBoxContents && (
-              <Link
-                to="/fba-box-contents"
-                onMouseEnter={() => setHoveredNav('fba-box-contents')}
-                className={`sidebar-link ${
-                  navHighlighted('fba-box-contents', isActive('/fba-box-contents'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.fbaBoxContents}</span>
-                <span className="sidebar-link-label">FBA Box Contents</span>
-              </Link>
-            )}
-
-            {canUseOldSkus && (
-              <Link
-                to="/fba-upload-compare"
-                onMouseEnter={() => setHoveredNav('fba-upload-compare')}
-                className={`sidebar-link ${
-                  navHighlighted('fba-upload-compare', isActive('/fba-upload-compare'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.fbaUploadCompare}</span>
-                <span className="sidebar-link-label">FBA Upload Compare</span>
-              </Link>
-            )}
-
             <Link
               to="/manifest-generator"
               onMouseEnter={() => setHoveredNav('manifest-generator')}
@@ -637,6 +612,43 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
               </Link>
             )}
         </div>
+
+        {canUseBcTools && (
+          <>
+            <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
+
+            {/* BC TOOLS */}
+            <div className="shrink-0 space-y-0.5 pb-1 pt-1">
+              <p className="sidebar-section-label">BC TOOLS</p>
+              {canUseFbaBoxContents && (
+                <Link
+                  to="/fba-box-contents"
+                  onMouseEnter={() => setHoveredNav('fba-box-contents')}
+                  className={`sidebar-link ${
+                    navHighlighted('fba-box-contents', isActive('/fba-box-contents'))
+                      ? 'sidebar-link-active'
+                      : 'sidebar-link-inactive'
+                  }`}
+                >
+                  <span className="shrink-0">{Icons.fbaBoxContents}</span>
+                  <span className="sidebar-link-label">FBA Box Contents</span>
+                </Link>
+              )}
+              <Link
+                to="/fba-upload-compare"
+                onMouseEnter={() => setHoveredNav('fba-upload-compare')}
+                className={`sidebar-link ${
+                  navHighlighted('fba-upload-compare', isActive('/fba-upload-compare'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.fbaUploadCompare}</span>
+                <span className="sidebar-link-label">FBA Upload Compare</span>
+              </Link>
+            </div>
+          </>
+        )}
 
         <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 

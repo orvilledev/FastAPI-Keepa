@@ -7,6 +7,7 @@ import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessProjects } from '../../lib/projectsAccess'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
+import { canAccessBcTools } from '../../lib/bcToolsAccess'
 
 type SearchItem = {
   label: string
@@ -23,6 +24,7 @@ function buildSearchItems(
   showProjects: boolean,
   showFbaBoxContents: boolean,
   showOldSkus: boolean,
+  showBcTools: boolean,
 ): SearchItem[] {
   if (isWarehouseOnly) {
     return [
@@ -61,7 +63,6 @@ function buildSearchItems(
 
   if (showOldSkus) {
     items.push({ label: 'Old SKUs', path: '/catalog/old-skus', section: 'Menu' })
-    items.push({ label: 'FBA Upload Compare', path: '/fba-upload-compare', section: 'Tools' })
   }
 
   if (hasKeepaAccess) {
@@ -79,8 +80,11 @@ function buildSearchItems(
     { label: 'Freight Class Calculator', path: '/freight-class-calculator', section: 'Tools' },
   )
 
-  if (showFbaBoxContents) {
-    items.push({ label: 'FBA Box Contents', path: '/fba-box-contents', section: 'Tools' })
+  if (showBcTools) {
+    if (showFbaBoxContents) {
+      items.push({ label: 'FBA Box Contents', path: '/fba-box-contents', section: 'BC Tools' })
+    }
+    items.push({ label: 'FBA Upload Compare', path: '/fba-upload-compare', section: 'BC Tools' })
   }
 
   items.push(
@@ -130,6 +134,10 @@ export default function NavbarSearch() {
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
+  const showBcTools = canAccessBcTools(
+    userInfo?.email || authUser?.email,
+    isSuperadmin,
+  )
 
   const searchItems = useMemo(
     () =>
@@ -142,8 +150,9 @@ export default function NavbarSearch() {
         showProjects,
         showFbaBoxContents,
         showOldSkus,
+        showBcTools,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showMasterSheet, showAnalytics, showProjects, showFbaBoxContents, showOldSkus],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showMasterSheet, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools],
   )
 
   const results = useMemo(() => {
