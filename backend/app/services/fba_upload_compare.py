@@ -393,14 +393,34 @@ def parse_amz_upload(content: bytes) -> ParsedAmz:
 
 def build_upc_to_old_sku_map(
     catalog_rows: Sequence[Mapping[str, object]],
+    *,
+    amz_ids: set[str] | None = None,
 ) -> dict[str, str]:
-    """Map UPC Code → Old SKU from catalog rows (first wins if duplicates)."""
-    mapping: dict[str, str] = {}
+    """Map UPC Code → Old SKU, preferring real Old SKUs used in the AMZ file.
+
+    The catalog often stores both an identity row (``old_sku == upc_code``) and a
+    true Old SKU row (e.g. ``9990262``) for the same UPC. Identity rows must not
+    win the mapping or remaps and yellow highlights break.
+    """
+    amz_ids = amz_ids or set()
+    candidates: dict[str, list[str]] = defaultdict(list)
     for row in catalog_rows:
         upc = _cell_text(row.get("upc_code"))
         old = _cell_text(row.get("old_sku"))
-        if upc and old and upc not in mapping:
-            mapping[upc] = old
+        if not upc or not old:
+            continue
+        if old not in candidates[upc]:
+            candidates[upc].append(old)
+
+    mapping: dict[str, str] = {}
+    for upc, olds in candidates.items():
+        in_amz = [old for old in olds if old != upc and old in amz_ids]
+        if in_amz:
+            mapping[upc] = in_amz[0]
+            continue
+        non_identity = [old for old in olds if old != upc]
+        if non_identity:
+            mapping[upc] = non_identity[0]
     return mapping
 
 
@@ -414,7 +434,7 @@ def apply_old_sku_remaps(
     remapped_rows: list[ContentRow] = []
     for row in output.rows:
         old_sku = upc_to_old_sku.get(row.identifier)
-        if old_sku and old_sku in amz_ids:
+        if old_sku and old_sku in amz_ids and old_sku != row.identifier:
             remapped_rows.append(
                 ContentRow(
                     identifier=old_sku,
@@ -658,7 +678,8 @@ def generate_fba_upload_compare(
 ) -> FbaUploadCompareResult:
     parsed_output = parse_output_workbook(output_content)
     parsed_amz = parse_amz_upload(amz_content)
-    upc_to_old = build_upc_to_old_sku_map(catalog_rows)
+    amz_ids = {row.sku_id for row in parsed_amz.skus}
+    upc_to_old = build_upc_to_old_sku_map(catalog_rows, amz_ids=amz_ids)
 
     remapped_rows = apply_old_sku_remaps(parsed_output, parsed_amz, upc_to_old)
     # Missing-items compare uses original Output identifiers + catalog links
