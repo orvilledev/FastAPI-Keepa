@@ -246,6 +246,7 @@ def _to_response(
     can_edit_checklist: bool = False,
     folder_name: Optional[str] = None,
     starred: bool = False,
+    total_units: int = 0,
 ) -> ShipmentResponse:
     payload = dict(shipment)
     vendor = str(payload.get("vendor") or "")
@@ -267,6 +268,7 @@ def _to_response(
         contributor_count=contributor_count,
         row_count=row_count,
         unique_upc_count=unique_upc_count,
+        total_units=total_units,
         can_delete=can_delete,
         created_by_name=created_by_name
         or _person_name({}, shipment.get("created_by"), shipment.get("created_by_email")),
@@ -376,6 +378,7 @@ def list_shipments(
                 contributor_count=len({str(item.get("uploaded_by")) for item in group}),
                 row_count=sum(int(item.get("row_count") or 0) for item in group),
                 unique_upc_count=len(upcs.get(key, set())),
+                total_units=sum(int(item.get("total_units") or 0) for item in group),
                 can_delete=admin or str(shipment.get("created_by")) == current_user["id"],
                 created_by_name=_person_name(
                     names, shipment.get("created_by"), shipment.get("created_by_email")
@@ -615,6 +618,7 @@ def move_shipment(
                 contributor_count=len({str(item.get("uploaded_by")) for item in group}),
                 row_count=sum(int(item.get("row_count") or 0) for item in group),
                 unique_upc_count=len(upcs.get(key, set())),
+                total_units=sum(int(item.get("total_units") or 0) for item in group),
                 can_delete=admin or str(row.get("created_by")) == current_user["id"],
                 created_by_name=_person_name(
                     names, row.get("created_by"), row.get("created_by_email")
@@ -742,6 +746,7 @@ def star_shipment(
         contributor_count=len({str(item.get("uploaded_by")) for item in uploads}),
         row_count=sum(int(item.get("row_count") or 0) for item in uploads),
         unique_upc_count=len(upcs.get(str(shipment_id), set())),
+        total_units=sum(int(item.get("total_units") or 0) for item in uploads),
         can_delete=admin or str(shipment.get("created_by")) == current_user["id"],
         folder_name=folder_names.get(str(folder_id)) if folder_id else None,
         starred=True,
@@ -773,6 +778,7 @@ def unstar_shipment(
         contributor_count=len({str(item.get("uploaded_by")) for item in uploads}),
         row_count=sum(int(item.get("row_count") or 0) for item in uploads),
         unique_upc_count=len(upcs.get(str(shipment_id), set())),
+        total_units=sum(int(item.get("total_units") or 0) for item in uploads),
         can_delete=admin or str(shipment.get("created_by")) == current_user["id"],
         folder_name=folder_names.get(str(folder_id)) if folder_id else None,
         starred=False,
@@ -942,6 +948,7 @@ def get_shipment(
         contributor_count=len({str(item.get("uploaded_by")) for item in uploads}),
         row_count=collected,
         unique_upc_count=len(compiled),
+        total_units=sum(int(item.get("total_units") or 0) for item in uploads),
         can_delete=admin or str(shipment.get("created_by")) == current_user["id"],
         created_by_name=_person_name(
             names, shipment.get("created_by"), shipment.get("created_by_email")
@@ -1006,6 +1013,7 @@ def update_shipment(
         contributor_count=len({str(item.get("uploaded_by")) for item in uploads}),
         row_count=row_count,
         unique_upc_count=unique_upc_count,
+        total_units=sum(int(item.get("total_units") or 0) for item in uploads),
         can_delete=True,
         created_by_name=_person_name(
             names, updated.get("created_by"), updated.get("created_by_email")
@@ -1109,6 +1117,7 @@ def update_shipment_checklist(
         contributor_count=len({str(item.get("uploaded_by")) for item in uploads}),
         row_count=row_count,
         unique_upc_count=unique_upc_count,
+        total_units=sum(int(item.get("total_units") or 0) for item in uploads),
         can_delete=admin or str(updated.get("created_by")) == current_user["id"],
         created_by_name=_person_name(
             names, updated.get("created_by"), updated.get("created_by_email")

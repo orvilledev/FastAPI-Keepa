@@ -489,7 +489,7 @@ class ShipmentRepository:
         try:
             response = (
                 self.db.table(_UPLOADS)
-                .select("shipment_id, uploaded_by, row_count")
+                .select("shipment_id, uploaded_by, row_count, total_units")
                 .in_("shipment_id", shipment_ids)
                 .execute()
             )
@@ -588,25 +588,38 @@ class ShipmentRepository:
         return merged
 
     def upcs_for_shipments(self, shipment_ids: List[str]) -> Dict[str, set[str]]:
-        """shipment_id -> set of UPCs, for list-view stats in a single query."""
+        """shipment_id -> set of UPCs, for list-view stats (paginated).
+
+        PostgREST caps a single response; large shipments must be walked in pages
+        or Unique UPCs undercounts (often to zero for big groups).
+        """
         if not shipment_ids:
             return {}
-        try:
-            response = (
-                self.db.table(_ROWS)
-                .select("shipment_id, upc")
-                .in_("shipment_id", shipment_ids)
-                .execute()
-            )
-        except Exception as exc:
-            logger.error("shipment upc summary failed: %s", exc, exc_info=True)
-            _raise_persist_error(exc, _ROWS)
         grouped: Dict[str, set[str]] = {}
-        for row in response.data or []:
-            upc = (row.get("upc") or "").strip()
-            if not upc:
-                continue
-            grouped.setdefault(str(row.get("shipment_id")), set()).add(upc)
+        offset = 0
+        page = 1000
+        while True:
+            try:
+                response = (
+                    self.db.table(_ROWS)
+                    .select("shipment_id, upc")
+                    .in_("shipment_id", shipment_ids)
+                    .limit(page)
+                    .offset(offset)
+                    .execute()
+                )
+            except Exception as exc:
+                logger.error("shipment upc summary failed: %s", exc, exc_info=True)
+                _raise_persist_error(exc, _ROWS)
+            chunk = response.data or []
+            for row in chunk:
+                upc = (row.get("upc") or "").strip()
+                if not upc:
+                    continue
+                grouped.setdefault(str(row.get("shipment_id")), set()).add(upc)
+            if len(chunk) < page:
+                break
+            offset += page
         return grouped
 
     def existing_upcs(self, shipment_id: str) -> set[str]:

@@ -120,6 +120,7 @@ export interface ShipmentRecord {
   contributor_count: number
   row_count: number
   unique_upc_count: number
+  total_units: number
   can_delete: boolean
   /** Per-user follow — shows in Starred section. */
   starred?: boolean

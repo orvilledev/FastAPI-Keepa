@@ -557,12 +557,13 @@ export default function ShipmentDetail() {
         )}
       </header>
 
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {[
           { label: 'Uploads', value: shipment.upload_count },
           { label: 'Contributors', value: shipment.contributor_count },
           { label: 'Rows collected', value: shipment.row_count },
           { label: 'Unique UPCs', value: shipment.unique_upc_count },
+          { label: 'Units', value: shipment.total_units ?? 0 },
         ].map((stat) => (
           <div key={stat.label} className="rounded-lg border border-gray-200 bg-white p-3">
             <div className="text-xs uppercase tracking-wide text-gray-500">{stat.label}</div>

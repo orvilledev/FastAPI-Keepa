@@ -291,6 +291,7 @@ class ShipmentResponse(BaseModel):
     contributor_count: int = 0
     row_count: int = 0
     unique_upc_count: int = 0
+    total_units: int = 0
     can_delete: bool = False
     starred: bool = False
 

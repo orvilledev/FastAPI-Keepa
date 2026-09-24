@@ -685,6 +685,7 @@ export default function ShipmentManager() {
         <td className="px-4 py-2">{shipment.upload_count}</td>
         <td className="px-4 py-2">{shipment.contributor_count}</td>
         <td className="px-4 py-2">{shipment.unique_upc_count.toLocaleString()}</td>
+        <td className="px-4 py-2">{(shipment.total_units ?? 0).toLocaleString()}</td>
         <td className="px-4 py-2 text-gray-600">{formatDate(shipment.created_at)}</td>
         <td className="px-4 py-2 text-right">
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -1048,6 +1049,7 @@ export default function ShipmentManager() {
                   <th className="px-4 py-2">Uploads</th>
                   <th className="px-4 py-2">Contributors</th>
                   <th className="px-4 py-2">Unique UPCs</th>
+                  <th className="px-4 py-2">Units</th>
                   <th className="px-4 py-2">Registered</th>
                   <th className="px-4 py-2 text-right">Actions</th>
                 </tr>
