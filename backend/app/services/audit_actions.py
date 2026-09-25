@@ -287,6 +287,8 @@ _ROUTES: Tuple[_Route, ...] = (
     _r("DELETE", r"^/api/v1/shipments/[^/]+$", "shipment.delete", "other", "Deleted a shipment"),
     _r("POST", r"^/api/v1/shipments/folders$",
        "shipment.folder_create", "other", "Created a shipment folder"),
+    _r("PATCH", r"^/api/v1/shipments/folders/[^/]+/ledger$",
+       "shipment.folder_ledger", "other", "Saved a shipment cluster ledger link"),
     _r("PATCH", r"^/api/v1/shipments/folders/[^/]+$",
        "shipment.folder_rename", "other", "Renamed a shipment folder"),
     _r("DELETE", r"^/api/v1/shipments/folders/[^/]+$",

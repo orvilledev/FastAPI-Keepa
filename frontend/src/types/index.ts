@@ -131,6 +131,8 @@ export interface ShipmentFolder {
   id: string
   name: string
   sort_order?: number
+  /** Link to this cluster's own ledger. Empty when none is saved. */
+  ledger_url?: string | null
   created_by: string
   created_by_email: string
   created_at: string

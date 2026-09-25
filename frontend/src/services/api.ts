@@ -2150,6 +2150,13 @@ export const shipmentsApi = {
     })
     return response.data
   },
+  saveFolderLedger: async (folderId: string, ledgerUrl: string): Promise<ShipmentFolder> => {
+    const response = await api.patch<ShipmentFolder>(
+      `/api/v1/shipments/folders/${folderId}/ledger`,
+      { ledger_url: ledgerUrl },
+    )
+    return response.data
+  },
   addToFolder: async (folderId: string, shipmentIds: string[]): Promise<ShipmentFolder> => {
     const response = await api.post<ShipmentFolder>(
       `/api/v1/shipments/folders/${folderId}/members`,

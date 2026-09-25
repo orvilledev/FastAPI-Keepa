@@ -2,6 +2,7 @@
 from datetime import datetime
 import re
 from typing import Any, Dict, List, Literal, Optional
+from urllib.parse import urlparse
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -230,6 +231,41 @@ class ShipmentFolderUpdate(BaseModel):
         return cleaned
 
 
+_LEDGER_URL_RE = re.compile(r"^https?://[^\s<>\"']+$", re.IGNORECASE)
+
+
+def normalize_ledger_url(value: Optional[str]) -> str:
+    """Keep one http(s) link per cluster. A blank value clears the link."""
+    cleaned = (value or "").strip()
+    if not cleaned:
+        return ""
+    lowered = cleaned.lower()
+    if lowered.startswith("http://") or lowered.startswith("https://"):
+        candidate = cleaned
+    elif "://" in cleaned:
+        raise ValueError("Ledger link must start with http:// or https://.")
+    else:
+        candidate = "https://" + cleaned
+    if len(candidate) > 2000 or not _LEDGER_URL_RE.match(candidate):
+        raise ValueError("Enter a valid ledger link (http or https).")
+    parsed = urlparse(candidate)
+    host = (parsed.hostname or "").strip().lower()
+    if parsed.scheme not in {"http", "https"} or not host:
+        raise ValueError("Enter a valid ledger link (http or https).")
+    if "." not in host and host != "localhost":
+        raise ValueError("Enter a valid ledger link (http or https).")
+    return candidate
+
+
+class ShipmentFolderLedgerUpdate(BaseModel):
+    ledger_url: str = Field(default="", max_length=2000)
+
+    @field_validator("ledger_url")
+    @classmethod
+    def clean_ledger_url(cls, value: str) -> str:
+        return normalize_ledger_url(value)
+
+
 class ShipmentFolderMembers(BaseModel):
     shipment_ids: List[UUID] = Field(..., min_length=1)
 
@@ -238,6 +274,7 @@ class ShipmentFolderResponse(BaseModel):
     id: UUID
     name: str
     sort_order: int = 0
+    ledger_url: str = ""
     created_by: UUID
     created_by_email: str = ""
     created_at: datetime

@@ -21,6 +21,11 @@ function errorDetail(err: unknown, fallback: string): string {
   return typeof message === 'string' && message.trim() ? message : fallback
 }
 
+function httpLedgerUrl(value: string | null | undefined): string {
+  const cleaned = (value || '').trim()
+  return /^https?:\/\//i.test(cleaned) ? cleaned : ''
+}
+
 function formatDate(value: string): string {
   const parsed = new Date(value)
   return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleDateString()
@@ -105,6 +110,9 @@ export default function ShipmentManager() {
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [moveToFolderId, setMoveToFolderId] = useState('')
+  const [ledgerFolderId, setLedgerFolderId] = useState<string | null>(null)
+  const [ledgerDraft, setLedgerDraft] = useState('')
+  const [ledgerSaving, setLedgerSaving] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -462,6 +470,40 @@ export default function ShipmentManager() {
     }
   }
 
+  const openFolderLedger = (folder: ShipmentFolder) => {
+    setLedgerFolderId(folder.id)
+    setLedgerDraft(folder.ledger_url || '')
+    setError(null)
+  }
+
+  const handleSaveFolderLedger = async () => {
+    if (!ledgerFolderId || ledgerSaving) return
+    const folder = folders.find((item) => item.id === ledgerFolderId)
+    if (!folder) {
+      setLedgerFolderId(null)
+      return
+    }
+    setLedgerSaving(true)
+    setError(null)
+    try {
+      const updated = await shipmentsApi.saveFolderLedger(folder.id, ledgerDraft.trim())
+      setFolders((prev) =>
+        prev.map((item) => (item.id === folder.id ? { ...item, ...updated } : item)),
+      )
+      setLedgerDraft(updated.ledger_url || '')
+      setMessage(
+        updated.ledger_url
+          ? `Saved the ledger link for “${updated.name}”.`
+          : `Cleared the ledger link for “${updated.name}”.`,
+      )
+      setLedgerFolderId(null)
+    } catch (err) {
+      setError(errorDetail(err, 'Could not save this cluster ledger link.'))
+    } finally {
+      setLedgerSaving(false)
+    }
+  }
+
   const handleGenerateClustered = async (folder: ShipmentFolder) => {
     if (clusterGenerateId || folderBusy) return
     setClusterGenerateId(folder.id)
@@ -764,6 +806,8 @@ export default function ShipmentManager() {
       </tr>
     )
   }
+
+  const ledgerFolder = folders.find((item) => item.id === ledgerFolderId) ?? null
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -1130,6 +1174,7 @@ export default function ShipmentManager() {
                             onCancelRename={() => undefined}
                             onDelete={() => undefined}
                             onToggleStar={() => void handleToggleFolderStar(folder)}
+                            onOpenLedger={() => openFolderLedger(folder)}
                             onGenerateClustered={() => void handleGenerateClustered(folder)}
                             renderMember={(shipment) =>
                               renderShipmentRow(shipment, true, false, false, 'starred-')
@@ -1190,6 +1235,7 @@ export default function ShipmentManager() {
                       onCancelRename={() => setRenamingFolderId(null)}
                       onDelete={() => void handleDeleteFolder(folder)}
                       onToggleStar={() => void handleToggleFolderStar(folder)}
+                      onOpenLedger={() => openFolderLedger(folder)}
                       onGenerateClustered={() => void handleGenerateClustered(folder)}
                       renderMember={(shipment, index, total) =>
                         renderShipmentRow(shipment, true, index > 0, index < total - 1)
@@ -1200,6 +1246,80 @@ export default function ShipmentManager() {
               </tbody>
             </table>
           )}
+        </div>
+      )}
+      {ledgerFolder && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="presentation"
+          onClick={() => {
+            if (!ledgerSaving) setLedgerFolderId(null)
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cluster-ledger-title"
+            className="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="cluster-ledger-title" className="text-lg font-semibold text-gray-900">
+              Ledger
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              {ledgerFolder.name} has its own ledger. Paste the link for this cluster and save.
+            </p>
+            <label htmlFor="cluster-ledger-url" className="mt-4 block text-xs font-medium text-gray-700">
+              Ledger link
+            </label>
+            <input
+              id="cluster-ledger-url"
+              type="text"
+              value={ledgerDraft}
+              maxLength={2000}
+              placeholder="https://docs.google.com/spreadsheets/…"
+              onChange={(event) => setLedgerDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  void handleSaveFolderLedger()
+                }
+                if (event.key === 'Escape' && !ledgerSaving) setLedgerFolderId(null)
+              }}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+              autoFocus
+            />
+            {httpLedgerUrl(ledgerFolder.ledger_url) ? (
+              <a
+                href={httpLedgerUrl(ledgerFolder.ledger_url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 inline-block break-all text-sm font-medium text-emerald-700 hover:underline"
+              >
+                Open saved ledger
+              </a>
+            ) : (
+              <p className="mt-3 text-sm text-gray-500">No ledger link saved for this cluster yet.</p>
+            )}
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={ledgerSaving}
+                onClick={() => setLedgerFolderId(null)}
+                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={ledgerSaving}
+                onClick={() => void handleSaveFolderLedger()}
+                className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {ledgerSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -1254,6 +1374,7 @@ function FragmentFolder({
   onCancelRename,
   onDelete,
   onToggleStar,
+  onOpenLedger,
   onGenerateClustered,
   renderMember,
 }: {
@@ -1277,6 +1398,7 @@ function FragmentFolder({
   onCancelRename: () => void
   onDelete: () => void
   onToggleStar?: () => void
+  onOpenLedger?: () => void
   onGenerateClustered?: () => void
   renderMember: (shipment: ShipmentRecord, index: number, total: number) => ReactNode
 }) {
@@ -1346,6 +1468,22 @@ function FragmentFolder({
                 }`}
               >
                 {folder.starred ? '★' : '☆'}
+              </button>
+            )}
+            {onOpenLedger && (
+              <button
+                type="button"
+                disabled={folderBusy}
+                onClick={onOpenLedger}
+                aria-label={`Ledger for ${folder.name}`}
+                title={httpLedgerUrl(folder.ledger_url) || 'Add a ledger link for this cluster'}
+                className={`rounded-md border px-2.5 py-1 text-xs font-medium disabled:opacity-50 ${
+                  httpLedgerUrl(folder.ledger_url)
+                    ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                    : 'border-gray-300 text-gray-700 hover:bg-white'
+                }`}
+              >
+                Ledger
               </button>
             )}
             {onGenerateClustered && (

@@ -29,6 +29,9 @@ _CHECKLIST_MIGRATION_HINT = (
 _FOLDER_MIGRATION_HINT = (
     "Run backend/database/migrations/create_shipment_folders.sql in the Supabase SQL Editor."
 )
+_LEDGER_URL_MIGRATION_HINT = (
+    "Run backend/database/migrations/add_shipment_folder_ledger_url.sql in the Supabase SQL Editor."
+)
 _SORT_ORDER_MIGRATION_HINT = (
     "Run backend/database/migrations/add_shipment_sort_order.sql in the Supabase SQL Editor."
 )
@@ -94,6 +97,16 @@ def _raise_persist_error(exc: Exception, table: str) -> None:
     if missing_sort:
         raise ValueError(
             f"Shipment sort order is not set up yet. {_SORT_ORDER_MIGRATION_HINT}"
+        ) from exc
+    missing_ledger = table == _FOLDERS and "ledger_url" in message and (
+        "column" in message
+        or "schema cache" in message
+        or "pgrst204" in message
+        or "could not find" in message
+    )
+    if missing_ledger:
+        raise ValueError(
+            f"Shipment cluster ledgers are not set up yet. {_LEDGER_URL_MIGRATION_HINT}"
         ) from exc
     missing_folder = (
         (table == _SHIPMENTS and "folder_id" in message)

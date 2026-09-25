@@ -14,7 +14,12 @@ from app.constants.shipment_checklists import (
     resolve_checklist_steps,
     slugify_step_id,
 )
-from app.models.shipment import ShipmentChecklistUpdate, ShipmentCreate, ShipmentUpdate
+from app.models.shipment import (
+    ShipmentChecklistUpdate,
+    ShipmentCreate,
+    ShipmentFolderLedgerUpdate,
+    ShipmentUpdate,
+)
 
 
 def test_create_normalizes_vendor_to_uppercase():
@@ -172,6 +177,27 @@ def test_checklist_update_strips_completed_by_name():
         completed_by_name="  Stephanie  ",
     )
     assert payload.completed_by_name == "Stephanie"
+
+
+def test_folder_ledger_url_adds_https():
+    payload = ShipmentFolderLedgerUpdate(
+        ledger_url=" docs.google.com/spreadsheets/d/abc "
+    )
+    assert payload.ledger_url == "https://docs.google.com/spreadsheets/d/abc"
+
+
+def test_folder_ledger_url_can_be_cleared():
+    assert ShipmentFolderLedgerUpdate(ledger_url="  ").ledger_url == ""
+
+
+def test_folder_ledger_url_keeps_an_http_link():
+    link = "https://docs.google.com/spreadsheets/d/abc/edit"
+    assert ShipmentFolderLedgerUpdate(ledger_url=link).ledger_url == link
+
+
+def test_folder_ledger_url_rejects_other_schemes():
+    with pytest.raises(ValidationError, match="http"):
+        ShipmentFolderLedgerUpdate(ledger_url="javascript:alert(1)")
 
 
 def test_checklist_update_blank_completed_by_name_becomes_none():

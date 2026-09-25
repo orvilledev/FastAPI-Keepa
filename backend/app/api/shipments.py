@@ -28,6 +28,7 @@ from app.models.shipment import (
     ShipmentCreate,
     ShipmentDetailResponse,
     ShipmentFolderCreate,
+    ShipmentFolderLedgerUpdate,
     ShipmentFolderMembers,
     ShipmentFolderResponse,
     ShipmentFolderUpdate,
@@ -302,6 +303,7 @@ def _to_folder_response(
         id=folder["id"],
         name=folder["name"],
         sort_order=int(folder.get("sort_order") or 0),
+        ledger_url=str(folder.get("ledger_url") or ""),
         created_by=folder["created_by"],
         created_by_email=folder.get("created_by_email") or "",
         created_at=folder["created_at"],
@@ -526,6 +528,41 @@ def rename_shipment_folder(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     count = sum(1 for item in shipments if str(item.get("folder_id") or "") == str(folder_id))
     return _to_folder_response(updated, count)
+
+
+@router.patch(
+    "/shipments/folders/{folder_id}/ledger",
+    response_model=ShipmentFolderResponse,
+)
+@handle_api_errors("save shipment folder ledger")
+def save_shipment_folder_ledger(
+    folder_id: UUID,
+    payload: ShipmentFolderLedgerUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Save or clear the ledger link that belongs only to this cluster."""
+    repo = ShipmentRepository(db)
+    try:
+        folder = repo.get_folder(str(folder_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found.")
+    try:
+        updated = (
+            repo.update_folder(str(folder_id), {"ledger_url": payload.ledger_url}) or folder
+        )
+        shipments = repo.list_shipments()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    count = sum(1 for item in shipments if str(item.get("folder_id") or "") == str(folder_id))
+    _starred_shipments, starred_folders = _user_star_sets(repo, current_user["id"])
+    return _to_folder_response(
+        updated,
+        count,
+        starred=str(folder_id) in starred_folders,
+    )
 
 
 @router.post("/shipments/folders/{folder_id}/move", response_model=List[ShipmentFolderResponse])
