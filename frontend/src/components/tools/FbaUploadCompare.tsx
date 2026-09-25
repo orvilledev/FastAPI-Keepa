@@ -222,8 +222,9 @@ export default function FbaUploadCompare() {
         <p className="mt-1 text-sm text-gray-600">
           Compare the FBA Box Contents Output against the Amazon upload file. The AMZ file is the
           source of truth: the Result pivot is reconciled to its expected quantities, so unexpected
-          units are dropped and every shortfall is added to the last box (green highlight). Old SKUs
-          from the catalog replace matching UPCs (yellow highlight). The Result workbook carries{' '}
+          units are dropped and every shortfall is added to the last box (green highlight). Every
+          box keeps at least one unit so the shipment's box count survives upload. Old SKUs from the
+          catalog replace matching UPCs (yellow highlight). The Result workbook carries{' '}
           <strong>added units</strong>, <strong>removed units</strong>, and{' '}
           <strong>missing items</strong> tabs.
         </p>
@@ -311,7 +312,9 @@ export default function FbaUploadCompare() {
         <p className="text-xs text-gray-500">
           Remaps use the Old SKUs catalog (UPC Code → OLD SKU). Only UPCs whose Old SKU appears in
           the AMZ upload are replaced and highlighted yellow in column A. Surplus units are trimmed
-          from the highest box numbers first; every box column is kept even when it empties out.
+          from the highest box numbers first, and no box is ever left empty — a deduction stops
+          before it would clear a box, and a box holding only unexpected UPCs is seeded from the
+          units being added, so Seller Central keeps the full box count.
         </p>
       </section>
     </div>

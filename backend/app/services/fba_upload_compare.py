@@ -12,6 +12,7 @@ Produces a Result workbook in the same Output format:
     that Old SKU (via the Old SKUs catalog UPC ↔ Old SKU mapping)
   - Drop UPCs/units the AMZ file does not expect, and top up shortfalls in the
     last box (green highlight) so every pivot total equals the AMZ quantity
+  - Never leave a box empty, so Seller Central keeps the shipment's box count
   - Rebuild the Sum-of-QTY pivot with remapped identifiers, keeping every
     original box column so the layout still lines up with Dimensions
   - Copy Dimensions unchanged
@@ -50,10 +51,15 @@ PIVOT_START_COL = 7  # column G
 _SKU_SUFFIX_RE = re.compile(r"-FNSKU$", re.IGNORECASE)
 _QTY_EPSILON = 0.0001
 
+# Seller Central drops boxes with no units, which would shrink the box count.
+MIN_UNITS_PER_BOX = 1
+
 NOT_IN_AMZ_REASON = "Not expected in AMZ upload"
 SURPLUS_REASON = "Surplus vs AMZ expected quantity"
 MISSING_UPC_REASON = "UPC absent from Output"
 SHORTFALL_REASON = "Short vs AMZ expected quantity"
+SEEDED_BOX_REASON = "Seeded to keep the box from emptying"
+RELOCATED_REASON = "Moved to keep another box from emptying"
 
 
 class FbaUploadCompareError(ValueError):
@@ -602,8 +608,13 @@ def reconcile_to_amz(
     """Force Box Contents totals to equal the AMZ expected quantities.
 
     The AMZ upload is the source of truth, so anything it does not expect is
-    removed (surplus units come off the highest box numbers first) and every
-    shortfall is topped up in the last box.
+    removed and every shortfall is topped up in the last box.
+
+    No box is allowed to end up empty, because Seller Central drops empty boxes
+    and would shrink the shipment's box count. Surplus units therefore come off
+    the highest box numbers first but never take a box below
+    ``MIN_UNITS_PER_BOX``, and any box left empty by units the AMZ file does not
+    expect is seeded from the units being added.
     """
     targets: dict[str, int | float] = {}
     for sku in amz.skus:
@@ -622,8 +633,8 @@ def reconcile_to_amz(
             return upc
         return None
 
-    # Keep every original box column: reconciling can empty a box completely,
-    # and the pivot still has to line up with the AMZ boxes and Dimensions.
+    # Keep every original box: reconciling must not change the shipment's box
+    # count, and the pivot has to line up with the AMZ boxes and Dimensions.
     box_numbers = sorted({row.box_number for row in rows})
     if not box_numbers:
         raise FbaUploadCompareError("Output file has no Box Contents rows.")
@@ -655,63 +666,137 @@ def reconcile_to_amz(
             )
         )
 
-    added: list[AdjustmentRow] = []
+    box_totals: dict[int, int | float] = {box: 0 for box in box_numbers}
+    for row in work:
+        box_totals[row.box_number] += row.qty
+
+    def take_from(index: int, take: int | float) -> None:
+        work[index].qty -= take
+        box_totals[work[index].box_number] -= take
+        removed.append(
+            AdjustmentRow(
+                identifier=work[index].identifier,
+                box_number=work[index].box_number,
+                qty=take,
+                reason=SURPLUS_REASON,
+            )
+        )
+
+    shortfalls: dict[str, int | float] = {}
     for key in sorted(targets):
-        target = targets[key]
         indexes = grouped.get(key, [])
         current: int | float = 0
         for index in indexes:
             current += work[index].qty
-        delta = target - current
+        delta = targets[key] - current
         if abs(delta) <= _QTY_EPSILON:
             continue
-        if delta < 0:
-            surplus = -delta
-            # Trim the tail boxes first so the earlier boxes stay as packed.
-            for index in sorted(indexes, key=lambda i: (work[i].box_number, i), reverse=True):
-                if surplus <= _QTY_EPSILON:
-                    break
-                take = min(surplus, work[index].qty)
-                if take <= 0:
-                    continue
-                work[index].qty -= take
-                surplus -= take
-                removed.append(
-                    AdjustmentRow(
-                        identifier=key,
-                        box_number=work[index].box_number,
-                        qty=take,
-                        reason=SURPLUS_REASON,
-                    )
-                )
+        if delta > 0:
+            shortfalls[key] = delta
             continue
-        added.append(
-            AdjustmentRow(
-                identifier=key,
-                box_number=last_box,
-                qty=delta,
-                reason=SHORTFALL_REASON if indexes else MISSING_UPC_REASON,
-            )
-        )
+
+        surplus = -delta
+        # Trim the tail boxes first so the earlier boxes stay as packed, but
+        # never take the units that are keeping a box alive.
+        tail_first = sorted(indexes, key=lambda i: (work[i].box_number, i), reverse=True)
+        for index in tail_first:
+            if surplus <= _QTY_EPSILON:
+                break
+            spare = box_totals[work[index].box_number] - MIN_UNITS_PER_BOX
+            take = min(surplus, work[index].qty, spare)
+            if take <= 0:
+                continue
+            take_from(index, take)
+            surplus -= take
+        # Every box holding this UPC is already at its floor, so the surplus has
+        # to come off anyway; the seeding pass below refills whatever empties.
+        for index in tail_first:
+            if surplus <= _QTY_EPSILON:
+                break
+            take = min(surplus, work[index].qty)
+            if take <= 0:
+                continue
+            take_from(index, take)
+            surplus -= take
 
     kept = [row for row in work if row.qty]
-    last_box_rows = {row.identifier: row for row in kept if row.box_number == last_box}
+    # Placements are decided before any row is touched so the "added units" tab
+    # reports the box each unit actually lands in.
+    placements: list[AdjustmentRow] = []
+
+    def place(identifier: str, box: int, qty: int | float, reason: str) -> None:
+        placements.append(
+            AdjustmentRow(identifier=identifier, box_number=box, qty=qty, reason=reason)
+        )
+        box_totals[box] += qty
+
+    shortfall_reasons = {
+        key: SHORTFALL_REASON if grouped.get(key) else MISSING_UPC_REASON for key in shortfalls
+    }
+    for box in box_numbers:
+        if box_totals[box] > _QTY_EPSILON:
+            continue
+        if box == last_box and shortfalls:
+            # Whatever is left over is placed here below, so it fills itself.
+            continue
+        donor = max(
+            (key for key, qty in shortfalls.items() if qty >= MIN_UNITS_PER_BOX),
+            key=lambda key: (shortfalls[key], key),
+            default=None,
+        )
+        if donor is not None:
+            shortfalls[donor] -= MIN_UNITS_PER_BOX
+            if shortfalls[donor] <= _QTY_EPSILON:
+                del shortfalls[donor]
+            place(donor, box, MIN_UNITS_PER_BOX, SEEDED_BOX_REASON)
+            continue
+        # Nothing is being added, so move a unit out of the fullest box instead.
+        spare_rows = [
+            row
+            for row in kept
+            if row.qty >= MIN_UNITS_PER_BOX
+            and box_totals[row.box_number] - MIN_UNITS_PER_BOX >= MIN_UNITS_PER_BOX
+        ]
+        if not spare_rows:
+            continue
+        source = max(spare_rows, key=lambda row: (box_totals[row.box_number], row.qty))
+        source.qty -= MIN_UNITS_PER_BOX
+        box_totals[source.box_number] -= MIN_UNITS_PER_BOX
+        removed.append(
+            AdjustmentRow(
+                identifier=source.identifier,
+                box_number=source.box_number,
+                qty=MIN_UNITS_PER_BOX,
+                reason=RELOCATED_REASON,
+            )
+        )
+        place(source.identifier, box, MIN_UNITS_PER_BOX, SEEDED_BOX_REASON)
+
+    for key in sorted(shortfalls):
+        place(key, last_box, shortfalls[key], shortfall_reasons[key])
+
+    existing_rows = {(row.identifier, row.box_number): row for row in kept if row.qty}
     appended: list[_WorkRow] = []
-    for adjustment in added:
-        existing = last_box_rows.get(adjustment.identifier)
+    for placement in placements:
+        slot = (placement.identifier, placement.box_number)
+        existing = existing_rows.get(slot)
         if existing is not None:
-            existing.qty += adjustment.qty
+            existing.qty += placement.qty
             existing.added = True
             continue
         new_row = _WorkRow(
-            identifier=adjustment.identifier,
-            box_number=last_box,
-            qty=adjustment.qty,
+            identifier=placement.identifier,
+            box_number=placement.box_number,
+            qty=placement.qty,
             added=True,
         )
-        last_box_rows[adjustment.identifier] = new_row
+        existing_rows[slot] = new_row
         appended.append(new_row)
-    kept.extend(appended)
+
+    # Seeding can target any box, so re-sort to keep the Output's box ordering.
+    rows_out = [row for row in kept if row.qty] + appended
+    sequence = {id(row): index for index, row in enumerate(rows_out)}
+    rows_out.sort(key=lambda row: (row.box_number, sequence[id(row)]))
 
     return Reconciliation(
         rows=[
@@ -722,11 +807,11 @@ def reconcile_to_amz(
                 remapped=row.remapped,
                 added=row.added,
             )
-            for row in kept
+            for row in rows_out
         ],
         box_numbers=box_numbers,
         last_box=last_box,
-        added=added,
+        added=placements,
         removed=removed,
     )
 
