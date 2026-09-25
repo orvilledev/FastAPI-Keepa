@@ -117,6 +117,11 @@ type GenerateSummary = {
   totalQty: number
   remappedCount: number
   missingCount: number
+  addedCount: number
+  addedQty: number
+  removedCount: number
+  removedQty: number
+  lastBox: number
   shipmentId: string
 }
 
@@ -157,6 +162,11 @@ export default function FbaUploadCompare() {
         totalQty: result.totalQty,
         remappedCount: result.remappedCount,
         missingCount: result.missingCount,
+        addedCount: result.addedCount,
+        addedQty: result.addedQty,
+        removedCount: result.removedCount,
+        removedQty: result.removedQty,
+        lastBox: result.lastBox,
         shipmentId: result.shipmentId,
       })
       downloadBlob(result.blob, result.filename)
@@ -210,9 +220,12 @@ export default function FbaUploadCompare() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">FBA Upload Compare</h1>
         <p className="mt-1 text-sm text-gray-600">
-          Compare the FBA Box Contents Output against the Amazon upload file. Old SKUs from the
-          catalog replace matching UPCs (yellow highlight). Quantity or SKU gaps go on a{' '}
-          <strong>missing items</strong> tab in the Result workbook.
+          Compare the FBA Box Contents Output against the Amazon upload file. The AMZ file is the
+          source of truth: the Result pivot is reconciled to its expected quantities, so unexpected
+          units are dropped and every shortfall is added to the last box (green highlight). Old SKUs
+          from the catalog replace matching UPCs (yellow highlight). The Result workbook carries{' '}
+          <strong>added units</strong>, <strong>removed units</strong>, and{' '}
+          <strong>missing items</strong> tabs.
         </p>
       </div>
 
@@ -225,9 +238,18 @@ export default function FbaUploadCompare() {
         {success && (
           <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
             Downloaded <strong>{success.filename}</strong> ({success.rowCount} lines,{' '}
-            {success.boxCount} boxes, {success.upcCount} SKUs/UPCs, {success.totalQty} units
+            {success.boxCount} boxes, {success.upcCount} SKUs/UPCs, {success.totalQty} units matching
+            the AMZ upload
             {success.remappedCount ? `, ${success.remappedCount} remapped to Old SKUs` : ''}
-            {success.missingCount ? `, ${success.missingCount} missing-item row(s)` : ', no missing items'}
+            {success.addedQty
+              ? `, ${success.addedQty} units added to box ${success.lastBox} across ${success.addedCount} UPC(s)`
+              : ''}
+            {success.removedQty
+              ? `, ${success.removedQty} units removed across ${success.removedCount} line(s)`
+              : ''}
+            {success.missingCount
+              ? `, ${success.missingCount} original discrepancy row(s) logged on missing items`
+              : ', no discrepancies found'}
             {success.shipmentId ? `, ${success.shipmentId}` : ''}).
           </div>
         )}
@@ -288,7 +310,8 @@ export default function FbaUploadCompare() {
 
         <p className="text-xs text-gray-500">
           Remaps use the Old SKUs catalog (UPC Code → OLD SKU). Only UPCs whose Old SKU appears in
-          the AMZ upload are replaced and highlighted yellow in column A.
+          the AMZ upload are replaced and highlighted yellow in column A. Surplus units are trimmed
+          from the highest box numbers first; every box column is kept even when it empties out.
         </p>
       </section>
     </div>

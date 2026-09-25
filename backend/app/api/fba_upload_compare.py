@@ -104,6 +104,11 @@ async def generate_fba_upload_compare_file(
             "X-Fba-Total-Qty": str(result.total_qty),
             "X-Fba-Remapped-Count": str(result.remapped_count),
             "X-Fba-Missing-Count": str(result.missing_count),
+            "X-Fba-Added-Count": str(result.added_count),
+            "X-Fba-Added-Qty": str(result.added_qty),
+            "X-Fba-Removed-Count": str(result.removed_count),
+            "X-Fba-Removed-Qty": str(result.removed_qty),
+            "X-Fba-Last-Box": str(result.last_box),
             "X-Fba-Shipment-Id": result.shipment_id,
         },
     )

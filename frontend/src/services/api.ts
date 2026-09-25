@@ -1916,6 +1916,11 @@ export type FbaUploadCompareResult = {
   totalQty: number
   remappedCount: number
   missingCount: number
+  addedCount: number
+  addedQty: number
+  removedCount: number
+  removedQty: number
+  lastBox: number
   shipmentId: string
 }
 
@@ -1948,6 +1953,11 @@ export const fbaUploadCompareApi = {
         totalQty: Number(headers['x-fba-total-qty'] || 0),
         remappedCount: Number(headers['x-fba-remapped-count'] || 0),
         missingCount: Number(headers['x-fba-missing-count'] || 0),
+        addedCount: Number(headers['x-fba-added-count'] || 0),
+        addedQty: Number(headers['x-fba-added-qty'] || 0),
+        removedCount: Number(headers['x-fba-removed-count'] || 0),
+        removedQty: Number(headers['x-fba-removed-qty'] || 0),
+        lastBox: Number(headers['x-fba-last-box'] || 0),
         shipmentId: String(headers['x-fba-shipment-id'] || ''),
       }
     } catch (err: unknown) {

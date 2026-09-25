@@ -4,12 +4,19 @@ Takes:
   - Output (``Box Contents`` + ``Dimensions`` from FBA Box Contents tools)
   - Amazon ``Upload file - AMZ`` (``Box packing information`` sheet)
 
+The AMZ upload file is the source of truth: the Result Box Contents is
+reconciled so the Sum-of-QTY pivot matches the AMZ expected quantities exactly.
+
 Produces a Result workbook in the same Output format:
   - Remap Output UPCs to Old SKUs (yellow highlight) when the AMZ file uses
     that Old SKU (via the Old SKUs catalog UPC ↔ Old SKU mapping)
-  - Rebuild the Sum-of-QTY pivot with remapped identifiers
+  - Drop UPCs/units the AMZ file does not expect, and top up shortfalls in the
+    last box (green highlight) so every pivot total equals the AMZ quantity
+  - Rebuild the Sum-of-QTY pivot with remapped identifiers, keeping every
+    original box column so the layout still lines up with Dimensions
   - Copy Dimensions unchanged
-  - Add a ``missing items`` sheet when SKU/UPC or quantity discrepancies exist
+  - Add ``added units`` / ``removed units`` sheets for the reconciliation, plus a
+    ``missing items`` sheet when SKU/UPC or quantity discrepancies exist
 """
 from __future__ import annotations
 
@@ -31,13 +38,22 @@ _CALIBRI = Font(name="Calibri", size=11)
 _CALIBRI_BOLD = Font(name="Calibri", size=11, bold=True)
 _LEFT = Alignment(horizontal="left", vertical="center")
 _YELLOW = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+_GREEN = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
 
 BOX_CONTENTS_SHEET = "Box Contents"
 DIMENSIONS_SHEET = "Dimensions"
+ADDED_UNITS_SHEET = "added units"
+REMOVED_UNITS_SHEET = "removed units"
 MISSING_ITEMS_SHEET = "missing items"
 DEFAULT_RESULT_FILENAME = "FBA Result.xlsx"
 PIVOT_START_COL = 7  # column G
 _SKU_SUFFIX_RE = re.compile(r"-FNSKU$", re.IGNORECASE)
+_QTY_EPSILON = 0.0001
+
+NOT_IN_AMZ_REASON = "Not expected in AMZ upload"
+SURPLUS_REASON = "Surplus vs AMZ expected quantity"
+MISSING_UPC_REASON = "UPC absent from Output"
+SHORTFALL_REASON = "Short vs AMZ expected quantity"
 
 
 class FbaUploadCompareError(ValueError):
@@ -50,6 +66,18 @@ class ContentRow:
     box_number: int
     qty: int | float
     remapped: bool = False
+    added: bool = False
+
+
+@dataclass
+class _WorkRow:
+    """Mutable Box Contents row used while reconciling against the AMZ file."""
+
+    identifier: str
+    box_number: int
+    qty: int | float
+    remapped: bool = False
+    added: bool = False
 
 
 @dataclass(frozen=True)
@@ -65,6 +93,25 @@ class AmzSkuRow:
     sku_id: str
     expected_qty: int | float
     product_title: str = ""
+
+
+@dataclass(frozen=True)
+class AdjustmentRow:
+    """One unit movement applied while reconciling the Output to the AMZ file."""
+
+    identifier: str
+    box_number: int
+    qty: int | float
+    reason: str = ""
+
+
+@dataclass
+class Reconciliation:
+    rows: list[ContentRow] = field(default_factory=list)
+    box_numbers: list[int] = field(default_factory=list)
+    last_box: int = 0
+    added: list[AdjustmentRow] = field(default_factory=list)
+    removed: list[AdjustmentRow] = field(default_factory=list)
 
 
 @dataclass
@@ -102,6 +149,11 @@ class FbaUploadCompareResult:
     remapped_count: int
     missing_count: int
     shipment_id: str
+    added_count: int = 0
+    added_qty: int | float = 0
+    removed_count: int = 0
+    removed_qty: int | float = 0
+    last_box: int = 0
 
 
 def sanitize_result_filename(
@@ -453,7 +505,11 @@ def find_missing_items(
     amz: ParsedAmz,
     upc_to_old_sku: Mapping[str, str],
 ) -> list[MissingItem]:
-    """Compare identifiers and quantities between Output and AMZ expected qty."""
+    """Compare identifiers and quantities between Output and AMZ expected qty.
+
+    This reports the Output as submitted, before ``reconcile_to_amz`` rewrites it,
+    so the Result keeps a record of what did not line up.
+    """
     old_to_upc = {old: upc for upc, old in upc_to_old_sku.items()}
 
     output_totals: dict[str, float] = defaultdict(float)
@@ -538,7 +594,148 @@ def find_missing_items(
     return missing
 
 
-def _write_box_contents(sheet: Worksheet, rows: Sequence[ContentRow]) -> int | float:
+def reconcile_to_amz(
+    rows: Sequence[ContentRow],
+    amz: ParsedAmz,
+    upc_to_old_sku: Mapping[str, str],
+) -> Reconciliation:
+    """Force Box Contents totals to equal the AMZ expected quantities.
+
+    The AMZ upload is the source of truth, so anything it does not expect is
+    removed (surplus units come off the highest box numbers first) and every
+    shortfall is topped up in the last box.
+    """
+    targets: dict[str, int | float] = {}
+    for sku in amz.skus:
+        targets[sku.sku_id] = targets.get(sku.sku_id, 0) + sku.expected_qty
+
+    old_to_upc = {old: upc for upc, old in upc_to_old_sku.items()}
+
+    def resolve(identifier: str) -> str | None:
+        if identifier in targets:
+            return identifier
+        old = upc_to_old_sku.get(identifier)
+        if old and old in targets:
+            return old
+        upc = old_to_upc.get(identifier)
+        if upc and upc in targets:
+            return upc
+        return None
+
+    # Keep every original box column: reconciling can empty a box completely,
+    # and the pivot still has to line up with the AMZ boxes and Dimensions.
+    box_numbers = sorted({row.box_number for row in rows})
+    if not box_numbers:
+        raise FbaUploadCompareError("Output file has no Box Contents rows.")
+    last_box = box_numbers[-1]
+
+    work: list[_WorkRow] = []
+    grouped: dict[str, list[int]] = defaultdict(list)
+    removed: list[AdjustmentRow] = []
+
+    for row in rows:
+        key = resolve(row.identifier)
+        if key is None:
+            removed.append(
+                AdjustmentRow(
+                    identifier=row.identifier,
+                    box_number=row.box_number,
+                    qty=row.qty,
+                    reason=NOT_IN_AMZ_REASON,
+                )
+            )
+            continue
+        grouped[key].append(len(work))
+        work.append(
+            _WorkRow(
+                identifier=key,
+                box_number=row.box_number,
+                qty=row.qty,
+                remapped=row.remapped or key != row.identifier,
+            )
+        )
+
+    added: list[AdjustmentRow] = []
+    for key in sorted(targets):
+        target = targets[key]
+        indexes = grouped.get(key, [])
+        current: int | float = 0
+        for index in indexes:
+            current += work[index].qty
+        delta = target - current
+        if abs(delta) <= _QTY_EPSILON:
+            continue
+        if delta < 0:
+            surplus = -delta
+            # Trim the tail boxes first so the earlier boxes stay as packed.
+            for index in sorted(indexes, key=lambda i: (work[i].box_number, i), reverse=True):
+                if surplus <= _QTY_EPSILON:
+                    break
+                take = min(surplus, work[index].qty)
+                if take <= 0:
+                    continue
+                work[index].qty -= take
+                surplus -= take
+                removed.append(
+                    AdjustmentRow(
+                        identifier=key,
+                        box_number=work[index].box_number,
+                        qty=take,
+                        reason=SURPLUS_REASON,
+                    )
+                )
+            continue
+        added.append(
+            AdjustmentRow(
+                identifier=key,
+                box_number=last_box,
+                qty=delta,
+                reason=SHORTFALL_REASON if indexes else MISSING_UPC_REASON,
+            )
+        )
+
+    kept = [row for row in work if row.qty]
+    last_box_rows = {row.identifier: row for row in kept if row.box_number == last_box}
+    appended: list[_WorkRow] = []
+    for adjustment in added:
+        existing = last_box_rows.get(adjustment.identifier)
+        if existing is not None:
+            existing.qty += adjustment.qty
+            existing.added = True
+            continue
+        new_row = _WorkRow(
+            identifier=adjustment.identifier,
+            box_number=last_box,
+            qty=adjustment.qty,
+            added=True,
+        )
+        last_box_rows[adjustment.identifier] = new_row
+        appended.append(new_row)
+    kept.extend(appended)
+
+    return Reconciliation(
+        rows=[
+            ContentRow(
+                identifier=row.identifier,
+                box_number=row.box_number,
+                qty=row.qty,
+                remapped=row.remapped,
+                added=row.added,
+            )
+            for row in kept
+        ],
+        box_numbers=box_numbers,
+        last_box=last_box,
+        added=added,
+        removed=removed,
+    )
+
+
+def _write_box_contents(
+    sheet: Worksheet,
+    rows: Sequence[ContentRow],
+    box_numbers: Sequence[int] = (),
+) -> int | float:
     sheet.sheet_view.showGridLines = True
     _set_text_cell(sheet, 1, 1, "UPC", bold=True)
     _set_text_cell(sheet, 1, 2, "Box Number", bold=True)
@@ -546,13 +743,18 @@ def _write_box_contents(sheet: Worksheet, rows: Sequence[ContentRow]) -> int | f
 
     total_qty: int | float = 0
     for index, row in enumerate(rows, start=2):
-        fill = _YELLOW if row.remapped else None
+        if row.remapped:
+            fill = _YELLOW
+        elif row.added:
+            fill = _GREEN
+        else:
+            fill = None
         _set_text_cell(sheet, index, 1, row.identifier, fill=fill)
         _set_number_cell(sheet, index, 2, row.box_number)
         _set_number_cell(sheet, index, 3, row.qty)
         total_qty += row.qty
 
-    boxes = sorted({row.box_number for row in rows})
+    boxes = sorted({row.box_number for row in rows} | set(box_numbers))
     counts: dict[tuple[str, int], int | float] = {}
     identifiers: set[str] = set()
     for row in rows:
@@ -617,6 +819,40 @@ def _write_dimensions(sheet: Worksheet, dimensions: Sequence[DimensionRow]) -> N
     sheet.column_dimensions["D"].width = 10.0
 
 
+def _write_added_units(sheet: Worksheet, added: Sequence[AdjustmentRow]) -> None:
+    """Units topped up in the last box to reach the AMZ expected quantities."""
+    sheet.sheet_view.showGridLines = True
+    for col, header in enumerate(("UPC", "Box Number", "QTY"), start=1):
+        _set_text_cell(sheet, 1, col, header, bold=True)
+
+    for index, item in enumerate(added, start=2):
+        _set_text_cell(sheet, index, 1, item.identifier)
+        _set_number_cell(sheet, index, 2, item.box_number)
+        _set_number_cell(sheet, index, 3, item.qty)
+
+    sheet.column_dimensions["A"].width = 15.0
+    sheet.column_dimensions["B"].width = 13.33
+    sheet.column_dimensions["C"].width = 10.0
+
+
+def _write_removed_units(sheet: Worksheet, removed: Sequence[AdjustmentRow]) -> None:
+    """Units dropped from the Output because the AMZ file does not expect them."""
+    sheet.sheet_view.showGridLines = True
+    for col, header in enumerate(("UPC", "Box Number", "QTY", "Reason"), start=1):
+        _set_text_cell(sheet, 1, col, header, bold=True)
+
+    for index, item in enumerate(removed, start=2):
+        _set_text_cell(sheet, index, 1, item.identifier)
+        _set_number_cell(sheet, index, 2, item.box_number)
+        _set_number_cell(sheet, index, 3, item.qty)
+        _set_text_cell(sheet, index, 4, item.reason or None)
+
+    sheet.column_dimensions["A"].width = 15.0
+    sheet.column_dimensions["B"].width = 13.33
+    sheet.column_dimensions["C"].width = 10.0
+    sheet.column_dimensions["D"].width = 32.0
+
+
 def _write_missing_items(sheet: Worksheet, missing: Sequence[MissingItem]) -> None:
     sheet.sheet_view.showGridLines = True
     headers = (
@@ -650,18 +886,32 @@ def build_result_workbook(
     remapped_rows: Sequence[ContentRow],
     dimensions: Sequence[DimensionRow],
     missing: Sequence[MissingItem],
+    *,
+    box_numbers: Sequence[int] = (),
+    added: Sequence[AdjustmentRow] = (),
+    removed: Sequence[AdjustmentRow] = (),
 ) -> bytes:
     workbook = Workbook()
     contents = workbook.active
     contents.title = BOX_CONTENTS_SHEET
     dimensions_sheet = workbook.create_sheet(DIMENSIONS_SHEET)
-    _write_box_contents(contents, remapped_rows)
+    _write_box_contents(contents, remapped_rows, box_numbers)
     _write_dimensions(dimensions_sheet, dimensions)
+    extra_sheets = [dimensions_sheet]
+    if added:
+        added_sheet = workbook.create_sheet(ADDED_UNITS_SHEET)
+        _write_added_units(added_sheet, added)
+        extra_sheets.append(added_sheet)
+    if removed:
+        removed_sheet = workbook.create_sheet(REMOVED_UNITS_SHEET)
+        _write_removed_units(removed_sheet, removed)
+        extra_sheets.append(removed_sheet)
     if missing:
         missing_sheet = workbook.create_sheet(MISSING_ITEMS_SHEET)
         _write_missing_items(missing_sheet, missing)
-        missing_sheet.sheet_view.tabSelected = False
-    dimensions_sheet.sheet_view.tabSelected = False
+        extra_sheets.append(missing_sheet)
+    for sheet in extra_sheets:
+        sheet.sheet_view.tabSelected = False
     contents.sheet_view.tabSelected = True
     output = io.BytesIO()
     workbook.save(output)
@@ -684,29 +934,44 @@ def generate_fba_upload_compare(
     remapped_rows = apply_old_sku_remaps(parsed_output, parsed_amz, upc_to_old)
     # Missing-items compare uses original Output identifiers + catalog links
     missing = find_missing_items(parsed_output.rows, parsed_amz, upc_to_old)
+    # The AMZ upload is the source of truth, so the pivot is forced to match it
+    reconciled = reconcile_to_amz(remapped_rows, parsed_amz, upc_to_old)
 
     file_bytes = build_result_workbook(
-        remapped_rows,
+        reconciled.rows,
         parsed_output.dimensions,
         missing,
+        box_numbers=reconciled.box_numbers,
+        added=reconciled.added,
+        removed=reconciled.removed,
     )
 
     total_qty: int | float = 0
-    for row in remapped_rows:
+    for row in reconciled.rows:
         total_qty += row.qty
-    remapped_count = len({row.identifier for row in remapped_rows if row.remapped})
-    box_count = len({row.box_number for row in remapped_rows})
-    upc_count = len({row.identifier for row in remapped_rows})
+    added_qty: int | float = 0
+    for adjustment in reconciled.added:
+        added_qty += adjustment.qty
+    removed_qty: int | float = 0
+    for adjustment in reconciled.removed:
+        removed_qty += adjustment.qty
+    remapped_count = len({row.identifier for row in reconciled.rows if row.remapped})
+    upc_count = len({row.identifier for row in reconciled.rows})
     result_name = sanitize_result_filename(output_filename, amz_filename)
 
     return FbaUploadCompareResult(
         file_bytes=file_bytes,
         filename=result_name,
-        row_count=len(remapped_rows),
-        box_count=box_count,
+        row_count=len(reconciled.rows),
+        box_count=len(reconciled.box_numbers),
         upc_count=upc_count,
         total_qty=total_qty,
         remapped_count=remapped_count,
         missing_count=len(missing),
         shipment_id=parsed_amz.shipment_id,
+        added_count=len(reconciled.added),
+        added_qty=added_qty,
+        removed_count=len(reconciled.removed),
+        removed_qty=removed_qty,
+        last_box=reconciled.last_box,
     )
