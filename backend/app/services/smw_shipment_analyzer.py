@@ -98,7 +98,6 @@ class ParsedFile:
     total_units: Number
     # What the file says about itself, which need not agree with its own rows.
     declared_units: Number | None = None
-    declared_upc_count: int | None = None
     declared_box_count: int | None = None
     notes: tuple[str, ...] = ()
 
@@ -513,7 +512,6 @@ def parse_carton_request(filename: str, rows: Sequence[Sequence[object]]) -> Par
         box_count=len(carton_ids),
         total_units=total_units,
         declared_units=declared_units,
-        declared_upc_count=None,
         declared_box_count=int(declared_boxes) if declared_boxes is not None else None,
         notes=tuple(notes),
     )
@@ -570,7 +568,6 @@ def parse_pack_list(filename: str, rows: Sequence[Sequence[object]]) -> ParsedFi
 
     shipment_id = preamble.get("shipment id", "")
     declared_units = _as_number(preamble.get("units"))
-    declared_upcs = _as_number(preamble.get("skus"))
     declared_boxes = _as_number(preamble.get("boxes"))
 
     units_by_upc: dict[str, Number] = {}
@@ -615,7 +612,6 @@ def parse_pack_list(filename: str, rows: Sequence[Sequence[object]]) -> ParsedFi
         box_count=box_count,
         total_units=total_units,
         declared_units=declared_units,
-        declared_upc_count=int(declared_upcs) if declared_upcs is not None else None,
         declared_box_count=int(declared_boxes) if declared_boxes is not None else None,
         notes=tuple(notes),
     )
@@ -811,22 +807,6 @@ def _build_checks(analysis: ShipmentAnalysis) -> list[CheckRow]:
                 )
             )
 
-    if pack_list is not None and pack_list.declared_upc_count is not None:
-        actual_upcs = len(pack_list.units_by_upc)
-        if pack_list.declared_upc_count != actual_upcs:
-            checks.append(
-                CheckRow(
-                    check="Pack list — stated SKU count",
-                    carton_value="—",
-                    pack_list_value=_format_count(pack_list.declared_upc_count),
-                    result="Mismatch",
-                    note=(
-                        f"{pack_list.filename} states {pack_list.declared_upc_count:,} SKUs but "
-                        f"holds {actual_upcs:,} rows."
-                    ),
-                )
-            )
-
     return checks
 
 
@@ -864,20 +844,6 @@ def _build_discrepancies(analysis: ShipmentAnalysis) -> list[Discrepancy]:
                     detail=check.note,
                 )
             )
-        elif check.check == "Pack list — stated SKU count" and check.result == "Mismatch":
-            discrepancies.append(
-                Discrepancy(
-                    shipment_id=shipment_id,
-                    upc="",
-                    description="",
-                    issue="Stated SKU count disagrees with rows",
-                    carton_units=None,
-                    pack_list_units=None,
-                    delta=None,
-                    detail=check.note,
-                )
-            )
-
     for row in analysis.comparisons:
         if row.status == STATUS_MATCH:
             continue
@@ -1451,7 +1417,6 @@ def _write_files(sheet: Worksheet, files: Sequence[ParsedFile]) -> None:
             "Units",
             "Boxes",
             "Stated units",
-            "Stated SKUs",
             "Notes",
         ),
     )
@@ -1464,11 +1429,8 @@ def _write_files(sheet: Worksheet, files: Sequence[ParsedFile]) -> None:
         _write_cell(sheet, row, 6, parsed.total_units)
         _write_cell(sheet, row, 7, parsed.box_count)
         _write_cell(sheet, row, 8, parsed.declared_units if parsed.declared_units is not None else "—")
-        _write_cell(
-            sheet, row, 9, parsed.declared_upc_count if parsed.declared_upc_count is not None else "—"
-        )
-        _write_cell(sheet, row, 10, "; ".join(parsed.notes), wrap=True)
-    _set_widths(sheet, (44, 24, 16, 10, 10, 10, 10, 14, 14, 52))
+        _write_cell(sheet, row, 9, "; ".join(parsed.notes), wrap=True)
+    _set_widths(sheet, (44, 24, 16, 10, 10, 10, 10, 14, 52))
 
 
 def build_workbook(

@@ -256,7 +256,6 @@ def test_basic_analysis_flags_a_shipment_id_mismatch():
 
 
 def test_basic_analysis_flags_a_stated_total_that_disagrees_with_the_rows():
-    """The real FBA19PL86NCW pack list declared one more SKU than it listed."""
     result = analyze_basic(
         [
             ("bc request.xls", bc_request([[("SKU-A", "193391677910", "Crew", 2, 1.0)]])),
@@ -272,8 +271,8 @@ def test_basic_analysis_flags_a_stated_total_that_disagrees_with_the_rows():
         ]
     )
     issues = [row[1] for row in _sheet_rows(result.file_bytes, DISCREPANCIES_SHEET)[1:]]
-    assert "Stated total disagrees with rows" in issues
-    assert "Stated SKU count disagrees with rows" in issues
+    # The pack list preamble's SKU count is ignored. Only the unit total is checked.
+    assert issues == ["Stated total disagrees with rows"]
 
 
 def test_basic_analysis_needs_one_file_of_each_shape():
