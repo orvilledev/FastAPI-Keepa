@@ -1966,6 +1966,63 @@ export const fbaUploadCompareApi = {
   },
 }
 
+export type SmwShipmentAnalysisResult = {
+  blob: Blob
+  filename: string
+  shipmentId: string
+  shipmentCount: number
+  fileCount: number
+  upcCount: number
+  totalUnits: number
+  discrepancyCount: number
+  resolvedCount: number
+  unresolvedCount: number
+}
+
+/** Basic checks one request against one pack list; advanced takes a whole run. */
+export const smwShipmentAnalyzerApi = {
+  analyze: async (
+    mode: 'basic' | 'advanced',
+    files: File[],
+  ): Promise<SmwShipmentAnalysisResult> => {
+    const form = new FormData()
+    files.forEach((file) => form.append('files', file))
+    try {
+      const response = await api.post<Blob>(
+        `/api/v1/smw-shipment-analyzer/${mode}`,
+        form,
+        { responseType: 'blob', timeout: 180_000 },
+      )
+      const headers = response.headers || {}
+      const filenameHeader = headers['x-smw-filename']
+      const disposition = headers['content-disposition'] as string | undefined
+      let filename =
+        (typeof filenameHeader === 'string' && filenameHeader.trim()) ||
+        (mode === 'basic'
+          ? 'SMW Shipment Analysis.xlsx'
+          : 'SMW Advanced Shipment Analysis.xlsx')
+      if ((!filenameHeader || !String(filenameHeader).trim()) && disposition) {
+        const match = /filename="?([^";]+)"?/i.exec(disposition)
+        if (match?.[1]) filename = match[1]
+      }
+      return {
+        blob: response.data,
+        filename,
+        shipmentId: String(headers['x-smw-shipment-id'] || ''),
+        shipmentCount: Number(headers['x-smw-shipment-count'] || 0),
+        fileCount: Number(headers['x-smw-file-count'] || 0),
+        upcCount: Number(headers['x-smw-upc-count'] || 0),
+        totalUnits: Number(headers['x-smw-total-units'] || 0),
+        discrepancyCount: Number(headers['x-smw-discrepancy-count'] || 0),
+        resolvedCount: Number(headers['x-smw-resolved-count'] || 0),
+        unresolvedCount: Number(headers['x-smw-unresolved-count'] || 0),
+      }
+    } catch (err: unknown) {
+      return readBlobError(err)
+    }
+  },
+}
+
 export type DnkAllInventoryResult = {
   blob: Blob
   filename: string

@@ -8,6 +8,7 @@ import { canAccessProjects } from '../../lib/projectsAccess'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 import { canAccessBcTools } from '../../lib/bcToolsAccess'
+import { canAccessShipmentAnalyzer } from '../../lib/shipmentAnalyzerAccess'
 
 type SearchItem = {
   label: string
@@ -25,6 +26,7 @@ function buildSearchItems(
   showFbaBoxContents: boolean,
   showOldSkus: boolean,
   showBcTools: boolean,
+  showShipmentAnalyzer: boolean,
 ): SearchItem[] {
   if (isWarehouseOnly) {
     return [
@@ -85,6 +87,13 @@ function buildSearchItems(
       items.push({ label: 'FBA Box Contents', path: '/fba-box-contents', section: 'BC Tools' })
     }
     items.push({ label: 'FBA Upload Compare', path: '/fba-upload-compare', section: 'BC Tools' })
+    if (showShipmentAnalyzer) {
+      items.push({
+        label: 'SMW Shipment Analyzer',
+        path: '/smw-shipment-analyzer',
+        section: 'BC Tools',
+      })
+    }
   }
 
   items.push(
@@ -138,6 +147,10 @@ export default function NavbarSearch() {
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
+  const showShipmentAnalyzer = canAccessShipmentAnalyzer(
+    userInfo?.email || authUser?.email,
+    isSuperadmin,
+  )
 
   const searchItems = useMemo(
     () =>
@@ -151,8 +164,9 @@ export default function NavbarSearch() {
         showFbaBoxContents,
         showOldSkus,
         showBcTools,
+        showShipmentAnalyzer,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showMasterSheet, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showMasterSheet, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools, showShipmentAnalyzer],
   )
 
   const results = useMemo(() => {

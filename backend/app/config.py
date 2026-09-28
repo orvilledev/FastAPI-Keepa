@@ -216,6 +216,15 @@ class Settings(BaseSettings):
         "johnbernard@metroshoewarehouse.com"
     )
 
+    # Comma-separated emails allowed to use the SMW Shipment Analyzer (plus superadmin).
+    shipment_analyzer_allowed_emails: str = (
+        "sunshine@metroshoewarehouse.com,"
+        "stephanie@metroshoewarehouse.com,"
+        "paolo@metroshoewarehouse.com,"
+        "paulo@metroshoewarehouse.com,"
+        "johnbernard@metroshoewarehouse.com"
+    )
+
     # Comma-separated emails allowed to use the Old SKUs catalog (plus superadmin).
     old_skus_allowed_emails: str = (
         "sunshine@metroshoewarehouse.com,"
@@ -321,6 +330,14 @@ class Settings(BaseSettings):
     def fba_box_contents_allowed_emails_list(self) -> List[str]:
         """Normalized emails allowed to use the FBA Box Contents tool."""
         raw = (self.fba_box_contents_allowed_emails or "").strip()
+        if not raw:
+            return []
+        return [email.strip().lower() for email in raw.split(",") if email.strip()]
+
+    @property
+    def shipment_analyzer_allowed_emails_list(self) -> List[str]:
+        """Normalized emails allowed to use the SMW Shipment Analyzer."""
+        raw = (self.shipment_analyzer_allowed_emails or "").strip()
         if not raw:
             return []
         return [email.strip().lower() for email in raw.split(",") if email.strip()]
