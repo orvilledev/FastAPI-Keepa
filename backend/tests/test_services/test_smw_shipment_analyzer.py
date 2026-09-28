@@ -109,6 +109,38 @@ def pack_list(
     return "\n".join(",".join(f'"{cell}"' for cell in line) for line in lines).encode("utf-8")
 
 
+def shipment_plan(
+    rows: list[tuple[str, str, float]],
+    *,
+    shipment_number: int = 1,
+    declared_units: float | None = None,
+) -> bytes:
+    """The other pack-list export: a Quantity column, a UPC column, no boxes.
+
+    This one names the shipment nowhere in the file — only in its filename.
+    """
+    body_units = sum(qty for _, _, qty in rows)
+    lines = [
+        ["Shipment number", str(shipment_number)],
+        ["Workflow name", "wf-test"],
+        ["SKUs", str(len(rows))],
+        ["Units", str(int(declared_units if declared_units is not None else body_units))],
+        [],
+        [
+            "SKU", "Title", "ASIN", "FNSKU", "UPC/EAN/ISBN/JAN/CODABAR",
+            "Condition", "Prep type", "Quantity",
+        ],
+    ]
+    for upc, title, qty in rows:
+        lines.append(
+            [
+                f"{upc}-FNSKU", title, "B0TEST", "X00TEST", f"UPC:{upc}",
+                "New", "FC_PROVIDED", qty,
+            ]
+        )
+    return "\n".join(",".join(f'"{cell}"' for cell in line) for line in lines).encode("utf-8")
+
+
 def _sheet_rows(file_bytes: bytes, sheet_name: str) -> list[tuple]:
     workbook = openpyxl.load_workbook(BytesIO(file_bytes))
     sheet = workbook[sheet_name]
@@ -153,6 +185,68 @@ def test_parse_request_skips_carton_total_rows_and_reads_its_footer():
     assert parsed.box_count == 2
     assert parsed.declared_units == 5
     assert parsed.declared_box_count == 2
+
+
+def test_parse_reads_the_shipment_plan_export():
+    """A Quantity column, a UPC column, and the shipment id only in the filename."""
+    parsed = parse_upload(
+        "FBA19Q0KLWRS.csv",
+        shipment_plan(
+            [
+                ("198268465935", "Smartwool Womens Crew, Large", 2),
+                ("193392648735", "Smartwool Mens Crew, Medium", 21),
+            ]
+        ),
+    )
+    assert parsed.kind == KIND_PACK_LIST
+    assert parsed.shipment_id == "FBA19Q0KLWRS"
+    assert parsed.units_by_upc == {"198268465935": 2, "193392648735": 21}
+    assert parsed.total_units == 23
+    assert parsed.declared_units == 23
+    # This export carries no box breakdown at all.
+    assert parsed.box_count == 0
+    assert any("taken from the filename" in note for note in parsed.notes)
+
+
+def test_shipment_plan_export_compares_against_a_request():
+    result = analyze_basic(
+        [
+            (
+                "FBA19Q0KLWRS - bc request.xls",
+                bc_request(
+                    [[("SKU-A", "198268465935", "Crew", 2, 1.0)]],
+                    shipment_id="FBA19Q0KLWRS",
+                ),
+            ),
+            ("FBA19Q0KLWRS.csv", shipment_plan([("198268465935", "Crew Large", 2)])),
+        ]
+    )
+    assert result.shipment_id == "FBA19Q0KLWRS"
+    assert result.total_units == 2
+    # Boxes cannot be compared, but that is not a discrepancy on its own.
+    assert result.discrepancy_count == 0
+    checks = {
+        row[0]: row[3] for row in _sheet_rows(result.file_bytes, SUMMARY_SHEET) if row and row[0]
+    }
+    assert checks["Boxes"] == "Not compared"
+    assert checks["Shipment ID"] == STATUS_MATCH
+
+
+def test_advanced_says_so_when_no_request_was_uploaded():
+    """Ten pack lists with no counterparts must not read as ten real discrepancies."""
+    result = analyze_advanced(
+        [
+            ("FBA19Q0KLWRS.csv", shipment_plan([("198268465935", "Crew", 2)])),
+            ("FBA19Q0M37ZZ.csv", shipment_plan([("198268465935", "Crew", 3)])),
+        ]
+    )
+    assert result.shipment_count == 2
+    assert result.upc_count == 0
+    assert result.resolved_count == 0
+    assert result.unresolved_count == 0
+    verdict = _sheet_rows(result.file_bytes, SUMMARY_SHEET)[1][0]
+    assert "Nothing could be compared" in verdict
+    assert "box contents request" in verdict
 
 
 def test_parse_rejects_an_unrecognized_file():

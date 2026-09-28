@@ -72,6 +72,10 @@ _AMBER_FILL = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="s
 
 _FNSKU_SUFFIX = re.compile(r"[-_\s]*FNSKU$", re.IGNORECASE)
 _BOX_UNITS_HEADER = re.compile(r"^box\s*(\d+)\s*units$")
+# Amazon heads the quantity column "Total units" on a box-level pack list and
+# "Quantity" on a shipment-plan export. "Qty" is deliberately absent: that is
+# the box contents request's own heading.
+_PACK_LIST_QTY_LABELS = frozenset({"total units", "quantity"})
 _CARTON_LABELS = {"carton#:", "carton#", "carton:"}
 _PO_LABELS = {"po#:", "po#", "po:"}
 
@@ -499,7 +503,11 @@ def parse_carton_request(filename: str, rows: Sequence[Sequence[object]]) -> Par
 
     notes: list[str] = []
     if not shipment_id:
-        notes.append("No PO#/shipment id row found.")
+        shipment_id = shipment_id_from_filename(filename)
+        if shipment_id:
+            notes.append(f"Shipment id {shipment_id} taken from the filename.")
+        else:
+            notes.append("No PO#/shipment id row found, and the filename holds no FBA id.")
 
     return ParsedFile(
         filename=filename,
@@ -521,13 +529,23 @@ def parse_carton_request(filename: str, rows: Sequence[Sequence[object]]) -> Par
 
 
 def _find_pack_list_header(rows: Sequence[Sequence[object]]) -> tuple[int, dict[str, int]] | None:
+    """Locate the SKU table header of either pack-list export.
+
+    The box-level export heads its quantity column ``Total units`` and adds a
+    ``Box N units`` column per box. The shipment-plan export heads it
+    ``Quantity`` and carries a ``UPC/EAN/ISBN/JAN/CODABAR`` column instead.
+    """
     for index, row in enumerate(rows):
         mapping: dict[str, int] = {}
         for col, value in enumerate(row):
             label = _normalize_label(value)
-            if label in {"sku", "title", "fnsku", "asin", "total units"} and label not in mapping:
+            if label in {"sku", "title", "fnsku", "asin"} and label not in mapping:
                 mapping[label] = col
-        if "sku" in mapping and "total units" in mapping:
+            elif label in _PACK_LIST_QTY_LABELS and "qty" not in mapping:
+                mapping["qty"] = col
+            elif "upc" in label.split("/") and "upc" not in mapping:
+                mapping["upc"] = col
+        if "sku" in mapping and "qty" in mapping:
             return index, mapping
     return None
 
@@ -541,16 +559,33 @@ def strip_fnsku_suffix(value: str) -> str:
     return _FNSKU_SUFFIX.sub("", (value or "").strip()).strip()
 
 
+def _barcode_from_cell(value: object) -> str:
+    """``UPC:198268465935`` -> ``198268465935``, dropping the scheme label."""
+    text = _cell_text(value)
+    if not text:
+        return ""
+    if ":" in text:
+        text = text.split(":", 1)[1].strip()
+    return _as_digits(text)
+
+
+def shipment_id_from_filename(filename: str) -> str:
+    """The FBA id Amazon uses to name these exports, when no row states it."""
+    match = re.search(r"\bFBA[0-9A-Z]{6,}\b", Path(filename or "").stem.upper())
+    return match.group(0) if match else ""
+
+
 def parse_pack_list(filename: str, rows: Sequence[Sequence[object]]) -> ParsedFile:
     header = _find_pack_list_header(rows)
     if header is None:
         raise SmwShipmentAnalyzerError(
-            f"Could not find a SKU / Total units table in \"{filename}\"."
+            f"Could not find a SKU table with a Total units or Quantity column in \"{filename}\"."
         )
     header_index, cols = header
     sku_col = cols["sku"]
     title_col = cols.get("title", -1)
-    total_col = cols["total units"]
+    qty_col = cols["qty"]
+    upc_col = cols.get("upc", -1)
 
     header_row = rows[header_index]
     box_columns = [
@@ -566,7 +601,15 @@ def parse_pack_list(filename: str, rows: Sequence[Sequence[object]]) -> ParsedFi
         if label and value and label not in preamble:
             preamble[label] = value
 
+    notes: list[str] = []
     shipment_id = preamble.get("shipment id", "")
+    if not shipment_id:
+        # The shipment-plan export names the shipment only in its filename.
+        shipment_id = shipment_id_from_filename(filename)
+        if shipment_id:
+            notes.append(f"Shipment id {shipment_id} taken from the filename.")
+        else:
+            notes.append('No "Shipment ID" row, and the filename holds no FBA id.')
     declared_units = _as_number(preamble.get("units"))
     declared_boxes = _as_number(preamble.get("boxes"))
 
@@ -578,10 +621,16 @@ def parse_pack_list(filename: str, rows: Sequence[Sequence[object]]) -> ParsedFi
 
     for row in rows[header_index + 1 :]:
         identifier = strip_fnsku_suffix(_cell_text(_cell_at(row, sku_col)))
-        if not identifier:
+        barcode = _barcode_from_cell(_cell_at(row, upc_col)) if upc_col >= 0 else ""
+        if not identifier and not barcode:
             continue
-        key = _as_digits(identifier) if _looks_like_upc(identifier) else identifier
-        qty = _as_qty(_cell_at(row, total_col))
+        if barcode and _looks_like_upc(barcode):
+            key = barcode
+        elif _looks_like_upc(identifier):
+            key = _as_digits(identifier)
+        else:
+            key = identifier
+        qty = _as_qty(_cell_at(row, qty_col))
         line_count += 1
         total_units += qty
         units_by_upc[key] = units_by_upc.get(key, 0) + qty
@@ -596,11 +645,11 @@ def parse_pack_list(filename: str, rows: Sequence[Sequence[object]]) -> ParsedFi
     if not units_by_upc:
         raise SmwShipmentAnalyzerError(f"No SKU rows were found in \"{filename}\".")
 
-    notes: list[str] = []
-    if not shipment_id:
-        notes.append("No \"Shipment ID\" row found in the preamble.")
-
+    # A shipment-plan export carries no box breakdown at all, which is different
+    # from a box-level export that happens to use one box.
     box_count = len(box_columns) or len(boxes_used)
+    if not box_count:
+        notes.append("No box breakdown in this export, so box counts were not compared.")
     return ParsedFile(
         filename=filename,
         kind=KIND_PACK_LIST,
@@ -622,14 +671,15 @@ def parse_upload(filename: str, content: bytes) -> ParsedFile:
     rows = read_grid(filename or "upload", content)
     if not rows or all(_row_is_blank(row) for row in rows):
         raise SmwShipmentAnalyzerError(f"\"{filename}\" has no rows.")
-    if _looks_like_pack_list(rows):
-        return parse_pack_list(filename, rows)
+    # Carton blocks are the more distinctive marker, so they decide first.
     if _looks_like_carton_request(rows):
         return parse_carton_request(filename, rows)
+    if _looks_like_pack_list(rows):
+        return parse_pack_list(filename, rows)
     raise SmwShipmentAnalyzerError(
         f"Could not tell what \"{filename}\" is. Upload a box contents request "
         "(Carton#: blocks under a Sku / UPC / Qty header) or an Amazon pack list "
-        "(a SKU / Total units table)."
+        "(a SKU table with a Total units or Quantity column)."
     )
 
 # --- Comparing one shipment ------------------------------------------------
@@ -775,17 +825,30 @@ def _build_checks(analysis: ShipmentAnalysis) -> list[CheckRow]:
         )
     )
 
+    # A shipment-plan pack list has no box breakdown, so there is nothing to
+    # compare the cartons against.
     carton_boxes = carton.box_count if carton else None
     listed_boxes = pack_list.box_count if pack_list else None
-    checks.append(
-        CheckRow(
-            check="Boxes",
-            carton_value=_format_count(carton_boxes),
-            pack_list_value=_format_count(listed_boxes),
-            result=STATUS_MATCH if carton_boxes == listed_boxes else "Mismatch",
-            note="Cartons in the request against box columns on the pack list.",
+    if carton_boxes and listed_boxes:
+        checks.append(
+            CheckRow(
+                check="Boxes",
+                carton_value=_format_count(carton_boxes),
+                pack_list_value=_format_count(listed_boxes),
+                result=STATUS_MATCH if carton_boxes == listed_boxes else "Mismatch",
+                note="Cartons in the request against box columns on the pack list.",
+            )
         )
-    )
+    else:
+        checks.append(
+            CheckRow(
+                check="Boxes",
+                carton_value=_format_count(carton_boxes) if carton_boxes else "—",
+                pack_list_value=_format_count(listed_boxes) if listed_boxes else "—",
+                result="Not compared",
+                note="This pack list export carries no box breakdown.",
+            )
+        )
 
     # Each file also states its own totals, which need not agree with its rows.
     for source in (carton, pack_list):
@@ -1234,12 +1297,22 @@ def _write_summary(
 
     discrepancy_count = sum(len(item.discrepancies) for item in analyses)
     total_units = sum(item.pack_list_units or item.carton_units for item in analyses)
-    verdict = (
-        "No discrepancies found in the shipment IDs, UPCs or units."
-        if discrepancy_count == 0
-        else f"{discrepancy_count:,} discrepancy row(s) found — see the {DISCREPANCIES_SHEET} tab."
-    )
-    _write_cell(sheet, 2, 1, verdict, bold=True, fill=_GREEN_FILL if discrepancy_count == 0 else _RED_FILL)
+    unpaired = [item for item in analyses if not item.paired]
+    if not any(item.paired for item in analyses):
+        # Every shipment is missing a side, so nothing was actually compared.
+        missing = "box contents request" if all(item.carton is None for item in unpaired) else "counterpart file"
+        verdict = (
+            f"Nothing could be compared: all {len(analyses):,} shipment(s) are missing their "
+            f"{missing}. Upload both files per shipment."
+        )
+        fill = _AMBER_FILL
+    elif discrepancy_count == 0:
+        verdict = "No discrepancies found in the shipment IDs, UPCs or units."
+        fill = _GREEN_FILL
+    else:
+        verdict = f"{discrepancy_count:,} discrepancy row(s) found — see the {DISCREPANCIES_SHEET} tab."
+        fill = _RED_FILL
+    _write_cell(sheet, 2, 1, verdict, bold=True, fill=fill)
 
     row = 4
     _write_cell(sheet, row, 1, "Shipments analysed", bold=True)
