@@ -1,18 +1,16 @@
 /**
- * SMW Shipment Analyzer access — selected users + superadmin.
- * Keep in sync with backend `app.dependencies` / config allowlist.
+ * SMW Shipment Analyzer access — every signed-in user except the
+ * Hello and Warehouse1 station accounts. Keep in sync with backend
+ * `app.dependencies` / config blocklist.
  */
 
-export const SHIPMENT_ANALYZER_ALLOWED_EMAILS = [
-  'sunshine@metroshoewarehouse.com',
-  'stephanie@metroshoewarehouse.com',
-  'paolo@metroshoewarehouse.com',
-  'paulo@metroshoewarehouse.com',
-  'johnbernard@metroshoewarehouse.com',
+export const SHIPMENT_ANALYZER_BLOCKED_EMAILS = [
+  'hello@warehouserepublic.com',
+  'warehouse1@metroshoewarehouse.com',
 ] as const
 
-const SHIPMENT_ANALYZER_ALLOWED_SET = new Set(
-  SHIPMENT_ANALYZER_ALLOWED_EMAILS.map((email) => email.toLowerCase()),
+const SHIPMENT_ANALYZER_BLOCKED_SET = new Set(
+  SHIPMENT_ANALYZER_BLOCKED_EMAILS.map((email) => email.toLowerCase()),
 )
 
 /** True when this signed-in user may use the SMW Shipment Analyzer. */
@@ -20,7 +18,8 @@ export function canAccessShipmentAnalyzer(
   email?: string | null,
   isSuperadmin = false,
 ): boolean {
-  if (isSuperadmin) return true
   const normalized = (email || '').trim().toLowerCase()
-  return Boolean(normalized) && SHIPMENT_ANALYZER_ALLOWED_SET.has(normalized)
+  if (normalized && SHIPMENT_ANALYZER_BLOCKED_SET.has(normalized)) return false
+  if (isSuperadmin) return true
+  return Boolean(normalized)
 }

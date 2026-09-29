@@ -319,15 +319,25 @@ def get_fba_box_contents_user(
     return current_user
 
 
+_DEFAULT_SHIPMENT_ANALYZER_BLOCKED = frozenset(
+    {
+        "hello@warehouserepublic.com",
+        "warehouse1@metroshoewarehouse.com",
+    }
+)
+
+
 def is_shipment_analyzer_allowed_user(current_user: dict, db: Client) -> bool:
-    """True for superadmin or emails on the SMW Shipment Analyzer allowlist."""
+    """True for signed-in users except the Hello and Warehouse1 station accounts."""
+    email = (current_user.get("email") or "").strip().lower()
+    blocked = set(settings.shipment_analyzer_blocked_emails_list) or set(
+        _DEFAULT_SHIPMENT_ANALYZER_BLOCKED
+    )
+    if email in blocked:
+        return False
     if is_superadmin_user(current_user, db):
         return True
-    email = (current_user.get("email") or "").strip().lower()
-    if not email:
-        return False
-    allowed = set(settings.shipment_analyzer_allowed_emails_list)
-    return email in allowed
+    return bool(email)
 
 
 def get_shipment_analyzer_user(
@@ -338,7 +348,7 @@ def get_shipment_analyzer_user(
     if not is_shipment_analyzer_allowed_user(current_user, db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="SMW Shipment Analyzer is restricted to authorized users",
+            detail="SMW Shipment Analyzer is not available for this account",
         )
     return current_user
 

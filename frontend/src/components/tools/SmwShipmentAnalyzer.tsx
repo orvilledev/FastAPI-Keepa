@@ -245,7 +245,7 @@ export default function SmwShipmentAnalyzer() {
   if (!canUse) {
     return (
       <div className="mx-auto max-w-xl rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
-        The SMW Shipment Analyzer is restricted to authorized users.
+        The SMW Shipment Analyzer is not available for this account.
       </div>
     )
   }

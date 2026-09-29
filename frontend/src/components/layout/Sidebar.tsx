@@ -373,6 +373,21 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
                 <span className="shrink-0">{Icons.freightClassCalculator}</span>
                 <span className="sidebar-link-label">Freight Class</span>
               </Link>
+
+              {canUseShipmentAnalyzer && (
+                <Link
+                  to="/smw-shipment-analyzer"
+                  onMouseEnter={() => setHoveredNav('smw-shipment-analyzer')}
+                  className={`sidebar-link ${
+                    navHighlighted('smw-shipment-analyzer', isActive('/smw-shipment-analyzer'))
+                      ? 'sidebar-link-active'
+                      : 'sidebar-link-inactive'
+                  }`}
+                >
+                  <span className="shrink-0">{Icons.shipmentAnalyzer}</span>
+                  <span className="sidebar-link-label">SMW Shipment Analyzer</span>
+                </Link>
+              )}
             </div>
 
             <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
@@ -624,14 +639,14 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
             )}
         </div>
 
-        {canUseBcTools && (
+        {(canUseBcTools || canUseShipmentAnalyzer) && (
           <>
             <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 
             {/* BC TOOLS */}
             <div className="shrink-0 space-y-0.5 pb-1 pt-1">
               <p className="sidebar-section-label">BC TOOLS</p>
-              {canUseFbaBoxContents && (
+              {canUseBcTools && canUseFbaBoxContents && (
                 <Link
                   to="/fba-box-contents"
                   onMouseEnter={() => setHoveredNav('fba-box-contents')}
@@ -645,18 +660,20 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
                   <span className="sidebar-link-label">FBA Box Contents</span>
                 </Link>
               )}
-              <Link
-                to="/fba-upload-compare"
-                onMouseEnter={() => setHoveredNav('fba-upload-compare')}
-                className={`sidebar-link ${
-                  navHighlighted('fba-upload-compare', isActive('/fba-upload-compare'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.fbaUploadCompare}</span>
-                <span className="sidebar-link-label">FBA Upload Compare</span>
-              </Link>
+              {canUseBcTools && (
+                <Link
+                  to="/fba-upload-compare"
+                  onMouseEnter={() => setHoveredNav('fba-upload-compare')}
+                  className={`sidebar-link ${
+                    navHighlighted('fba-upload-compare', isActive('/fba-upload-compare'))
+                      ? 'sidebar-link-active'
+                      : 'sidebar-link-inactive'
+                  }`}
+                >
+                  <span className="shrink-0">{Icons.fbaUploadCompare}</span>
+                  <span className="sidebar-link-label">FBA Upload Compare</span>
+                </Link>
+              )}
               {canUseShipmentAnalyzer && (
                 <Link
                   to="/smw-shipment-analyzer"

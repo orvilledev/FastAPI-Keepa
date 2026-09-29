@@ -29,14 +29,24 @@ function buildSearchItems(
   showShipmentAnalyzer: boolean,
 ): SearchItem[] {
   if (isWarehouseOnly) {
-    return [
+    const warehouseItems: SearchItem[] = [
       { label: 'Label Station', path: '/label-station', section: 'Tools' },
       { label: 'FNSKU Pack Station', path: '/fnsku-pack-station', section: 'Tools' },
       { label: 'Freight Class Calculator', path: '/freight-class-calculator', section: 'Tools' },
+    ]
+    if (showShipmentAnalyzer) {
+      warehouseItems.push({
+        label: 'SMW Shipment Analyzer',
+        path: '/smw-shipment-analyzer',
+        section: 'Tools',
+      })
+    }
+    warehouseItems.push(
       { label: 'About', path: '/about', section: 'General' },
       { label: 'FAQ', path: '/faq', section: 'General' },
       { label: 'Feedback From Users', path: '/feedback', section: 'General' },
-    ]
+    )
+    return warehouseItems
   }
 
   const items: SearchItem[] = [
@@ -87,13 +97,13 @@ function buildSearchItems(
       items.push({ label: 'FBA Box Contents', path: '/fba-box-contents', section: 'BC Tools' })
     }
     items.push({ label: 'FBA Upload Compare', path: '/fba-upload-compare', section: 'BC Tools' })
-    if (showShipmentAnalyzer) {
-      items.push({
-        label: 'SMW Shipment Analyzer',
-        path: '/smw-shipment-analyzer',
-        section: 'BC Tools',
-      })
-    }
+  }
+  if (showShipmentAnalyzer) {
+    items.push({
+      label: 'SMW Shipment Analyzer',
+      path: '/smw-shipment-analyzer',
+      section: 'BC Tools',
+    })
   }
 
   items.push(
