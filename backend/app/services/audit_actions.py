@@ -226,6 +226,8 @@ _ROUTES: Tuple[_Route, ...] = (
     # --- Manifest / tracking / labels -----------------------------------------
     _r("POST", r"^/api/v1/manifest-generator/generate$",
        "manifest.generate", "tool", "Generated Amazon STA manifests"),
+    _r("POST", r"^/api/v1/product-catalog-formatter/format$",
+       "catalog_formatter.format", "tool", "Formatted a product catalog"),
     _r("POST", r"^/api/v1/fnsku-pack-station/generate$",
        "fnsku_box_pivot.generate", "tool", "Generated an FNSKU Pack Station workbook"),
     _r("POST", r"^/api/v1/fnsku-box-pivot/generate$",

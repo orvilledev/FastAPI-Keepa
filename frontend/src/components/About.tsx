@@ -202,6 +202,11 @@ export default function About() {
             files for outbound shipments.
           </li>
           <li>
+            <span className="font-semibold">Product Catalog Formatter:</span> Upload one or more Amazon shipment-plan
+            files and download one catalog workbook (UPC, SKU, fnsku, STYLE NAME, Condition) with duplicate UPCs
+            removed.
+          </li>
+          <li>
             <span className="font-semibold">DNK AllInventory:</span> Upload a PMSH01 available-inventory export and build
             one worksheet per PONumber, with quantities and UPCs stored as numbers (not text).
           </li>
@@ -228,7 +233,7 @@ export default function About() {
         <p className="mt-4 text-sm text-gray-600">
           Label Station requires Keepa access or a warehouse-only account. FNSKU Pack Station and Freight Class
           Calculator are available to all signed-in users, including warehouse-only stations. Micro Tools, Tracking
-          Extractor, FNSKU Labels, Manifest Generator, DNK AllInventory, and Shipment Manager are available to all
+          Extractor, FNSKU Labels, Manifest Generator, Product Catalog Formatter, DNK AllInventory, and Shipment Manager are available to all
           signed-in non-warehouse users.
         </p>
       </div>

@@ -87,6 +87,7 @@ function buildSearchItems(
     { label: 'FNSKU Labels', path: '/fnsku-labels', section: 'Tools' },
     { label: 'FNSKU Pack Station', path: '/fnsku-pack-station', section: 'Tools' },
     { label: 'Manifest Generator', path: '/manifest-generator', section: 'Tools' },
+    { label: 'Product Catalog Formatter', path: '/product-catalog-formatter', section: 'Tools' },
     { label: 'DNK AllInventory', path: '/dnk-all-inventory', section: 'Tools' },
     { label: 'Shipment Manager', path: '/shipment-manager', section: 'Tools' },
     { label: 'Freight Class Calculator', path: '/freight-class-calculator', section: 'Tools' },

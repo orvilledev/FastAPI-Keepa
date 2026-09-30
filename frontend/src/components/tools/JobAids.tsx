@@ -208,7 +208,8 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
       <>
         Tools includes <strong>Micro Tools</strong>, <strong>Tracking Extractor</strong>, <strong>FNSKU Labels</strong>,{' '}
         <strong>FNSKU Pack Station</strong>, <strong>FBA Box Contents</strong> (allowlisted),{' '}
-        <strong>Manifest Generator</strong>, <strong>DNK AllInventory</strong>,{' '}
+        <strong>Manifest Generator</strong>, <strong>Product Catalog Formatter</strong>,{' '}
+        <strong>DNK AllInventory</strong>,{' '}
         <strong>Shipment Manager</strong>, <strong>Freight Class Calculator</strong>, and{' '}
         <strong>Label Station</strong>. Most document and shipment tools are available to all signed-in non-warehouse
         users. <strong>Label Station</strong> requires Keepa access or a warehouse-only account. Warehouse-only accounts
@@ -272,6 +273,17 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         Manifest Generator turns a packing sheet into Amazon STA pack-group ZIP files for outbound shipments. Download
         the template from the tool, fill it in, then generate the pack-group archives. Available to all signed-in users
         under Tools.
+      </>
+    ),
+  },
+  {
+    q: 'What is Product Catalog Formatter?',
+    a: (
+      <>
+        Product Catalog Formatter accepts one or more Amazon shipment-plan files (the sheet with SKU, Title, FNSKU, and
+        UPC/EAN/ISBN/JAN/CODABAR). Download produces one PRODUCTS workbook: UPC, SKU, fnsku, STYLE NAME, and Condition.
+        The UPC label is removed, and a UPC that appears more than once is kept only from the first row. Available to
+        all signed-in non-warehouse users under Tools.
       </>
     ),
   },

@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.database import init_db
-from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, keepa_import_export, analytics, presence, manifest_generator, dnk_all_inventory, freight_class_calculator, audit, catalog_upc_dims, catalog_ship_to, catalog_old_skus, master_sheet, projects, shipments, fnsku_box_pivot, fba_box_contents, fba_upload_compare, smw_shipment_analyzer
+from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, keepa_import_export, analytics, presence, manifest_generator, dnk_all_inventory, freight_class_calculator, audit, catalog_upc_dims, catalog_ship_to, catalog_old_skus, master_sheet, projects, shipments, fnsku_box_pivot, fba_box_contents, fba_upload_compare, smw_shipment_analyzer, product_catalog_formatter
 from app.scheduler import (
     setup_scheduler,
     setup_completed_jobs_retention_cleanup,
@@ -142,6 +142,12 @@ app.add_middleware(
         "X-Sku-Check-Total",
         "X-Sku-Check-Found",
         "X-Sku-Check-Missing",
+        "X-Catalog-Filename",
+        "X-Catalog-File-Count",
+        "X-Catalog-Row-Count",
+        "X-Catalog-Source-Rows",
+        "X-Catalog-Duplicates-Removed",
+        "X-Catalog-Skipped-Rows",
     ],
 )
 
@@ -341,6 +347,7 @@ app.include_router(tracking_scanner.router, prefix=settings.api_v1_str, tags=["t
 app.include_router(warehouse_products.router, prefix=settings.api_v1_str, tags=["warehouse-products"], dependencies=[Depends(require_app_access)])
 app.include_router(keepa_import_export.router, prefix=settings.api_v1_str, tags=["keepa-import-export"], dependencies=[Depends(require_app_access)])
 app.include_router(manifest_generator.router, prefix=settings.api_v1_str, tags=["manifest-generator"], dependencies=[Depends(require_app_access)])
+app.include_router(product_catalog_formatter.router, prefix=settings.api_v1_str, tags=["product-catalog-formatter"], dependencies=[Depends(require_app_access)])
 app.include_router(fnsku_box_pivot.router, prefix=settings.api_v1_str, tags=["fnsku-pack-station"], dependencies=[Depends(require_app_access)])
 app.include_router(fba_box_contents.router, prefix=settings.api_v1_str, tags=["fba-box-contents"], dependencies=[Depends(require_app_access)])
 app.include_router(fba_upload_compare.router, prefix=settings.api_v1_str, tags=["fba-upload-compare"], dependencies=[Depends(require_app_access)])

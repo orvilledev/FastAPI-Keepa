@@ -59,6 +59,7 @@ const MicroTools = lazy(() => import('./components/tools/MicroTools'))
 const TrackingScanner = lazy(() => import('./components/scanner/TrackingScanner'))
 const FNSKULabelGenerator = lazy(() => import('./components/scanner/FNSKULabelGenerator'))
 const ManifestGenerator = lazy(() => import('./components/tools/ManifestGenerator'))
+const ProductCatalogFormatter = lazy(() => import('./components/tools/ProductCatalogFormatter'))
 const FnskuBoxPivot = lazy(() => import('./components/tools/FnskuBoxPivot'))
 const FbaBoxContents = lazy(() => import('./components/tools/FbaBoxContents'))
 const FbaUploadCompare = lazy(() => import('./components/tools/FbaUploadCompare'))
@@ -471,6 +472,7 @@ function AppRoutes() {
             }
           />
           <Route path="manifest-generator" element={<ManifestGenerator />} />
+          <Route path="product-catalog-formatter" element={<ProductCatalogFormatter />} />
           <Route path="dnk-all-inventory" element={<DnkAllInventory />} />
           <Route path="shipment-manager" element={<ShipmentManager />} />
           <Route path="shipment-manager/:shipmentId" element={<ShipmentDetail />} />

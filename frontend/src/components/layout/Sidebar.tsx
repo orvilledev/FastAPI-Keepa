@@ -149,6 +149,12 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M9 8h1m5 0h.01M7 3h8l4 4v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z" />
     </svg>
   ),
+  productCatalog: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h10" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z" />
+    </svg>
+  ),
   dnkAllInventory: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h10M4 18h10M15 14l5 5m0-5v5h-5" />
@@ -582,6 +588,19 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
             >
               <span className="shrink-0">{Icons.manifestGenerator}</span>
               <span className="sidebar-link-label">Manifest Generator</span>
+            </Link>
+
+            <Link
+              to="/product-catalog-formatter"
+              onMouseEnter={() => setHoveredNav('product-catalog-formatter')}
+              className={`sidebar-link ${
+                navHighlighted('product-catalog-formatter', isActive('/product-catalog-formatter'))
+                  ? 'sidebar-link-active'
+                  : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="shrink-0">{Icons.productCatalog}</span>
+              <span className="sidebar-link-label">Product Catalog Formatter</span>
             </Link>
 
             <Link

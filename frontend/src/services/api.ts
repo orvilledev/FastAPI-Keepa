@@ -1907,6 +1907,50 @@ export const fbaBoxContentsApi = {
   },
 }
 
+export type ProductCatalogFormatResult = {
+  blob: Blob
+  filename: string
+  fileCount: number
+  rowCount: number
+  sourceRows: number
+  duplicatesRemoved: number
+  skippedRows: number
+}
+
+export const productCatalogFormatterApi = {
+  format: async (files: File[]): Promise<ProductCatalogFormatResult> => {
+    const form = new FormData()
+    files.forEach((file) => form.append('files', file))
+    try {
+      const response = await api.post<Blob>('/api/v1/product-catalog-formatter/format', form, {
+        responseType: 'blob',
+        timeout: 120_000,
+      })
+      const headers = response.headers || {}
+      const filenameHeader = headers['x-catalog-filename']
+      const disposition = headers['content-disposition'] as string | undefined
+      let filename =
+        (typeof filenameHeader === 'string' && filenameHeader.trim()) ||
+        'Product Catalog Formatter.xlsx'
+      if ((!filenameHeader || !String(filenameHeader).trim()) && disposition) {
+        const match = /filename="?([^";]+)"?/i.exec(disposition)
+        if (match?.[1]) filename = match[1]
+      }
+      return {
+        blob: response.data,
+        filename,
+        fileCount: Number(headers['x-catalog-file-count'] || files.length),
+        rowCount: Number(headers['x-catalog-row-count'] || 0),
+        sourceRows: Number(headers['x-catalog-source-rows'] || 0),
+        duplicatesRemoved: Number(headers['x-catalog-duplicates-removed'] || 0),
+        skippedRows: Number(headers['x-catalog-skipped-rows'] || 0),
+      }
+    } catch (err: unknown) {
+      return readBlobError(err)
+    }
+  },
+}
+
 export type FbaUploadCompareResult = {
   blob: Blob
   filename: string
