@@ -203,8 +203,8 @@ export default function About() {
           </li>
           <li>
             <span className="font-semibold">Product Catalog Formatter:</span> Upload one or more Amazon shipment-plan
-            files and download one catalog workbook (UPC, SKU, fnsku, STYLE NAME, Condition) with duplicate UPCs
-            removed.
+            files, or one or more WR SKU Update files, and download one catalog workbook (UPC, SKU, fnsku, STYLE
+            NAME, Condition) with duplicate UPCs removed.
           </li>
           <li>
             <span className="font-semibold">DNK AllInventory:</span> Upload a PMSH01 available-inventory export and build

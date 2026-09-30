@@ -281,9 +281,10 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         Product Catalog Formatter accepts one or more Amazon shipment-plan files (the sheet with SKU, Title, FNSKU, and
-        UPC/EAN/ISBN/JAN/CODABAR). Download produces one PRODUCTS workbook: UPC, SKU, fnsku, STYLE NAME, and Condition.
-        The UPC label is removed, and a UPC that appears more than once is kept only from the first row. Available to
-        all signed-in non-warehouse users under Tools.
+        UPC/EAN/ISBN/JAN/CODABAR), or one or more WR SKU Update files (SKU, Description, UPC, FNSKU). Download produces
+        one PRODUCTS workbook: UPC, SKU, fnsku, STYLE NAME, and Condition. The shipment-plan UPC label is removed. A WR
+        SKU Update sets Condition to New and leaves dimensions out. A UPC that appears more than once is kept only from
+        the first row. Available to all signed-in non-warehouse users under Tools.
       </>
     ),
   },

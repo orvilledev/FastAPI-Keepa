@@ -9,8 +9,10 @@ from app.services.product_catalog_formatter import (
     MAX_FILES,
     MAX_UPLOAD_BYTES,
     OUTPUT_FILENAME,
+    FormatResult,
     ProductCatalogFormatterError,
     format_catalogs,
+    format_wr_sku_catalogs,
 )
 from app.utils.error_handler import handle_api_errors
 
@@ -26,14 +28,7 @@ def _safe_disposition_name(filename: str) -> str:
     return cleaned or OUTPUT_FILENAME
 
 
-@router.post("/product-catalog-formatter/format", response_model=None)
-@limiter.limit(RateLimits.FILE_UPLOAD)
-@handle_api_errors("format a product catalog")
-async def format_product_catalog(
-    request: Request,
-    files: list[UploadFile] = File(..., description="Shipment-plan product catalog exports"),
-):
-    """Merge uploaded shipment-plan files into one catalog with unique UPCs."""
+async def _read_uploads(files: list[UploadFile]) -> list[tuple[str, bytes]]:
     if not files:
         raise HTTPException(status_code=400, detail="No files were uploaded.")
     if len(files) > MAX_FILES:
@@ -53,12 +48,10 @@ async def format_product_catalog(
         if len(raw) > MAX_UPLOAD_BYTES:
             raise HTTPException(status_code=400, detail=f'"{name}" is too large (max 15 MB).')
         uploads.append((name, raw))
+    return uploads
 
-    try:
-        result = format_catalogs(uploads)
-    except ProductCatalogFormatterError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+def _catalog_response(result: FormatResult) -> Response:
     safe_name = _safe_disposition_name(result.filename)
     return Response(
         content=result.file_bytes,
@@ -73,3 +66,35 @@ async def format_product_catalog(
             "X-Catalog-Skipped-Rows": str(result.skipped_rows),
         },
     )
+
+
+@router.post("/product-catalog-formatter/format", response_model=None)
+@limiter.limit(RateLimits.FILE_UPLOAD)
+@handle_api_errors("format a product catalog")
+async def format_product_catalog(
+    request: Request,
+    files: list[UploadFile] = File(..., description="Shipment-plan product catalog exports"),
+):
+    """Merge uploaded shipment-plan files into one catalog with unique UPCs."""
+    uploads = await _read_uploads(files)
+    try:
+        result = format_catalogs(uploads)
+    except ProductCatalogFormatterError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _catalog_response(result)
+
+
+@router.post("/product-catalog-formatter/format-wr-sku", response_model=None)
+@limiter.limit(RateLimits.FILE_UPLOAD)
+@handle_api_errors("format a WR SKU Update into a product catalog")
+async def format_wr_sku_product_catalog(
+    request: Request,
+    files: list[UploadFile] = File(..., description="WR SKU Update workbooks"),
+):
+    """Merge uploaded WR SKU Update files into one catalog with unique UPCs."""
+    uploads = await _read_uploads(files)
+    try:
+        result = format_wr_sku_catalogs(uploads)
+    except ProductCatalogFormatterError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _catalog_response(result)

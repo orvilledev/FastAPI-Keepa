@@ -341,6 +341,145 @@ def build_workbook(products: list[CatalogProduct]) -> bytes:
     return buffer.getvalue()
 
 
+def _find_wr_header(rows: list[list[object]]) -> tuple[int, dict[str, int]] | None:
+    """A WR SKU Update header: exact SKU, UPC, and FNSKU columns.
+
+    The UPC column must be named ``UPC`` itself. The shipment-plan export's
+    ``UPC/EAN/ISBN/JAN/CODABAR`` column does not match, so the two tools stay apart.
+    """
+    for index, row in enumerate(rows):
+        mapping: dict[str, int] = {}
+        for col, value in enumerate(row):
+            label = _normalize_label(value)
+            if not label:
+                continue
+            if label == "sku" and "sku" not in mapping:
+                mapping["sku"] = col
+            elif label == "upc" and "upc" not in mapping:
+                mapping["upc"] = col
+            elif label == "fnsku" and "fnsku" not in mapping:
+                mapping["fnsku"] = col
+            elif label in {"description", "style name"} and "style" not in mapping:
+                mapping["style"] = col
+            elif label == "title" and "title" not in mapping:
+                mapping["title"] = col
+        if "sku" in mapping and "upc" in mapping and "fnsku" in mapping:
+            return index, mapping
+    return None
+
+
+def _upc_output_value(upc: str) -> str | int:
+    """Write a plain UPC as a number, the way the WR catalog sample stores it.
+
+    A leading zero is kept as text so the barcode is not shortened.
+    """
+    if upc.isdigit() and not (len(upc) > 1 and upc.startswith("0")):
+        return int(upc)
+    return upc
+
+
+def parse_wr_sku_update(filename: str, content: bytes) -> tuple[list[CatalogProduct], int]:
+    """WR SKU Update rows: SKU, Description, UPC, FNSKU. Condition is always New."""
+    rows = read_grid(filename or "upload", content)
+    header = _find_wr_header(rows)
+    if header is None:
+        raise ProductCatalogFormatterError(
+            f'Could not find a WR SKU Update table (SKU, Description, UPC, FNSKU) in "{filename}".'
+        )
+    header_index, cols = header
+    style_col = cols.get("style", cols.get("title", -1))
+    products: list[CatalogProduct] = []
+    skipped = 0
+    for row in rows[header_index + 1 :]:
+        sku = _cell_text(_cell_at(row, cols["sku"]))
+        barcode_cell = _cell_at(row, cols["upc"])
+        barcode_text = _cell_text(barcode_cell)
+        style_name = _cell_text(_cell_at(row, style_col)) if style_col >= 0 else ""
+        fnsku = _cell_text(_cell_at(row, cols["fnsku"]))
+        if not any((sku, barcode_text, style_name, fnsku)):
+            continue
+        if sku.lower() == "sku" and _normalize_label(barcode_cell) in {"", "upc"}:
+            continue
+        try:
+            upc = extract_barcode(barcode_cell) if barcode_text else ""
+        except ProductCatalogFormatterError as exc:
+            raise ProductCatalogFormatterError(f'"{filename}": {exc}') from exc
+        if not upc and not barcode_text:
+            upc = _upc_from_sku(sku)
+        if not upc:
+            skipped += 1
+            continue
+        products.append(
+            CatalogProduct(
+                upc=upc,
+                sku=sku,
+                fnsku=fnsku,
+                style_name=style_name,
+                condition="New",
+            )
+        )
+    if not products and skipped == 0:
+        raise ProductCatalogFormatterError(f'No product rows were found in "{filename}".')
+    return products, skipped
+
+
+def build_wr_workbook(products: list[CatalogProduct]) -> bytes:
+    """Same PRODUCTS sheet as the catalog sample: UPC stored as a number."""
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = SHEET_NAME
+    sheet.append(list(OUTPUT_HEADERS))
+    for product in products:
+        sheet.append(
+            [
+                _upc_output_value(product.upc),
+                product.sku,
+                product.fnsku,
+                product.style_name,
+                product.condition,
+            ]
+        )
+        upc_cell = sheet.cell(sheet.max_row, 1)
+        if isinstance(upc_cell.value, int):
+            upc_cell.number_format = "0"
+    for letter, width in COLUMN_WIDTHS.items():
+        sheet.column_dimensions[letter].width = width
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def format_wr_sku_catalogs(uploads: list[tuple[str, bytes]]) -> FormatResult:
+    """Merge one or more WR SKU Update files into one catalog of unique UPCs."""
+    if not uploads:
+        raise ProductCatalogFormatterError("No files were uploaded.")
+    if len(uploads) > MAX_FILES:
+        raise ProductCatalogFormatterError(f"Upload at most {MAX_FILES} files at a time.")
+
+    products: list[CatalogProduct] = []
+    skipped = 0
+    for filename, content in uploads:
+        parsed, file_skipped = parse_wr_sku_update(filename, content)
+        products.extend(parsed)
+        skipped += file_skipped
+
+    unique, duplicates = _dedupe(products)
+    if not unique:
+        raise ProductCatalogFormatterError(
+            "No product rows with a UPC were found. "
+            "Upload a WR SKU Update file with SKU, Description, UPC, and FNSKU columns."
+        )
+    return FormatResult(
+        file_bytes=build_wr_workbook(unique),
+        filename=OUTPUT_FILENAME,
+        file_count=len(uploads),
+        row_count=len(unique),
+        source_rows=len(products),
+        duplicates_removed=duplicates,
+        skipped_rows=skipped,
+    )
+
+
 def format_catalogs(uploads: list[tuple[str, bytes]]) -> FormatResult:
     """Merge one or more shipment-plan exports into one catalog workbook."""
     if not uploads:

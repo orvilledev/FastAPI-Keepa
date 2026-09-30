@@ -13,12 +13,17 @@ from app.services.product_catalog_formatter import (
     ProductCatalogFormatterError,
     extract_barcode,
     format_catalogs,
+    format_wr_sku_catalogs,
 )
 
 SAMPLE_INPUT = Path(
     r"c:\Users\Administrator\Downloads\Input file product catalog formatter.xlsx"
 )
 SAMPLE_OUTPUT = Path(r"c:\Users\Administrator\Downloads\Product Catalog Formatter.xlsx")
+SAMPLE_WR_INPUT = Path(
+    r"c:\Users\Administrator\Downloads\NFA_WHRP_9.14.26_CLUSTERED_WR_SKU_UPDATE.xlsx"
+)
+SAMPLE_WR_OUTPUT = Path(r"c:\Users\Administrator\Downloads\Product Catalog Formatter (1).xlsx")
 
 
 def _plan(rows: list[tuple[str, str, str, str, str]], *, extra_footer: bool = True) -> bytes:
@@ -205,5 +210,119 @@ def test_real_sample_matches_the_catalog_workbook():
     got_rows = list(got[SHEET_NAME].iter_rows(min_row=1, max_col=5, values_only=True))
     expected_rows = list(expected[SHEET_NAME].iter_rows(min_row=1, max_col=5, values_only=True))
     assert got_rows == expected_rows
+    assert result.row_count == 1
+    assert result.duplicates_removed == 0
+
+
+def _wr_file(rows: list[tuple[str, str, object, str]]) -> bytes:
+    """A WR SKU Update workbook: SKU, Description, UPC, FNSKU, plus unused dimensions."""
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    headers = [
+        "SKU",
+        "Description",
+        "UPC",
+        "FNSKU",
+        "Item Length (in.)",
+        "Item Width (in.)",
+        "Item Height (in.)",
+        "Item Weight (lbs)",
+        "Carton Length (in.)",
+        "Carton Width (in.)",
+        "Carton Height (in.)",
+        "Carton Weight (lbs)",
+        "Units per carton",
+    ]
+    for col, header in enumerate(headers, start=1):
+        sheet.cell(1, col, header)
+    for offset, (sku, description, upc, fnsku) in enumerate(rows):
+        row = 2 + offset
+        sheet.cell(row, 1, sku)
+        sheet.cell(row, 2, description)
+        sheet.cell(row, 3, upc)
+        sheet.cell(row, 4, fnsku)
+        sheet.cell(row, 8, 0.6)
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def test_wr_sku_update_maps_to_the_catalog_and_sets_condition_new():
+    description = "The North Face Women''s Aconcagua Jacket, Smoked Pearl, Large"
+    result = format_wr_sku_catalogs(
+        [
+            (
+                "update.xlsx",
+                _wr_file(
+                    [
+                        ("198268878087-FNSKU", description, 198268878087, "X005957U4B"),
+                    ]
+                ),
+            )
+        ]
+    )
+    sheet = openpyxl.load_workbook(BytesIO(result.file_bytes))[SHEET_NAME]
+    assert [sheet.cell(1, col).value for col in range(1, 6)] == list(OUTPUT_HEADERS)
+    assert sheet["A2"].value == 198268878087
+    assert sheet["A2"].number_format == "0"
+    assert sheet["B2"].value == "198268878087-FNSKU"
+    assert sheet["C2"].value == "X005957U4B"
+    assert sheet["D2"].value == description
+    assert sheet["E2"].value == "New"
+    assert sheet.max_column == 5
+
+
+def test_wr_files_keep_the_first_copy_of_each_upc():
+    first = _wr_file(
+        [
+            ("111111111111-FNSKU", "First title", 111111111111, "X00AAA"),
+            ("222222222222-FNSKU", "Second title", "222222222222", "X00BBB"),
+        ]
+    )
+    second = _wr_file(
+        [
+            ("111111111111-FNSKU", "Later title", 111111111111, "X00ZZZ"),
+            ("019826846593-FNSKU", "Leading zero", "019826846593", "X00CCC"),
+        ]
+    )
+    result = format_wr_sku_catalogs([("a.xlsx", first), ("b.xlsx", second)])
+    sheet = openpyxl.load_workbook(BytesIO(result.file_bytes))[SHEET_NAME]
+    assert [sheet.cell(row, 1).value for row in range(2, 5)] == [
+        111111111111,
+        222222222222,
+        "019826846593",
+    ]
+    assert sheet["D2"].value == "First title"
+    assert sheet["C2"].value == "X00AAA"
+    assert sheet["E2"].value == "New"
+    assert sheet["A4"].number_format != "0" or isinstance(sheet["A4"].value, str)
+    assert result.duplicates_removed == 1
+    assert result.row_count == 3
+
+
+def test_wr_parser_does_not_accept_a_shipment_plan():
+    content = _plan(
+        [("198268465935-FNSKU", "Crew", "X0058EHT67", "UPC:198268465935", "New")]
+    )
+    with pytest.raises(ProductCatalogFormatterError, match="WR SKU Update"):
+        format_wr_sku_catalogs([("plan.xlsx", content)])
+
+
+@pytest.mark.skipif(
+    not SAMPLE_WR_INPUT.exists() or not SAMPLE_WR_OUTPUT.exists(),
+    reason="Sample WR SKU Update workbooks are not present",
+)
+def test_real_wr_sample_matches_the_catalog_workbook():
+    result = format_wr_sku_catalogs([("input.xlsx", SAMPLE_WR_INPUT.read_bytes())])
+    expected = openpyxl.load_workbook(SAMPLE_WR_OUTPUT, data_only=False)
+    got = openpyxl.load_workbook(BytesIO(result.file_bytes), data_only=False)
+    assert got.sheetnames == [SHEET_NAME]
+    assert [got.active.cell(1, col).value for col in range(1, 6)] == [
+        expected.active.cell(1, col).value for col in range(1, 6)
+    ]
+    assert [got.active.cell(2, col).value for col in range(1, 6)] == [
+        expected.active.cell(2, col).value for col in range(1, 6)
+    ]
+    assert got.active["A2"].number_format == expected.active["A2"].number_format
     assert result.row_count == 1
     assert result.duplicates_removed == 0
