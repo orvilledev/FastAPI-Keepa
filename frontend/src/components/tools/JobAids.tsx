@@ -213,7 +213,8 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         <strong>Shipment Manager</strong>, <strong>Freight Class Calculator</strong>, and{' '}
         <strong>Label Station</strong>. Most document and shipment tools are available to all signed-in non-warehouse
         users. <strong>Label Station</strong> requires Keepa access or a warehouse-only account. Warehouse-only accounts
-        also get <strong>FNSKU Pack Station</strong> and <strong>Freight Class Calculator</strong>.
+        also get <strong>FNSKU Pack Station</strong> and <strong>Freight Class Calculator</strong>.{' '}
+        <strong>warehouse1@metroshoewarehouse.com</strong> can also open <strong>FNSKU Labels</strong>.
       </>
     ),
   },

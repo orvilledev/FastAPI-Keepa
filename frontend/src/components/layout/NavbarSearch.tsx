@@ -9,6 +9,7 @@ import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 import { canAccessBcTools } from '../../lib/bcToolsAccess'
 import { canAccessShipmentAnalyzer } from '../../lib/shipmentAnalyzerAccess'
+import { canWarehouseAccessFnskuLabels } from '../../constants/warehouseAccess'
 
 type SearchItem = {
   label: string
@@ -27,13 +28,19 @@ function buildSearchItems(
   showOldSkus: boolean,
   showBcTools: boolean,
   showShipmentAnalyzer: boolean,
+  showFnskuLabels: boolean,
 ): SearchItem[] {
   if (isWarehouseOnly) {
     const warehouseItems: SearchItem[] = [
       { label: 'Label Station', path: '/label-station', section: 'Tools' },
+    ]
+    if (showFnskuLabels) {
+      warehouseItems.push({ label: 'FNSKU Labels', path: '/fnsku-labels', section: 'Tools' })
+    }
+    warehouseItems.push(
       { label: 'FNSKU Pack Station', path: '/fnsku-pack-station', section: 'Tools' },
       { label: 'Freight Class Calculator', path: '/freight-class-calculator', section: 'Tools' },
-    ]
+    )
     if (showShipmentAnalyzer) {
       warehouseItems.push({
         label: 'SMW Shipment Analyzer',
@@ -162,6 +169,7 @@ export default function NavbarSearch() {
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
+  const showFnskuLabels = canWarehouseAccessFnskuLabels(userInfo?.email || authUser?.email)
 
   const searchItems = useMemo(
     () =>
@@ -176,8 +184,9 @@ export default function NavbarSearch() {
         showOldSkus,
         showBcTools,
         showShipmentAnalyzer,
+        showFnskuLabels,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showMasterSheet, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools, showShipmentAnalyzer],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showMasterSheet, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools, showShipmentAnalyzer, showFnskuLabels],
   )
 
   const results = useMemo(() => {

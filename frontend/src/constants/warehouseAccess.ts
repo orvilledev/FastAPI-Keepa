@@ -11,8 +11,17 @@ export const WAREHOUSE_ALLOWED_PATHS = new Set([
   '/feedback',
 ])
 
-export function isWarehouseAllowedPath(pathname: string): boolean {
-  return WAREHOUSE_ALLOWED_PATHS.has(pathname)
+/** FNSKU Labels stays off the shared warehouse menu except for these station accounts. */
+const FNSKU_LABELS_PATH = '/fnsku-labels'
+const FNSKU_LABELS_WAREHOUSE_EMAILS = new Set(['warehouse1@metroshoewarehouse.com'])
+
+export function canWarehouseAccessFnskuLabels(email?: string | null): boolean {
+  return FNSKU_LABELS_WAREHOUSE_EMAILS.has((email || '').trim().toLowerCase())
+}
+
+export function isWarehouseAllowedPath(pathname: string, email?: string | null): boolean {
+  if (WAREHOUSE_ALLOWED_PATHS.has(pathname)) return true
+  return pathname === FNSKU_LABELS_PATH && canWarehouseAccessFnskuLabels(email)
 }
 
 /** Post-login destination for MFA-exempt shared station accounts. */

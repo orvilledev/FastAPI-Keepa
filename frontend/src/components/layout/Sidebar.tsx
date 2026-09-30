@@ -10,6 +10,7 @@ import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 import { canAccessBcTools } from '../../lib/bcToolsAccess'
 import { canAccessShipmentAnalyzer } from '../../lib/shipmentAnalyzerAccess'
+import { canWarehouseAccessFnskuLabels } from '../../constants/warehouseAccess'
 
 // SVG Icon components that inherit text color via currentColor
 const Icons = {
@@ -214,8 +215,10 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
+  const accountEmail = userInfo?.email || authUser?.email
+  const canUseFnskuLabels = canWarehouseAccessFnskuLabels(accountEmail)
   const canUseShipmentAnalyzer = canAccessShipmentAnalyzer(
-    userInfo?.email || authUser?.email,
+    accountEmail,
     isSuperadmin,
   )
   const isElectron = Boolean(window.desktop?.isElectron)
@@ -353,6 +356,21 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
                 <span className="shrink-0">{Icons.barcode}</span>
                 <span className="sidebar-link-label">Label Station</span>
               </Link>
+
+              {canUseFnskuLabels && (
+                <Link
+                  to="/fnsku-labels"
+                  onMouseEnter={() => setHoveredNav('fnsku-labels')}
+                  className={`sidebar-link ${
+                    navHighlighted('fnsku-labels', isActive('/fnsku-labels'))
+                      ? 'sidebar-link-active'
+                      : 'sidebar-link-inactive'
+                  }`}
+                >
+                  <span className="shrink-0">{Icons.fnskuLabels}</span>
+                  <span className="sidebar-link-label">FNSKU Labels</span>
+                </Link>
+              )}
 
               <Link
                 to="/fnsku-pack-station"

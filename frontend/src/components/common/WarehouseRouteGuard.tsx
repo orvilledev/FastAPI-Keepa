@@ -19,7 +19,7 @@ export default function WarehouseRouteGuard({ children }: { children: React.Reac
     )
   }
 
-  if (!isWarehouseAllowedPath(location.pathname)) {
+  if (!isWarehouseAllowedPath(location.pathname, userInfo?.email)) {
     return <Navigate to={WAREHOUSE_HOME_PATH} replace />
   }
 

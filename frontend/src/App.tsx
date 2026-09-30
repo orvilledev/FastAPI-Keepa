@@ -284,7 +284,7 @@ function PrivateLayout() {
 
 /** Remembers the last in-app private URL for refresh recovery. */
 function RememberLastPrivatePath() {
-  const { authUser, isWarehouseOnly } = useUser()
+  const { authUser, isWarehouseOnly, userInfo } = useUser()
   const location = useLocation()
 
   useEffect(() => {
@@ -298,9 +298,9 @@ function RememberLastPrivatePath() {
       routePath === '/mfa/setup' ||
       routePath === '/mfa/verify'
     if (isGuestRoute) return
-    if (isWarehouseOnly && !isWarehouseAllowedPath(routePath)) return
+    if (isWarehouseOnly && !isWarehouseAllowedPath(routePath, userInfo?.email || authUser?.email)) return
     setLastPrivatePath(getCurrentRememberedPath())
-  }, [authUser, isWarehouseOnly, location.pathname, location.search, location.hash])
+  }, [authUser, isWarehouseOnly, userInfo?.email, location.pathname, location.search, location.hash])
 
   return null
 }
