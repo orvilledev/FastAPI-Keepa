@@ -13,7 +13,13 @@ export const WAREHOUSE_ALLOWED_PATHS = new Set([
 
 /** FNSKU Labels stays off the shared warehouse menu except for these station accounts. */
 const FNSKU_LABELS_PATH = '/fnsku-labels'
-const FNSKU_LABELS_WAREHOUSE_EMAILS = new Set(['warehouse1@metroshoewarehouse.com'])
+const FNSKU_LABELS_WAREHOUSE_EMAILS = new Set([
+  'warehouse1@metroshoewarehouse.com',
+  'cameron@pmshoesinc.com',
+  'corp1997@pmshoesinc.com',
+  'ap@pmshoesinc.com',
+  'brittany@metroshoewarehouse.com',
+])
 
 export function canWarehouseAccessFnskuLabels(email?: string | null): boolean {
   return FNSKU_LABELS_WAREHOUSE_EMAILS.has((email || '').trim().toLowerCase())

@@ -233,7 +233,8 @@ export default function About() {
         <p className="mt-4 text-sm text-gray-600">
           Label Station requires Keepa access or a warehouse-only account. FNSKU Pack Station and Freight Class
           Calculator are available to all signed-in users, including warehouse-only stations. FNSKU Labels is also
-          available to warehouse1@metroshoewarehouse.com. Micro Tools, Tracking
+          available to warehouse1@metroshoewarehouse.com, cameron@pmshoesinc.com,
+          corp1997@pmshoesinc.com, ap@pmshoesinc.com, and brittany@metroshoewarehouse.com. Micro Tools, Tracking
           Extractor, FNSKU Labels, Manifest Generator, Product Catalog Formatter, DNK AllInventory, and Shipment Manager are available to all
           signed-in non-warehouse users.
         </p>

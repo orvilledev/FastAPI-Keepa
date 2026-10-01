@@ -214,7 +214,9 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         <strong>Label Station</strong>. Most document and shipment tools are available to all signed-in non-warehouse
         users. <strong>Label Station</strong> requires Keepa access or a warehouse-only account. Warehouse-only accounts
         also get <strong>FNSKU Pack Station</strong> and <strong>Freight Class Calculator</strong>.{' '}
-        <strong>warehouse1@metroshoewarehouse.com</strong> can also open <strong>FNSKU Labels</strong>.
+        <strong>warehouse1@metroshoewarehouse.com</strong>, <strong>cameron@pmshoesinc.com</strong>,{' '}
+        <strong>corp1997@pmshoesinc.com</strong>, <strong>ap@pmshoesinc.com</strong>, and{' '}
+        <strong>brittany@metroshoewarehouse.com</strong> can also open <strong>FNSKU Labels</strong>.
       </>
     ),
   },

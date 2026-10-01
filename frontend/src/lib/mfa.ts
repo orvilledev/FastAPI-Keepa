@@ -44,21 +44,28 @@ const API_BASE_URL = normalizeApiBaseUrl(
     : 'http://localhost:8000'
 )
 
-/** Built-in exempt emails (env + Electron fallback when client-config fetch fails). */
-function parseBuiltInMfaExemptEmails(): string[] {
+/** Always password-only, even when the API exempt list is older than this build. */
+const BUILT_IN_MFA_EXEMPT_EMAILS = [
+  'warehouse1@metroshoewarehouse.com',
+  'hello@warehouserepublic.com',
+  'cameron@pmshoesinc.com',
+  'corp1997@pmshoesinc.com',
+  'ap@pmshoesinc.com',
+  'brittany@metroshoewarehouse.com',
+]
+
+function parseEnvMfaExemptEmails(): string[] {
   const raw = import.meta.env.VITE_MFA_EXEMPT_EMAILS
-  if (typeof raw === 'string' && raw.trim()) {
-    return raw
-      .split(',')
-      .map((email) => email.trim().toLowerCase())
-      .filter(Boolean)
-  }
-  const isElectron =
-    typeof window !== 'undefined' && Boolean(window.desktop?.isElectron)
-  if (isElectron) {
-    return ['warehouse1@metroshoewarehouse.com', 'hello@warehouserepublic.com']
-  }
-  return []
+  if (typeof raw !== 'string' || !raw.trim()) return []
+  return raw
+    .split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean)
+}
+
+/** Built-in exempt emails, plus any extras from VITE_MFA_EXEMPT_EMAILS. */
+function parseBuiltInMfaExemptEmails(): string[] {
+  return mergeMfaExemptEmailLists(BUILT_IN_MFA_EXEMPT_EMAILS, parseEnvMfaExemptEmails())
 }
 
 function mergeMfaExemptEmailLists(...lists: readonly (readonly string[])[]): string[] {

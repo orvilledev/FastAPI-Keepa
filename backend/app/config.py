@@ -171,13 +171,24 @@ class Settings(BaseSettings):
     maintenance_allowlist_emails: str = ""
 
     # Comma-separated emails that skip TOTP MFA (password-only sign-in for shared stations).
-    mfa_exempt_emails: str = "warehouse1@metroshoewarehouse.com,hello@warehouserepublic.com"
+    mfa_exempt_emails: str = (
+        "warehouse1@metroshoewarehouse.com,"
+        "hello@warehouserepublic.com,"
+        "cameron@pmshoesinc.com,"
+        "corp1997@pmshoesinc.com,"
+        "ap@pmshoesinc.com,"
+        "brittany@metroshoewarehouse.com"
+    )
 
     # Comma-separated emails blocked from Off-Price Analytics (web API).
     # Everyone else with Keepa access can use it. Empty falls back to defaults.
     analytics_blocked_emails: str = (
         "hello@warehouserepublic.com,"
-        "warehouse1@metroshoewarehouse.com"
+        "warehouse1@metroshoewarehouse.com,"
+        "cameron@pmshoesinc.com,"
+        "corp1997@pmshoesinc.com,"
+        "ap@pmshoesinc.com,"
+        "brittany@metroshoewarehouse.com"
     )
 
     # Comma-separated emails allowed to use the Master Sheet tool (plus superadmin).
@@ -220,7 +231,11 @@ class Settings(BaseSettings):
     # Everyone else who is signed in can use it. Empty falls back to defaults.
     shipment_analyzer_blocked_emails: str = (
         "hello@warehouserepublic.com,"
-        "warehouse1@metroshoewarehouse.com"
+        "warehouse1@metroshoewarehouse.com,"
+        "cameron@pmshoesinc.com,"
+        "corp1997@pmshoesinc.com,"
+        "ap@pmshoesinc.com,"
+        "brittany@metroshoewarehouse.com"
     )
 
     # Comma-separated emails allowed to use the Old SKUs catalog (plus superadmin).

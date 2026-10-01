@@ -1,12 +1,16 @@
 /**
  * SMW Shipment Analyzer access — every signed-in user except the
- * Hello and Warehouse1 station accounts. Keep in sync with backend
+ * Hello, Warehouse1, and the other warehouse-only station accounts. Keep in sync with backend
  * `app.dependencies` / config blocklist.
  */
 
 export const SHIPMENT_ANALYZER_BLOCKED_EMAILS = [
   'hello@warehouserepublic.com',
   'warehouse1@metroshoewarehouse.com',
+  'cameron@pmshoesinc.com',
+  'corp1997@pmshoesinc.com',
+  'ap@pmshoesinc.com',
+  'brittany@metroshoewarehouse.com',
 ] as const
 
 const SHIPMENT_ANALYZER_BLOCKED_SET = new Set(

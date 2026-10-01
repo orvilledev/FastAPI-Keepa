@@ -6,6 +6,10 @@
 export const ANALYTICS_BLOCKED_EMAILS = [
   'hello@warehouserepublic.com',
   'warehouse1@metroshoewarehouse.com',
+  'cameron@pmshoesinc.com',
+  'corp1997@pmshoesinc.com',
+  'ap@pmshoesinc.com',
+  'brittany@metroshoewarehouse.com',
 ] as const
 
 const ANALYTICS_BLOCKED_SET = new Set(

@@ -323,6 +323,10 @@ _DEFAULT_SHIPMENT_ANALYZER_BLOCKED = frozenset(
     {
         "hello@warehouserepublic.com",
         "warehouse1@metroshoewarehouse.com",
+        "cameron@pmshoesinc.com",
+        "corp1997@pmshoesinc.com",
+        "ap@pmshoesinc.com",
+        "brittany@metroshoewarehouse.com",
     }
 )
 
