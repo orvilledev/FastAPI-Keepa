@@ -1,0 +1,29 @@
+MSW Overwatch 3.6.0 — desktop and web release
+
+Feature release since 3.5.3. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## BC Tools
+- Restricted **BC Tools** sidebar for Superadmin, Paolo, JB, Sunshine, and Stephanie
+- **Old SKUs** catalog with Excel upload and template; large spreadsheet imports are faster
+- **FBA Upload Compare** remaps Output UPCs through Old SKUs, including catalogs that contain identity rows
+- Compare pivots reconcile to Amazon expected quantities and no longer leave an empty box
+- FBA Box Contents Tool #1 stays hidden; the remaining tool is labeled **NFA and SMW Tool**
+
+## Shipment Manager
+- Each shipment cluster keeps its own ledger link
+- Unique UPC counts stay correct on large shipments
+
+## SMW Shipment Analyzer
+- Compare shipment IDs, UPCs, and units, including Amazon shipment-plan pack list exports
+- SKU counts are ignored
+- Open to every signed-in user except the Hello and Warehouse1 station accounts
+
+## Product Catalog Formatter
+- Merge shipment-plan uploads into one unique-UPC workbook
+- Upload WR SKU Update files and keep unique UPCs
+
+## Warehouse
+- warehouse1 can open **FNSKU Labels** from the warehouse station menu
+
+## Upgrade from 3.5.3
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.6.0, download it, then prompt to install now or later. Web/PWA users get 3.6.0 on the next deploy/refresh.
