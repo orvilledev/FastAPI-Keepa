@@ -35,6 +35,27 @@ def uses_sku_for_scan(sku: str) -> bool:
 _FNSKU_SUFFIX_RE = re.compile(r"[-_\s]*FNSKU\s*$", re.IGNORECASE)
 
 
+def sku_lookup_keys(scan_key: str) -> List[str]:
+    """SKU strings that should resolve this scan.
+
+    Catalog SKUs are sometimes stored with a ``-FNSKU`` suffix (``9990259-FNSKU``)
+    while the warehouse scans the short id (``9990259``), or the reverse.
+    """
+    key = normalize_upc_key(scan_key)
+    if not key:
+        return []
+    keys = [key]
+    if _FNSKU_SUFFIX_RE.search(key):
+        base = _FNSKU_SUFFIX_RE.sub("", key).strip(" -_")
+        if base and base not in keys:
+            keys.append(base)
+    else:
+        suffixed = f"{key}-FNSKU"
+        if suffixed not in keys:
+            keys.append(suffixed)
+    return keys
+
+
 def merchant_sku_from_catalog_row(row: Optional[Mapping[str, Any]]) -> str:
     """Amazon merchant SKU as used in FBA box-contents reports: ``{id}-FNSKU``.
 
@@ -105,13 +126,24 @@ class WarehouseProductRepository:
         sku_response = (
             self.db.table("warehouse_products")
             .select("*")
-            .eq("sku", key)
+            .in_("sku", sku_lookup_keys(key))
             .limit(5)
             .execute()
         )
         for row in sku_response.data or []:
             if uses_sku_for_scan(row.get("sku") or ""):
                 return row
+
+        # Printed labels barcode the FNSKU. Warehouse stations scan that label.
+        fnsku_response = (
+            self.db.table("warehouse_products")
+            .select("*")
+            .eq("fnsku", key)
+            .limit(1)
+            .execute()
+        )
+        if fnsku_response.data:
+            return fnsku_response.data[0]
         return None
 
     def lookup_by_fnskus(self, fnskus: Sequence[str]) -> Dict[str, dict]:

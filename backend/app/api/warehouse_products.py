@@ -64,11 +64,11 @@ def lookup_warehouse_product(
     current_user: dict = Depends(get_label_station_user),
     db: Client = Depends(get_supabase),
 ):
-    """Resolve a scanned UPC to FNSKU and label fields (PRODUCTS catalog)."""
+    """Resolve a scanned UPC, short SKU, or FNSKU to label fields."""
     repo = WarehouseProductRepository(db)
     row = repo.lookup(upc)
     if not row:
-        raise HTTPException(status_code=404, detail="UPC not found")
+        raise HTTPException(status_code=404, detail="Product not found")
     return WarehouseProductLookupResponse(
         upc=row["upc"],
         sku=row.get("sku") or "",

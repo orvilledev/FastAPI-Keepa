@@ -264,16 +264,26 @@ export function getLabelScanLine(
   return product.upc
 }
 
+/** Strip a trailing FNSKU marker so ``9990259`` matches catalog SKU ``9990259-FNSKU``. */
+function skuScanBase(value: string): string {
+  return value.replace(/[-_\s]*FNSKU\s*$/i, '').trim()
+}
+
 export function scanMatchesCatalogProduct(
   scanInput: string,
-  product: { upc: string; sku?: string }
+  product: { upc: string; sku?: string; fnsku?: string }
 ): boolean {
   const trimmed = scanInput.trim()
   if (!trimmed) return false
   if (trimmed === product.upc) return true
+  const fnsku = (product.fnsku ?? '').trim()
+  if (fnsku && trimmed === fnsku) return true
   const sku = (product.sku ?? '').trim()
-  if (isShortCatalogSku(sku) && trimmed === sku) return true
-  return false
+  if (!isShortCatalogSku(sku)) return false
+  if (trimmed === sku) return true
+  const scanBase = skuScanBase(trimmed)
+  const skuBase = skuScanBase(sku)
+  return Boolean(scanBase) && scanBase === skuBase
 }
 
 export function computeScanStatus(
@@ -296,7 +306,7 @@ export function scanStatusLabel(status: ScanPrintStatus): string {
     case 'looking_up':
       return 'Looking up…'
     case 'not_found':
-      return 'UPC not found'
+      return 'Not in catalog'
     case 'ready':
       return 'Ready to print'
   }

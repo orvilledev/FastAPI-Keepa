@@ -3,6 +3,7 @@ from app.repositories.warehouse_product_repository import (
     build_warehouse_product_search_filter,
     merchant_sku_from_catalog_row,
     sku_digit_count,
+    sku_lookup_keys,
     uses_sku_for_scan,
 )
 
@@ -50,6 +51,111 @@ def test_lookup_by_fnskus_batches_and_keeps_first_match():
     assert found == {"XA": first, "XB": second}
     chain.in_.assert_called_once_with("fnsku", ["XA", "XB"])
 
+
+
+def test_sku_lookup_keys_covers_fnsku_suffix():
+    assert sku_lookup_keys("9990259") == ["9990259", "9990259-FNSKU"]
+    assert sku_lookup_keys("9990259-FNSKU") == ["9990259-FNSKU", "9990259"]
+    assert sku_lookup_keys("  ") == []
+
+
+def _lookup_chain(rows_for):
+    from unittest.mock import MagicMock
+
+    chain = MagicMock()
+    chain.select.return_value = chain
+    chain.limit.return_value = chain
+    state = {"column": None, "value": None}
+
+    def eq(column, value):
+        state["column"] = column
+        state["value"] = value
+        return chain
+
+    def in_(column, values):
+        state["column"] = column
+        state["value"] = list(values)
+        return chain
+
+    def execute():
+        return MagicMock(data=rows_for(state["column"], state["value"]))
+
+    chain.eq.side_effect = eq
+    chain.in_.side_effect = in_
+    chain.execute.side_effect = execute
+    return chain
+
+
+def test_lookup_by_fnsku_barcode():
+    from unittest.mock import MagicMock
+
+    from app.repositories.warehouse_product_repository import WarehouseProductRepository
+
+    row = {
+        "upc": "198266506982",
+        "sku": "9990259-FNSKU",
+        "fnsku": "X0052LNG63",
+        "style_name": "Sample",
+        "condition": "New",
+    }
+
+    def rows_for(column, value):
+        if column == "fnsku" and value == "X0052LNG63":
+            return [row]
+        return []
+
+    db = MagicMock()
+    db.table.return_value = _lookup_chain(rows_for)
+    repo = WarehouseProductRepository(db)
+    assert repo.lookup("X0052LNG63") == row
+
+
+def test_lookup_by_short_sku_without_stored_suffix():
+    from unittest.mock import MagicMock
+
+    from app.repositories.warehouse_product_repository import WarehouseProductRepository
+
+    row = {
+        "upc": "198266506982",
+        "sku": "9990259-FNSKU",
+        "fnsku": "X0052LNG63",
+        "style_name": "Sample",
+        "condition": "New",
+    }
+
+    def rows_for(column, value):
+        if column == "sku" and "9990259-FNSKU" in (value or []):
+            return [row]
+        return []
+
+    db = MagicMock()
+    db.table.return_value = _lookup_chain(rows_for)
+    repo = WarehouseProductRepository(db)
+    assert repo.lookup("9990259") == row
+
+
+def test_lookup_skips_long_sku_when_upc_misses():
+    from unittest.mock import MagicMock
+
+    from app.repositories.warehouse_product_repository import WarehouseProductRepository
+
+    long_sku_row = {
+        "upc": "111",
+        "sku": "198266506982",
+        "fnsku": "X0052LNG63",
+        "style_name": "Sample",
+        "condition": "New",
+    }
+
+    def rows_for(column, value):
+        if column == "sku":
+            return [long_sku_row]
+        return []
+
+    db = MagicMock()
+    db.table.return_value = _lookup_chain(rows_for)
+    repo = WarehouseProductRepository(db)
+    assert repo.lookup("198266506982") is None
 
 
 def test_lookup_by_upc_returns_short_sku_product():

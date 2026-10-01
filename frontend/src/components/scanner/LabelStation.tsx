@@ -491,7 +491,7 @@ export default function LabelStation() {
       <div>
         <h1 className="text-2xl font-bold text-[#404040]">Label Station</h1>
         <p className="text-sm text-gray-600 mt-1">
-          Scan a product UPC to look up FNSKU and print a warehouse label. Choose{' '}
+          Scan a UPC, short SKU, or the FNSKU on a printed label, then print a warehouse label. Choose{' '}
           <span className="font-medium">Print ID</span> below: Short SKU for Amazon, or UPC for DNK
           carton match. A successful scan auto-prints when your scanner sends Enter.
           {catalogCount !== null && (
@@ -514,7 +514,7 @@ export default function LabelStation() {
       {/* SCANNER layout */}
       <section className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-0 border-b border-gray-200 bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-600">
-          <div className="px-4 py-3 sm:col-span-1">Scan UPC</div>
+          <div className="px-4 py-3 sm:col-span-1">Scan</div>
           <div className="px-4 py-3 hidden sm:block">FNSKU</div>
           <div className="px-4 py-3 hidden sm:col-span-2 sm:block">Style name</div>
           <div className="px-4 py-3 hidden sm:block">Condition</div>
@@ -534,7 +534,7 @@ export default function LabelStation() {
               value={scanUpc}
               onChange={(e) => setScanUpc(e.target.value)}
               onKeyDown={handleScanKeyDown}
-              placeholder="Scan or type UPC…"
+              placeholder="Scan UPC, SKU, or FNSKU…"
               className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-lg font-mono focus:border-[#404040] focus:ring-1 focus:ring-[#404040]"
             />
             {lookingUp && <p className="text-xs text-gray-500 mt-1">Looking up…</p>}
