@@ -45,6 +45,7 @@ type ToolPanelProps = {
 }
 
 function ToolPanel({ title, description, expectedInput, defaultFilename, generate }: ToolPanelProps) {
+  const [open, setOpen] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -134,11 +135,34 @@ function ToolPanel({ title, description, expectedInput, defaultFilename, generat
   }, [resultBlob, resultFilename])
 
   return (
-    <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-        <p className="mt-1 text-sm text-gray-600">{description}</p>
-      </div>
+    <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <h2>
+        <button
+          type="button"
+          onClick={() => setOpen((prev) => !prev)}
+          aria-expanded={open}
+          className={`flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors ${
+            open ? 'bg-gray-50' : 'hover:bg-gray-50'
+          }`}
+        >
+          <span className="text-lg font-semibold text-gray-900">{title}</span>
+          <svg
+            className={`h-5 w-5 shrink-0 text-gray-500 transition-transform duration-200 ${
+              open ? 'rotate-180' : ''
+            }`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </h2>
+
+      {open && (
+      <div className="space-y-4 border-t border-gray-200 p-5">
+      <p className="text-sm text-gray-600">{description}</p>
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -246,6 +270,8 @@ function ToolPanel({ title, description, expectedInput, defaultFilename, generat
       <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm text-gray-600">
         {expectedInput}
       </div>
+      </div>
+      )}
     </section>
   )
 }
@@ -278,7 +304,7 @@ export default function FbaBoxContents() {
       <header>
         <h1 className="text-2xl font-bold text-gray-900">FBA Box Contents</h1>
         <p className="mt-1 text-sm text-gray-600">
-          Convert a carton upload into a Box Contents workbook.
+          Choose a tool to upload a carton file and download a Box Contents workbook.
         </p>
       </header>
 
