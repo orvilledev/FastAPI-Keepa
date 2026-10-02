@@ -140,6 +140,8 @@ export interface ShipmentFolder {
   shipment_count: number
   /** Per-user follow — shows in Starred section. */
   starred?: boolean
+  /** Set when the group is in Archive. */
+  archived_at?: string | null
 }
 
 /** One FBA export added to a shipment. */

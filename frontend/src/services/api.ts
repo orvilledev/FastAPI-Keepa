@@ -2291,6 +2291,14 @@ export const shipmentsApi = {
     })
     return response.data
   },
+  archiveFolder: async (folderId: string): Promise<ShipmentFolder> => {
+    const response = await api.post<ShipmentFolder>(`/api/v1/shipments/folders/${folderId}/archive`)
+    return response.data
+  },
+  restoreFolder: async (folderId: string): Promise<ShipmentFolder> => {
+    const response = await api.post<ShipmentFolder>(`/api/v1/shipments/folders/${folderId}/restore`)
+    return response.data
+  },
   saveFolderLedger: async (folderId: string, ledgerUrl: string): Promise<ShipmentFolder> => {
     const response = await api.patch<ShipmentFolder>(
       `/api/v1/shipments/folders/${folderId}/ledger`,

@@ -279,6 +279,7 @@ class ShipmentFolderResponse(BaseModel):
     created_by_email: str = ""
     created_at: datetime
     updated_at: datetime
+    archived_at: Optional[datetime] = None
     shipment_count: int = 0
     starred: bool = False
 

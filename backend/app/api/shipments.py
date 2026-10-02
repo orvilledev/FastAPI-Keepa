@@ -9,6 +9,7 @@ because one purchase order covers one FBA shipment.
 import io
 import logging
 import zipfile
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -310,6 +311,7 @@ def _to_folder_response(
         updated_at=folder["updated_at"],
         shipment_count=shipment_count,
         starred=starred,
+        archived_at=folder.get("archived_at") or None,
     )
 
 
@@ -563,6 +565,69 @@ def save_shipment_folder_ledger(
         count,
         starred=str(folder_id) in starred_folders,
     )
+
+
+def _folder_member_response(
+    repo: ShipmentRepository,
+    folder_id: UUID,
+    folder: dict,
+    current_user: dict,
+) -> ShipmentFolderResponse:
+    shipments = repo.list_shipments()
+    count = sum(1 for item in shipments if str(item.get("folder_id") or "") == str(folder_id))
+    _starred_shipments, starred_folders = _user_star_sets(repo, current_user["id"])
+    return _to_folder_response(
+        folder,
+        count,
+        starred=str(folder_id) in starred_folders,
+    )
+
+
+@router.post("/shipments/folders/{folder_id}/archive", response_model=ShipmentFolderResponse)
+@handle_api_errors("archive shipment folder")
+def archive_shipment_folder(
+    folder_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Move a shipment group into Archive. Shipments stay in the group."""
+    repo = ShipmentRepository(db)
+    try:
+        folder = repo.get_folder(str(folder_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found.")
+    try:
+        updated = repo.update_folder(
+            str(folder_id),
+            {"archived_at": datetime.now(timezone.utc).isoformat()},
+        ) or folder
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _folder_member_response(repo, folder_id, updated, current_user)
+
+
+@router.post("/shipments/folders/{folder_id}/restore", response_model=ShipmentFolderResponse)
+@handle_api_errors("restore shipment folder")
+def restore_shipment_folder(
+    folder_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Return an archived shipment group to the live list."""
+    repo = ShipmentRepository(db)
+    try:
+        folder = repo.get_folder(str(folder_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found.")
+    try:
+        updated = repo.update_folder(str(folder_id), {"archived_at": None}) or folder
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _folder_member_response(repo, folder_id, updated, current_user)
 
 
 @router.post("/shipments/folders/{folder_id}/move", response_model=List[ShipmentFolderResponse])

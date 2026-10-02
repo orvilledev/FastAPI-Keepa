@@ -13,6 +13,11 @@ import {
 import type { ShipmentFolder, ShipmentRecord } from '../../types'
 
 const STARRED_SECTION_ID = '__starred__'
+const ARCHIVE_SECTION_ID = '__archive__'
+
+function isArchivedFolder(folder: ShipmentFolder): boolean {
+  return Boolean(folder.archived_at)
+}
 
 function errorDetail(err: unknown, fallback: string): string {
   const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
@@ -293,6 +298,55 @@ export default function ShipmentManager() {
     } finally {
       setFolderBusy(false)
     }
+  }
+
+  const handleArchiveFolder = async (folder: ShipmentFolder) => {
+    const confirmed = window.confirm(
+      `Archive “${folder.name}”? It leaves this list and stays available in Archive, where you can open or restore it.`,
+    )
+    if (!confirmed) return
+    setFolderBusy(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const updated = await shipmentsApi.archiveFolder(folder.id)
+      setFolders((prev) => prev.map((item) => (item.id === folder.id ? updated : item)))
+      setExpandedFolders((prev) => {
+        const next = new Set(prev)
+        next.add(ARCHIVE_SECTION_ID)
+        next.delete(folder.id)
+        return next
+      })
+      setMessage(`Archived “${updated.name}”.`)
+    } catch (err) {
+      setError(errorDetail(err, 'Could not archive this group.'))
+    } finally {
+      setFolderBusy(false)
+    }
+  }
+
+  const handleRestoreFolder = async (folder: ShipmentFolder) => {
+    setFolderBusy(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const updated = await shipmentsApi.restoreFolder(folder.id)
+      setFolders((prev) => prev.map((item) => (item.id === folder.id ? updated : item)))
+      setMessage(`Restored “${updated.name}”.`)
+    } catch (err) {
+      setError(errorDetail(err, 'Could not restore this group.'))
+    } finally {
+      setFolderBusy(false)
+    }
+  }
+
+  const openArchivedFolder = (folder: ShipmentFolder) => {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev)
+      next.add(ARCHIVE_SECTION_ID)
+      next.add(folder.id)
+      return next
+    })
   }
 
   const handleDeleteFolder = async (folder: ShipmentFolder) => {
@@ -581,7 +635,7 @@ export default function ShipmentManager() {
     }
 
     const rows: ListRow[] = []
-    const folderOrder = bySortOrder(folders)
+    const folderOrder = bySortOrder(folders.filter((folder) => !isArchivedFolder(folder)))
     for (const folder of folderOrder) {
       const members = bySortOrder(byFolder.get(folder.id) || [])
       if (members.length === 0) {
@@ -607,9 +661,30 @@ export default function ShipmentManager() {
   }, [filtered, folders, search, vendorFilter, contributorFilter, uploadsFilter])
 
   const starredFolders = useMemo(
-    () => bySortOrder(folders.filter((folder) => folder.starred)),
+    () => bySortOrder(folders.filter((folder) => folder.starred && !isArchivedFolder(folder))),
     [folders],
   )
+
+  const archivedFolders = useMemo(
+    () => bySortOrder(folders.filter((folder) => isArchivedFolder(folder))),
+    [folders],
+  )
+
+  const visibleArchived = useMemo(() => {
+    const membersByFolder = new Map<string, ShipmentRecord[]>()
+    for (const shipment of filtered) {
+      if (!shipment.folder_id) continue
+      const list = membersByFolder.get(shipment.folder_id) || []
+      list.push(shipment)
+      membersByFolder.set(shipment.folder_id, list)
+    }
+    const hiding = filtersActiveLike(search, vendorFilter, contributorFilter, uploadsFilter)
+    return archivedFolders.flatMap((folder) => {
+      const members = bySortOrder(membersByFolder.get(folder.id) || [])
+      if (members.length === 0 && hiding) return []
+      return [{ folder, members }]
+    })
+  }, [archivedFolders, filtered, search, vendorFilter, contributorFilter, uploadsFilter])
 
   const starredShipments = useMemo(() => {
     const starredFolderIds = new Set(starredFolders.map((folder) => folder.id))
@@ -628,16 +703,23 @@ export default function ShipmentManager() {
     vendorFilter !== 'all' ||
     contributorFilter !== 'all' ||
     uploadsFilter !== 'all'
+  const archiveExpanded =
+    expandedFolders.has(ARCHIVE_SECTION_ID) || (filtersActive && visibleArchived.length > 0)
+
+  const liveFiltered = useMemo(() => {
+    const archivedIds = new Set(archivedFolders.map((folder) => folder.id))
+    return filtered.filter((item) => !item.folder_id || !archivedIds.has(item.folder_id))
+  }, [filtered, archivedFolders])
 
   const allFilteredSelected =
-    filtered.length > 0 && filtered.every((item) => selectedIds.has(item.id))
+    liveFiltered.length > 0 && liveFiltered.every((item) => selectedIds.has(item.id))
 
   const toggleSelectAll = () => {
     if (allFilteredSelected) {
       setSelectedIds(new Set())
       return
     }
-    setSelectedIds(new Set(filtered.map((item) => item.id)))
+    setSelectedIds(new Set(liveFiltered.map((item) => item.id)))
   }
 
   const toggleSelected = (id: string) => {
@@ -818,7 +900,8 @@ export default function ShipmentManager() {
             Register a shipment, let everyone upload their FBA exports into it, then compile one
             WR SKU Update sheet with duplicates removed. Shipments stay here until deleted. Select
             related groups to cluster them into an editable folder. Star a shipment or folder to
-            keep it in your personal Starred section at the top.
+            keep it in your personal Starred section at the top. Archive a group to move it into
+            Archive, where you can open it or restore it.
           </p>
         </div>
         <button
@@ -995,7 +1078,7 @@ export default function ShipmentManager() {
               >
                 Create folder…
               </button>
-              {folders.length > 0 && (
+              {folders.some((folder) => !isArchivedFolder(folder)) && (
                 <>
                   <select
                     value={moveToFolderId}
@@ -1004,11 +1087,13 @@ export default function ShipmentManager() {
                     className={selectClass}
                   >
                     <option value="">Move to folder…</option>
-                    {folders.map((folder) => (
-                      <option key={folder.id} value={folder.id}>
-                        {folder.name}
-                      </option>
-                    ))}
+                    {folders
+                      .filter((folder) => !isArchivedFolder(folder))
+                      .map((folder) => (
+                        <option key={folder.id} value={folder.id}>
+                          {folder.name}
+                        </option>
+                      ))}
                   </select>
                   <button
                     type="button"
@@ -1070,7 +1155,7 @@ export default function ShipmentManager() {
             </form>
           )}
 
-          {filtered.length === 0 ? (
+          {filtered.length === 0 && visibleArchived.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-gray-600">
               No shipments match these filters.
             </p>
@@ -1176,6 +1261,7 @@ export default function ShipmentManager() {
                             onToggleStar={() => void handleToggleFolderStar(folder)}
                             onOpenLedger={() => openFolderLedger(folder)}
                             onGenerateClustered={() => void handleGenerateClustered(folder)}
+                            onArchive={() => void handleArchiveFolder(folder)}
                             renderMember={(shipment) =>
                               renderShipmentRow(shipment, true, false, false, 'starred-')
                             }
@@ -1237,12 +1323,88 @@ export default function ShipmentManager() {
                       onToggleStar={() => void handleToggleFolderStar(folder)}
                       onOpenLedger={() => openFolderLedger(folder)}
                       onGenerateClustered={() => void handleGenerateClustered(folder)}
+                      onArchive={() => void handleArchiveFolder(folder)}
                       renderMember={(shipment, index, total) =>
                         renderShipmentRow(shipment, true, index > 0, index < total - 1)
                       }
                     />
                   )
                 })}
+                {visibleArchived.length > 0 && (
+                  <>
+                    <tr className="bg-slate-100">
+                      <td className="px-4 py-2" colSpan={2}>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleFolderExpanded(ARCHIVE_SECTION_ID)}
+                            aria-label={archiveExpanded ? 'Collapse Archive' : 'Expand Archive'}
+                            className="rounded p-0.5 text-slate-700 hover:bg-slate-200"
+                          >
+                            <span className="inline-block w-4 text-center text-xs">
+                              {archiveExpanded ? '▼' : '▶'}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleFolderExpanded(ARCHIVE_SECTION_ID)}
+                            className="truncate text-left text-sm font-semibold text-slate-900 hover:underline"
+                          >
+                            Archive
+                          </button>
+                          <span className="shrink-0 text-xs text-slate-600">
+                            {visibleArchived.length} group
+                            {visibleArchived.length === 1 ? '' : 's'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-slate-400">—</td>
+                      <td className="px-4 py-2 text-slate-400">—</td>
+                      <td className="px-4 py-2 text-slate-400">—</td>
+                      <td className="px-4 py-2 text-slate-400">—</td>
+                      <td className="px-4 py-2 text-slate-400">—</td>
+                      <td className="px-4 py-2 text-slate-400">—</td>
+                      <td className="px-4 py-2 text-slate-400">—</td>
+                      <td className="px-4 py-2 text-right text-xs text-slate-500">
+                        Open or restore
+                      </td>
+                    </tr>
+                    {archiveExpanded &&
+                      visibleArchived.map(({ folder, members }) => (
+                        <FragmentFolder
+                          key={`archive-folder-${folder.id}`}
+                          folder={folder}
+                          members={members}
+                          collapsed={!expandedFolders.has(folder.id)}
+                          isRenaming={false}
+                          renameValue=""
+                          folderBusy={folderBusy}
+                          canMoveUp={false}
+                          canMoveDown={false}
+                          archivedSection
+                          generatingClustered={clusterGenerateId === folder.id}
+                          hasUploads={shipments.some(
+                            (item) => item.folder_id === folder.id && item.upload_count > 0,
+                          )}
+                          onToggle={() => toggleFolderExpanded(folder.id)}
+                          onMoveUp={() => undefined}
+                          onMoveDown={() => undefined}
+                          onStartRename={() => undefined}
+                          onRenameValue={() => undefined}
+                          onSaveRename={() => undefined}
+                          onCancelRename={() => undefined}
+                          onDelete={() => undefined}
+                          onOpen={() => openArchivedFolder(folder)}
+                          onRestore={() => void handleRestoreFolder(folder)}
+                          onOpenLedger={() => openFolderLedger(folder)}
+                          onGenerateClustered={() => void handleGenerateClustered(folder)}
+                          renderMember={(shipment, index, total) =>
+                            renderShipmentRow(shipment, true, index > 0, index < total - 1)
+                          }
+                        />
+                      ))}
+                  </>
+                )}
               </tbody>
             </table>
           )}
@@ -1363,6 +1525,7 @@ function FragmentFolder({
   canMoveUp,
   canMoveDown,
   starredSection = false,
+  archivedSection = false,
   generatingClustered = false,
   hasUploads,
   onToggle,
@@ -1376,6 +1539,9 @@ function FragmentFolder({
   onToggleStar,
   onOpenLedger,
   onGenerateClustered,
+  onArchive,
+  onOpen,
+  onRestore,
   renderMember,
 }: {
   folder: ShipmentFolder
@@ -1387,6 +1553,7 @@ function FragmentFolder({
   canMoveUp: boolean
   canMoveDown: boolean
   starredSection?: boolean
+  archivedSection?: boolean
   generatingClustered?: boolean
   hasUploads?: boolean
   onToggle: () => void
@@ -1400,13 +1567,20 @@ function FragmentFolder({
   onToggleStar?: () => void
   onOpenLedger?: () => void
   onGenerateClustered?: () => void
+  onArchive?: () => void
+  onOpen?: () => void
+  onRestore?: () => void
   renderMember: (shipment: ShipmentRecord, index: number, total: number) => ReactNode
 }) {
   const canGenerate = hasUploads ?? members.some((item) => item.upload_count > 0)
   return (
     <>
-      <tr className={starredSection ? 'bg-amber-50/70' : 'bg-slate-50/90'}>
-        <td className="px-4 py-2" colSpan={2}>
+      <tr
+        className={
+          archivedSection ? 'bg-slate-50' : starredSection ? 'bg-amber-50/70' : 'bg-slate-50/90'
+        }
+      >
+        <td className={`py-2 ${archivedSection ? 'pl-10 pr-4' : 'px-4'}`} colSpan={2}>
           <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
@@ -1514,44 +1688,77 @@ function FragmentFolder({
                   Cancel
                 </button>
               </>
-            ) : starredSection ? null : (
+            ) : archivedSection ? (
               <>
-                <div className="inline-flex overflow-hidden rounded-md border border-gray-300">
-                  <button
-                    type="button"
-                    disabled={!canMoveUp || folderBusy}
-                    onClick={onMoveUp}
-                    aria-label={`Move ${folder.name} up`}
-                    className="px-2 py-1 text-xs font-medium text-gray-700 hover:bg-white disabled:opacity-40"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!canMoveDown || folderBusy}
-                    onClick={onMoveDown}
-                    aria-label={`Move ${folder.name} down`}
-                    className="border-l border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-white disabled:opacity-40"
-                  >
-                    ↓
-                  </button>
-                </div>
                 <button
                   type="button"
                   disabled={folderBusy}
-                  onClick={onStartRename}
-                  className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-white disabled:opacity-50"
+                  onClick={onOpen ?? onToggle}
+                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50"
                 >
-                  Rename
+                  Open
                 </button>
                 <button
                   type="button"
                   disabled={folderBusy}
-                  onClick={onDelete}
-                  className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  onClick={onRestore}
+                  className="rounded-md border border-emerald-300 bg-white px-2.5 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
                 >
-                  Remove folder
+                  Restore
                 </button>
+              </>
+            ) : (
+              <>
+                {!starredSection && (
+                  <>
+                    <div className="inline-flex overflow-hidden rounded-md border border-gray-300">
+                      <button
+                        type="button"
+                        disabled={!canMoveUp || folderBusy}
+                        onClick={onMoveUp}
+                        aria-label={`Move ${folder.name} up`}
+                        className="px-2 py-1 text-xs font-medium text-gray-700 hover:bg-white disabled:opacity-40"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canMoveDown || folderBusy}
+                        onClick={onMoveDown}
+                        aria-label={`Move ${folder.name} down`}
+                        className="border-l border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-white disabled:opacity-40"
+                      >
+                        ↓
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={folderBusy}
+                      onClick={onStartRename}
+                      className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-white disabled:opacity-50"
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      disabled={folderBusy}
+                      onClick={onDelete}
+                      className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      Remove folder
+                    </button>
+                  </>
+                )}
+                {onArchive && (
+                  <button
+                    type="button"
+                    disabled={folderBusy}
+                    onClick={onArchive}
+                    className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-white disabled:opacity-50"
+                  >
+                    Archive
+                  </button>
+                )}
               </>
             )}
           </div>

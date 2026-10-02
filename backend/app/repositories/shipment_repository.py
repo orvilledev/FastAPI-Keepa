@@ -32,6 +32,9 @@ _FOLDER_MIGRATION_HINT = (
 _LEDGER_URL_MIGRATION_HINT = (
     "Run backend/database/migrations/add_shipment_folder_ledger_url.sql in the Supabase SQL Editor."
 )
+_ARCHIVE_MIGRATION_HINT = (
+    "Run backend/database/migrations/add_shipment_folder_archived_at.sql in the Supabase SQL Editor."
+)
 _SORT_ORDER_MIGRATION_HINT = (
     "Run backend/database/migrations/add_shipment_sort_order.sql in the Supabase SQL Editor."
 )
@@ -107,6 +110,16 @@ def _raise_persist_error(exc: Exception, table: str) -> None:
     if missing_ledger:
         raise ValueError(
             f"Shipment cluster ledgers are not set up yet. {_LEDGER_URL_MIGRATION_HINT}"
+        ) from exc
+    missing_archive = table == _FOLDERS and "archived_at" in message and (
+        "column" in message
+        or "schema cache" in message
+        or "pgrst204" in message
+        or "could not find" in message
+    )
+    if missing_archive:
+        raise ValueError(
+            f"Shipment group archive is not set up yet. {_ARCHIVE_MIGRATION_HINT}"
         ) from exc
     missing_folder = (
         (table == _SHIPMENTS and "folder_id" in message)
@@ -261,7 +274,7 @@ class ShipmentRepository:
 
     def move_folder(self, folder_id: str, direction: str) -> List[dict]:
         folders = sorted(
-            self.list_folders(),
+            (item for item in self.list_folders() if not item.get("archived_at")),
             key=lambda item: (int(item.get("sort_order") or 0), str(item.get("name") or "")),
         )
         index = next(
