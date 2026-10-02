@@ -1003,6 +1003,7 @@ export default function ShipmentManager() {
           </p>
         </div>
       ) : (
+        <div className="flex flex-col gap-24">
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
           <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 lg:flex-row lg:items-center">
             <input
@@ -1155,7 +1156,7 @@ export default function ShipmentManager() {
             </form>
           )}
 
-          {filtered.length === 0 && visibleArchived.length === 0 ? (
+          {listRows.length === 0 && !hasStarred ? (
             <p className="px-4 py-8 text-center text-sm text-gray-600">
               No shipments match these filters.
             </p>
@@ -1330,84 +1331,96 @@ export default function ShipmentManager() {
                     />
                   )
                 })}
-                {visibleArchived.length > 0 && (
-                  <>
-                    <tr className="bg-slate-100">
-                      <td className="px-4 py-2" colSpan={2}>
-                        <div className="flex min-w-0 items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleFolderExpanded(ARCHIVE_SECTION_ID)}
-                            aria-label={archiveExpanded ? 'Collapse Archive' : 'Expand Archive'}
-                            className="rounded p-0.5 text-slate-700 hover:bg-slate-200"
-                          >
-                            <span className="inline-block w-4 text-center text-xs">
-                              {archiveExpanded ? '▼' : '▶'}
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleFolderExpanded(ARCHIVE_SECTION_ID)}
-                            className="truncate text-left text-sm font-semibold text-slate-900 hover:underline"
-                          >
-                            Archive
-                          </button>
-                          <span className="shrink-0 text-xs text-slate-600">
-                            {visibleArchived.length} group
-                            {visibleArchived.length === 1 ? '' : 's'}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-2 text-slate-400">—</td>
-                      <td className="px-4 py-2 text-slate-400">—</td>
-                      <td className="px-4 py-2 text-slate-400">—</td>
-                      <td className="px-4 py-2 text-slate-400">—</td>
-                      <td className="px-4 py-2 text-slate-400">—</td>
-                      <td className="px-4 py-2 text-slate-400">—</td>
-                      <td className="px-4 py-2 text-slate-400">—</td>
-                      <td className="px-4 py-2 text-right text-xs text-slate-500">
-                        Open or restore
-                      </td>
-                    </tr>
-                    {archiveExpanded &&
-                      visibleArchived.map(({ folder, members }) => (
-                        <FragmentFolder
-                          key={`archive-folder-${folder.id}`}
-                          folder={folder}
-                          members={members}
-                          collapsed={!expandedFolders.has(folder.id)}
-                          isRenaming={false}
-                          renameValue=""
-                          folderBusy={folderBusy}
-                          canMoveUp={false}
-                          canMoveDown={false}
-                          archivedSection
-                          generatingClustered={clusterGenerateId === folder.id}
-                          hasUploads={shipments.some(
-                            (item) => item.folder_id === folder.id && item.upload_count > 0,
-                          )}
-                          onToggle={() => toggleFolderExpanded(folder.id)}
-                          onMoveUp={() => undefined}
-                          onMoveDown={() => undefined}
-                          onStartRename={() => undefined}
-                          onRenameValue={() => undefined}
-                          onSaveRename={() => undefined}
-                          onCancelRename={() => undefined}
-                          onDelete={() => undefined}
-                          onOpen={() => openArchivedFolder(folder)}
-                          onRestore={() => void handleRestoreFolder(folder)}
-                          onOpenLedger={() => openFolderLedger(folder)}
-                          onGenerateClustered={() => void handleGenerateClustered(folder)}
-                          renderMember={(shipment, index, total) =>
-                            renderShipmentRow(shipment, true, index > 0, index < total - 1)
-                          }
-                        />
-                      ))}
-                  </>
-                )}
               </tbody>
             </table>
           )}
+        </div>
+        {visibleArchived.length > 0 && (
+          <section className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+            <div
+              className={`flex items-center justify-between gap-3 px-4 py-3 ${
+                archiveExpanded ? 'border-b border-gray-200' : ''
+              }`}
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggleFolderExpanded(ARCHIVE_SECTION_ID)}
+                  aria-label={archiveExpanded ? 'Collapse Archive' : 'Expand Archive'}
+                  className="rounded p-0.5 text-slate-700 hover:bg-slate-200"
+                >
+                  <span className="inline-block w-4 text-center text-xs">
+                    {archiveExpanded ? '▼' : '▶'}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleFolderExpanded(ARCHIVE_SECTION_ID)}
+                  className="truncate text-left text-sm font-semibold text-slate-900 hover:underline"
+                >
+                  Archive
+                </button>
+                <span className="shrink-0 text-xs text-slate-600">
+                  {visibleArchived.length} group
+                  {visibleArchived.length === 1 ? '' : 's'}
+                </span>
+              </div>
+              <span className="shrink-0 text-xs text-slate-500">Open or restore</span>
+            </div>
+            {archiveExpanded && (
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                  <tr>
+                    <th className="px-4 py-2" colSpan={2}>Shipment</th>
+                    <th className="px-4 py-2">Vendor</th>
+                    <th className="px-4 py-2">Status</th>
+                    <th className="px-4 py-2">Uploads</th>
+                    <th className="px-4 py-2">Contributors</th>
+                    <th className="px-4 py-2">Unique UPCs</th>
+                    <th className="px-4 py-2">Units</th>
+                    <th className="px-4 py-2">Registered</th>
+                    <th className="px-4 py-2 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {visibleArchived.map(({ folder, members }) => (
+                    <FragmentFolder
+                      key={`archive-folder-${folder.id}`}
+                      folder={folder}
+                      members={members}
+                      collapsed={!expandedFolders.has(folder.id)}
+                      isRenaming={false}
+                      renameValue=""
+                      folderBusy={folderBusy}
+                      canMoveUp={false}
+                      canMoveDown={false}
+                      archivedSection
+                      generatingClustered={clusterGenerateId === folder.id}
+                      hasUploads={shipments.some(
+                        (item) => item.folder_id === folder.id && item.upload_count > 0,
+                      )}
+                      onToggle={() => toggleFolderExpanded(folder.id)}
+                      onMoveUp={() => undefined}
+                      onMoveDown={() => undefined}
+                      onStartRename={() => undefined}
+                      onRenameValue={() => undefined}
+                      onSaveRename={() => undefined}
+                      onCancelRename={() => undefined}
+                      onDelete={() => undefined}
+                      onOpen={() => openArchivedFolder(folder)}
+                      onRestore={() => void handleRestoreFolder(folder)}
+                      onOpenLedger={() => openFolderLedger(folder)}
+                      onGenerateClustered={() => void handleGenerateClustered(folder)}
+                      renderMember={(shipment, index, total) =>
+                        renderShipmentRow(shipment, true, index > 0, index < total - 1)
+                      }
+                    />
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+        )}
         </div>
       )}
       {ledgerFolder && (
@@ -1580,7 +1593,7 @@ function FragmentFolder({
           archivedSection ? 'bg-slate-50' : starredSection ? 'bg-amber-50/70' : 'bg-slate-50/90'
         }
       >
-        <td className={`py-2 ${archivedSection ? 'pl-10 pr-4' : 'px-4'}`} colSpan={2}>
+        <td className="px-4 py-2" colSpan={2}>
           <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
