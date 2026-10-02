@@ -12,6 +12,12 @@ from app.services.fba_box_contents import (
     generate_fba_box_contents,
     sanitize_download_filename,
 )
+from app.services.fba_box_contents_obz import (
+    DEFAULT_OUTPUT_FILENAME as OBZ_DEFAULT_OUTPUT_FILENAME,
+    FbaBoxContentsObzError,
+    generate_fba_box_contents_obz,
+    sanitize_download_filename as sanitize_obz_download_filename,
+)
 from app.services.fba_box_contents_tool2 import (
     DEFAULT_OUTPUT_FILENAME as TOOL2_DEFAULT_OUTPUT_FILENAME,
     FbaBoxContentsTool2Error,
@@ -107,6 +113,39 @@ async def generate_fba_box_contents_tool2_file(
     safe_name = sanitize_tool2_download_filename(
         result.filename, TOOL2_DEFAULT_OUTPUT_FILENAME
     )
+    return Response(
+        content=result.file_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=_response_headers(safe_name, result),
+    )
+
+
+@router.post("/fba-box-contents/generate-obz", response_model=None)
+@limiter.limit(RateLimits.FILE_UPLOAD)
+@handle_api_errors("generate FBA Box Contents OBZ workbook")
+async def generate_fba_box_contents_obz_file(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user=Depends(get_fba_box_contents_user),
+):
+    """OBZ Tool — Oboz packing slip by carton into Box Number, UPC, Qty."""
+    _ = current_user
+    _validate_upload(file)
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    if len(raw) > _MAX_BYTES:
+        raise HTTPException(status_code=400, detail="File is too large (max 15 MB).")
+
+    try:
+        result = generate_fba_box_contents_obz(
+            raw, file.filename or OBZ_DEFAULT_OUTPUT_FILENAME
+        )
+    except FbaBoxContentsObzError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    safe_name = sanitize_obz_download_filename(result.shipment_id)
     return Response(
         content=result.file_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

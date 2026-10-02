@@ -278,7 +278,7 @@ export default function FbaBoxContents() {
       <header>
         <h1 className="text-2xl font-bold text-gray-900">FBA Box Contents</h1>
         <p className="mt-1 text-sm text-gray-600">
-          Convert a spaced-column carton dump into a Box Contents workbook with Dimensions.
+          Convert a carton upload into a Box Contents workbook.
         </p>
       </header>
 
@@ -353,6 +353,43 @@ export default function FbaBoxContents() {
               <li>
                 Download named <code>{'{filename} Output.xlsx'}</code>, for example{' '}
                 <code>FBA19PLBV097 Output.xlsx</code>.
+              </li>
+          </ul>
+          </>
+        }
+      />
+
+      <ToolPanel
+        title="OBZ Tool"
+        description={
+          <>
+            Upload an Oboz Packing Slip by Carton. Each <code>Carton</code> becomes a box number,
+            and each item line becomes a row. Downloads <strong>Box Contents</strong> (Box Number,
+            UPC, Qty, a Total formula, and a Sum of Qty pivot).
+          </>
+        }
+        defaultFilename="Box Contents.xlsx"
+        generate={fbaBoxContentsApi.generateObz}
+        expectedInput={
+          <>
+            <h3 className="font-semibold text-gray-900">Expected input</h3>
+            <p className="mt-1">
+              Oboz packing slip whose sheet is titled Packing Slip. Each carton starts with{' '}
+              <code>Carton</code> and a carton number, then a header row of <code>PO</code>,{' '}
+              <code>UPC/GTIN</code>, and <code>Qty</code>, then one line per item.
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              <li>
+                <code>Box Number</code> and <code>Qty</code> are numbers. <code>UPC</code> is text,
+                with leading zeros removed from the GTIN.
+              </li>
+              <li>
+                The Qty column ends with <code>Total</code> and <code>=SUM(...)</code>. The pivot
+                sums qty by UPC and carton.
+              </li>
+              <li>
+                Download named <code>{'{PO} Box Contents.xlsx'}</code>, for example{' '}
+                <code>FBA19PZSB42B Box Contents.xlsx</code>.
               </li>
             </ul>
           </>
