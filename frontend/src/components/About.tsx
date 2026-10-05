@@ -204,7 +204,7 @@ export default function About() {
           <li>
             <span className="font-semibold">Product Catalog Formatter:</span> Upload one or more Amazon shipment-plan
             files, or one or more WR SKU Update files, and download one catalog workbook (UPC, SKU, fnsku, STYLE
-            NAME, Condition) with duplicate UPCs removed.
+            NAME, Condition) with duplicate UPCs removed. Listed under BC Tools for allowlisted accounts.
           </li>
           <li>
             <span className="font-semibold">DNK AllInventory:</span> Upload a PMSH01 available-inventory export and build
@@ -213,11 +213,12 @@ export default function About() {
           <li>
             <span className="font-semibold">Shipment Manager:</span> Register a shipment, let teammates upload FBA exports
             into it, then compile one WR SKU Update sheet with duplicates removed. Shipments stay listed until deleted.
+            Listed under BC Tools for allowlisted accounts.
           </li>
           <li>
             <span className="font-semibold">Freight Class Calculator:</span> Estimate NMFC freight class from density
-            (XPO-compatible logic). Enter dimensions manually or bulk-upload a workbook from the template. Available to
-            all signed-in users, including warehouse-only station accounts.
+            (XPO-compatible logic). Enter dimensions manually or bulk-upload a workbook from the template. Listed under
+            BC Tools for allowlisted accounts, and still available on the warehouse station menu.
           </li>
           <li>
             <span className="font-semibold">Label Station:</span> Scan a product UPC, look up the warehouse catalog, and
@@ -231,12 +232,13 @@ export default function About() {
           </li>
         </ul>
         <p className="mt-4 text-sm text-gray-600">
-          Label Station requires Keepa access or a warehouse-only account. FNSKU Pack Station and Freight Class
-          Calculator are available to all signed-in users, including warehouse-only stations. FNSKU Labels is also
-          available to warehouse1@metroshoewarehouse.com, cameron@pmshoesinc.com,
-          corp1997@pmshoesinc.com, ap@pmshoesinc.com, and brittany@metroshoewarehouse.com. Micro Tools, Tracking
-          Extractor, FNSKU Labels, Manifest Generator, Product Catalog Formatter, DNK AllInventory, and Shipment Manager are available to all
-          signed-in non-warehouse users.
+          Label Station requires Keepa access or a warehouse-only account. FNSKU Pack Station is available to all
+          signed-in users, including warehouse-only stations; Freight Class stays on the warehouse menu and under BC
+          Tools for allowlisted accounts. FNSKU Labels is also available to warehouse1@metroshoewarehouse.com,
+          cameron@pmshoesinc.com, corp1997@pmshoesinc.com, ap@pmshoesinc.com, and
+          brittany@metroshoewarehouse.com. Micro Tools, Tracking Extractor, FNSKU Labels, Manifest Generator, and DNK
+          AllInventory are available to all signed-in non-warehouse users. Product Catalog Formatter, Shipment Manager,
+          and Freight Class appear under BC Tools for Superadmin and allowlisted BC Tools accounts.
         </p>
       </div>
 

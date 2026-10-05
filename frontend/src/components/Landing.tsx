@@ -69,18 +69,10 @@ export default function Landing() {
               {APP_NAME}
             </span>
           </h1>
-          <p className="text-xl text-gray-600 mb-4 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
             {APP_NAME} is your team workspace for focused execution: one place to monitor what matters,
             coordinate quickly, and move from insight to action with less noise.
           </p>
-          <div className="mb-8 max-w-2xl mx-auto">
-            <p className="text-lg font-semibold text-gray-800 mb-2">
-              💼 <strong>Free for MetroShoe Warehouse employees</strong>
-            </p>
-            <p className="text-sm text-gray-600">
-              Non-MetroShoe Warehouse users: $1,000,000/month subscription required
-            </p>
-          </div>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Link
               to="/login"

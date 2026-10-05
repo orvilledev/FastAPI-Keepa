@@ -92,17 +92,19 @@ function buildSearchItems(
     { label: 'FNSKU Labels', path: '/fnsku-labels', section: 'Tools' },
     { label: 'FNSKU Pack Station', path: '/fnsku-pack-station', section: 'Tools' },
     { label: 'Manifest Generator', path: '/manifest-generator', section: 'Tools' },
-    { label: 'Product Catalog Formatter', path: '/product-catalog-formatter', section: 'Tools' },
     { label: 'DNK AllInventory', path: '/dnk-all-inventory', section: 'Tools' },
-    { label: 'Shipment Manager', path: '/shipment-manager', section: 'Tools' },
-    { label: 'Freight Class Calculator', path: '/freight-class-calculator', section: 'Tools' },
   )
 
   if (showBcTools) {
     if (showFbaBoxContents) {
       items.push({ label: 'FBA Box Contents', path: '/fba-box-contents', section: 'BC Tools' })
     }
-    items.push({ label: 'FBA Upload Compare', path: '/fba-upload-compare', section: 'BC Tools' })
+    items.push(
+      { label: 'FBA Upload Compare', path: '/fba-upload-compare', section: 'BC Tools' },
+      { label: 'Product Catalog Formatter', path: '/product-catalog-formatter', section: 'BC Tools' },
+      { label: 'Shipment Manager', path: '/shipment-manager', section: 'BC Tools' },
+      { label: 'Freight Class Calculator', path: '/freight-class-calculator', section: 'BC Tools' },
+    )
   }
   if (showShipmentAnalyzer) {
     items.push({

@@ -207,13 +207,12 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         Tools includes <strong>Micro Tools</strong>, <strong>Tracking Extractor</strong>, <strong>FNSKU Labels</strong>,{' '}
-        <strong>FNSKU Pack Station</strong>, <strong>FBA Box Contents</strong> (allowlisted),{' '}
-        <strong>Manifest Generator</strong>, <strong>Product Catalog Formatter</strong>,{' '}
-        <strong>DNK AllInventory</strong>,{' '}
-        <strong>Shipment Manager</strong>, <strong>Freight Class Calculator</strong>, and{' '}
-        <strong>Label Station</strong>. Most document and shipment tools are available to all signed-in non-warehouse
-        users. <strong>Label Station</strong> requires Keepa access or a warehouse-only account. Warehouse-only accounts
-        also get <strong>FNSKU Pack Station</strong> and <strong>Freight Class Calculator</strong>.{' '}
+        <strong>FNSKU Pack Station</strong>, <strong>Manifest Generator</strong>, <strong>DNK AllInventory</strong>, and{' '}
+        <strong>Label Station</strong>. <strong>BC Tools</strong> holds <strong>FBA Box Contents</strong>,{' '}
+        <strong>FBA Upload Compare</strong>, <strong>Product Catalog Formatter</strong>, <strong>Shipment Manager</strong>,{' '}
+        <strong>Freight Class</strong>, and <strong>SMW Shipment Analyzer</strong> for allowlisted accounts.{' '}
+        <strong>Label Station</strong> requires Keepa access or a warehouse-only account. Warehouse-only accounts also get{' '}
+        <strong>FNSKU Pack Station</strong> and <strong>Freight Class</strong>.{' '}
         <strong>warehouse1@metroshoewarehouse.com</strong>, <strong>cameron@pmshoesinc.com</strong>,{' '}
         <strong>corp1997@pmshoesinc.com</strong>, <strong>ap@pmshoesinc.com</strong>, and{' '}
         <strong>brittany@metroshoewarehouse.com</strong> can also open <strong>FNSKU Labels</strong>.

@@ -594,19 +594,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
             </Link>
 
             <Link
-              to="/product-catalog-formatter"
-              onMouseEnter={() => setHoveredNav('product-catalog-formatter')}
-              className={`sidebar-link ${
-                navHighlighted('product-catalog-formatter', isActive('/product-catalog-formatter'))
-                  ? 'sidebar-link-active'
-                  : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="shrink-0">{Icons.productCatalog}</span>
-              <span className="sidebar-link-label">Product Catalog Formatter</span>
-            </Link>
-
-            <Link
               to="/dnk-all-inventory"
               onMouseEnter={() => setHoveredNav('dnk-all-inventory')}
               className={`sidebar-link ${
@@ -617,32 +604,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
             >
               <span className="shrink-0">{Icons.dnkAllInventory}</span>
               <span className="sidebar-link-label">DNK AllInventory</span>
-            </Link>
-
-            <Link
-              to="/shipment-manager"
-              onMouseEnter={() => setHoveredNav('shipment-manager')}
-              className={`sidebar-link ${
-                navHighlighted('shipment-manager', isActive('/shipment-manager'))
-                  ? 'sidebar-link-active'
-                  : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="shrink-0">{Icons.shipmentManager}</span>
-              <span className="sidebar-link-label">Shipment Manager</span>
-            </Link>
-
-            <Link
-              to="/freight-class-calculator"
-              onMouseEnter={() => setHoveredNav('freight-class-calculator')}
-              className={`sidebar-link ${
-                navHighlighted('freight-class-calculator', isActive('/freight-class-calculator'))
-                  ? 'sidebar-link-active'
-                  : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="shrink-0">{Icons.freightClassCalculator}</span>
-              <span className="sidebar-link-label">Freight Class</span>
             </Link>
 
             {hasKeepaAccess && (
@@ -694,6 +655,48 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
                 >
                   <span className="shrink-0">{Icons.fbaUploadCompare}</span>
                   <span className="sidebar-link-label">FBA Upload Compare</span>
+                </Link>
+              )}
+              {canUseBcTools && (
+                <Link
+                  to="/product-catalog-formatter"
+                  onMouseEnter={() => setHoveredNav('product-catalog-formatter')}
+                  className={`sidebar-link ${
+                    navHighlighted('product-catalog-formatter', isActive('/product-catalog-formatter'))
+                      ? 'sidebar-link-active'
+                      : 'sidebar-link-inactive'
+                  }`}
+                >
+                  <span className="shrink-0">{Icons.productCatalog}</span>
+                  <span className="sidebar-link-label">Product Catalog Formatter</span>
+                </Link>
+              )}
+              {canUseBcTools && (
+                <Link
+                  to="/shipment-manager"
+                  onMouseEnter={() => setHoveredNav('shipment-manager')}
+                  className={`sidebar-link ${
+                    navHighlighted('shipment-manager', isActive('/shipment-manager'))
+                      ? 'sidebar-link-active'
+                      : 'sidebar-link-inactive'
+                  }`}
+                >
+                  <span className="shrink-0">{Icons.shipmentManager}</span>
+                  <span className="sidebar-link-label">Shipment Manager</span>
+                </Link>
+              )}
+              {canUseBcTools && (
+                <Link
+                  to="/freight-class-calculator"
+                  onMouseEnter={() => setHoveredNav('freight-class-calculator')}
+                  className={`sidebar-link ${
+                    navHighlighted('freight-class-calculator', isActive('/freight-class-calculator'))
+                      ? 'sidebar-link-active'
+                      : 'sidebar-link-inactive'
+                  }`}
+                >
+                  <span className="shrink-0">{Icons.freightClassCalculator}</span>
+                  <span className="sidebar-link-label">Freight Class</span>
                 </Link>
               )}
               {canUseShipmentAnalyzer && (
