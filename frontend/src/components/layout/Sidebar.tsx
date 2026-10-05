@@ -473,6 +473,25 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
           </>
         ) : (
           <>
+        {/* MY SPACE */}
+        <div className="shrink-0 space-y-0.5 pb-1">
+          <p className="sidebar-section-label">MY SPACE</p>
+          <Link
+            to="/my-space"
+            onMouseEnter={() => setHoveredNav('my-space')}
+            className={`sidebar-link ${
+              navHighlighted('my-space', isActive('/my-space'))
+                ? 'sidebar-link-active'
+                : 'sidebar-link-inactive'
+            }`}
+          >
+            <span className="shrink-0">{Icons.mySpace}</span>
+            <span className="sidebar-link-label">My Space</span>
+          </Link>
+        </div>
+
+        <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
+
         {/* MENU: Dashboard + Keepa */}
         <div className="shrink-0">
           <p className="sidebar-section-label">MENU</p>
@@ -744,25 +763,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
             </div>
           </>
         )}
-
-        <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
-
-        {/* MY SPACE */}
-        <div className="shrink-0 space-y-0.5 pb-1 pt-1">
-          <p className="sidebar-section-label">MY SPACE</p>
-          <Link
-            to="/my-space"
-            onMouseEnter={() => setHoveredNav('my-space')}
-            className={`sidebar-link ${
-              navHighlighted('my-space', isActive('/my-space'))
-                ? 'sidebar-link-active'
-                : 'sidebar-link-inactive'
-            }`}
-          >
-            <span className="shrink-0">{Icons.mySpace}</span>
-            <span className="sidebar-link-label">My Space</span>
-          </Link>
-        </div>
 
         <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 
