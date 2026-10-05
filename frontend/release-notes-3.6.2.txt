@@ -1,0 +1,22 @@
+MSW Overwatch 3.6.2 — desktop and web release
+
+Feature release since 3.6.1. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## My Space
+- Personal hub for tool bookmarks, custom links, and notes
+- Full tool list stays hidden until you search
+- My Space sits above Menu in the sidebar
+
+## Shipments
+- Archive shipment groups, then open or restore them later
+- Archive lives in its own card below the shipment list
+
+## Tools and navigation
+- OBZ Tool: turn an Oboz packing slip into a Box Contents workbook
+- FBA Box Contents tools stay closed until you click their name
+- Daily Runs grouped by active status; catalog tools moved into BC Tools
+- Retired unused UPC, DIMS, and Master Sheet catalog tools from the UI
+- Pricing section removed from the landing page
+
+## Upgrade from 3.6.1
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.6.2, download it, then prompt to install now or later. Web/PWA users get 3.6.2 on the next deploy/refresh.
