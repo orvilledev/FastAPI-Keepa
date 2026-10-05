@@ -74,9 +74,6 @@ const UserManagement = lazy(() => import('./components/admin/UserManagement'))
 const AuditLog = lazy(() => import('./components/admin/AuditLog'))
 const Feedback = lazy(() => import('./components/feedback/Feedback'))
 const OffPriceAnalytics = lazy(() => import('./components/analytics/OffPriceAnalytics'))
-const CatalogUpcPage = lazy(() => import('./components/catalog/CatalogUpcPage'))
-const CatalogDimsPage = lazy(() => import('./components/catalog/CatalogDimsPage'))
-const MasterSheetTool = lazy(() => import('./components/catalog/MasterSheetTool'))
 const ShipToAddressesPage = lazy(() => import('./components/catalog/ShipToAddressesPage'))
 const OldSkusCatalogPage = lazy(() => import('./components/catalog/OldSkusCatalogPage'))
 
@@ -488,9 +485,10 @@ function AppRoutes() {
           <Route path="tools/my-toolbox" element={<Navigate to="/dashboard" replace />} />
           <Route path="admin/users" element={<UserManagement />} />
           <Route path="admin/audit-log" element={<AuditLog />} />
-          <Route path="catalog/upc" element={<CatalogUpcPage />} />
-          <Route path="catalog/dims" element={<CatalogDimsPage />} />
-          <Route path="catalog/master-sheet" element={<MasterSheetTool />} />
+          {/* Retired catalog tools — keep deep links from bookmarking a blank page */}
+          <Route path="catalog/upc" element={<Navigate to="/dashboard" replace />} />
+          <Route path="catalog/dims" element={<Navigate to="/dashboard" replace />} />
+          <Route path="catalog/master-sheet" element={<Navigate to="/dashboard" replace />} />
           <Route
             path="analytics"
             element={

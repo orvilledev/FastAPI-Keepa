@@ -421,9 +421,8 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
       <>
         General includes <strong>About</strong> (version and feature overview), <strong>FAQ</strong> (this page),{' '}
         <strong>Feedback From Users</strong> (submit and review suggestions), and for superadmins{' '}
-        <strong>User Management</strong> (accounts, permissions, maintenance, and the UPC DNK Print ID allowlist),{' '}
-        <strong>Audit Log</strong>, and catalog tools (<strong>UPC</strong>, <strong>DIMS</strong>,{' '}
-        <strong>Master Sheet</strong>).
+        <strong>User Management</strong> (accounts, permissions, maintenance, and the UPC DNK Print ID allowlist) and{' '}
+        <strong>Audit Log</strong>.
       </>
     ),
   },

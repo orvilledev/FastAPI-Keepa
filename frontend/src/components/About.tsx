@@ -289,11 +289,6 @@ export default function About() {
             <span className="font-semibold">Audit Log:</span> Superadmin only — sign-in, sign-out, Keepa file actions,
             and other mutating requests and downloads.
           </li>
-          <li>
-            <span className="font-semibold">UPC / DIMS / Master Sheet:</span> Superadmin catalog tools — import UPC and
-            DIMS spreadsheets, then fill Master Sheet UPC and carton dims from those catalogs (Master Sheet also
-            available to selected allowlisted accounts).
-          </li>
         </ul>
       </div>
 

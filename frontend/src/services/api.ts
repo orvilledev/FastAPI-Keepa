@@ -8,7 +8,7 @@ import type {
   ManualEmailDraft,
   ManualEmailDraftOpenResult,
   WarehouseProductLookup, WarehouseProductImportResult, WarehouseProduct, WarehouseSkuCheckResult,
-  CatalogImportResult, CatalogUpcListResponse, CatalogDimsListResponse, CatalogShipToListResponse, CatalogShipToImportResult, CatalogShipToImportPreview, CatalogOldSkusListResponse, CatalogOldSkusImportResult, ProjectRecord, ProjectStatus,
+  CatalogShipToListResponse, CatalogShipToImportResult, CatalogShipToImportPreview, CatalogOldSkusListResponse, CatalogOldSkusImportResult, ProjectRecord, ProjectStatus,
   ShipmentRecord, ShipmentDetail, ShipmentUploadResult, ShipmentFolder } from '../types'
 
 /** All request paths begin with `/api/v1`. Strip a mistaken `/api/v1` suffix from env to avoid doubled paths (404 Not Found). */
@@ -2718,33 +2718,6 @@ export const warehouseProductsApi = {
   },
 }
 
-export const catalogUpcApi = {
-  list: async (
-    limit = 50,
-    offset = 0,
-    search?: string
-  ): Promise<CatalogUpcListResponse> => {
-    const response = await api.get('/api/v1/catalog-upc', {
-      params: { limit, offset, search: search || undefined },
-    })
-    return response.data
-  },
-  importFile: async (file: File): Promise<CatalogImportResult> => {
-    const form = new FormData()
-    form.append('file', file)
-    const response = await api.post('/api/v1/catalog-upc/import', form, {
-      timeout: 300_000,
-    })
-    return response.data
-  },
-  downloadTemplate: async (): Promise<Blob> => {
-    const response = await api.get('/api/v1/catalog-upc/template', {
-      responseType: 'blob',
-    })
-    return response.data
-  },
-}
-
 export const catalogShipToApi = {
   list: async (
     limit = 50,
@@ -2807,75 +2780,6 @@ export const catalogOldSkusApi = {
       responseType: 'blob',
     })
     return response.data
-  },
-}
-
-export const catalogDimsApi = {
-  list: async (
-    limit = 50,
-    offset = 0,
-    search?: string
-  ): Promise<CatalogDimsListResponse> => {
-    const response = await api.get('/api/v1/catalog-dims', {
-      params: { limit, offset, search: search || undefined },
-    })
-    return response.data
-  },
-  importFile: async (file: File): Promise<CatalogImportResult> => {
-    const form = new FormData()
-    form.append('file', file)
-    const response = await api.post('/api/v1/catalog-dims/import', form, {
-      timeout: 300_000,
-    })
-    return response.data
-  },
-  downloadTemplate: async (): Promise<Blob> => {
-    const response = await api.get('/api/v1/catalog-dims/template', {
-      responseType: 'blob',
-    })
-    return response.data
-  },
-}
-
-export const masterSheetApi = {
-  downloadTemplate: async (): Promise<Blob> => {
-    const response = await api.get('/api/v1/master-sheet/template', {
-      responseType: 'blob',
-    })
-    return response.data
-  },
-  generate: async (
-    file: File
-  ): Promise<{
-    blob: Blob
-    filename: string
-    totalRows: number
-    upcMatched: number
-    upcMissing: number
-    mcByUpc: number
-    mcByDescSize: number
-    mcMissing: number
-  }> => {
-    const form = new FormData()
-    form.append('file', file)
-    const response = await api.post('/api/v1/master-sheet/generate', form, {
-      responseType: 'blob',
-      timeout: 300_000,
-    })
-    const headers = response.headers || {}
-    const disposition = String(headers['content-disposition'] || '')
-    const match = /filename=\"?([^\";]+)\"?/i.exec(disposition)
-    const filename = match?.[1] || 'Master_Sheet.xlsx'
-    return {
-      blob: response.data,
-      filename,
-      totalRows: Number(headers['x-master-total-rows'] || 0),
-      upcMatched: Number(headers['x-master-upc-matched'] || 0),
-      upcMissing: Number(headers['x-master-upc-missing'] || 0),
-      mcByUpc: Number(headers['x-master-mc-by-upc'] || 0),
-      mcByDescSize: Number(headers['x-master-mc-by-desc-size'] || 0),
-      mcMissing: Number(headers['x-master-mc-missing'] || 0),
-    }
   },
 }
 

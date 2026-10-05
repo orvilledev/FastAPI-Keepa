@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useUser } from '../../contexts/UserContext'
-import { canAccessMasterSheet } from '../../lib/masterSheetAccess'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessProjects } from '../../lib/projectsAccess'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
@@ -21,7 +20,6 @@ function buildSearchItems(
   hasKeepaAccess: boolean,
   isWarehouseOnly: boolean,
   isSuperadmin: boolean,
-  showMasterSheet: boolean,
   showAnalytics: boolean,
   showProjects: boolean,
   showFbaBoxContents: boolean,
@@ -124,13 +122,7 @@ function buildSearchItems(
     items.push(
       { label: 'User Management', path: '/admin/users', section: 'General' },
       { label: 'Audit Log', path: '/admin/audit-log', section: 'General' },
-      { label: 'UPC', path: '/catalog/upc', section: 'General' },
-      { label: 'DIMS', path: '/catalog/dims', section: 'General' },
     )
-  }
-
-  if (showMasterSheet) {
-    items.push({ label: 'Master Sheet', path: '/catalog/master-sheet', section: 'General' })
   }
 
   return items
@@ -144,10 +136,6 @@ export default function NavbarSearch() {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
-  const showMasterSheet = canAccessMasterSheet(
-    userInfo?.email || authUser?.email,
-    isSuperadmin,
-  )
   const showAnalytics = canAccessWebAnalytics(userInfo?.email || authUser?.email)
   const showProjects = canAccessProjects(
     userInfo?.email || authUser?.email,
@@ -177,7 +165,6 @@ export default function NavbarSearch() {
         hasKeepaAccess,
         isWarehouseOnly,
         isSuperadmin,
-        showMasterSheet,
         showAnalytics,
         showProjects,
         showFbaBoxContents,
@@ -186,7 +173,7 @@ export default function NavbarSearch() {
         showShipmentAnalyzer,
         showFnskuLabels,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showMasterSheet, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools, showShipmentAnalyzer, showFnskuLabels],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools, showShipmentAnalyzer, showFnskuLabels],
   )
 
   const results = useMemo(() => {
