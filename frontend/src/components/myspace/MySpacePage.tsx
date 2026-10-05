@@ -16,7 +16,7 @@ import {
 type TabId = 'bookmarks' | 'links' | 'notes'
 
 const TABS: { id: TabId; label: string; hint: string }[] = [
-  { id: 'bookmarks', label: 'Tool bookmarks', hint: 'Pin the tools you use most' },
+  { id: 'bookmarks', label: 'Tool bookmarks', hint: 'Search for a tool, then pin it' },
   { id: 'links', label: 'Custom links', hint: 'Save any URL for quick open' },
   { id: 'notes', label: 'Notes', hint: 'Write notes with clickable links' },
 ]
@@ -89,13 +89,15 @@ export default function MySpacePage() {
     [toolBookmarks],
   )
 
+  const toolSearchQuery = toolFilter.trim().toLowerCase()
   const filteredTools = useMemo(() => {
-    const q = toolFilter.trim().toLowerCase()
-    if (!q) return BOOKMARKABLE_TOOLS
+    if (!toolSearchQuery) return []
     return BOOKMARKABLE_TOOLS.filter(
-      (t) => t.label.toLowerCase().includes(q) || t.path.toLowerCase().includes(q),
+      (t) =>
+        t.label.toLowerCase().includes(toolSearchQuery) ||
+        t.path.toLowerCase().includes(toolSearchQuery),
     )
-  }, [toolFilter])
+  }, [toolSearchQuery])
 
   const toolsByGroup = useMemo(() => {
     const map = new Map<string, BookmarkableTool[]>()
@@ -443,57 +445,60 @@ export default function MySpacePage() {
           )}
 
           <div>
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-                All tools
-              </h2>
-              <input
-                type="search"
-                value={toolFilter}
-                onChange={(e) => setToolFilter(e.target.value)}
-                placeholder="Filter tools…"
-                className="w-full max-w-xs rounded-md border border-gray-200 bg-white/70 px-3 py-1.5 text-sm text-gray-700 outline-none ring-[#81B81D]/30 placeholder:text-gray-400 focus:ring-2 dark:border-border dark:bg-surface-muted dark:text-slate-200"
-              />
-            </div>
+            <input
+              type="search"
+              value={toolFilter}
+              onChange={(e) => setToolFilter(e.target.value)}
+              placeholder="Search tools to pin…"
+              className="w-full max-w-md rounded-md border border-gray-200 bg-white/70 px-3 py-2 text-sm text-gray-700 outline-none ring-[#81B81D]/30 placeholder:text-gray-400 focus:ring-2 dark:border-border dark:bg-surface-muted dark:text-slate-200"
+            />
 
-            {[...toolsByGroup.entries()].map(([group, tools]) => (
-              <div key={group} className="mb-6">
-                <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-gray-400">
-                  {group}
-                </h3>
-                <ul className="grid gap-1 sm:grid-cols-2">
-                  {tools.map((tool) => {
-                    const pinned = bookmarkedPaths.has(tool.path)
-                    return (
-                      <li key={tool.path}>
-                        <button
-                          type="button"
-                          disabled={busyKey === `tool:${tool.path}`}
-                          onClick={() => void toggleToolBookmark(tool)}
-                          className={`flex w-full items-center justify-between gap-2 rounded-md px-3 py-2.5 text-left text-sm transition-colors ${
-                            pinned
-                              ? 'bg-[#81B81D]/10 text-[#404040] dark:bg-[#81B81D]/15 dark:text-slate-100'
-                              : 'text-gray-600 hover:bg-gray-50 dark:text-content-secondary dark:hover:bg-surface-hover'
-                          }`}
-                        >
-                          <span className="truncate font-medium">{tool.label}</span>
-                          <span
-                            className={`shrink-0 text-xs ${
-                              pinned ? 'text-[#5a8a12]' : 'text-gray-400'
-                            }`}
-                          >
-                            {pinned ? 'Pinned' : 'Pin'}
-                          </span>
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
+            {!toolSearchQuery ? (
+              <p className="mt-6 text-sm text-gray-400">
+                {toolBookmarks.length === 0
+                  ? 'Nothing pinned yet. Search above to find a tool and pin it.'
+                  : 'Search above to find another tool to pin.'}
+              </p>
+            ) : filteredTools.length === 0 ? (
+              <p className="mt-6 text-sm text-gray-400">No tools match that search.</p>
+            ) : (
+              <div className="mt-6">
+                {[...toolsByGroup.entries()].map(([group, tools]) => (
+                  <div key={group} className="mb-6">
+                    <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-gray-400">
+                      {group}
+                    </h3>
+                    <ul className="grid gap-1 sm:grid-cols-2">
+                      {tools.map((tool) => {
+                        const pinned = bookmarkedPaths.has(tool.path)
+                        return (
+                          <li key={tool.path}>
+                            <button
+                              type="button"
+                              disabled={busyKey === `tool:${tool.path}`}
+                              onClick={() => void toggleToolBookmark(tool)}
+                              className={`flex w-full items-center justify-between gap-2 rounded-md px-3 py-2.5 text-left text-sm transition-colors ${
+                                pinned
+                                  ? 'bg-[#81B81D]/10 text-[#404040] dark:bg-[#81B81D]/15 dark:text-slate-100'
+                                  : 'text-gray-600 hover:bg-gray-50 dark:text-content-secondary dark:hover:bg-surface-hover'
+                              }`}
+                            >
+                              <span className="truncate font-medium">{tool.label}</span>
+                              <span
+                                className={`shrink-0 text-xs ${
+                                  pinned ? 'text-[#5a8a12]' : 'text-gray-400'
+                                }`}
+                              >
+                                {pinned ? 'Pinned' : 'Pin'}
+                              </span>
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                ))}
               </div>
-            ))}
-
-            {filteredTools.length === 0 && (
-              <p className="text-sm text-gray-400">No tools match that filter.</p>
             )}
           </div>
         </section>
