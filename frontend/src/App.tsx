@@ -52,6 +52,7 @@ const ManageUPCsHub = lazy(() => import('./components/upcs/ManageUPCsHub'))
 const MAPManagement = lazy(() => import('./components/map/MAPManagement'))
 const SellerList = lazy(() => import('./components/sellers/SellerList'))
 const ProjectsPage = lazy(() => import('./components/projects/ProjectsPage'))
+const MySpacePage = lazy(() => import('./components/myspace/MySpacePage'))
 const EmailList = lazy(() => import('./components/email/EmailList'))
 const HowToGuide = lazy(() => import('./components/tools/PublicTools'))
 const JobAids = lazy(() => import('./components/tools/JobAids'))
@@ -433,7 +434,8 @@ function AppRoutes() {
           <Route path="daily-run/calendar" element={<Navigate to="/dashboard" replace />} />
 
           <Route path="reminders" element={<Navigate to="/dashboard" replace />} />
-          <Route path="my-space/notes" element={<Navigate to="/dashboard" replace />} />
+          <Route path="my-space" element={<MySpacePage />} />
+          <Route path="my-space/notes" element={<Navigate to="/my-space" replace />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="howtoguide" element={<HowToGuide />} />
           <Route path="trainings" element={<Navigate to="/howtoguide" replace />} />

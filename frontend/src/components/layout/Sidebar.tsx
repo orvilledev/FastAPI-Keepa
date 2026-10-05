@@ -96,6 +96,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.018c8.836 0 16 8.058 16 9.036v7.964a1 1 0 01-1.618.794L17 21" />
     </svg>
   ),
+  mySpace: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+    </svg>
+  ),
   scanner: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7V5a1 1 0 011-1h2m10 0h2a1 1 0 011 1v2M4 17v2a1 1 0 001 1h2m10 0h2a1 1 0 001-1v-2M7 8v8m3-8v8m3-8v8m3-8v8" />
@@ -239,6 +244,11 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
     // /daily-run matches any /daily-run/xxx vendor page
     if (path === '/daily-run') {
       return currentPath.startsWith('/daily-run/')
+    }
+
+    // /my-space matches nested my-space routes
+    if (path === '/my-space') {
+      return currentPath === '/my-space' || currentPath.startsWith('/my-space/')
     }
 
     // /manage-upcs or /upcs hub highlights when on any /upcs?category=xxx page
@@ -397,6 +407,24 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
                   <span className="sidebar-link-label">SMW Shipment Analyzer</span>
                 </Link>
               )}
+            </div>
+
+            <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
+
+            <div className="shrink-0 space-y-0.5 pb-1 pt-1">
+              <p className="sidebar-section-label">MY SPACE</p>
+              <Link
+                to="/my-space"
+                onMouseEnter={() => setHoveredNav('my-space')}
+                className={`sidebar-link ${
+                  navHighlighted('my-space', isActive('/my-space'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.mySpace}</span>
+                <span className="sidebar-link-label">My Space</span>
+              </Link>
             </div>
 
             <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
@@ -716,6 +744,25 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
             </div>
           </>
         )}
+
+        <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
+
+        {/* MY SPACE */}
+        <div className="shrink-0 space-y-0.5 pb-1 pt-1">
+          <p className="sidebar-section-label">MY SPACE</p>
+          <Link
+            to="/my-space"
+            onMouseEnter={() => setHoveredNav('my-space')}
+            className={`sidebar-link ${
+              navHighlighted('my-space', isActive('/my-space'))
+                ? 'sidebar-link-active'
+                : 'sidebar-link-inactive'
+            }`}
+          >
+            <span className="shrink-0">{Icons.mySpace}</span>
+            <span className="sidebar-link-label">My Space</span>
+          </Link>
+        </div>
 
         <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 

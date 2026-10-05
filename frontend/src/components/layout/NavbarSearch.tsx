@@ -47,6 +47,7 @@ function buildSearchItems(
       })
     }
     warehouseItems.push(
+      { label: 'My Space', path: '/my-space', section: 'My Space' },
       { label: 'About', path: '/about', section: 'General' },
       { label: 'FAQ', path: '/faq', section: 'General' },
       { label: 'Feedback From Users', path: '/feedback', section: 'General' },
@@ -115,6 +116,7 @@ function buildSearchItems(
   }
 
   items.push(
+    { label: 'My Space', path: '/my-space', section: 'My Space' },
     { label: 'About', path: '/about', section: 'General' },
     { label: 'FAQ', path: '/faq', section: 'General' },
     { label: 'Feedback From Users', path: '/feedback', section: 'General' },

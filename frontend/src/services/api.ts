@@ -8,7 +8,7 @@ import type {
   ManualEmailDraft,
   ManualEmailDraftOpenResult,
   WarehouseProductLookup, WarehouseProductImportResult, WarehouseProduct, WarehouseSkuCheckResult,
-  CatalogShipToListResponse, CatalogShipToImportResult, CatalogShipToImportPreview, CatalogOldSkusListResponse, CatalogOldSkusImportResult, ProjectRecord, ProjectStatus,
+  CatalogShipToListResponse, CatalogShipToImportResult, CatalogShipToImportPreview, CatalogOldSkusListResponse, CatalogOldSkusImportResult, ProjectRecord, ProjectStatus, MySpaceNote,
   ShipmentRecord, ShipmentDetail, ShipmentUploadResult, ShipmentFolder } from '../types'
 
 /** All request paths begin with `/api/v1`. Strip a mistaken `/api/v1` suffix from env to avoid doubled paths (404 Not Found). */
@@ -1573,6 +1573,24 @@ export const projectsApi = {
   },
   delete: async (projectId: string): Promise<void> => {
     await api.delete(`/api/v1/projects/${projectId}`)
+  },
+}
+
+export const mySpaceNotesApi = {
+  list: async () => {
+    const response = await api.get<MySpaceNote[]>('/api/v1/my-space/notes')
+    return response.data
+  },
+  create: async (body: { title: string; content?: string }) => {
+    const response = await api.post<MySpaceNote>('/api/v1/my-space/notes', body)
+    return response.data
+  },
+  update: async (noteId: string, body: { title?: string; content?: string }) => {
+    const response = await api.patch<MySpaceNote>(`/api/v1/my-space/notes/${noteId}`, body)
+    return response.data
+  },
+  delete: async (noteId: string): Promise<void> => {
+    await api.delete(`/api/v1/my-space/notes/${noteId}`)
   },
 }
 

@@ -408,6 +408,16 @@ export interface QuickAccessLink {
   updated_at: string
 }
 
+/** Personal note in My Space. Content may include markdown links and bare URLs. */
+export interface MySpaceNote {
+  id: string
+  user_id: string
+  title: string
+  content: string
+  created_at: string
+  updated_at: string
+}
+
 export interface DashboardWidget {
   id: string
   user_id: string
