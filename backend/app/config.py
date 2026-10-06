@@ -200,13 +200,10 @@ class Settings(BaseSettings):
         "johnbernard@metroshoewarehouse.com"
     )
 
-    # Legacy: Freight Class is open to all signed-in users; this setting is unused.
-    freight_class_allowed_emails: str = (
-        "sunshine@metroshoewarehouse.com,"
-        "stephanie@metroshoewarehouse.com,"
-        "paolo@metroshoewarehouse.com,"
-        "paulo@metroshoewarehouse.com,"
-        "johnbernard@metroshoewarehouse.com"
+    # Comma-separated emails blocked from the Freight Class Calculator.
+    # Everyone else who is signed in can use it. Empty falls back to defaults.
+    freight_class_blocked_emails: str = (
+        "hello@warehouserepublic.com"
     )
 
     # Comma-separated emails allowed to use the Projects page (plus superadmin).
@@ -324,9 +321,9 @@ class Settings(BaseSettings):
         return [email.strip().lower() for email in raw.split(",") if email.strip()]
 
     @property
-    def freight_class_allowed_emails_list(self) -> List[str]:
-        """Normalized emails allowed to use the Freight Class Calculator."""
-        raw = (self.freight_class_allowed_emails or "").strip()
+    def freight_class_blocked_emails_list(self) -> List[str]:
+        """Normalized emails blocked from the Freight Class Calculator."""
+        raw = (self.freight_class_blocked_emails or "").strip()
         if not raw:
             return []
         return [email.strip().lower() for email in raw.split(",") if email.strip()]

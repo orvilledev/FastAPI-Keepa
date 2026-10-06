@@ -5,6 +5,7 @@ import { canAccessProjects } from '../../lib/projectsAccess'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 import { canAccessShipmentAnalyzer } from '../../lib/shipmentAnalyzerAccess'
+import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -15,6 +16,7 @@ interface ProtectedRouteProps {
   requireFbaBoxContentsAccess?: boolean
   requireOldSkusAccess?: boolean
   requireShipmentAnalyzerAccess?: boolean
+  requireFreightClassAccess?: boolean
 }
 
 export default function ProtectedRoute({
@@ -26,6 +28,7 @@ export default function ProtectedRoute({
   requireFbaBoxContentsAccess = false,
   requireOldSkusAccess = false,
   requireShipmentAnalyzerAccess = false,
+  requireFreightClassAccess = false,
 }: ProtectedRouteProps) {
   const {
     hasKeepaAccess,
@@ -87,6 +90,13 @@ export default function ProtectedRoute({
   if (requireShipmentAnalyzerAccess) {
     const email = userInfo.email || authUser?.email || null
     if (!canAccessShipmentAnalyzer(email, isSuperadmin)) {
+      return <Navigate to={isWarehouseOnly ? '/label-station' : '/dashboard'} replace />
+    }
+  }
+
+  if (requireFreightClassAccess) {
+    const email = userInfo.email || authUser?.email || null
+    if (!canAccessFreightClassCalculator(email, isSuperadmin)) {
       return <Navigate to={isWarehouseOnly ? '/label-station' : '/dashboard'} replace />
     }
   }

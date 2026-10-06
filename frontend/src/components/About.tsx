@@ -217,8 +217,8 @@ export default function About() {
           </li>
           <li>
             <span className="font-semibold">Freight Class Calculator:</span> Estimate NMFC freight class from density
-            (XPO-compatible logic). Enter dimensions manually or bulk-upload a workbook from the template. Listed under
-            BC Tools for allowlisted accounts, and still available on the warehouse station menu.
+            (XPO-compatible logic). Enter dimensions manually or bulk-upload a workbook from the template. Available to
+            every signed-in user except hello@warehouserepublic.com, including other warehouse station accounts.
           </li>
           <li>
             <span className="font-semibold">Label Station:</span> Scan a product UPC, look up the warehouse catalog, and
@@ -233,12 +233,13 @@ export default function About() {
         </ul>
         <p className="mt-4 text-sm text-gray-600">
           Label Station requires Keepa access or a warehouse-only account. FNSKU Pack Station is available to all
-          signed-in users, including warehouse-only stations; Freight Class stays on the warehouse menu and under BC
-          Tools for allowlisted accounts. FNSKU Labels is also available to warehouse1@metroshoewarehouse.com,
+          signed-in users, including warehouse-only stations; Freight Class is available to every signed-in user except
+          hello@warehouserepublic.com. FNSKU Labels is also available to warehouse1@metroshoewarehouse.com,
           cameron@pmshoesinc.com, corp1997@pmshoesinc.com, ap@pmshoesinc.com, and
           brittany@metroshoewarehouse.com. Micro Tools, Tracking Extractor, FNSKU Labels, Manifest Generator, and DNK
-          AllInventory are available to all signed-in non-warehouse users. Product Catalog Formatter, Shipment Manager,
-          and Freight Class appear under BC Tools for Superadmin and allowlisted BC Tools accounts.
+          AllInventory are available to all signed-in non-warehouse users. Product Catalog Formatter and Shipment Manager
+          appear under BC Tools for Superadmin and allowlisted BC Tools accounts; Freight Class and SMW Shipment Analyzer
+          appear there for signed-in users who are allowed those tools.
         </p>
       </div>
 

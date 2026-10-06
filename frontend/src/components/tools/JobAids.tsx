@@ -209,10 +209,11 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         Tools includes <strong>Micro Tools</strong>, <strong>Tracking Extractor</strong>, <strong>FNSKU Labels</strong>,{' '}
         <strong>FNSKU Pack Station</strong>, <strong>Manifest Generator</strong>, <strong>DNK AllInventory</strong>, and{' '}
         <strong>Label Station</strong>. <strong>BC Tools</strong> holds <strong>FBA Box Contents</strong>,{' '}
-        <strong>FBA Upload Compare</strong>, <strong>Product Catalog Formatter</strong>, <strong>Shipment Manager</strong>,{' '}
-        <strong>Freight Class</strong>, and <strong>SMW Shipment Analyzer</strong> for allowlisted accounts.{' '}
+        <strong>FBA Upload Compare</strong>, <strong>Product Catalog Formatter</strong>, and{' '}
+        <strong>Shipment Manager</strong> for allowlisted accounts, plus <strong>Freight Class</strong> and{' '}
+        <strong>SMW Shipment Analyzer</strong> for signed-in users who are allowed those tools.{' '}
         <strong>Label Station</strong> requires Keepa access or a warehouse-only account. Warehouse-only accounts also get{' '}
-        <strong>FNSKU Pack Station</strong> and <strong>Freight Class</strong>.{' '}
+        <strong>FNSKU Pack Station</strong> and <strong>Freight Class</strong> (except hello@warehouserepublic.com).{' '}
         <strong>warehouse1@metroshoewarehouse.com</strong>, <strong>cameron@pmshoesinc.com</strong>,{' '}
         <strong>corp1997@pmshoesinc.com</strong>, <strong>ap@pmshoesinc.com</strong>, and{' '}
         <strong>brittany@metroshoewarehouse.com</strong> can also open <strong>FNSKU Labels</strong>.
@@ -314,8 +315,8 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         Freight Class Calculator estimates NMFC freight class from density using XPO-compatible logic. Enter carton
-        details manually or bulk-upload a workbook from the template. Available to all signed-in users, including
-        warehouse-only station accounts.
+        details manually or bulk-upload a workbook from the template. Available to every signed-in user except
+        hello@warehouserepublic.com, including other warehouse-only station accounts.
       </>
     ),
   },

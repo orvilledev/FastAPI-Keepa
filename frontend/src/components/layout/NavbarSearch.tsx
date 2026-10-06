@@ -8,6 +8,7 @@ import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 import { canAccessBcTools } from '../../lib/bcToolsAccess'
 import { canAccessShipmentAnalyzer } from '../../lib/shipmentAnalyzerAccess'
+import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { canWarehouseAccessFnskuLabels } from '../../constants/warehouseAccess'
 
 type SearchItem = {
@@ -26,6 +27,7 @@ function buildSearchItems(
   showOldSkus: boolean,
   showBcTools: boolean,
   showShipmentAnalyzer: boolean,
+  showFreightClass: boolean,
   showFnskuLabels: boolean,
 ): SearchItem[] {
   if (isWarehouseOnly) {
@@ -37,8 +39,14 @@ function buildSearchItems(
     }
     warehouseItems.push(
       { label: 'FNSKU Pack Station', path: '/fnsku-pack-station', section: 'Tools' },
-      { label: 'Freight Class Calculator', path: '/freight-class-calculator', section: 'Tools' },
     )
+    if (showFreightClass) {
+      warehouseItems.push({
+        label: 'Freight Class Calculator',
+        path: '/freight-class-calculator',
+        section: 'Tools',
+      })
+    }
     if (showShipmentAnalyzer) {
       warehouseItems.push({
         label: 'SMW Shipment Analyzer',
@@ -104,8 +112,14 @@ function buildSearchItems(
       { label: 'FBA Upload Compare', path: '/fba-upload-compare', section: 'BC Tools' },
       { label: 'Product Catalog Formatter', path: '/product-catalog-formatter', section: 'BC Tools' },
       { label: 'Shipment Manager', path: '/shipment-manager', section: 'BC Tools' },
-      { label: 'Freight Class Calculator', path: '/freight-class-calculator', section: 'BC Tools' },
     )
+  }
+  if (showFreightClass) {
+    items.push({
+      label: 'Freight Class Calculator',
+      path: '/freight-class-calculator',
+      section: 'BC Tools',
+    })
   }
   if (showShipmentAnalyzer) {
     items.push({
@@ -161,6 +175,10 @@ export default function NavbarSearch() {
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
+  const showFreightClass = canAccessFreightClassCalculator(
+    userInfo?.email || authUser?.email,
+    isSuperadmin,
+  )
   const showFnskuLabels = canWarehouseAccessFnskuLabels(userInfo?.email || authUser?.email)
 
   const searchItems = useMemo(
@@ -175,9 +193,10 @@ export default function NavbarSearch() {
         showOldSkus,
         showBcTools,
         showShipmentAnalyzer,
+        showFreightClass,
         showFnskuLabels,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools, showShipmentAnalyzer, showFnskuLabels],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools, showShipmentAnalyzer, showFreightClass, showFnskuLabels],
   )
 
   const results = useMemo(() => {

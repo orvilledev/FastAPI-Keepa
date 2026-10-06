@@ -6,6 +6,8 @@ import {
 } from '../../services/api'
 import { auditAction } from '../../lib/auditEvents'
 import { classBadgeStyle, copySummaryToClipboard } from '../../utils/freightClassExport'
+import { useUser } from '../../contexts/UserContext'
+import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 
 const ACCEPTED =
   '.xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,' +
@@ -323,6 +325,9 @@ function TruckIcon({ className }: { className?: string }) {
 }
 
 export default function FreightClassCalculator() {
+  const { isSuperadmin, userInfoLoading, userInfo, authUser } = useUser()
+  const canUse = canAccessFreightClassCalculator(userInfo?.email || authUser?.email, isSuperadmin)
+
   const [activeTab, setActiveTab] = useState<TabId>('manual')
   const [skipSeventyFiveRule, setSkipSeventyFiveRule] = useState(false)
   const [manualRows, setManualRows] = useState<ManualRow[]>([emptyRow()])
@@ -470,6 +475,22 @@ export default function FreightClassCalculator() {
     setError(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }, [])
+
+  if (userInfoLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#404040] border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (!canUse) {
+    return (
+      <div className="mx-auto max-w-xl rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+        The Freight Class Calculator is not available for this account.
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-1 pb-16 pt-2">

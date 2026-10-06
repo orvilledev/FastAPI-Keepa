@@ -9,6 +9,7 @@ import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 import { canAccessBcTools } from '../../lib/bcToolsAccess'
 import { canAccessShipmentAnalyzer } from '../../lib/shipmentAnalyzerAccess'
+import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { canWarehouseAccessFnskuLabels } from '../../constants/warehouseAccess'
 
 // SVG Icon components that inherit text color via currentColor
@@ -211,6 +212,10 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
     accountEmail,
     isSuperadmin,
   )
+  const canUseFreightClass = canAccessFreightClassCalculator(
+    accountEmail,
+    isSuperadmin,
+  )
   const isElectron = Boolean(window.desktop?.isElectron)
   const [desktopVersion, setDesktopVersion] = useState<string | null>(null)
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false)
@@ -380,18 +385,20 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
                 <span className="sidebar-link-label">FNSKU Pack Station</span>
               </Link>
 
-              <Link
-                to="/freight-class-calculator"
-                onMouseEnter={() => setHoveredNav('freight-class-calculator')}
-                className={`sidebar-link ${
-                  navHighlighted('freight-class-calculator', isActive('/freight-class-calculator'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.freightClassCalculator}</span>
-                <span className="sidebar-link-label">Freight Class</span>
-              </Link>
+              {canUseFreightClass && (
+                <Link
+                  to="/freight-class-calculator"
+                  onMouseEnter={() => setHoveredNav('freight-class-calculator')}
+                  className={`sidebar-link ${
+                    navHighlighted('freight-class-calculator', isActive('/freight-class-calculator'))
+                      ? 'sidebar-link-active'
+                      : 'sidebar-link-inactive'
+                  }`}
+                >
+                  <span className="shrink-0">{Icons.freightClassCalculator}</span>
+                  <span className="sidebar-link-label">Freight Class</span>
+                </Link>
+              )}
 
               {canUseShipmentAnalyzer && (
                 <Link
@@ -669,7 +676,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
             )}
         </div>
 
-        {(canUseBcTools || canUseShipmentAnalyzer) && (
+        {(canUseBcTools || canUseShipmentAnalyzer || canUseFreightClass) && (
           <>
             <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 
@@ -732,7 +739,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
                   <span className="sidebar-link-label">Shipment Manager</span>
                 </Link>
               )}
-              {canUseBcTools && (
+              {canUseFreightClass && (
                 <Link
                   to="/freight-class-calculator"
                   onMouseEnter={() => setHoveredNav('freight-class-calculator')}

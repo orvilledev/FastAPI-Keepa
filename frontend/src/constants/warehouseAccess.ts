@@ -1,11 +1,14 @@
+import { canAccessFreightClassCalculator } from '../lib/freightClassAccess'
+
 /** Default landing page for warehouse-only accounts. */
 export const WAREHOUSE_HOME_PATH = '/label-station'
+
+const FREIGHT_CLASS_PATH = '/freight-class-calculator'
 
 /** In-app routes warehouse accounts may open (sidebar + direct links). */
 export const WAREHOUSE_ALLOWED_PATHS = new Set([
   WAREHOUSE_HOME_PATH,
   '/fnsku-pack-station',
-  '/freight-class-calculator',
   '/my-space',
   '/about',
   '/faq',
@@ -27,6 +30,9 @@ export function canWarehouseAccessFnskuLabels(email?: string | null): boolean {
 }
 
 export function isWarehouseAllowedPath(pathname: string, email?: string | null): boolean {
+  if (pathname === FREIGHT_CLASS_PATH) {
+    return canAccessFreightClassCalculator(email)
+  }
   if (WAREHOUSE_ALLOWED_PATHS.has(pathname)) return true
   return pathname === FNSKU_LABELS_PATH && canWarehouseAccessFnskuLabels(email)
 }

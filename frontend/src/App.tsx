@@ -475,7 +475,14 @@ function AppRoutes() {
           <Route path="dnk-all-inventory" element={<DnkAllInventory />} />
           <Route path="shipment-manager" element={<ShipmentManager />} />
           <Route path="shipment-manager/:shipmentId" element={<ShipmentDetail />} />
-          <Route path="freight-class-calculator" element={<FreightClassCalculator />} />
+          <Route
+            path="freight-class-calculator"
+            element={
+              <ProtectedRoute requireFreightClassAccess={true}>
+                <FreightClassCalculator />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="label-station"
             element={<ProtectedRoute requireLabelStationAccess={true}><LabelStation /></ProtectedRoute>}

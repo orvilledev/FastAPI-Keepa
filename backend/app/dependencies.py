@@ -235,15 +235,36 @@ def get_master_sheet_user(
     return current_user
 
 
-def is_freight_class_allowed_user(current_user: dict, _db: Client) -> bool:
-    """True for any authenticated user (Freight Class is open to all signed-in accounts)."""
-    return bool(current_user)
+_DEFAULT_FREIGHT_CLASS_BLOCKED = frozenset(
+    {
+        "hello@warehouserepublic.com",
+    }
+)
+
+
+def is_freight_class_allowed_user(current_user: dict, db: Client) -> bool:
+    """True for signed-in users except Hello@warehouserepublic."""
+    email = (current_user.get("email") or "").strip().lower()
+    blocked = set(settings.freight_class_blocked_emails_list) or set(
+        _DEFAULT_FREIGHT_CLASS_BLOCKED
+    )
+    if email in blocked:
+        return False
+    if is_superadmin_user(current_user, db):
+        return True
+    return bool(email)
 
 
 def get_freight_class_user(
     current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
 ) -> dict:
-    """Any authenticated app user may use the Freight Class Calculator."""
+    """Verify user may use the Freight Class Calculator."""
+    if not is_freight_class_allowed_user(current_user, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Freight Class Calculator is not available for this account",
+        )
     return current_user
 
 
