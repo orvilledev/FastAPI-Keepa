@@ -421,6 +421,45 @@ export default function FbaBoxContents() {
           </>
         }
       />
+
+      <ToolPanel
+        title="DNK Tool"
+        description={
+          <>
+            Upload a DNK Carton Contents List (<code>… CCL.xlsx</code>). Each carton marker like{' '}
+            <code>1 of 2</code> becomes a box number, and each item line becomes a row. Downloads{' '}
+            <strong>Contents</strong> (Box Number, UPC, Quantity plus a Sum of Quantity pivot) and{' '}
+            <strong>Dimensions</strong>.
+          </>
+        }
+        defaultFilename="Box Contents.xlsx"
+        generate={fbaBoxContentsApi.generateDnk}
+        expectedInput={
+          <>
+            <h3 className="font-semibold text-gray-900">Expected input</h3>
+            <p className="mt-1">
+              DNK CCL workbook with a <code>Contents</code> sheet (title{' '}
+              <code>Carton Contents</code>, shipment id, then Carton / UPC / Quantity columns) and a{' '}
+              <code>Dimensions</code> sheet. Cartons start with markers like <code>1 of 2</code>;{' '}
+              <code>Carton Total</code> rows are skipped.
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              <li>
+                <code>Contents</code>: Box Number and Quantity as numbers, UPC as text, Sum of
+                Quantity pivot by UPC (rows) and box (columns).
+              </li>
+              <li>
+                <code>Dimensions</code>: Order, Carton, Weight, Length, Width, Height — Weight and
+                dimensions stay numbers (integers when whole).
+              </li>
+              <li>
+                Download named <code>{'{shipment_id} Box Contents.xlsx'}</code>, for example{' '}
+                <code>FBA19QRSWGPN Box Contents.xlsx</code>.
+              </li>
+            </ul>
+          </>
+        }
+      />
     </div>
   )
 }

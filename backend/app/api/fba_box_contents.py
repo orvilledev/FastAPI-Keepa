@@ -1,4 +1,4 @@
-"""FBA Box Contents API — Tool #1 and Tool #2 converters (separate endpoints)."""
+"""FBA Box Contents API — Tool #1, Tool #2, OBZ, and DNK converters."""
 import logging
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
@@ -11,6 +11,12 @@ from app.services.fba_box_contents import (
     FbaBoxContentsError,
     generate_fba_box_contents,
     sanitize_download_filename,
+)
+from app.services.fba_box_contents_dnk import (
+    DEFAULT_OUTPUT_FILENAME as DNK_DEFAULT_OUTPUT_FILENAME,
+    FbaBoxContentsDnkError,
+    generate_fba_box_contents_dnk,
+    sanitize_download_filename as sanitize_dnk_download_filename,
 )
 from app.services.fba_box_contents_obz import (
     DEFAULT_OUTPUT_FILENAME as OBZ_DEFAULT_OUTPUT_FILENAME,
@@ -146,6 +152,39 @@ async def generate_fba_box_contents_obz_file(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     safe_name = sanitize_obz_download_filename(result.shipment_id)
+    return Response(
+        content=result.file_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=_response_headers(safe_name, result),
+    )
+
+
+@router.post("/fba-box-contents/generate-dnk", response_model=None)
+@limiter.limit(RateLimits.FILE_UPLOAD)
+@handle_api_errors("generate FBA Box Contents DNK workbook")
+async def generate_fba_box_contents_dnk_file(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user=Depends(get_fba_box_contents_user),
+):
+    """DNK Tool — DNK Carton Contents List into Contents + Dimensions."""
+    _ = current_user
+    _validate_upload(file)
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    if len(raw) > _MAX_BYTES:
+        raise HTTPException(status_code=400, detail="File is too large (max 15 MB).")
+
+    try:
+        result = generate_fba_box_contents_dnk(
+            raw, file.filename or DNK_DEFAULT_OUTPUT_FILENAME
+        )
+    except FbaBoxContentsDnkError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    safe_name = sanitize_dnk_download_filename(result.shipment_id)
     return Response(
         content=result.file_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
