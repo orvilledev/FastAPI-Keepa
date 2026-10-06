@@ -109,6 +109,15 @@ def test_generate_matches_corrected_sample_adjustments():
     }
     assert summary == {("673088448608", 1), ("673088519421", 4)}
 
+    # Summary UPCs must be text so Excel never shows scientific notation.
+    # Yellow fills on adjusted A–C cells.
+    styled = openpyxl.load_workbook(BytesIO(result.file_bytes), data_only=False)[CONTENTS_SHEET]
+    for r in (3, 4):
+        cell = styled.cell(r, 6)
+        assert cell.data_type == "s", f"F{r} should be text, got {cell.data_type}"
+        assert "E+" not in str(cell.value).upper()
+        assert "." not in str(cell.value)
+
     # Appended yellow rows at the end
     last_rows = {
         (str(sheet.cell(r, 2).value), int(sheet.cell(r, 3).value))
@@ -120,8 +129,6 @@ def test_generate_matches_corrected_sample_adjustments():
     # Pivot shifted to column I when summary is present
     assert sheet["I1"].value == "Sum of Quantity"
 
-    # Yellow fills on adjusted A–C cells
-    styled = openpyxl.load_workbook(BytesIO(result.file_bytes), data_only=False)[CONTENTS_SHEET]
     assert "FFFF00" in str(styled["B4"].fill.fgColor.rgb)
     assert "FFFF00" in str(styled.cell(styled.max_row, 2).fill.fgColor.rgb)
 

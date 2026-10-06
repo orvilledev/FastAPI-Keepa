@@ -370,54 +370,6 @@ def _set_number_cell(
         raise TypeError(f"Expected a number, got {type(value).__name__}")
 
 
-def _identifier_cell_value(identifier: str) -> str | int:
-    """Prefer numeric cells for all-digit identifiers (matches the sample file)."""
-    text = (identifier or "").strip()
-    if text.isdigit() and len(text) <= 15:
-        try:
-            return int(text)
-        except ValueError:
-            return text
-    return text
-
-
-def _set_identifier_cell(
-    sheet: Worksheet,
-    row: int,
-    column: int,
-    identifier: str,
-    *,
-    bold: bool = False,
-    align_center: bool = False,
-    align_left: bool = False,
-    fill: PatternFill | None = None,
-) -> None:
-    value = _identifier_cell_value(identifier)
-    if isinstance(value, int):
-        _set_number_cell(
-            sheet,
-            row,
-            column,
-            value,
-            bold=bold,
-            align_center=align_center,
-            fill=fill,
-        )
-        if not align_center and align_left:
-            sheet.cell(row=row, column=column).alignment = _LEFT
-        return
-    _set_text_cell(
-        sheet,
-        row,
-        column,
-        value,
-        bold=bold,
-        align_center=align_center,
-        align_left=align_left,
-        fill=fill,
-    )
-
-
 def _number_format_for_dim(value: int | float | None, *, weight: bool = False) -> str:
     if value is None:
         return "General"
@@ -451,7 +403,8 @@ def _write_last_box_summary(
             item.box_number,
             fill=_SUMMARY_FILL,
         )
-        _set_identifier_cell(
+        # Always text so 12-digit UPCs never render as scientific notation.
+        _set_text_cell(
             sheet,
             excel_row,
             _SUMMARY_COL + 1,
