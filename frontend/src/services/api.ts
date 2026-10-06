@@ -1859,6 +1859,15 @@ export type FbaBoxContentsResult = {
   shipmentId: string
 }
 
+export type FbaBoxContentsDnkCompareResult = FbaBoxContentsResult & {
+  remappedCount: number
+  addedCount: number
+  addedQty: number
+  removedCount: number
+  removedQty: number
+  lastBox: number
+}
+
 export const fbaBoxContentsApi = {
   generate: async (file: File): Promise<FbaBoxContentsResult> => {
     const form = new FormData()
@@ -1981,6 +1990,48 @@ export const fbaBoxContentsApi = {
         boxCount: Number(headers['x-fba-box-count'] || 0),
         upcCount: Number(headers['x-fba-upc-count'] || 0),
         totalQty: Number(headers['x-fba-total-qty'] || 0),
+        shipmentId: String(headers['x-fba-shipment-id'] || ''),
+      }
+    } catch (err: unknown) {
+      return readBlobError(err)
+    }
+  },
+
+  compareDnk: async (
+    boxContentsFile: File,
+    manifestFile: File,
+  ): Promise<FbaBoxContentsDnkCompareResult> => {
+    const form = new FormData()
+    form.append('box_contents_file', boxContentsFile)
+    form.append('manifest_file', manifestFile)
+    try {
+      const response = await api.post<Blob>('/api/v1/fba-box-contents/compare-dnk', form, {
+        responseType: 'blob',
+        timeout: 120_000,
+      })
+      const headers = response.headers || {}
+      const filenameHeader = headers['x-fba-filename']
+      const disposition = headers['content-disposition'] as string | undefined
+      let filename =
+        (typeof filenameHeader === 'string' && filenameHeader.trim()) ||
+        'Box Contents - corrected.xlsx'
+      if ((!filenameHeader || !String(filenameHeader).trim()) && disposition) {
+        const match = /filename="?([^";]+)"?/i.exec(disposition)
+        if (match?.[1]) filename = match[1]
+      }
+      return {
+        blob: response.data,
+        filename,
+        rowCount: Number(headers['x-fba-row-count'] || 0),
+        boxCount: Number(headers['x-fba-box-count'] || 0),
+        upcCount: Number(headers['x-fba-upc-count'] || 0),
+        totalQty: Number(headers['x-fba-total-qty'] || 0),
+        remappedCount: Number(headers['x-fba-remapped-count'] || 0),
+        addedCount: Number(headers['x-fba-added-count'] || 0),
+        addedQty: Number(headers['x-fba-added-qty'] || 0),
+        removedCount: Number(headers['x-fba-removed-count'] || 0),
+        removedQty: Number(headers['x-fba-removed-qty'] || 0),
+        lastBox: Number(headers['x-fba-last-box'] || 0),
         shipmentId: String(headers['x-fba-shipment-id'] || ''),
       }
     } catch (err: unknown) {

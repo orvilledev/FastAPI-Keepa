@@ -3,9 +3,12 @@ import logging
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
+from supabase import Client
 
+from app.database import get_supabase
 from app.dependencies import get_fba_box_contents_user
 from app.middleware.rate_limiter import RateLimits, limiter
+from app.repositories.catalog_old_skus_repository import CatalogOldSkusRepository
 from app.services.fba_box_contents import (
     DEFAULT_OUTPUT_FILENAME,
     FbaBoxContentsError,
@@ -17,6 +20,13 @@ from app.services.fba_box_contents_dnk import (
     FbaBoxContentsDnkError,
     generate_fba_box_contents_dnk,
     sanitize_download_filename as sanitize_dnk_download_filename,
+)
+from app.services.fba_box_contents_dnk_compare import (
+    FbaBoxContentsDnkCompareError,
+    generate_dnk_box_contents_compare,
+    parse_dnk_box_contents,
+    parse_manifest,
+    sanitize_download_filename as sanitize_dnk_compare_download_filename,
 )
 from app.services.fba_box_contents_obz import (
     DEFAULT_OUTPUT_FILENAME as OBZ_DEFAULT_OUTPUT_FILENAME,
@@ -189,4 +199,78 @@ async def generate_fba_box_contents_dnk_file(
         content=result.file_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers=_response_headers(safe_name, result),
+    )
+
+
+@router.post("/fba-box-contents/compare-dnk", response_model=None)
+@limiter.limit(RateLimits.FILE_UPLOAD)
+@handle_api_errors("compare DNK Box Contents to manifest")
+async def compare_dnk_box_contents_to_manifest(
+    request: Request,
+    box_contents_file: UploadFile = File(..., description="DNK Box Contents.xlsx"),
+    manifest_file: UploadFile = File(..., description="Amazon Seller Central manifest.xlsx"),
+    current_user=Depends(get_fba_box_contents_user),
+    db: Client = Depends(get_supabase),
+):
+    """DNK Tool — compare Box Contents to the manifest and download a corrected workbook."""
+    _ = current_user
+    _validate_upload(box_contents_file)
+    _validate_upload(manifest_file)
+
+    box_raw = await box_contents_file.read()
+    if not box_raw:
+        raise HTTPException(status_code=400, detail="Box Contents file is empty.")
+    if len(box_raw) > _MAX_BYTES:
+        raise HTTPException(status_code=400, detail="Box Contents file is too large (max 15 MB).")
+
+    manifest_raw = await manifest_file.read()
+    if not manifest_raw:
+        raise HTTPException(status_code=400, detail="Manifest file is empty.")
+    if len(manifest_raw) > _MAX_BYTES:
+        raise HTTPException(status_code=400, detail="Manifest file is too large (max 15 MB).")
+
+    try:
+        parsed_box = parse_dnk_box_contents(
+            box_raw, filename=box_contents_file.filename
+        )
+        parsed_manifest = parse_manifest(manifest_raw)
+    except FbaBoxContentsDnkCompareError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    output_upcs = sorted({row.identifier for row in parsed_box.rows})
+    amz_ids = sorted({row.sku_id for row in parsed_manifest.skus})
+    repo = CatalogOldSkusRepository(db)
+    try:
+        catalog_rows = repo.lookup_by_upcs_and_old_skus(output_upcs, amz_ids)
+    except Exception as exc:
+        logger.error("Old SKUs lookup failed for DNK compare: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to look up Old SKUs catalog mappings.",
+        ) from exc
+
+    try:
+        result = generate_dnk_box_contents_compare(
+            box_raw,
+            manifest_raw,
+            catalog_rows,
+            box_contents_filename=box_contents_file.filename,
+            manifest_filename=manifest_file.filename,
+        )
+    except FbaBoxContentsDnkCompareError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    safe_name = sanitize_dnk_compare_download_filename(result.shipment_id)
+    return Response(
+        content=result.file_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            **_response_headers(safe_name, result),
+            "X-Fba-Remapped-Count": str(result.remapped_count),
+            "X-Fba-Added-Count": str(result.added_count),
+            "X-Fba-Added-Qty": str(result.added_qty),
+            "X-Fba-Removed-Count": str(result.removed_count),
+            "X-Fba-Removed-Qty": str(result.removed_qty),
+            "X-Fba-Last-Box": str(result.last_box),
+        },
     )
