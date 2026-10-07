@@ -329,10 +329,10 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         downloads a PDF (web browser). Each label shows FNSKU, a scannable barcode, UPC or SKU, condition, and product
         name. Use <strong>Print ID</strong> to choose <strong>Short SKU (Amazon)</strong> (default for everyone) or{' '}
         <strong>UPC (DNK)</strong> (allowlisted accounts only). Choose label size (small, medium, or large on 2.25&quot;
-        × 1.25&quot; stock; <strong>Custom</strong> or <strong>Apparel</strong> on 3&quot; × 3&quot; stock — Custom
-        includes an editable sold-as-set notice, Apparel is the same tag without that notice) and printer resolution
-        (203 or 300 dpi). The on-screen preview matches the physical label. Catalog managers with Keepa access can
-        import or update products from Excel in the Product Catalog tab.
+        × 1.25&quot; stock; <strong>Custom</strong> on 3&quot; × 3&quot; with an editable sold-as-set notice;{' '}
+        <strong>Apparel</strong> on 3&quot; × 2&quot; with a return-eligibility notice for single items) and printer
+        resolution (203 or 300 dpi). The on-screen preview matches the physical label. Catalog managers with Keepa
+        access can import or update products from Excel in the Product Catalog tab.
       </>
     ),
   },

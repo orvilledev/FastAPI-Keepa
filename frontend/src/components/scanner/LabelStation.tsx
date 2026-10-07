@@ -26,7 +26,7 @@ import {
   STANDARD_LABEL_SIZES,
   suggestedWarehouseLabelPdfFilename,
   SUPPORTED_DPIS,
-  usesSquareLabelStock,
+  usesSpecialLabelStock,
   type LabelDpi,
   type LabelIdMode,
   type LabelSize,
@@ -835,7 +835,7 @@ export default function LabelStation() {
           </div>
         </div>
 
-        {/* Apparel 3" × 3" — same stock as Custom, no sold-as-set notice */}
+        {/* Apparel 3" × 2" — return notice, no sold-as-set wording */}
         <div
           role="button"
           tabIndex={0}
@@ -859,8 +859,8 @@ export default function LabelStation() {
                 Apparel ({labelSizeDimensionsLabel('apparel')})
               </span>
               <p className="text-xs text-gray-500 mt-0.5">
-                Same square stock as Custom — FNSKU, barcode, title, print ID, and condition. No
-                &ldquo;sold as set&rdquo; notice (for jackets, sweaters, and other single items).
+                Return-eligibility notice, FNSKU above barcode, title, then print ID and condition
+                — for jackets, sweaters, and other single items (no sold-as-set text).
               </p>
             </div>
             {selectedSize === 'apparel' && (
@@ -868,7 +868,7 @@ export default function LabelStation() {
             )}
           </div>
 
-          <div className="rounded border border-gray-300 overflow-hidden max-w-[16rem] w-full mx-auto pointer-events-none">
+          <div className="rounded border border-gray-300 overflow-hidden max-w-[18rem] w-full mx-auto pointer-events-none">
             <LabelPreview
               product={product ?? SAMPLE_PRODUCT}
               size="apparel"
@@ -877,7 +877,7 @@ export default function LabelStation() {
           </div>
         </div>
 
-        {usesSquareLabelStock(selectedSize) && (
+        {usesSpecialLabelStock(selectedSize) && (
           <p className="text-xs font-medium text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
             {selectedSize === 'apparel' ? 'Apparel' : 'Custom'} is selected — load{' '}
             {labelSizeDimensionsLabel(selectedSize)} stock before printing.
