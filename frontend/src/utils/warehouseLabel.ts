@@ -213,25 +213,25 @@ const CUSTOM_LAYOUT = {
 }
 
 /**
- * 3" × 2" apparel label (base 203-dpi units, 609 × 406). Return notice at the
- * top, then FNSKU / barcode / title, with print ID and condition on one bottom row.
+ * 3" × 2" apparel label (base 203-dpi units, 609 × 406). The full content block
+ * is vertically centred so leftover space is shared above and below — not dumped
+ * between the title and the print-ID / condition row.
  */
 const APPAREL_LAYOUT = {
-  pad: 22,
-  noticeTop: 20,
-  noticeInset: 28,
+  pad: 18,
   noticeFont: 20,
   noticeLineHeight: 24,
-  gapNoticeFnsku: 14,
+  gapNoticeFnsku: 16,
   fnskuFont: 26,
-  gapFnskuBarcode: 8,
+  gapFnskuBarcode: 10,
   barcodeHeight: 92,
-  gapBarcodeTitle: 14,
+  gapBarcodeTitle: 16,
   titleFont: 17,
   titleLineHeight: 21,
   maxTitleLines: 2,
+  /** Space between the title block and the print-ID / condition row. */
+  gapTitleMeta: 18,
   conditionFont: 20,
-  conditionBottom: 20,
   conditionInset: 36,
   idFont: 20,
   idIndent: 72,
@@ -632,7 +632,8 @@ function drawCustomLabel(
 
 /**
  * 3" × 2" apparel label: fixed return-eligibility notice, FNSKU above barcode,
- * wrapped title, then print ID and condition on one bottom row.
+ * wrapped title, then print ID and condition. The whole stack is vertically
+ * centred so gaps stay even (no large empty band above the bottom row).
  */
 function drawApparelLabel(
   ctx: CanvasRenderingContext2D,
@@ -653,18 +654,46 @@ function drawApparelLabel(
   const innerWidth = W - pad * 2
   const noticeFont = d(layout.noticeFont)
   const noticeLineHeight = d(layout.noticeLineHeight)
+  const noticeCount = APPAREL_RETURN_NOTICE_LINES.length
+  const noticeBlockH = noticeFont + (noticeCount - 1) * noticeLineHeight
+  const fnsku = (product.fnsku || '').trim()
+  const fnskuFont = d(layout.fnskuFont)
+  const fnskuBlockH = fnsku ? fnskuFont + d(layout.gapFnskuBarcode) : 0
 
-  let y = d(layout.noticeTop)
+  const barcode = renderBarcodeCanvas(product.fnsku, W, scale, layout.pad, layout.barcodeHeight)
+  const barcodeHeight = barcode ? barcode.height : d(layout.barcodeHeight)
+
+  const titleFont = d(layout.titleFont)
+  ctx.font = `${titleFont}px ${FONT_FAMILY}`
+  const titleLines = wrapLines(ctx, product.style_name || '', innerWidth, layout.maxTitleLines)
+  const titleBlockH =
+    titleLines.length > 0
+      ? titleFont + (titleLines.length - 1) * d(layout.titleLineHeight)
+      : 0
+
+  const idLine = formatUpcFnskuLine(getLabelScanLine(product, idMode))
+  const metaFont = Math.max(d(layout.idFont), d(layout.conditionFont))
+  const metaBlockH = idLine || product.condition ? metaFont : 0
+
+  let contentH =
+    noticeBlockH +
+    d(layout.gapNoticeFnsku) +
+    fnskuBlockH +
+    barcodeHeight +
+    (titleBlockH > 0 ? d(layout.gapBarcodeTitle) + titleBlockH : 0)
+  if (metaBlockH > 0) contentH += d(layout.gapTitleMeta) + metaBlockH
+
+  // Centre the block; keep at least `pad` from the top edge.
+  let y = Math.max(pad, Math.round((H - contentH) / 2))
+
+  y += noticeFont
   ctx.font = `${noticeFont}px ${FONT_FAMILY}`
-  for (const line of APPAREL_RETURN_NOTICE_LINES) {
-    y += noticeFont
-    ctx.fillText(line, W / 2, y)
-    y += noticeLineHeight - noticeFont
+  for (let i = 0; i < noticeCount; i += 1) {
+    if (i > 0) y += noticeLineHeight
+    ctx.fillText(APPAREL_RETURN_NOTICE_LINES[i], W / 2, y)
   }
   y += d(layout.gapNoticeFnsku)
 
-  const fnsku = (product.fnsku || '').trim()
-  const fnskuFont = d(layout.fnskuFont)
   if (fnsku) {
     y += fnskuFont
     ctx.font = `${fnskuFont}px ${FONT_FAMILY}`
@@ -672,34 +701,33 @@ function drawApparelLabel(
     y += d(layout.gapFnskuBarcode)
   }
 
-  const barcode = renderBarcodeCanvas(product.fnsku, W, scale, layout.pad, layout.barcodeHeight)
   if (barcode) {
     ctx.imageSmoothingEnabled = false
     ctx.drawImage(barcode, Math.round((W - barcode.width) / 2), y)
   }
-  y += barcode ? barcode.height : d(layout.barcodeHeight)
+  y += barcodeHeight
 
-  const titleFont = d(layout.titleFont)
-  ctx.font = `${titleFont}px ${FONT_FAMILY}`
-  const titleLines = wrapLines(ctx, product.style_name || '', innerWidth, layout.maxTitleLines)
-  y += d(layout.gapBarcodeTitle)
-  for (const line of titleLines) {
-    y += titleFont
-    ctx.fillText(line, W / 2, y)
-    y += d(layout.titleLineHeight) - titleFont
+  if (titleLines.length > 0) {
+    y += d(layout.gapBarcodeTitle) + titleFont
+    ctx.font = `${titleFont}px ${FONT_FAMILY}`
+    for (let i = 0; i < titleLines.length; i += 1) {
+      if (i > 0) y += d(layout.titleLineHeight)
+      ctx.fillText(titleLines[i], W / 2, y)
+    }
   }
 
-  const bottomBaseline = H - d(layout.conditionBottom)
-  const idLine = formatUpcFnskuLine(getLabelScanLine(product, idMode))
-  if (idLine) {
-    ctx.textAlign = 'left'
-    ctx.font = `${d(layout.idFont)}px ${FONT_FAMILY}`
-    ctx.fillText(idLine, d(layout.idIndent), bottomBaseline)
-  }
-  if (product.condition) {
-    ctx.textAlign = 'right'
-    ctx.font = `${d(layout.conditionFont)}px ${FONT_FAMILY}`
-    ctx.fillText(product.condition, W - d(layout.conditionInset), bottomBaseline)
+  if (metaBlockH > 0) {
+    y += d(layout.gapTitleMeta) + metaFont
+    if (idLine) {
+      ctx.textAlign = 'left'
+      ctx.font = `${d(layout.idFont)}px ${FONT_FAMILY}`
+      ctx.fillText(idLine, d(layout.idIndent), y)
+    }
+    if (product.condition) {
+      ctx.textAlign = 'right'
+      ctx.font = `${d(layout.conditionFont)}px ${FONT_FAMILY}`
+      ctx.fillText(product.condition, W - d(layout.conditionInset), y)
+    }
   }
 }
 
