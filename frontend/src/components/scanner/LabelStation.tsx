@@ -711,24 +711,26 @@ export default function LabelStation() {
             Choice is saved on this device. Default is Auto-print.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Scan mode">
+        <div
+          className="inline-flex w-full max-w-xl rounded-full border border-gray-300 bg-gray-100 p-1"
+          role="radiogroup"
+          aria-label="Scan mode"
+        >
           <button
             type="button"
             role="radio"
             aria-checked={printMode === 'auto'}
             onClick={() => handleSelectPrintMode('auto')}
-            className={`min-w-[12rem] flex-1 rounded-lg border-2 px-4 py-3 text-left text-sm transition ${
+            className={`min-w-0 flex-1 rounded-full px-4 py-2.5 text-center transition ${
               printMode === 'auto'
-                ? 'border-sky-900 bg-sky-700 text-white shadow-md ring-2 ring-sky-900/40'
-                : 'border-sky-300 bg-sky-100 text-sky-950 hover:bg-sky-200'
+                ? 'bg-[#404040] text-white shadow-sm'
+                : 'text-gray-600 hover:bg-white/70 hover:text-gray-900'
             }`}
           >
-            <span className={`font-semibold ${printMode === 'auto' ? 'text-white' : 'text-sky-950'}`}>
-              Auto-print
-            </span>
+            <span className="block text-sm font-semibold leading-tight">Auto-print</span>
             <span
-              className={`mt-0.5 block text-xs ${
-                printMode === 'auto' ? 'text-sky-100' : 'text-sky-800'
+              className={`mt-0.5 block text-[11px] leading-snug ${
+                printMode === 'auto' ? 'text-gray-200' : 'text-gray-500'
               }`}
             >
               Scan prints immediately (current Labels qty)
@@ -739,18 +741,16 @@ export default function LabelStation() {
             role="radio"
             aria-checked={printMode === 'queue'}
             onClick={() => handleSelectPrintMode('queue')}
-            className={`min-w-[12rem] flex-1 rounded-lg border-2 px-4 py-3 text-left text-sm transition ${
+            className={`min-w-0 flex-1 rounded-full px-4 py-2.5 text-center transition ${
               printMode === 'queue'
-                ? 'border-sky-900 bg-sky-700 text-white shadow-md ring-2 ring-sky-900/40'
-                : 'border-sky-300 bg-sky-100 text-sky-950 hover:bg-sky-200'
+                ? 'bg-[#404040] text-white shadow-sm'
+                : 'text-gray-600 hover:bg-white/70 hover:text-gray-900'
             }`}
           >
-            <span className={`font-semibold ${printMode === 'queue' ? 'text-white' : 'text-sky-950'}`}>
-              Queue mode
-            </span>
+            <span className="block text-sm font-semibold leading-tight">Queue mode</span>
             <span
-              className={`mt-0.5 block text-xs ${
-                printMode === 'queue' ? 'text-sky-100' : 'text-sky-800'
+              className={`mt-0.5 block text-[11px] leading-snug ${
+                printMode === 'queue' ? 'text-gray-200' : 'text-gray-500'
               }`}
             >
               Scan adds to a list; Print all when ready
