@@ -26,6 +26,7 @@ import {
   STANDARD_LABEL_SIZES,
   suggestedWarehouseLabelPdfFilename,
   SUPPORTED_DPIS,
+  usesSquareLabelStock,
   type LabelDpi,
   type LabelIdMode,
   type LabelSize,
@@ -834,9 +835,52 @@ export default function LabelStation() {
           </div>
         </div>
 
-        {selectedSize === 'custom' && (
+        {/* Apparel 3" × 3" — same stock as Custom, no sold-as-set notice */}
+        <div
+          role="button"
+          tabIndex={0}
+          aria-pressed={selectedSize === 'apparel'}
+          onClick={() => handleSelectSize('apparel')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              handleSelectSize('apparel')
+            }
+          }}
+          className={`rounded-lg border-2 p-3 text-left transition cursor-pointer ${
+            selectedSize === 'apparel'
+              ? 'border-[#404040] ring-1 ring-[#404040] bg-gray-50'
+              : 'border-gray-200 hover:border-gray-400'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <span className="text-sm font-medium text-gray-800">
+                Apparel ({labelSizeDimensionsLabel('apparel')})
+              </span>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Same square stock as Custom — FNSKU, barcode, title, print ID, and condition. No
+                &ldquo;sold as set&rdquo; notice (for jackets, sweaters, and other single items).
+              </p>
+            </div>
+            {selectedSize === 'apparel' && (
+              <span className="text-xs font-semibold text-emerald-700 shrink-0">Selected</span>
+            )}
+          </div>
+
+          <div className="rounded border border-gray-300 overflow-hidden max-w-[16rem] w-full mx-auto pointer-events-none">
+            <LabelPreview
+              product={product ?? SAMPLE_PRODUCT}
+              size="apparel"
+              idMode={effectiveIdMode}
+            />
+          </div>
+        </div>
+
+        {usesSquareLabelStock(selectedSize) && (
           <p className="text-xs font-medium text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            Custom is selected — load {labelSizeDimensionsLabel('custom')} stock before printing.
+            {selectedSize === 'apparel' ? 'Apparel' : 'Custom'} is selected — load{' '}
+            {labelSizeDimensionsLabel(selectedSize)} stock before printing.
           </p>
         )}
         {!product && (

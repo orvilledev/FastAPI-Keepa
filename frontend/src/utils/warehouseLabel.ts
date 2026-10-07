@@ -17,9 +17,11 @@ import { jsPDF } from 'jspdf'
  * only the barcode, text, and spacing grow. The assembled content block is
  * vertically centred inside the margins so nothing is ever clipped.
  *
- * A fourth size, `custom`, is a 3" × 3" label with its own layout: an editable
- * notice ("SOLD AS SET / DO NOT SEPARATE" by default), the FNSKU above the
- * barcode, product title, and a bottom row with the print ID and condition.
+ * Two more sizes share 3" × 3" stock:
+ *   - `custom` — editable notice ("SOLD AS SET / DO NOT SEPARATE" by default),
+ *     FNSKU above the barcode, product title, and print ID / condition
+ *   - `apparel` — same layout and stock, without the sold-as-set notice (for
+ *     single items like jackets and sweaters)
  */
 
 /** Base design grid at 203 dpi. All layout numbers below are in these units. */
@@ -46,10 +48,15 @@ export const DEFAULT_LABEL_DPI: LabelDpi = 203
  */
 export const STANDARD_LABEL_SIZES = ['small', 'medium', 'large'] as const
 
-/** Every selectable size, including the 3" × 3" custom notice label. */
-export const LABEL_SIZES = [...STANDARD_LABEL_SIZES, 'custom'] as const
+/** Every selectable size, including the 3" × 3" custom and apparel labels. */
+export const LABEL_SIZES = [...STANDARD_LABEL_SIZES, 'custom', 'apparel'] as const
 export type LabelSize = (typeof LABEL_SIZES)[number]
 export const DEFAULT_LABEL_SIZE: LabelSize = 'large'
+
+/** True for Custom and Apparel — both print on 3" × 3" stock. */
+export function usesSquareLabelStock(size: LabelSize): boolean {
+  return size === 'custom' || size === 'apparel'
+}
 
 /**
  * Physical stock each size prints on, plus its base 203-dpi pixel grid (the
@@ -63,6 +70,7 @@ export const LABEL_DIMENSIONS_IN: Record<
   medium: { widthIn: 2.25, heightIn: 1.25, baseW: 457, baseH: 254 },
   large: { widthIn: 2.25, heightIn: 1.25, baseW: 457, baseH: 254 },
   custom: { widthIn: 3, heightIn: 3, baseW: 609, baseH: 609 },
+  apparel: { widthIn: 3, heightIn: 3, baseW: 609, baseH: 609 },
 }
 
 /** e.g. `2.25" × 1.25"` — for pickers and help text. */
@@ -177,6 +185,11 @@ const CUSTOM_LAYOUT = {
   noticeLineGap: 10,
   /** Space between the notice block and the FNSKU (keeps barcode position stable). */
   gapNoticeFnsku: 82,
+  /**
+   * Apparel (no notice): FNSKU baseline from the top so the barcode/title block
+   * sits in the middle of the 3" square without looking top-heavy.
+   */
+  apparelFnskuTop: 118,
   /** Human-readable FNSKU centred above the barcode. */
   fnskuFont: 32,
   gapFnskuBarcode: 10,
@@ -508,17 +521,19 @@ function drawStandardLabel(
 }
 
 /**
- * 3" × 3" custom notice label: editable headline, FNSKU above barcode, wrapped
- * title, then print ID (lower left) and condition (lower right).
+ * 3" × 3" square label shared by Custom (with notice) and Apparel (without).
+ * FNSKU above barcode, wrapped title, then print ID (lower left) and condition
+ * (lower right). When `showNotice` is true, the editable headline is drawn first.
  */
-function drawCustomLabel(
+function drawSquareLabel(
   ctx: CanvasRenderingContext2D,
   W: number,
   H: number,
   scale: number,
   product: WarehouseLabelProduct & { sku?: string },
   idMode: LabelIdMode,
-  customText: string | undefined | null
+  customText: string | undefined | null,
+  showNotice: boolean
 ): void {
   const layout = CUSTOM_LAYOUT
   const d = (value: number) => Math.round(value * scale)
@@ -530,18 +545,23 @@ function drawCustomLabel(
   const pad = d(layout.pad)
   const innerWidth = W - pad * 2
 
-  // Notice — each line fills the width up to a cap, so the shorter line prints
-  // larger (matching the "SOLD AS SET / DO NOT SEPARATE" proof).
-  const noticeWidth = W - d(layout.noticeInset) * 2
-  let y = d(layout.noticeTop)
-  for (const line of customLabelLines(customText)) {
-    const font = fitFontSize(ctx, line, noticeWidth, d(layout.noticeMaxFont), d(layout.noticeMinFont))
-    y += font
-    ctx.font = `${font}px ${FONT_FAMILY}`
-    ctx.fillText(line, W / 2, y)
-    y += d(layout.noticeLineGap)
+  let y: number
+  if (showNotice) {
+    // Notice — each line fills the width up to a cap, so the shorter line prints
+    // larger (matching the "SOLD AS SET / DO NOT SEPARATE" proof).
+    const noticeWidth = W - d(layout.noticeInset) * 2
+    y = d(layout.noticeTop)
+    for (const line of customLabelLines(customText)) {
+      const font = fitFontSize(ctx, line, noticeWidth, d(layout.noticeMaxFont), d(layout.noticeMinFont))
+      y += font
+      ctx.font = `${font}px ${FONT_FAMILY}`
+      ctx.fillText(line, W / 2, y)
+      y += d(layout.noticeLineGap)
+    }
+    y += d(layout.gapNoticeFnsku)
+  } else {
+    y = d(layout.apparelFnskuTop)
   }
-  y += d(layout.gapNoticeFnsku)
 
   // FNSKU human-readable line centred directly above the barcode.
   const fnsku = (product.fnsku || '').trim()
@@ -617,7 +637,9 @@ export function renderWarehouseLabelCanvas(
   ctx.fillRect(0, 0, W, H)
 
   if (resolvedSize === 'custom') {
-    drawCustomLabel(ctx, W, H, scale, product, idMode, customText)
+    drawSquareLabel(ctx, W, H, scale, product, idMode, customText, true)
+  } else if (resolvedSize === 'apparel') {
+    drawSquareLabel(ctx, W, H, scale, product, idMode, null, false)
   } else {
     drawStandardLabel(ctx, W, H, scale, SIZE_LAYOUTS[resolvedSize], product, idMode)
   }
@@ -766,7 +788,7 @@ export function saveCustomLabelText(text: string): void {
   }
 }
 
-/** Last print size (small/medium/large/custom) the user selected. */
+/** Last print size (small/medium/large/custom/apparel) the user selected. */
 export function getSelectedLabelSize(): LabelSize {
   try {
     return normalizeSize((localStorage.getItem(LABEL_SIZE_KEY) || '') as LabelSize)
