@@ -3,6 +3,8 @@ import { warehouseProductsApi, authApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
 import WarehouseProductCatalog from './WarehouseProductCatalog'
 import {
+  buildWarehouseLabelBatchPdfBlob,
+  buildWarehouseLabelBatchZpl,
   buildWarehouseLabelPdfBlob,
   buildWarehouseLabelZpl,
   computeScanStatus,
@@ -10,6 +12,7 @@ import {
   detectPrinterDpi,
   getSelectedDpi,
   getSelectedLabelIdMode,
+  getSelectedLabelPrintMode,
   getSelectedLabelSize,
   getSelectedPrinter,
   getStoredCustomLabelText,
@@ -19,16 +22,19 @@ import {
   saveCustomLabelText,
   saveSelectedDpi,
   saveSelectedLabelIdMode,
+  saveSelectedLabelPrintMode,
   saveSelectedLabelSize,
   saveSelectedPrinter,
   scanMatchesCatalogProduct,
   scanStatusLabel,
   STANDARD_LABEL_SIZES,
+  suggestedWarehouseLabelBatchPdfFilename,
   suggestedWarehouseLabelPdfFilename,
   SUPPORTED_DPIS,
   usesSpecialLabelStock,
   type LabelDpi,
   type LabelIdMode,
+  type LabelPrintMode,
   type LabelSize,
   type ScanPrintStatus,
   type WarehouseCatalogProduct,
@@ -137,6 +143,15 @@ function statusBadgeClass(status: ScanPrintStatus): string {
   }
 }
 
+type LabelQueueItem = {
+  product: WarehouseCatalogProduct
+  quantity: number
+}
+
+function clampLabelQty(value: number): number {
+  return Math.max(1, Math.min(99, Number.isFinite(value) ? value : 1))
+}
+
 export default function LabelStation() {
   const { hasKeepaAccess, isSuperadmin, isWarehouseOnly, userInfo } = useUser()
   const canManageCatalog = hasKeepaAccess || isSuperadmin
@@ -151,6 +166,8 @@ export default function LabelStation() {
   const [lookupError, setLookupError] = useState(false)
   const [lookingUp, setLookingUp] = useState(false)
   const [quantity, setQuantity] = useState(1)
+  const [printMode, setPrintMode] = useState<LabelPrintMode>(() => getSelectedLabelPrintMode())
+  const [queue, setQueue] = useState<LabelQueueItem[]>([])
   const [printing, setPrinting] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -244,15 +261,74 @@ export default function LabelStation() {
     [scanUpc, product, lookupError, lookingUp]
   )
 
-  const clearScan = useCallback(() => {
+  const clearScan = useCallback((opts?: { keepMessage?: boolean }) => {
     pendingPrintUpcRef.current = null
     setScanUpc('')
     setProduct(null)
     setLookupError(false)
-    setMessage(null)
+    if (!opts?.keepMessage) setMessage(null)
     setError(null)
     scanInputRef.current?.focus()
   }, [])
+
+  const queueLabelTotal = useMemo(
+    () => queue.reduce((sum, row) => sum + row.quantity, 0),
+    [queue],
+  )
+
+  const handleSelectPrintMode = (mode: LabelPrintMode) => {
+    setPrintMode(mode)
+    saveSelectedLabelPrintMode(mode)
+    setError(null)
+    setMessage(
+      mode === 'queue'
+        ? 'Queue mode: scans add to the list. Use Print all when ready.'
+        : 'Auto-print: a successful scan prints immediately.',
+    )
+    scanInputRef.current?.focus()
+  }
+
+  const addToQueue = useCallback(
+    (item: WarehouseCatalogProduct, copies = quantity) => {
+      const addQty = clampLabelQty(copies)
+      setQueue((prev) => {
+        const existing = prev.find((row) => row.product.upc === item.upc)
+        if (existing) {
+          return prev.map((row) =>
+            row.product.upc === item.upc
+              ? { ...row, quantity: clampLabelQty(row.quantity + addQty), product: item }
+              : row,
+          )
+        }
+        return [...prev, { product: item, quantity: addQty }]
+      })
+      setMessage(
+        addQty === 1
+          ? `Added ${item.upc} to queue.`
+          : `Added ${item.upc} × ${addQty} to queue.`,
+      )
+      clearScan({ keepMessage: true })
+    },
+    [quantity, clearScan],
+  )
+
+  const updateQueueQty = (upc: string, nextQty: number) => {
+    setQueue((prev) =>
+      prev.map((row) =>
+        row.product.upc === upc ? { ...row, quantity: clampLabelQty(nextQty) } : row,
+      ),
+    )
+  }
+
+  const removeFromQueue = (upc: string) => {
+    setQueue((prev) => prev.filter((row) => row.product.upc !== upc))
+  }
+
+  const clearQueue = () => {
+    setQueue([])
+    setMessage('Queue cleared.')
+    scanInputRef.current?.focus()
+  }
 
   const printProduct = useCallback(
     async (item: WarehouseCatalogProduct) => {
@@ -342,6 +418,117 @@ export default function LabelStation() {
     ]
   )
 
+  const printQueue = useCallback(async () => {
+    if (printingRef.current || queue.length === 0) return
+    printingRef.current = true
+    setPrinting(true)
+    setError(null)
+    setMessage(null)
+
+    const items = queue.map((row) => ({
+      product: row.product,
+      copies: clampLabelQty(row.quantity),
+    }))
+    const totalLabels = items.reduce((sum, row) => sum + row.copies, 0)
+    const zpl = buildWarehouseLabelBatchZpl(
+      items,
+      selectedDpi,
+      selectedSize,
+      effectiveIdMode,
+      customText,
+    )
+    let printerName = selectedPrinter.trim()
+
+    try {
+      if (isElectron && printerName && window.desktop?.printZpl) {
+        const result = await window.desktop.printZpl({ printerName, zpl })
+        if (!result.ok) {
+          throw new Error(result.message || 'Print failed')
+        }
+        setMessage(
+          `Sent ${totalLabels} label(s) from ${items.length} product(s) to ${printerName}.`,
+        )
+        auditAction(
+          'label_station.print_queue',
+          `Printed queue: ${totalLabels} label(s), ${items.length} product(s) on ${printerName}`,
+          {
+            productCount: items.length,
+            quantity: totalLabels,
+            printer: printerName,
+            idMode: effectiveIdMode,
+            upcs: items.map((item) => item.product.upc),
+          },
+        )
+      } else if (isElectron) {
+        printerName = (await refreshPrinters()).trim()
+        if (printerName && window.desktop?.printZpl) {
+          const result = await window.desktop.printZpl({ printerName, zpl })
+          if (!result.ok) {
+            throw new Error(result.message || 'Print failed')
+          }
+          setMessage(
+            `Sent ${totalLabels} label(s) from ${items.length} product(s) to ${printerName}.`,
+          )
+          auditAction(
+            'label_station.print_queue',
+            `Printed queue: ${totalLabels} label(s), ${items.length} product(s) on ${printerName}`,
+            {
+              productCount: items.length,
+              quantity: totalLabels,
+              printer: printerName,
+              idMode: effectiveIdMode,
+              upcs: items.map((item) => item.product.upc),
+            },
+          )
+        } else {
+          throw new Error('No printer selected. Connect a Zebra printer and pick it below.')
+        }
+      } else {
+        const blob = buildWarehouseLabelBatchPdfBlob(
+          items,
+          selectedDpi,
+          selectedSize,
+          effectiveIdMode,
+          customText,
+        )
+        const pdfFilename = suggestedWarehouseLabelBatchPdfFilename()
+        downloadBlob(blob, pdfFilename)
+        auditAction(
+          'label_station.download_pdf_queue',
+          `Downloaded queue PDF: ${totalLabels} label(s), ${items.length} product(s) as ${pdfFilename}`,
+          {
+            productCount: items.length,
+            quantity: totalLabels,
+            filename: pdfFilename,
+            idMode: effectiveIdMode,
+            upcs: items.map((item) => item.product.upc),
+          },
+        )
+        setMessage(
+          `Downloaded PDF (${totalLabels} label(s) from ${items.length} product(s)). Open the desktop app for direct Zebra printing.`,
+        )
+      }
+      setQueue([])
+      clearScan({ keepMessage: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Print failed')
+    } finally {
+      printingRef.current = false
+      setPrinting(false)
+      scanInputRef.current?.focus()
+    }
+  }, [
+    queue,
+    selectedPrinter,
+    selectedDpi,
+    selectedSize,
+    effectiveIdMode,
+    customText,
+    isElectron,
+    clearScan,
+    refreshPrinters,
+  ])
+
   const lookupUpc = useCallback(
     async (raw: string) => {
       const upc = raw.trim()
@@ -365,7 +552,11 @@ export default function LabelStation() {
         setLookupError(false)
         if (pendingPrintUpcRef.current === upc) {
           pendingPrintUpcRef.current = null
-          await printProduct(item)
+          if (printMode === 'queue') {
+            addToQueue(item)
+          } else {
+            await printProduct(item)
+          }
         }
       } catch {
         setProduct(null)
@@ -377,7 +568,7 @@ export default function LabelStation() {
         setLookingUp(false)
       }
     },
-    [printProduct]
+    [printProduct, printMode, addToQueue],
   )
 
   useEffect(() => {
@@ -400,13 +591,23 @@ export default function LabelStation() {
     await printProduct(product)
   }, [product, scanUpc, status, printProduct])
 
+  const handleAddToQueue = useCallback(() => {
+    const upc = scanUpc.trim()
+    if (!product || !upc || !scanMatchesCatalogProduct(upc, product) || status !== 'ready') return
+    addToQueue(product)
+  }, [product, scanUpc, status, addToQueue])
+
   const handleScanKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== 'Enter') return
     event.preventDefault()
     const upc = scanUpc.trim()
     if (!upc) return
     if (status === 'ready' && product && scanMatchesCatalogProduct(upc, product)) {
-      void handlePrint()
+      if (printMode === 'queue') {
+        handleAddToQueue()
+      } else {
+        void handlePrint()
+      }
       return
     }
     pendingPrintUpcRef.current = upc
@@ -494,12 +695,69 @@ export default function LabelStation() {
         <p className="text-sm text-gray-600 mt-1">
           Scan a UPC, short SKU, or the FNSKU on a printed label, then print a warehouse label. Choose{' '}
           <span className="font-medium">Print ID</span> below: Short SKU for Amazon, or UPC for DNK
-          carton match. A successful scan auto-prints when your scanner sends Enter.
+          carton match. Use <span className="font-medium">Auto-print</span> for immediate labels, or{' '}
+          <span className="font-medium">Queue mode</span> to scan into a list and Print all.
           {catalogCount !== null && (
             <span className="ml-1 font-medium">{catalogCount.toLocaleString()} products in catalog.</span>
           )}
         </p>
       </div>
+
+      {/* Auto-print vs Queue mode */}
+      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold text-gray-800">Scan mode</h2>
+          <p className="text-xs text-gray-500">
+            Choice is saved on this device. Default is Auto-print.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Scan mode">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={printMode === 'auto'}
+            onClick={() => handleSelectPrintMode('auto')}
+            className={`min-w-[12rem] flex-1 rounded-lg border-2 px-4 py-3 text-left text-sm transition ${
+              printMode === 'auto'
+                ? 'border-sky-900 bg-sky-700 text-white shadow-md ring-2 ring-sky-900/40'
+                : 'border-sky-300 bg-sky-100 text-sky-950 hover:bg-sky-200'
+            }`}
+          >
+            <span className={`font-semibold ${printMode === 'auto' ? 'text-white' : 'text-sky-950'}`}>
+              Auto-print
+            </span>
+            <span
+              className={`mt-0.5 block text-xs ${
+                printMode === 'auto' ? 'text-sky-100' : 'text-sky-800'
+              }`}
+            >
+              Scan prints immediately (current Labels qty)
+            </span>
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={printMode === 'queue'}
+            onClick={() => handleSelectPrintMode('queue')}
+            className={`min-w-[12rem] flex-1 rounded-lg border-2 px-4 py-3 text-left text-sm transition ${
+              printMode === 'queue'
+                ? 'border-sky-900 bg-sky-700 text-white shadow-md ring-2 ring-sky-900/40'
+                : 'border-sky-300 bg-sky-100 text-sky-950 hover:bg-sky-200'
+            }`}
+          >
+            <span className={`font-semibold ${printMode === 'queue' ? 'text-white' : 'text-sky-950'}`}>
+              Queue mode
+            </span>
+            <span
+              className={`mt-0.5 block text-xs ${
+                printMode === 'queue' ? 'text-sky-100' : 'text-sky-800'
+              }`}
+            >
+              Scan adds to a list; Print all when ready
+            </span>
+          </button>
+        </div>
+      </section>
 
       {message && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
@@ -577,21 +835,32 @@ export default function LabelStation() {
               min={1}
               max={99}
               value={quantity}
-              onChange={(e) => setQuantity(Math.max(1, Math.min(99, Number(e.target.value) || 1)))}
+              onChange={(e) => setQuantity(clampLabelQty(Number(e.target.value) || 1))}
               className="w-16 rounded border border-gray-300 px-2 py-1 text-center"
             />
           </label>
+          {printMode === 'queue' ? (
+            <button
+              type="button"
+              disabled={status !== 'ready' || printing || !product}
+              onClick={handleAddToQueue}
+              className="rounded-lg bg-[#404040] px-4 py-2 text-sm font-medium text-white hover:bg-[#2d2d2d] disabled:opacity-40"
+            >
+              Add to queue
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={status !== 'ready' || printing || !product}
+              onClick={() => void handlePrint()}
+              className="rounded-lg bg-[#404040] px-4 py-2 text-sm font-medium text-white hover:bg-[#2d2d2d] disabled:opacity-40"
+            >
+              {printing ? 'Printing…' : 'Print label'}
+            </button>
+          )}
           <button
             type="button"
-            disabled={status !== 'ready' || printing || !product}
-            onClick={() => void handlePrint()}
-            className="rounded-lg bg-[#404040] px-4 py-2 text-sm font-medium text-white hover:bg-[#2d2d2d] disabled:opacity-40"
-          >
-            {printing ? 'Printing…' : 'Print label'}
-          </button>
-          <button
-            type="button"
-            onClick={clearScan}
+            onClick={() => clearScan()}
             className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
           >
             Clear
@@ -618,6 +887,104 @@ export default function LabelStation() {
           )}
         </div>
       </section>
+
+      {printMode === 'queue' && (
+        <section className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-800">Print queue</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {queue.length === 0
+                  ? 'Scan products to build the list. Rescanning the same UPC increases its qty.'
+                  : `${queue.length} product(s) · ${queueLabelTotal} label(s) total`}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={queue.length === 0 || printing}
+                onClick={clearQueue}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+              >
+                Clear queue
+              </button>
+              <button
+                type="button"
+                disabled={queue.length === 0 || printing}
+                onClick={() => void printQueue()}
+                className="rounded-lg bg-[#404040] px-4 py-2 text-sm font-medium text-white hover:bg-[#2d2d2d] disabled:opacity-40"
+              >
+                {printing
+                  ? 'Printing…'
+                  : queue.length === 0
+                    ? 'Print all'
+                    : `Print all (${queueLabelTotal})`}
+              </button>
+            </div>
+          </div>
+
+          {queue.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-gray-500">Queue is empty.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                  <tr>
+                    <th className="px-4 py-2 font-semibold">UPC</th>
+                    <th className="px-4 py-2 font-semibold">SKU</th>
+                    <th className="px-4 py-2 font-semibold">FNSKU</th>
+                    <th className="px-4 py-2 font-semibold">Style</th>
+                    <th className="px-4 py-2 font-semibold w-24">Qty</th>
+                    <th className="px-4 py-2 font-semibold w-20" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {queue.map((row) => (
+                    <tr key={row.product.upc} className="align-top">
+                      <td className="px-4 py-2 font-mono text-xs text-gray-900 whitespace-nowrap">
+                        {row.product.upc}
+                      </td>
+                      <td className="px-4 py-2 font-mono text-xs text-gray-700 whitespace-nowrap">
+                        {row.product.sku || '—'}
+                      </td>
+                      <td className="px-4 py-2 font-mono text-xs text-gray-700 whitespace-nowrap">
+                        {row.product.fnsku || '—'}
+                      </td>
+                      <td className="px-4 py-2 text-gray-800 max-w-xs">
+                        <span className="line-clamp-2">{row.product.style_name || '—'}</span>
+                      </td>
+                      <td className="px-4 py-2">
+                        <input
+                          type="number"
+                          min={1}
+                          max={99}
+                          value={row.quantity}
+                          disabled={printing}
+                          onChange={(e) =>
+                            updateQueueQty(row.product.upc, Number(e.target.value) || 1)
+                          }
+                          className="w-16 rounded border border-gray-300 px-2 py-1 text-center disabled:opacity-50"
+                          aria-label={`Quantity for ${row.product.upc}`}
+                        />
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <button
+                          type="button"
+                          disabled={printing}
+                          onClick={() => removeFromQueue(row.product.upc)}
+                          className="text-sm text-red-700 hover:text-red-900 disabled:opacity-40"
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Print ID — Amazon short SKU (default) vs retail UPC for DNK */}
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">

@@ -222,7 +222,9 @@ export default function About() {
           </li>
           <li>
             <span className="font-semibold">Label Station:</span> Scan a product UPC, look up the warehouse catalog, and
-            print a Zebra label (desktop app) or download a PDF (web). Catalog managers can import products from Excel.
+            print a Zebra label (desktop app) or download a PDF (web). Choose{' '}
+            <span className="font-semibold">Auto-print</span> or <span className="font-semibold">Queue mode</span>{' '}
+            (scan into a list, then Print all). Catalog managers can import products from Excel.
             Staff always scan the UPC barcode. Use <span className="font-semibold">Print ID</span>:{' '}
             <span className="font-semibold">Short SKU (Amazon)</span> is the default for everyone and prints a short
             catalog SKU (7 numeric digits or fewer) under the barcode when present;{' '}

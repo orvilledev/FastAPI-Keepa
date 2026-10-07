@@ -794,7 +794,32 @@ export function buildWarehouseLabelPdfBlob(
   idMode: LabelIdMode = DEFAULT_LABEL_ID_MODE,
   customText?: string | null
 ): Blob {
-  const count = Math.max(1, Math.min(copies, 99))
+  return buildWarehouseLabelBatchPdfBlob(
+    [{ product, copies }],
+    dpi,
+    size,
+    idMode,
+    customText
+  )
+}
+
+/** One product + copy count for batch ZPL / PDF generation. */
+export type WarehouseLabelPrintItem = {
+  product: WarehouseLabelProduct & { sku?: string }
+  copies: number
+}
+
+/**
+ * Multi-product PDF: each item contributes `copies` pages (capped 1–99 per item).
+ * Used by Label Station queue "Print all" on web.
+ */
+export function buildWarehouseLabelBatchPdfBlob(
+  items: WarehouseLabelPrintItem[],
+  dpi: number = DEFAULT_LABEL_DPI,
+  size: LabelSize = DEFAULT_LABEL_SIZE,
+  idMode: LabelIdMode = DEFAULT_LABEL_ID_MODE,
+  customText?: string | null
+): Blob {
   const { width: pageW, height: pageH } = getLabelPageSizePt(size)
   const orientation = pageW >= pageH ? 'landscape' : 'portrait'
   const doc = new jsPDF({
@@ -804,14 +829,28 @@ export function buildWarehouseLabelPdfBlob(
     compress: true,
   })
 
-  const dataUrl = renderWarehouseLabelCanvas(product, dpi, size, idMode, customText).toDataURL(
-    'image/png'
-  )
-  for (let i = 0; i < count; i += 1) {
-    if (i > 0) {
-      doc.addPage([pageW, pageH], orientation)
+  let pageIndex = 0
+  for (const item of items) {
+    const count = Math.max(1, Math.min(item.copies, 99))
+    const dataUrl = renderWarehouseLabelCanvas(
+      item.product,
+      dpi,
+      size,
+      idMode,
+      customText
+    ).toDataURL('image/png')
+    for (let i = 0; i < count; i += 1) {
+      if (pageIndex > 0) {
+        doc.addPage([pageW, pageH], orientation)
+      }
+      doc.addImage(dataUrl, 'PNG', 0, 0, pageW, pageH)
+      pageIndex += 1
     }
-    doc.addImage(dataUrl, 'PNG', 0, 0, pageW, pageH)
+  }
+
+  if (pageIndex === 0) {
+    // Empty queue — return a blank single-page PDF rather than a corrupt file.
+    return doc.output('blob')
   }
 
   return doc.output('blob')
@@ -880,15 +919,68 @@ export function buildWarehouseLabelZpl(
 ^XZ`
 }
 
+/**
+ * Concatenate one ZPL job per queue item. Zebras accept multiple ^XA…^XZ in a
+ * single stream, so Label Station can send the whole queue in one printZpl call.
+ */
+export function buildWarehouseLabelBatchZpl(
+  items: WarehouseLabelPrintItem[],
+  dpi: number = DEFAULT_LABEL_DPI,
+  size: LabelSize = DEFAULT_LABEL_SIZE,
+  idMode: LabelIdMode = DEFAULT_LABEL_ID_MODE,
+  customText?: string | null
+): string {
+  return items
+    .filter((item) => item.copies > 0)
+    .map((item) =>
+      buildWarehouseLabelZpl(item.product, item.copies, dpi, size, idMode, customText)
+    )
+    .join('\n')
+}
+
 export function suggestedWarehouseLabelPdfFilename(product: WarehouseLabelProduct): string {
   const safe = (product.fnsku || product.upc || 'label').replace(/[^A-Z0-9_-]+/gi, '')
   return `warehouse-label-${safe}.pdf`
+}
+
+export function suggestedWarehouseLabelBatchPdfFilename(): string {
+  return 'warehouse-labels-batch.pdf'
+}
+
+/** Label Station scan behavior: print immediately vs build a queue then Print all. */
+export const LABEL_PRINT_MODES = ['auto', 'queue'] as const
+export type LabelPrintMode = (typeof LABEL_PRINT_MODES)[number]
+export const DEFAULT_LABEL_PRINT_MODE: LabelPrintMode = 'auto'
+
+function normalizeLabelPrintMode(mode: LabelPrintMode | undefined | null): LabelPrintMode {
+  return (LABEL_PRINT_MODES as readonly string[]).includes(mode ?? '')
+    ? (mode as LabelPrintMode)
+    : DEFAULT_LABEL_PRINT_MODE
 }
 
 export const PRINTER_NAME_KEY = 'warehouse_printer_name'
 export const PRINTER_DPI_KEY = 'warehouse_printer_dpi'
 export const LABEL_SIZE_KEY = 'warehouse_label_size'
 export const LABEL_ID_MODE_KEY = 'warehouse_label_id_mode'
+export const LABEL_PRINT_MODE_KEY = 'warehouse_label_print_mode'
+
+export function getSelectedLabelPrintMode(): LabelPrintMode {
+  try {
+    return normalizeLabelPrintMode(
+      (localStorage.getItem(LABEL_PRINT_MODE_KEY) || '') as LabelPrintMode
+    )
+  } catch {
+    return DEFAULT_LABEL_PRINT_MODE
+  }
+}
+
+export function saveSelectedLabelPrintMode(mode: LabelPrintMode): void {
+  try {
+    localStorage.setItem(LABEL_PRINT_MODE_KEY, normalizeLabelPrintMode(mode))
+  } catch {
+    // ignore
+  }
+}
 
 /**
  * Notice text the user last typed for the custom label. Never set means "use the

@@ -326,13 +326,15 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
       <>
         Label Station is a scan-and-print tool for warehouse labeling. Staff scan a product <strong>UPC</strong>; the app
         looks up the product in the warehouse catalog and prints a formatted label to a Zebra printer (desktop app) or
-        downloads a PDF (web browser). Each label shows FNSKU, a scannable barcode, UPC or SKU, condition, and product
-        name. Use <strong>Print ID</strong> to choose <strong>Short SKU (Amazon)</strong> (default for everyone) or{' '}
-        <strong>UPC (DNK)</strong> (allowlisted accounts only). Choose label size (small, medium, or large on 2.25&quot;
-        × 1.25&quot; stock; <strong>Custom</strong> on 3&quot; × 3&quot; with an editable sold-as-set notice;{' '}
-        <strong>Apparel</strong> on 3&quot; × 2&quot; with a return-eligibility notice for single items) and printer
-        resolution (203 or 300 dpi). The on-screen preview matches the physical label. Catalog managers with Keepa
-        access can import or update products from Excel in the Product Catalog tab.
+        downloads a PDF (web browser). Use <strong>Scan mode</strong> to choose <strong>Auto-print</strong> (scan prints
+        immediately; default) or <strong>Queue mode</strong> (scans build a list, then <strong>Print all</strong>). Each
+        label shows FNSKU, a scannable barcode, UPC or SKU, condition, and product name. Use <strong>Print ID</strong> to
+        choose <strong>Short SKU (Amazon)</strong> (default for everyone) or <strong>UPC (DNK)</strong> (allowlisted
+        accounts only). Choose label size (small, medium, or large on 2.25&quot; × 1.25&quot; stock;{' '}
+        <strong>Custom</strong> on 3&quot; × 3&quot; with an editable sold-as-set notice; <strong>Apparel</strong> on
+        3&quot; × 2&quot; with a return-eligibility notice for single items) and printer resolution (203 or 300 dpi). The
+        on-screen preview matches the physical label. Catalog managers with Keepa access can import or update products
+        from Excel in the Product Catalog tab.
       </>
     ),
   },
