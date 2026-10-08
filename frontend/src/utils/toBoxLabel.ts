@@ -77,6 +77,9 @@ function renderBarcodeDataUrl(value: string): string {
   return canvas.toDataURL('image/png')
 }
 
+/** Helvetica cap height, so the gaps are measured from the ink, not the baseline. */
+const CAP_HEIGHT = 0.718
+
 function drawToBoxLabel(doc: jsPDF, toNumber: string, boxNumber: number, barcode: string) {
   const inset = 10
   doc.setDrawColor(0, 0, 0)
@@ -91,30 +94,34 @@ function drawToBoxLabel(doc: jsPDF, toNumber: string, boxNumber: number, barcode
     toFontSize -= 2
     doc.setFontSize(toFontSize)
   }
-  doc.text(toNumber, PAGE_WIDTH_PT / 2, 68, { align: 'center' })
+  const toBaseline = 62
+  doc.text(toNumber, PAGE_WIDTH_PT / 2, toBaseline, { align: 'center' })
 
-  const barcodeX = 22
-  const barcodeWidth = PAGE_WIDTH_PT - 44
-  const barcodeY = 74
-  const barcodeHeight = 130
+  const boxFontSize = 46
+  const boxBaseline = 256
+  const barcodeHeight = 104
+  const boxInkTop = boxBaseline - CAP_HEIGHT * boxFontSize
+  const gap = (boxInkTop - toBaseline - barcodeHeight) / 2
+  const barcodeY = toBaseline + gap
+  const barcodeX = 20
+  const barcodeWidth = PAGE_WIDTH_PT - 40
   doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight)
 
   const boxLabel = 'Box'
-  doc.setFontSize(50)
+  doc.setFontSize(boxFontSize)
   const numberText = String(boxNumber)
   const numberWidth = doc.getTextWidth(numberText)
   const underlineWidth = Math.max(92, numberWidth + 20)
   const right = PAGE_WIDTH_PT - 30
-  const baseline = 260
   const numberX = right - underlineWidth
-  doc.text(boxLabel, numberX - 14, baseline, { align: 'right' })
-  doc.text(numberText, numberX + underlineWidth / 2, baseline, { align: 'center' })
+  doc.text(boxLabel, numberX - 14, boxBaseline, { align: 'right' })
+  doc.text(numberText, numberX + underlineWidth / 2, boxBaseline, { align: 'center' })
   doc.setLineWidth(2.6)
-  doc.line(numberX, baseline + 7, numberX + underlineWidth, baseline + 7)
+  doc.line(numberX, boxBaseline + 7, numberX + underlineWidth, boxBaseline + 7)
 }
 
 /** One PDF page per box. The barcode encodes the TO number on every page. */
-export function buildToBoxLabelsPdf(toNumber: string, boxes: number[]): Blob {
+export function buildToBoxLabelsPdf(toNumber: string, boxes: number[]): Uint8Array {
   if (boxes.length === 0) {
     throw new Error('Enter a box number, or a range such as 1-10.')
   }
@@ -131,5 +138,5 @@ export function buildToBoxLabelsPdf(toNumber: string, boxes: number[]): Blob {
     }
     drawToBoxLabel(doc, toNumber, boxNumber, barcode)
   })
-  return doc.output('blob')
+  return new Uint8Array(doc.output('arraybuffer'))
 }

@@ -1,5 +1,5 @@
-import JsBarcode from 'jsbarcode'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import {
   buildToBoxLabelsPdf,
   normalizeToNumber,
@@ -7,68 +7,66 @@ import {
   suggestedToBoxLabelFilename,
 } from '../../utils/toBoxLabel'
 
+GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
+
 type GeneratedLabels = {
   toNumber: string
   boxes: number[]
+  pdf: Uint8Array
 }
 
-function ToBarcode({ value }: { value: string }) {
-  const ref = useRef<SVGSVGElement>(null)
+function LabelPdfPreview({ pdf, boxes }: { pdf: Uint8Array; boxes: number[] }) {
+  const [pages, setPages] = useState<string[]>([])
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
-    if (!ref.current) return
-    JsBarcode(ref.current, value, {
-      format: 'CODE128',
-      displayValue: false,
-      margin: 0,
-      height: 160,
-      width: 2,
-      background: '#ffffff',
-      lineColor: '#000000',
-    })
-    ref.current.setAttribute('preserveAspectRatio', 'none')
-    ref.current.removeAttribute('width')
-    ref.current.removeAttribute('height')
-  }, [value])
+    let cancelled = false
+    setPages([])
+    setFailed(false)
+    const loading = getDocument({ data: pdf.slice() })
+    loading.promise
+      .then(async (doc) => {
+        const urls: string[] = []
+        for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
+          const page = await doc.getPage(pageNumber)
+          const viewport = page.getViewport({ scale: 2 })
+          const canvas = document.createElement('canvas')
+          canvas.width = viewport.width
+          canvas.height = viewport.height
+          const context = canvas.getContext('2d')
+          if (!context) throw new Error('Could not draw the label preview.')
+          await page.render({ canvasContext: context, viewport, canvas }).promise
+          urls.push(canvas.toDataURL('image/png'))
+        }
+        if (!cancelled) setPages(urls)
+        await doc.destroy()
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true)
+      })
+    return () => {
+      cancelled = true
+      void loading.destroy()
+    }
+  }, [pdf])
 
-  return <svg ref={ref} className="block h-full w-full" role="img" aria-label={`Barcode for ${value}`} />
-}
-
-function LabelPreview({ toNumber, boxNumber }: { toNumber: string; boxNumber: number }) {
+  if (failed) {
+    return <p className="text-sm text-red-700">Could not draw the label preview.</p>
+  }
+  if (pages.length === 0) {
+    return <p className="text-sm text-gray-500 dark:text-slate-400">Drawing labels…</p>
+  }
   return (
-    <article
-      className="relative aspect-[3/2] w-full overflow-hidden border-black bg-white text-black shadow-sm"
-      style={{
-        containerType: 'inline-size',
-        borderWidth: '0.55cqw',
-        borderRadius: '3.7cqw',
-        borderStyle: 'solid',
-      }}
-    >
-      <p
-        className="absolute left-[5%] right-[5%] text-center font-black leading-none tracking-tight"
-        style={{ top: '7%', fontSize: '13.4cqw' }}
-      >
-        {toNumber}
-      </p>
-      <div className="absolute" style={{ left: '5%', right: '5%', top: '26%', height: '45%' }}>
-        <ToBarcode value={toNumber} />
-      </div>
-      <div className="absolute flex items-end" style={{ right: '6.5%', bottom: '5.5%', fontSize: '11.6cqw' }}>
-        <span className="font-black leading-none">Box</span>
-        <span
-          className="text-center font-black leading-none"
-          style={{
-            marginLeft: '0.28em',
-            minWidth: '1.9em',
-            padding: '0 0.15em 0.04em',
-            borderBottom: '0.06em solid #000',
-          }}
-        >
-          {boxNumber}
-        </span>
-      </div>
-    </article>
+    <div className="grid gap-4 sm:grid-cols-2">
+      {pages.map((src, index) => (
+        <img
+          key={boxes[index] ?? index}
+          src={src}
+          alt={`Label for box ${boxes[index] ?? index + 1}`}
+          className="w-full bg-white shadow-sm"
+        />
+      ))}
+    </div>
   )
 }
 
@@ -124,7 +122,8 @@ export default function LabelCenter() {
     try {
       const toNumber = normalizeToNumber(toInput)
       const boxes = parseBoxNumbers(boxInput)
-      setGenerated({ toNumber, boxes })
+      const pdf = buildToBoxLabelsPdf(toNumber, boxes)
+      setGenerated({ toNumber, boxes, pdf })
     } catch (err: unknown) {
       setGenerated(null)
       setError(err instanceof Error ? err.message : 'Could not build labels.')
@@ -136,7 +135,7 @@ export default function LabelCenter() {
     setBusy(action)
     setError(null)
     try {
-      const blob = buildToBoxLabelsPdf(generated.toNumber, generated.boxes)
+      const blob = new Blob([generated.pdf.slice()], { type: 'application/pdf' })
       const filename = suggestedToBoxLabelFilename(generated.toNumber, generated.boxes)
       if (action === 'download') downloadBlob(blob, filename)
       else printPdfBlob(blob)
@@ -228,11 +227,7 @@ export default function LabelCenter() {
       {generated && (
         <section className="space-y-3">
           <p className="text-sm font-medium text-gray-700 dark:text-slate-300">{summary}</p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {generated.boxes.map((boxNumber) => (
-              <LabelPreview key={boxNumber} toNumber={generated.toNumber} boxNumber={boxNumber} />
-            ))}
-          </div>
+          <LabelPdfPreview pdf={generated.pdf} boxes={generated.boxes} />
         </section>
       )}
     </div>
