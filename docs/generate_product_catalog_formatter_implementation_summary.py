@@ -1,10 +1,10 @@
 """
-Generate MSW Overwatch-style implementation summary PDF for FBA Box Contents.
-Matches Testing Playground / DNK Label Station / Freight Class / Shipment Manager format.
+Generate MSW Overwatch-style implementation summary PDF for Product Catalog Formatter.
+Matches Testing Playground / FBA Box Contents / Freight Class / Shipment Manager format.
 
-Focus: NFA and SMW Tool, OBZ Tool, and DNK Tool (CCL + Manifest Compare).
+Focus: Shipment plan mode and WR SKU Update mode.
 
-Run:  python docs/generate_fba_box_contents_implementation_summary.py
+Run:  python docs/generate_product_catalog_formatter_implementation_summary.py
 """
 from __future__ import annotations
 
@@ -29,7 +29,11 @@ from reportlab.platypus import (
 
 ROOT = Path(__file__).resolve().parent.parent
 FONTS_DIR = Path(r"C:\Windows\Fonts")
-OUTPUT = ROOT / "docs" / "FBA Box Contents - Implementation Summary _ MSW Overwatch.pdf"
+OUTPUT = (
+    ROOT
+    / "docs"
+    / "Product Catalog Formatter - Implementation Summary _ MSW Overwatch.pdf"
+)
 
 PAGE_W, PAGE_H = letter
 M_L = 36
@@ -100,7 +104,7 @@ def _make_page_callback(page_num: int):
         if page_num == 1:
             c.setFont("SegoeUI-Bold", 22)
             c.setFillColor(C_TITLE)
-            c.drawString(M_L, PAGE_H - 54, "FBA Box Contents")
+            c.drawString(M_L, PAGE_H - 54, "Product Catalog Formatter")
 
             c.setFont("SegoeUI", 11)
             c.setFillColor(C_SUBTITLE)
@@ -162,11 +166,11 @@ def _make_page_callback(page_num: int):
                 Paragraph("STATUS: SUCCESSFULLY IMPLEMENTED", s_status),
                 Spacer(1, 6),
                 Paragraph(
-                    "<b>FBA Box Contents</b> is a gated BC Tools converter under "
-                    "<b>BC Tools \u2192 FBA Box Contents</b>. Authorized users pick "
-                    "<b>NFA and SMW Tool</b>, <b>OBZ Tool</b>, or <b>DNK Tool</b> "
-                    "(Carton Contents List + Manifest Compare), upload a vendor "
-                    "carton file, and download a typed Box Contents workbook.",
+                    "<b>Product Catalog Formatter</b> is a BC Tools converter under "
+                    "<b>BC Tools \u2192 Product Catalog Formatter</b>. Staff upload "
+                    "Amazon <b>shipment-plan</b> files or a <b>WR SKU Update</b> "
+                    "workbook and download one <b>PRODUCTS</b> catalog with unique "
+                    "UPCs (UPC, SKU, fnsku, STYLE NAME, Condition).",
                     s_intro,
                 ),
             ]
@@ -183,7 +187,7 @@ def _make_page_callback(page_num: int):
         c.drawString(
             M_L,
             24,
-            "MSW Overwatch \u2014 FBA Box Contents \u00b7 FastAPI-Keepa-Dashboard",
+            "MSW Overwatch \u2014 Product Catalog Formatter \u00b7 FastAPI-Keepa-Dashboard",
         )
         c.drawRightString(PAGE_W - M_R, 24, "Print this page (Ctrl+P) \u2192 Save as PDF")
         c.restoreState()
@@ -274,42 +278,6 @@ def _half_table(S: dict, headers: list[str], rows: list[list[str]], width: float
     return t
 
 
-def _tools_glance_table(S: dict) -> Table:
-    return _simple_table(
-        S,
-        ["Tool", "Input", "Output"],
-        [
-            [
-                "NFA and SMW Tool",
-                "Spaced-column carton dump starting with <b>PO#:</b>",
-                "<b>Box Contents</b> + <b>Dimensions</b> "
-                "(Weight from Total row as text)",
-            ],
-            [
-                "OBZ Tool",
-                "Oboz <b>Packing Slip by Carton</b>",
-                "<b>Box Contents</b> only "
-                "(Box Number, UPC, Qty + Total + pivot)",
-            ],
-            [
-                "DNK Tool \u2014 CCL",
-                "DNK <b>\u2026 CCL.xlsx</b> "
-                "(Contents + Dimensions sheets)",
-                "<b>Contents</b> + <b>Dimensions</b> "
-                "(Box Number, UPC, Quantity)",
-            ],
-            [
-                "DNK Tool \u2014 Compare",
-                "DNK Box Contents + Seller Central "
-                "<b>Box packing information</b>",
-                "Corrected workbook "
-                "(Old SKU remap + last-box top-up)",
-            ],
-        ],
-        col_fracs=[0.24, 0.38, 0.38],
-    )
-
-
 def _flow_table(S: dict) -> Table:
     return _simple_table(
         S,
@@ -317,153 +285,70 @@ def _flow_table(S: dict) -> Table:
         [
             [
                 "1. Open tool",
-                "Sidebar <b>BC Tools \u2192 FBA Box Contents</b> "
-                "(allowlisted + superadmin only)",
+                "Sidebar <b>BC Tools \u2192 Product Catalog Formatter</b> "
+                "(BC Tools allowlist + superadmin)",
             ],
             [
-                "2. Choose panel",
-                "Expand <b>NFA and SMW</b>, <b>OBZ</b>, or <b>DNK</b> "
-                "(independent accordion panels)",
+                "2. Choose mode",
+                "Use <b>Shipment plan</b> or <b>WR SKU Update</b> "
+                "(separate uploads on the same page)",
             ],
             [
                 "3. Upload",
-                "Drop or browse the matching vendor Excel "
-                "(.xls / .xlsx / .xlsm, max 15 MB)",
+                "Drop or browse one or more .xlsx / .xlsm / .xls / .csv "
+                "(max 30 files, 15 MB each)",
             ],
             [
-                "4. Generate / Compare",
-                "Server parses cartons and builds the typed workbook "
-                "(DNK Compare also remaps Old SKUs vs the manifest)",
+                "4. Format",
+                "Server merges rows, extracts barcodes, and keeps the "
+                "first row for each UPC",
             ],
             [
                 "5. Download",
-                "Receive a shipment-named .xlsx; re-download or Clear "
-                "without leaving the page",
+                "Receive <b>Product Catalog Formatter.xlsx</b> "
+                "(sheet PRODUCTS); Clear to start over",
             ],
         ],
         col_fracs=[0.18, 0.82],
     )
 
 
-def _nfa_smw_table(S: dict) -> Table:
+def _modes_table(S: dict) -> Table:
     return _simple_table(
         S,
-        ["Item", "Detail"],
+        ["Mode", "Input", "Mapping"],
         [
             [
-                "API",
-                "<b>POST /api/v1/fba-box-contents/generate-tool2</b> "
-                "(audit: <b>fba_box_contents.generate_tool2</b>)",
+                "Shipment plan",
+                "Amazon shipment-plan export "
+                "(SKU + UPC/EAN/ISBN/JAN/CODABAR)",
+                "UPC from barcode column (label stripped); "
+                "SKU / FNSKU / Title / Condition",
             ],
             [
-                "Input",
-                "First row <b>PO#:</b> / shipment id; blank spacer columns "
-                "between Sku, UPC, Qty, Weight, dims; each carton "
-                "<b>Carton#:</b> \u2192 lines \u2192 Total",
-            ],
-            [
-                "Box Contents",
-                "UPC (text), <b>Box Number</b>, QTY (numbers); "
-                "Sum-of-QTY pivot at column G; no Total QTY footer",
-            ],
-            [
-                "Dimensions",
-                "Weight (copied from Total row as text, often with a "
-                "leading space), Length, Width, Height \u2014 "
-                "<b>no Box # column</b>",
-            ],
-            [
-                "Download",
-                "<b>{filename} Output.xlsx</b> "
-                "(e.g. FBA19PLBV097 Output.xlsx)",
+                "WR SKU Update",
+                "WR SKU Update workbook "
+                "(exact SKU, UPC, FNSKU columns)",
+                "UPC / SKU / FNSKU as-is; STYLE NAME from "
+                "Description; Condition = <b>New</b>",
             ],
         ],
-        col_fracs=[0.22, 0.78],
+        col_fracs=[0.22, 0.36, 0.42],
     )
 
 
-def _obz_table(S: dict) -> Table:
-    return _simple_table(
+def _output_table(S: dict) -> Table:
+    return _half_table(
         S,
-        ["Item", "Detail"],
+        ["Column", "Source"],
         [
-            [
-                "API",
-                "<b>POST /api/v1/fba-box-contents/generate-obz</b> "
-                "(audit: <b>fba_box_contents.generate_obz</b>)",
-            ],
-            [
-                "Input",
-                "Packing Slip sheet; each carton starts with "
-                "<b>Carton</b> + number, then PO / UPC/GTIN / Qty "
-                "header and one line per unit",
-            ],
-            [
-                "Box Contents",
-                "Box Number, UPC, Qty; bold <b>Total</b> with "
-                "<b>=SUM(...)</b>; Sum-of-Qty pivot from column F",
-            ],
-            [
-                "UPC rule",
-                "GTIN kept as text with <b>leading zeros stripped</b> "
-                "(e.g. 00840\u2026 \u2192 840\u2026)",
-            ],
-            [
-                "Download",
-                "<b>{PO} Box Contents.xlsx</b> "
-                "(e.g. FBA19PZSB42B Box Contents.xlsx) \u2014 "
-                "no Dimensions sheet",
-            ],
+            ["UPC", "Barcode (shipment plan) or UPC column (WR)"],
+            ["SKU", "SKU"],
+            ["fnsku", "FNSKU"],
+            ["STYLE NAME", "Title (plan) or Description (WR)"],
+            ["Condition", "Condition (plan) or always New (WR)"],
         ],
-        col_fracs=[0.22, 0.78],
-    )
-
-
-def _dnk_table(S: dict) -> Table:
-    return _simple_table(
-        S,
-        ["Item", "Detail"],
-        [
-            [
-                "CCL API",
-                "<b>POST /api/v1/fba-box-contents/generate-dnk</b> "
-                "(audit: <b>fba_box_contents.generate_dnk</b>)",
-            ],
-            [
-                "CCL input",
-                "<b>\u2026 CCL.xlsx</b> \u2014 Contents sheet "
-                "(Carton Contents title; markers like <b>1 of 2</b>; "
-                "skip Carton Total) + Dimensions sheet",
-            ],
-            [
-                "CCL output",
-                "<b>Contents</b>: Box Number, UPC, Quantity + Sum of "
-                "Quantity pivot at G. <b>Dimensions</b>: Order, Carton, "
-                "Weight, Length, Width, Height",
-            ],
-            [
-                "Compare API",
-                "<b>POST /api/v1/fba-box-contents/compare-dnk</b> "
-                "(audit: <b>fba_box_contents.compare_dnk</b>)",
-            ],
-            [
-                "Compare inputs",
-                "1. DNK Box Contents.xlsx \u00b7 "
-                "2. Seller Central Box packing information.xlsx",
-            ],
-            [
-                "Compare rules",
-                "Manifest is source of truth; Old SKU remaps from "
-                "catalog; shortfalls appended to <b>last box</b>; "
-                "adjustments highlighted yellow; E\u2013G summary",
-            ],
-            [
-                "Downloads",
-                "CCL: <b>{id} Box Contents.xlsx</b> \u00b7 "
-                "Compare: <b>{id} Box Contents - corrected.xlsx</b>",
-            ],
-        ],
-        col_fracs=[0.22, 0.78],
+        HALF_W,
     )
 
 
@@ -473,68 +358,136 @@ def _access_table(S: dict) -> Table:
         ["User", "Access"],
         [
             [
-                "Allowlisted emails",
+                "BC Tools allowlist",
                 "sunshine@, stephanie@, paolo@, paulo@, johnbernard@ "
                 "(metroshoewarehouse.com)",
             ],
             [
                 "Superadmins",
-                "Full FBA Box Contents access",
+                "Full Product Catalog Formatter access",
             ],
             [
                 "All other users",
-                "No sidebar link; route + API blocked",
+                "No sidebar link under BC Tools",
             ],
         ],
         HALF_W,
     )
 
 
+def _shipment_detail_table(S: dict) -> Table:
+    return _simple_table(
+        S,
+        ["Item", "Detail"],
+        [
+            [
+                "API",
+                "<b>POST /api/v1/product-catalog-formatter/format</b> "
+                "(audit: <b>catalog_formatter.format</b>)",
+            ],
+            [
+                "Required headers",
+                "<b>SKU</b> + a UPC-like column "
+                "(e.g. <b>UPC/EAN/ISBN/JAN/CODABAR</b>)",
+            ],
+            [
+                "Barcode rules",
+                "Prefer UPC over EAN/JAN/ISBN/CODABAR; strip "
+                "<b>UPC:</b> / <b>EAN:</b> labels; reject scientific notation",
+            ],
+            [
+                "Excel types",
+                "UPC, SKU, and fnsku forced as text (<b>@</b>) "
+                "so leading zeros stay intact",
+            ],
+            [
+                "Skipped",
+                "Shipment summary preamble, box-size footer, "
+                "blank rows, rows with no usable UPC",
+            ],
+        ],
+        col_fracs=[0.24, 0.76],
+    )
+
+
+def _wr_detail_table(S: dict) -> Table:
+    return _simple_table(
+        S,
+        ["Item", "Detail"],
+        [
+            [
+                "API",
+                "<b>POST /api/v1/product-catalog-formatter/format-wr-sku</b> "
+                "(audit: <b>catalog_formatter.format_wr_sku</b>)",
+            ],
+            [
+                "Required headers",
+                "Exact <b>SKU</b>, <b>UPC</b>, and <b>FNSKU</b> "
+                "(shipment-plan barcode column is rejected here)",
+            ],
+            [
+                "Style / condition",
+                "STYLE NAME from <b>Description</b> (or STYLE NAME / Title); "
+                "Condition always <b>New</b>",
+            ],
+            [
+                "Excel types",
+                "Plain digit UPCs without a leading zero as integers; "
+                "leading-zero UPCs stay text",
+            ],
+            [
+                "Left out",
+                "Item and carton dimension columns from the WR sheet",
+            ],
+        ],
+        col_fracs=[0.24, 0.76],
+    )
+
+
 def _rollout_table(S: dict) -> Table:
     left = [
         Paragraph(
-            "Confirm <b>FBA Box Contents</b> under BC Tools only for "
+            "Confirm <b>Product Catalog Formatter</b> under BC Tools for "
             "allowlisted emails + superadmin",
             S["bullet"],
         ),
         Spacer(1, 5),
         Paragraph(
-            "NFA/SMW: upload a <b>PO#:</b> spaced dump; verify Box Number "
-            "pivot and Dimensions weight as text",
+            "Shipment plan: upload 2+ Amazon plan files; Download; "
+            "open PRODUCTS sheet",
             S["bullet"],
         ),
         Spacer(1, 5),
         Paragraph(
-            "OBZ: upload Packing Slip by Carton; confirm leading zeros "
-            "stripped and Total =SUM formula",
+            "Verify unique UPC count; duplicates removed; leading zeros kept",
             S["bullet"],
         ),
         Spacer(1, 5),
         Paragraph(
-            "DNK CCL: upload \u2026 CCL.xlsx; open Contents + Dimensions",
+            "Confirm UPC:/EAN: labels stripped from barcode cells",
             S["bullet"],
         ),
     ]
     right = [
         Paragraph(
-            "DNK Compare: Box Contents + SC manifest; confirm Old SKU "
-            "remap + yellow last-box adds",
+            "WR SKU Update: upload a WR workbook; confirm Condition = New "
+            "and dimensions omitted",
             S["bullet"],
         ),
         Spacer(1, 5),
         Paragraph(
-            "Reject a .csv or empty file; confirm clear error message",
+            "Reject a shipment-plan file on the WR upload (wrong headers)",
             S["bullet"],
         ),
         Spacer(1, 5),
         Paragraph(
-            "Non-allowlisted user: no sidebar entry; API returns restricted",
+            "Non-allowlisted user: no BC Tools sidebar entry",
             S["bullet"],
         ),
         Spacer(1, 5),
         Paragraph(
-            "Audit log shows generate_tool2 / generate_obz / "
-            "generate_dnk / compare_dnk",
+            "Audit log shows <b>catalog_formatter.format</b> / "
+            "<b>format_wr_sku</b>",
             S["bullet"],
         ),
     ]
@@ -589,7 +542,7 @@ def build_pdf() -> Path:
         rightMargin=M_R,
         topMargin=M_B,
         bottomMargin=M_B,
-        title="FBA Box Contents \u2014 Implementation Summary",
+        title="Product Catalog Formatter \u2014 Implementation Summary",
     )
     doc.addPageTemplates(
         [
@@ -610,33 +563,32 @@ def build_pdf() -> Path:
     # --- Page 1 ---
     left_what = sec("WHAT IT DOES") + [
         Paragraph(
-            "FBA Box Contents turns vendor carton exports into "
-            "warehouse-ready Excel workbooks. Staff choose the matching "
-            "panel for <b>NFA / SMW</b>, <b>OBZ</b>, or <b>DNK</b> instead "
-            "of re-keying UPC / box / qty pivots by hand. DNK also "
-            "compares Box Contents to the Amazon manifest and downloads "
-            "a corrected file.",
+            "Product Catalog Formatter merges Amazon shipment-plan exports "
+            "or WR SKU Update workbooks into one warehouse-ready "
+            "<b>PRODUCTS</b> catalog. Repeated UPCs collapse to a single "
+            "row (first wins), so Label Station and catalog imports get a "
+            "clean unique-UPC file without spreadsheet cleanup.",
             S["body"],
         ),
     ]
     right_bv = sec("BUSINESS VALUE") + [
         Paragraph(
-            "One gated page for three vendor carton formats",
+            "One PRODUCTS workbook instead of hand-merging Amazon dumps",
             S["bullet"],
         ),
         Spacer(1, 4),
         Paragraph(
-            "Typed columns stay pivot-ready (UPCs as text; qty / box as numbers)",
+            "Unique UPCs \u2014 first row wins across multiple uploads",
             S["bullet"],
         ),
         Spacer(1, 4),
         Paragraph(
-            "DNK Manifest Compare remaps Old SKUs and tops up the last box",
+            "Works from raw shipment plans or Shipment Manager WR SKU Update",
             S["bullet"],
         ),
         Spacer(1, 4),
         Paragraph(
-            "Allowlisted warehouse / ops users + superadmin only",
+            "Columns match Label Station / catalog import expectations",
             S["bullet"],
         ),
     ]
@@ -645,7 +597,7 @@ def build_pdf() -> Path:
     story.append(_divider(C_W))
     story.append(Spacer(1, 8))
 
-    story.append(Paragraph("HOW A CONVERSION WORKS", S["section"]))
+    story.append(Paragraph("HOW A FORMAT WORKS", S["section"]))
     story.append(_divider(C_W))
     story.append(Spacer(1, 6))
     story.append(_flow_table(S))
@@ -653,136 +605,111 @@ def build_pdf() -> Path:
     story.append(_divider(C_W))
     story.append(Spacer(1, 8))
 
-    story.append(Paragraph("TOOLS AT A GLANCE", S["section"]))
-    story.append(_divider(C_W))
-    story.append(Spacer(1, 6))
-    story.append(_tools_glance_table(S))
+    left_out = sec("OUTPUT SHEET") + [_output_table(S)]
+    right_rules = sec("KEY RULES") + [
+        Paragraph(
+            "Max <b>30</b> files / request \u00b7 <b>15 MB</b> each \u00b7 "
+            "<b>100,000</b> rows / file",
+            S["bullet"],
+        ),
+        Spacer(1, 4),
+        Paragraph(
+            "Accepted: .xlsx / .xlsm / .xls / .csv",
+            S["bullet"],
+        ),
+        Spacer(1, 4),
+        Paragraph(
+            "Dedupe by UPC (case-insensitive); later copies dropped",
+            S["bullet"],
+        ),
+        Spacer(1, 4),
+        Paragraph(
+            "Shipment plan and WR modes stay separate \u2014 wrong headers fail",
+            S["bullet"],
+        ),
+    ]
+    story.append(_two_col(left_out, right_rules))
 
     story.append(NextPageTemplate("Later"))
     story.append(PageBreak())
 
-    # --- Page 2: per-tool detail ---
-    story.append(Paragraph("NFA AND SMW TOOL", S["section"]))
+    # --- Page 2 ---
+    story.append(Paragraph("MODES AT A GLANCE", S["section"]))
     story.append(_divider(C_W))
     story.append(Spacer(1, 6))
-    story.append(
-        Paragraph(
-            "Shared converter for North Face (NFA) and Smartwool (SMW) "
-            "spaced-column carton dumps. One UI panel; one API "
-            "(internally Tool #2).",
-            S["body"],
-        )
-    )
-    story.append(Spacer(1, 6))
-    story.append(_nfa_smw_table(S))
+    story.append(_modes_table(S))
     story.append(Spacer(1, 10))
     story.append(_divider(C_W))
     story.append(Spacer(1, 8))
 
-    story.append(Paragraph("OBZ TOOL", S["section"]))
+    story.append(Paragraph("SHIPMENT PLAN MODE", S["section"]))
     story.append(_divider(C_W))
     story.append(Spacer(1, 6))
     story.append(
         Paragraph(
-            "Oboz Packing Slip by Carton \u2192 single-sheet Box Contents "
-            "workbook (no Dimensions sheet).",
+            "Amazon shipment-plan sheet with preamble, then a SKU table. "
+            "Download filename: <b>Product Catalog Formatter.xlsx</b>.",
             S["body"],
         )
     )
     story.append(Spacer(1, 6))
-    story.append(_obz_table(S))
+    story.append(_shipment_detail_table(S))
     story.append(Spacer(1, 10))
     story.append(_divider(C_W))
     story.append(Spacer(1, 8))
 
-    story.append(Paragraph("DNK TOOL", S["section"]))
+    story.append(Paragraph("WR SKU UPDATE MODE", S["section"]))
     story.append(_divider(C_W))
     story.append(Spacer(1, 6))
     story.append(
         Paragraph(
-            "Two steps in one accordion: <b>Carton Contents List</b> "
-            "converts a DNK CCL workbook; <b>Manifest Compare &amp; Correct</b> "
-            "reconciles the result to Seller Central packing info.",
+            "Same PRODUCTS output from a WR SKU Update produced by "
+            "Shipment Manager (or equivalent). Item / carton dimensions "
+            "are not carried into the catalog.",
             S["body"],
         )
     )
     story.append(Spacer(1, 6))
-    story.append(_dnk_table(S))
+    story.append(_wr_detail_table(S))
 
     story.append(PageBreak())
 
-    # --- Page 3: access, rollout, leadership ---
+    # --- Page 3 ---
     left_access = sec("WHO HAS ACCESS") + [_access_table(S)]
     right_tech = sec("TECH NOTES") + [
         Paragraph(
-            "UI: <b>FbaBoxContents.tsx</b> accordion panels",
+            "UI: <b>ProductCatalogFormatter.tsx</b> "
+            "(two independent upload sections)",
             S["bullet"],
         ),
         Spacer(1, 4),
         Paragraph(
-            "Gate: <b>fbaBoxContentsAccess.ts</b> + "
-            "<b>fba_box_contents_allowed_emails</b>",
+            "Sidebar gate: <b>bcToolsAccess.ts</b>",
             S["bullet"],
         ),
         Spacer(1, 4),
         Paragraph(
-            "Keep frontend + backend allowlists in sync",
+            "API auth: signed-in <b>require_app_access</b> "
+            "(no separate allowlist on the endpoint)",
             S["bullet"],
         ),
         Spacer(1, 4),
         Paragraph(
-            "Generate converters are stateless (no DB table)",
+            "Stateless convert \u2014 no DB table required",
             S["bullet"],
         ),
         Spacer(1, 4),
         Paragraph(
-            "DNK Compare uses Old SKUs catalog lookup",
+            "Rate limit: <b>20 uploads / hour</b>",
             S["bullet"],
         ),
         Spacer(1, 4),
         Paragraph(
-            "Rate limit: <b>20 uploads / hour</b> \u00b7 max <b>15 MB</b>",
+            "Response headers report file / row / duplicate / skip counts",
             S["bullet"],
         ),
     ]
     story.append(_two_col(left_access, right_tech))
-    story.append(Spacer(1, 12))
-    story.append(_divider(C_W))
-    story.append(Spacer(1, 8))
-
-    story.append(Paragraph("KEY RULES", S["section"]))
-    story.append(_divider(C_W))
-    story.append(Spacer(1, 6))
-    story.append(
-        Paragraph(
-            "Excel only (.xls / .xlsx / .xlsm); pick the panel that matches "
-            "the vendor file format",
-            S["bullet"],
-        )
-    )
-    story.append(Spacer(1, 4))
-    story.append(
-        Paragraph(
-            "NFA and SMW share one tool \u2014 do not use OBZ or DNK panels "
-            "for those dumps",
-            S["bullet"],
-        )
-    )
-    story.append(Spacer(1, 4))
-    story.append(
-        Paragraph(
-            "OBZ strips GTIN leading zeros; NFA/SMW and DNK keep UPC text as provided",
-            S["bullet"],
-        )
-    )
-    story.append(Spacer(1, 4))
-    story.append(
-        Paragraph(
-            "DNK Compare treats the Amazon manifest as source of truth for "
-            "quantities and SKUs",
-            S["bullet"],
-        )
-    )
     story.append(Spacer(1, 12))
     story.append(_divider(C_W))
     story.append(Spacer(1, 8))
@@ -801,38 +728,37 @@ def build_pdf() -> Path:
     story.append(
         Paragraph(
             "Shipped on web / desktop app version <b>3.6.2</b> "
-            "(multi-tool panels: NFA/SMW, OBZ, DNK CCL + Compare)",
+            "(shipment-plan + WR SKU Update modes)",
             S["bullet"],
         )
     )
     story.append(Spacer(1, 4))
     story.append(
         Paragraph(
-            "Route: <b>/fba-box-contents</b> \u00b7 "
-            "Sidebar: <b>BC Tools \u2192 FBA Box Contents</b>",
+            "Route: <b>/product-catalog-formatter</b> \u00b7 "
+            "Sidebar: <b>BC Tools \u2192 Product Catalog Formatter</b>",
             S["bullet"],
         )
     )
     story.append(Spacer(1, 4))
     story.append(
         Paragraph(
-            "Allowlist lives in backend config + matching frontend "
-            "<b>fbaBoxContentsAccess.ts</b> (keep in sync)",
+            "Complements <b>Shipment Manager</b> (WR SKU Update compile) "
+            "\u2014 this tool turns those sheets into a PRODUCTS catalog",
             S["bullet"],
         )
     )
     story.append(Spacer(1, 4))
     story.append(
         Paragraph(
-            "Complements Shipment Manager (SKU compile) and FNSKU Pack Station "
-            "(scan sheet) \u2014 does not replace them",
+            "Output columns align with Label Station / warehouse catalog imports",
             S["bullet"],
         )
     )
     story.append(Spacer(1, 4))
     story.append(
         Paragraph(
-            "Does not touch Keepa jobs, Daily Runs, MAP, or Label Station catalog",
+            "Does not touch Keepa jobs, Daily Runs, MAP, or FBA Box Contents",
             S["bullet"],
         )
     )
