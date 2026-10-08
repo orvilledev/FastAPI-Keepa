@@ -68,7 +68,7 @@ function renderBarcodeDataUrl(value: string): string {
   JsBarcode(canvas, value, {
     format: 'CODE128',
     width: 3,
-    height: 140,
+    height: 220,
     displayValue: false,
     margin: 0,
     background: '#ffffff',
@@ -78,38 +78,39 @@ function renderBarcodeDataUrl(value: string): string {
 }
 
 function drawToBoxLabel(doc: jsPDF, toNumber: string, boxNumber: number, barcode: string) {
-  const inset = 14
+  const inset = 10
   doc.setDrawColor(0, 0, 0)
-  doc.setLineWidth(2.25)
-  doc.roundedRect(inset, inset, PAGE_WIDTH_PT - inset * 2, PAGE_HEIGHT_PT - inset * 2, 14, 14)
+  doc.setLineWidth(2.4)
+  doc.roundedRect(inset, inset, PAGE_WIDTH_PT - inset * 2, PAGE_HEIGHT_PT - inset * 2, 16, 16)
 
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(0, 0, 0)
-  let toFontSize = 40
+  let toFontSize = 58
   doc.setFontSize(toFontSize)
-  while (toFontSize > 18 && doc.getTextWidth(toNumber) > 380) {
+  while (toFontSize > 22 && doc.getTextWidth(toNumber) > PAGE_WIDTH_PT - 56) {
     toFontSize -= 2
     doc.setFontSize(toFontSize)
   }
-  doc.text(toNumber, PAGE_WIDTH_PT / 2, 72, { align: 'center' })
+  doc.text(toNumber, PAGE_WIDTH_PT / 2, 68, { align: 'center' })
 
-  const barcodeWidth = 360
-  const barcodeHeight = 92
-  const barcodeX = (PAGE_WIDTH_PT - barcodeWidth) / 2
-  doc.addImage(barcode, 'PNG', barcodeX, 86, barcodeWidth, barcodeHeight)
+  const barcodeX = 22
+  const barcodeWidth = PAGE_WIDTH_PT - 44
+  const barcodeY = 74
+  const barcodeHeight = 130
+  doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight)
 
   const boxLabel = 'Box'
-  doc.setFontSize(36)
+  doc.setFontSize(50)
   const numberText = String(boxNumber)
   const numberWidth = doc.getTextWidth(numberText)
-  const underlineWidth = Math.max(72, numberWidth + 16)
-  const right = PAGE_WIDTH_PT - 36
-  const baseline = 250
+  const underlineWidth = Math.max(92, numberWidth + 20)
+  const right = PAGE_WIDTH_PT - 30
+  const baseline = 260
   const numberX = right - underlineWidth
   doc.text(boxLabel, numberX - 14, baseline, { align: 'right' })
   doc.text(numberText, numberX + underlineWidth / 2, baseline, { align: 'center' })
-  doc.setLineWidth(2)
-  doc.line(numberX, baseline + 6, numberX + underlineWidth, baseline + 6)
+  doc.setLineWidth(2.6)
+  doc.line(numberX, baseline + 7, numberX + underlineWidth, baseline + 7)
 }
 
 /** One PDF page per box. The barcode encodes the TO number on every page. */

@@ -21,26 +21,50 @@ function ToBarcode({ value }: { value: string }) {
       format: 'CODE128',
       displayValue: false,
       margin: 0,
-      height: 90,
+      height: 160,
       width: 2,
       background: '#ffffff',
       lineColor: '#000000',
     })
+    ref.current.setAttribute('preserveAspectRatio', 'none')
+    ref.current.removeAttribute('width')
+    ref.current.removeAttribute('height')
   }, [value])
 
-  return <svg ref={ref} className="h-[4.5rem] w-full" role="img" aria-label={`Barcode for ${value}`} />
+  return <svg ref={ref} className="block h-full w-full" role="img" aria-label={`Barcode for ${value}`} />
 }
 
 function LabelPreview({ toNumber, boxNumber }: { toNumber: string; boxNumber: number }) {
   return (
-    <article className="relative aspect-[3/2] w-full overflow-hidden rounded-2xl border-[3px] border-black bg-white px-5 pb-16 pt-4 text-black shadow-sm">
-      <p className="text-center text-4xl font-black tracking-tight sm:text-5xl">{toNumber}</p>
-      <div className="mt-3 px-2">
+    <article
+      className="relative aspect-[3/2] w-full overflow-hidden border-black bg-white text-black shadow-sm"
+      style={{
+        containerType: 'inline-size',
+        borderWidth: '0.55cqw',
+        borderRadius: '3.7cqw',
+        borderStyle: 'solid',
+      }}
+    >
+      <p
+        className="absolute left-[5%] right-[5%] text-center font-black leading-none tracking-tight"
+        style={{ top: '7%', fontSize: '13.4cqw' }}
+      >
+        {toNumber}
+      </p>
+      <div className="absolute" style={{ left: '5%', right: '5%', top: '26%', height: '45%' }}>
         <ToBarcode value={toNumber} />
       </div>
-      <div className="absolute bottom-4 right-5 flex items-end gap-3">
-        <span className="text-4xl font-black leading-none sm:text-5xl">Box</span>
-        <span className="min-w-[3.25rem] border-b-[3px] border-black px-1 text-center text-4xl font-black leading-none sm:text-5xl">
+      <div className="absolute flex items-end" style={{ right: '6.5%', bottom: '5.5%', fontSize: '11.6cqw' }}>
+        <span className="font-black leading-none">Box</span>
+        <span
+          className="text-center font-black leading-none"
+          style={{
+            marginLeft: '0.28em',
+            minWidth: '1.9em',
+            padding: '0 0.15em 0.04em',
+            borderBottom: '0.06em solid #000',
+          }}
+        >
           {boxNumber}
         </span>
       </div>
