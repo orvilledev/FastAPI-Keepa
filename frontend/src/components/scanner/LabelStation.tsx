@@ -144,6 +144,7 @@ function statusBadgeClass(status: ScanPrintStatus): string {
 }
 
 type LabelQueueItem = {
+  id: string
   product: WarehouseCatalogProduct
   quantity: number
 }
@@ -161,6 +162,7 @@ export default function LabelStation() {
   const scanInputRef = useRef<HTMLInputElement>(null)
   const pendingPrintUpcRef = useRef<string | null>(null)
   const printingRef = useRef(false)
+  const queueIdRef = useRef(0)
   const [scanUpc, setScanUpc] = useState('')
   const [product, setProduct] = useState<WarehouseCatalogProduct | null>(null)
   const [lookupError, setLookupError] = useState(false)
@@ -291,17 +293,11 @@ export default function LabelStation() {
   const addToQueue = useCallback(
     (item: WarehouseCatalogProduct, copies = quantity) => {
       const addQty = clampLabelQty(copies)
-      setQueue((prev) => {
-        const existing = prev.find((row) => row.product.upc === item.upc)
-        if (existing) {
-          return prev.map((row) =>
-            row.product.upc === item.upc
-              ? { ...row, quantity: clampLabelQty(row.quantity + addQty), product: item }
-              : row,
-          )
-        }
-        return [...prev, { product: item, quantity: addQty }]
+      const rows: LabelQueueItem[] = Array.from({ length: addQty }, () => {
+        queueIdRef.current += 1
+        return { id: `q-${queueIdRef.current}`, product: item, quantity: 1 }
       })
+      setQueue((prev) => [...prev, ...rows])
       setMessage(
         addQty === 1
           ? `Added ${item.upc} to queue.`
@@ -312,16 +308,14 @@ export default function LabelStation() {
     [quantity, clearScan],
   )
 
-  const updateQueueQty = (upc: string, nextQty: number) => {
+  const updateQueueQty = (id: string, nextQty: number) => {
     setQueue((prev) =>
-      prev.map((row) =>
-        row.product.upc === upc ? { ...row, quantity: clampLabelQty(nextQty) } : row,
-      ),
+      prev.map((row) => (row.id === id ? { ...row, quantity: clampLabelQty(nextQty) } : row)),
     )
   }
 
-  const removeFromQueue = (upc: string) => {
-    setQueue((prev) => prev.filter((row) => row.product.upc !== upc))
+  const removeFromQueue = (id: string) => {
+    setQueue((prev) => prev.filter((row) => row.id !== id))
   }
 
   const clearQueue = () => {
@@ -895,7 +889,7 @@ export default function LabelStation() {
               <h2 className="text-sm font-semibold text-gray-800">Print queue</h2>
               <p className="text-xs text-gray-500 mt-0.5">
                 {queue.length === 0
-                  ? 'Scan products to build the list. Rescanning the same UPC increases its qty.'
+                  ? 'Each scan adds its own row at qty 1, including repeat UPCs, so labels print in scan order.'
                   : `${queue.length} product(s) · ${queueLabelTotal} label(s) total`}
               </p>
             </div>
@@ -940,7 +934,7 @@ export default function LabelStation() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {queue.map((row) => (
-                    <tr key={row.product.upc} className="align-top">
+                    <tr key={row.id} className="align-top">
                       <td className="px-4 py-2 font-mono text-xs text-gray-900 whitespace-nowrap">
                         {row.product.upc}
                       </td>
@@ -961,7 +955,7 @@ export default function LabelStation() {
                           value={row.quantity}
                           disabled={printing}
                           onChange={(e) =>
-                            updateQueueQty(row.product.upc, Number(e.target.value) || 1)
+                            updateQueueQty(row.id, Number(e.target.value) || 1)
                           }
                           className="w-16 rounded border border-gray-300 px-2 py-1 text-center disabled:opacity-50"
                           aria-label={`Quantity for ${row.product.upc}`}
@@ -971,7 +965,7 @@ export default function LabelStation() {
                         <button
                           type="button"
                           disabled={printing}
-                          onClick={() => removeFromQueue(row.product.upc)}
+                          onClick={() => removeFromQueue(row.id)}
                           className="text-sm text-red-700 hover:text-red-900 disabled:opacity-40"
                         >
                           Remove
