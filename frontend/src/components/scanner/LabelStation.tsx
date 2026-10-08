@@ -163,7 +163,10 @@ export default function LabelStation() {
   const pendingPrintUpcRef = useRef<string | null>(null)
   const printingRef = useRef(false)
   const queueIdRef = useRef(0)
-  const queuedScanKeyRef = useRef<string | null>(null)
+  // Each scan gets an id; it advances whenever the scan field is cleared. A scan
+  // can only add to the queue once, no matter how many code paths try to commit it.
+  const scanSessionRef = useRef(0)
+  const lastQueuedSessionRef = useRef(-1)
   const [scanUpc, setScanUpc] = useState('')
   const [product, setProduct] = useState<WarehouseCatalogProduct | null>(null)
   const [lookupError, setLookupError] = useState(false)
@@ -266,6 +269,7 @@ export default function LabelStation() {
 
   const clearScan = useCallback((opts?: { keepMessage?: boolean }) => {
     pendingPrintUpcRef.current = null
+    scanSessionRef.current += 1
     setScanUpc('')
     setProduct(null)
     setLookupError(false)
@@ -292,7 +296,14 @@ export default function LabelStation() {
   }
 
   const addToQueue = useCallback(
-    (item: WarehouseCatalogProduct, copies = quantity) => {
+    (
+      item: WarehouseCatalogProduct,
+      copies = quantity,
+      session = scanSessionRef.current,
+    ) => {
+      // One scan, one queue add: ignore any later commit of the same scan.
+      if (lastQueuedSessionRef.current === session) return
+      lastQueuedSessionRef.current = session
       const addQty = clampLabelQty(copies)
       const rows: LabelQueueItem[] = Array.from({ length: addQty }, () => {
         queueIdRef.current += 1
@@ -309,20 +320,13 @@ export default function LabelStation() {
     [quantity, clearScan],
   )
 
-  useEffect(() => {
-    if (!scanUpc.trim()) queuedScanKeyRef.current = null
-  }, [scanUpc])
-
   // Queue mode commits the row when the scan resolves, even if the scanner's
-  // Enter never latches the pending-print flag. The key blocks a second commit
-  // of the same on-screen scan, and resets once the field is cleared.
+  // Enter never latches the pending-print flag. addToQueue ignores a second
+  // commit of the same scan, so Enter and this effect can't both add a row.
   useEffect(() => {
     if (printMode !== 'queue' || status !== 'ready' || !product) return
     const upc = scanUpc.trim()
     if (!upc || !scanMatchesCatalogProduct(upc, product)) return
-    const key = `${upc}\0${product.upc}\0${product.fnsku}`
-    if (queuedScanKeyRef.current === key) return
-    queuedScanKeyRef.current = key
     addToQueue(product)
   }, [printMode, status, product, scanUpc, addToQueue])
 
@@ -549,6 +553,7 @@ export default function LabelStation() {
         setLookupError(false)
         return
       }
+      const session = scanSessionRef.current
       setLookingUp(true)
       setError(null)
       try {
@@ -562,10 +567,10 @@ export default function LabelStation() {
         }
         setProduct(item)
         setLookupError(false)
-        if (pendingPrintUpcRef.current === upc) {
+        if (pendingPrintUpcRef.current === upc && session === scanSessionRef.current) {
           pendingPrintUpcRef.current = null
           if (printMode === 'queue') {
-            addToQueue(item)
+            addToQueue(item, undefined, session)
           } else {
             await printProduct(item)
           }
