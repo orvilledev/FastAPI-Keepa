@@ -32,6 +32,7 @@ function buildSearchItems(
 ): SearchItem[] {
   if (isWarehouseOnly) {
     const warehouseItems: SearchItem[] = [
+      { label: 'Label Center', path: '/label-center', section: 'Tools' },
       { label: 'Label Station', path: '/label-station', section: 'Tools' },
     ]
     if (showFnskuLabels) {
@@ -92,7 +93,10 @@ function buildSearchItems(
   }
 
   if (hasKeepaAccess) {
-    items.push({ label: 'Label Station', path: '/label-station', section: 'Tools' })
+    items.push(
+      { label: 'Label Center', path: '/label-center', section: 'Tools' },
+      { label: 'Label Station', path: '/label-station', section: 'Tools' },
+    )
   }
 
   items.push(

@@ -69,6 +69,7 @@ const DnkAllInventory = lazy(() => import('./components/tools/DnkAllInventory'))
 const ShipmentManager = lazy(() => import('./components/tools/ShipmentManager'))
 const ShipmentDetail = lazy(() => import('./components/tools/ShipmentDetail'))
 const FreightClassCalculator = lazy(() => import('./components/tools/FreightClassCalculator'))
+const LabelCenter = lazy(() => import('./components/scanner/LabelCenter'))
 const LabelStation = lazy(() => import('./components/scanner/LabelStation'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
@@ -482,6 +483,10 @@ function AppRoutes() {
                 <FreightClassCalculator />
               </ProtectedRoute>
             }
+          />
+          <Route
+            path="label-center"
+            element={<ProtectedRoute requireLabelStationAccess={true}><LabelCenter /></ProtectedRoute>}
           />
           <Route
             path="label-station"

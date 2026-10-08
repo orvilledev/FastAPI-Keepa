@@ -29,6 +29,12 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
     </svg>
   ),
+  labelCenter: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <rect x="3" y="5" width="18" height="14" rx="2" strokeWidth={2} />
+      <path strokeLinecap="round" strokeWidth={2} d="M7 9h10M8 13h8M9 16h6" />
+    </svg>
+  ),
   barcode: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
@@ -345,6 +351,19 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
           <>
             <div className="shrink-0 space-y-0.5">
               <Link
+                to="/label-center"
+                onMouseEnter={() => setHoveredNav('label-center')}
+                className={`sidebar-link ${
+                  navHighlighted('label-center', isActive('/label-center'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.labelCenter}</span>
+                <span className="sidebar-link-label">Label Center</span>
+              </Link>
+
+              <Link
                 to="/label-station"
                 onMouseEnter={() => setHoveredNav('label-station')}
                 className={`sidebar-link ${
@@ -659,6 +678,21 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
               <span className="shrink-0">{Icons.dnkAllInventory}</span>
               <span className="sidebar-link-label">DNK AllInventory</span>
             </Link>
+
+            {hasKeepaAccess && (
+              <Link
+                to="/label-center"
+                onMouseEnter={() => setHoveredNav('label-center')}
+                className={`sidebar-link ${
+                  navHighlighted('label-center', isActive('/label-center'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.labelCenter}</span>
+                <span className="sidebar-link-label">Label Center</span>
+              </Link>
+            )}
 
             {hasKeepaAccess && (
               <Link

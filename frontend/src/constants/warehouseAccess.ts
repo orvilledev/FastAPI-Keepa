@@ -8,6 +8,7 @@ const FREIGHT_CLASS_PATH = '/freight-class-calculator'
 /** In-app routes warehouse accounts may open (sidebar + direct links). */
 export const WAREHOUSE_ALLOWED_PATHS = new Set([
   WAREHOUSE_HOME_PATH,
+  '/label-center',
   '/fnsku-pack-station',
   '/my-space',
   '/about',
