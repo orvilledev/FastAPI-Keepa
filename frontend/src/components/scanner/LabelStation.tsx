@@ -574,9 +574,15 @@ export default function LabelStation() {
 
   useEffect(() => {
     const upc = scanUpc.trim()
-    if (pendingPrintUpcRef.current && pendingPrintUpcRef.current !== upc) {
-      pendingPrintUpcRef.current = null
+    const pending = pendingPrintUpcRef.current
+    if (!pending || !upc || upc === pending) return
+    // The scanner can still be delivering characters after Enter. Keep the
+    // pending code aligned with the field instead of dropping the add.
+    if (upc.startsWith(pending) || pending.startsWith(upc)) {
+      pendingPrintUpcRef.current = upc.length >= pending.length ? upc : pending
+      return
     }
+    pendingPrintUpcRef.current = null
   }, [scanUpc])
 
   const handlePrint = useCallback(async () => {
@@ -591,21 +597,32 @@ export default function LabelStation() {
     addToQueue(product)
   }, [product, scanUpc, status, addToQueue])
 
-  const handleScanKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== 'Enter') return
-    event.preventDefault()
-    const upc = scanUpc.trim()
+  const commitScannedCode = (raw: string) => {
+    const upc = raw.trim()
     if (!upc) return
-    if (status === 'ready' && product && scanMatchesCatalogProduct(upc, product)) {
-      if (printMode === 'queue') {
-        handleAddToQueue()
-      } else {
-        void handlePrint()
-      }
+    if (upc !== scanUpc.trim()) setScanUpc(upc)
+
+    const alreadyMatched =
+      Boolean(product) &&
+      !lookupError &&
+      !lookingUp &&
+      scanMatchesCatalogProduct(upc, product as WarehouseCatalogProduct)
+
+    if (alreadyMatched && product) {
+      pendingPrintUpcRef.current = null
+      if (printMode === 'queue') addToQueue(product)
+      else void printProduct(product)
       return
     }
+
     pendingPrintUpcRef.current = upc
     void lookupUpc(upc)
+  }
+
+  const handleScanKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter' && event.key !== 'Tab') return
+    event.preventDefault()
+    commitScannedCode(event.currentTarget.value)
   }
 
   const handleSelectPrinter = (name: string) => {
