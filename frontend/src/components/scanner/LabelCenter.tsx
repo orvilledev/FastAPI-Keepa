@@ -281,7 +281,7 @@ export default function LabelCenter() {
         <header>
           <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Text label</h2>
           <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">
-            Same 6×4 inch label. Pick a message or type your own. The type grows until it fills the label.
+            Same 2.25×1.5 inch label. Pick a message or type your own. The type grows until it fills the label.
           </p>
         </header>
 

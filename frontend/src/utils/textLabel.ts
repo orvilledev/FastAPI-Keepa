@@ -10,10 +10,12 @@ export const TEXT_LABEL_PRESETS = [
 
 const CAP_HEIGHT = 0.718
 const LINE_STEP = 0.9
-const MIN_FONT = 14
-const MAX_FONT = 92
-const PAD_X = 22
-const PAD_Y = 20
+/** Same scale as the TO/box label, from the old 6×4 in layout onto 2.25×1.5 in. */
+const FROM_6X4 = PAGE_WIDTH_PT / 432
+const MIN_FONT = Math.round(14 * FROM_6X4)
+const MAX_FONT = Math.round(92 * FROM_6X4)
+const PAD_X = 22 * FROM_6X4
+const PAD_Y = 20 * FROM_6X4
 
 export function normalizeLabelText(raw: string): string {
   const value = raw.replace(/\r\n/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
@@ -127,10 +129,17 @@ function layoutText(doc: jsPDF, text: string): { lines: string[]; fontSize: numb
 }
 
 function drawTextLabel(doc: jsPDF, text: string) {
-  const inset = 10
+  const inset = 10 * FROM_6X4
   doc.setDrawColor(0, 0, 0)
-  doc.setLineWidth(2.4)
-  doc.roundedRect(inset, inset, PAGE_WIDTH_PT - inset * 2, PAGE_HEIGHT_PT - inset * 2, 16, 16)
+  doc.setLineWidth(2.4 * FROM_6X4)
+  doc.roundedRect(
+    inset,
+    inset,
+    PAGE_WIDTH_PT - inset * 2,
+    PAGE_HEIGHT_PT - inset * 2,
+    16 * FROM_6X4,
+    16 * FROM_6X4,
+  )
 
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(0, 0, 0)
@@ -151,7 +160,7 @@ function drawTextLabel(doc: jsPDF, text: string) {
   }
 }
 
-/** One 6×4 in label. The type size grows until the words fill the page. */
+/** One 2.25×1.5 in label. The type size grows until the words fill the page. */
 export function buildTextLabelPdf(text: string): Uint8Array {
   const doc = new jsPDF({
     unit: 'pt',

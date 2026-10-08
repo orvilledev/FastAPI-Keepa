@@ -1,9 +1,16 @@
 import JsBarcode from 'jsbarcode'
 import { jsPDF } from 'jspdf'
 
-/** One printed label page. 6 in × 4 in, matching a wide carton label. */
-export const PAGE_WIDTH_PT = 432
-export const PAGE_HEIGHT_PT = 288
+/** One printed label page. 2.25 in × 1.5 in (72 pt per inch). */
+export const PAGE_WIDTH_PT = 162
+export const PAGE_HEIGHT_PT = 108
+
+/** Artwork was laid out on a 6×4 in page. Scale it onto the smaller stock. */
+const FROM_6X4 = PAGE_WIDTH_PT / 432
+
+function fit(value: number): number {
+  return value * FROM_6X4
+}
 
 export const MAX_TO_BOX_LABELS = 200
 
@@ -98,43 +105,43 @@ function renderBarcodeDataUrl(value: string): string {
 const CAP_HEIGHT = 0.718
 
 function drawToBoxLabel(doc: jsPDF, toNumber: string, boxNumber: number, barcode: string) {
-  const inset = 10
+  const inset = fit(10)
   doc.setDrawColor(0, 0, 0)
-  doc.setLineWidth(2.4)
-  doc.roundedRect(inset, inset, PAGE_WIDTH_PT - inset * 2, PAGE_HEIGHT_PT - inset * 2, 16, 16)
+  doc.setLineWidth(fit(2.4))
+  doc.roundedRect(inset, inset, PAGE_WIDTH_PT - inset * 2, PAGE_HEIGHT_PT - inset * 2, fit(16), fit(16))
 
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(0, 0, 0)
-  let toFontSize = 58
+  let toFontSize = fit(58)
   doc.setFontSize(toFontSize)
-  while (toFontSize > 22 && doc.getTextWidth(toNumber) > PAGE_WIDTH_PT - 56) {
-    toFontSize -= 2
+  while (toFontSize > fit(22) && doc.getTextWidth(toNumber) > PAGE_WIDTH_PT - fit(56)) {
+    toFontSize -= fit(2)
     doc.setFontSize(toFontSize)
   }
-  const toBaseline = 72
+  const toBaseline = fit(72)
   doc.text(toNumber, PAGE_WIDTH_PT / 2, toBaseline, { align: 'center' })
 
-  const boxFontSize = 46
-  const boxBaseline = 246
-  const barcodeHeight = 104
+  const boxFontSize = fit(46)
+  const boxBaseline = fit(246)
+  const barcodeHeight = fit(104)
   const boxInkTop = boxBaseline - CAP_HEIGHT * boxFontSize
   const gap = (boxInkTop - toBaseline - barcodeHeight) / 2
   const barcodeY = toBaseline + gap
-  const barcodeX = 20
-  const barcodeWidth = PAGE_WIDTH_PT - 40
+  const barcodeX = fit(20)
+  const barcodeWidth = PAGE_WIDTH_PT - fit(40)
   doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight)
 
   const boxLabel = 'Box'
   doc.setFontSize(boxFontSize)
   const numberText = String(boxNumber)
   const numberWidth = doc.getTextWidth(numberText)
-  const underlineWidth = Math.max(92, numberWidth + 20)
-  const right = PAGE_WIDTH_PT - 30
+  const underlineWidth = Math.max(fit(92), numberWidth + fit(20))
+  const right = PAGE_WIDTH_PT - fit(30)
   const numberX = right - underlineWidth
-  doc.text(boxLabel, numberX - 14, boxBaseline, { align: 'right' })
+  doc.text(boxLabel, numberX - fit(14), boxBaseline, { align: 'right' })
   doc.text(numberText, numberX + underlineWidth / 2, boxBaseline, { align: 'center' })
-  doc.setLineWidth(2.6)
-  doc.line(numberX, boxBaseline + 7, numberX + underlineWidth, boxBaseline + 7)
+  doc.setLineWidth(fit(2.6))
+  doc.line(numberX, boxBaseline + fit(7), numberX + underlineWidth, boxBaseline + fit(7))
 }
 
 /** One PDF page per box. The barcode encodes the TO number on every page. */
