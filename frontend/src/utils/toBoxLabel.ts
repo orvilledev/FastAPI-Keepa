@@ -94,11 +94,11 @@ function drawToBoxLabel(doc: jsPDF, toNumber: string, boxNumber: number, barcode
     toFontSize -= 2
     doc.setFontSize(toFontSize)
   }
-  const toBaseline = 62
+  const toBaseline = 72
   doc.text(toNumber, PAGE_WIDTH_PT / 2, toBaseline, { align: 'center' })
 
   const boxFontSize = 46
-  const boxBaseline = 256
+  const boxBaseline = 246
   const barcodeHeight = 104
   const boxInkTop = boxBaseline - CAP_HEIGHT * boxFontSize
   const gap = (boxInkTop - toBaseline - barcodeHeight) / 2
