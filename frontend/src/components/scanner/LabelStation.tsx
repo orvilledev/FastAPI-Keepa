@@ -153,6 +153,18 @@ function clampLabelQty(value: number): number {
   return Math.max(1, Math.min(99, Number.isFinite(value) ? value : 1))
 }
 
+// Scanner wedges often type the same code again right after the field is cleared.
+// Ignore that replay briefly. A deliberate second scan of the same SKU is slower.
+const SCAN_ECHO_MS = 400
+
+type QueuedScanEcho = { value: string; until: number }
+
+function isExactQueuedEcho(echo: QueuedScanEcho | null, next: string): boolean {
+  if (!echo || Date.now() > echo.until) return false
+  const trimmed = next.trim()
+  return Boolean(trimmed) && trimmed === echo.value
+}
+
 export default function LabelStation() {
   const { hasKeepaAccess, isSuperadmin, isWarehouseOnly, userInfo } = useUser()
   const canManageCatalog = hasKeepaAccess || isSuperadmin
@@ -167,6 +179,8 @@ export default function LabelStation() {
   // can only add to the queue once, no matter how many code paths try to commit it.
   const scanSessionRef = useRef(0)
   const lastQueuedSessionRef = useRef(-1)
+  const scanUpcRef = useRef('')
+  const queuedEchoRef = useRef<QueuedScanEcho | null>(null)
   const [scanUpc, setScanUpc] = useState('')
   const [product, setProduct] = useState<WarehouseCatalogProduct | null>(null)
   const [lookupError, setLookupError] = useState(false)
@@ -270,6 +284,7 @@ export default function LabelStation() {
   const clearScan = useCallback((opts?: { keepMessage?: boolean }) => {
     pendingPrintUpcRef.current = null
     scanSessionRef.current += 1
+    scanUpcRef.current = ''
     setScanUpc('')
     setProduct(null)
     setLookupError(false)
@@ -303,7 +318,13 @@ export default function LabelStation() {
     ) => {
       // One scan, one queue add: ignore any later commit of the same scan.
       if (lastQueuedSessionRef.current === session) return
+      const scanned = scanUpcRef.current.trim()
+      // The field was cleared and the wedge typed this same code back in.
+      if (isExactQueuedEcho(queuedEchoRef.current, scanned)) return
       lastQueuedSessionRef.current = session
+      if (scanned) {
+        queuedEchoRef.current = { value: scanned, until: Date.now() + SCAN_ECHO_MS }
+      }
       const addQty = clampLabelQty(copies)
       const rows: LabelQueueItem[] = Array.from({ length: addQty }, () => {
         queueIdRef.current += 1
@@ -320,6 +341,11 @@ export default function LabelStation() {
     [quantity, clearScan],
   )
 
+  // Keep the scan ref aligned with state so a queue add records the code that was scanned.
+  useEffect(() => {
+    scanUpcRef.current = scanUpc
+  }, [scanUpc])
+
   // Queue mode commits the row when the scan resolves, even if the scanner's
   // Enter never latches the pending-print flag. addToQueue ignores a second
   // commit of the same scan, so Enter and this effect can't both add a row.
@@ -327,6 +353,7 @@ export default function LabelStation() {
     if (printMode !== 'queue' || status !== 'ready' || !product) return
     const upc = scanUpc.trim()
     if (!upc || !scanMatchesCatalogProduct(upc, product)) return
+    if (isExactQueuedEcho(queuedEchoRef.current, upc)) return
     addToQueue(product)
   }, [printMode, status, product, scanUpc, addToQueue])
 
@@ -553,6 +580,11 @@ export default function LabelStation() {
         setLookupError(false)
         return
       }
+      if (isExactQueuedEcho(queuedEchoRef.current, upc)) {
+        scanUpcRef.current = ''
+        setScanUpc('')
+        return
+      }
       const session = scanSessionRef.current
       setLookingUp(true)
       setError(null)
@@ -623,6 +655,13 @@ export default function LabelStation() {
   const commitScannedCode = (raw: string) => {
     const upc = raw.trim()
     if (!upc) return
+    if (isExactQueuedEcho(queuedEchoRef.current, upc)) {
+      scanUpcRef.current = ''
+      setScanUpc('')
+      if (scanInputRef.current) scanInputRef.current.value = ''
+      return
+    }
+    scanUpcRef.current = upc
     if (upc !== scanUpc.trim()) setScanUpc(upc)
 
     const alreadyMatched =
@@ -825,7 +864,17 @@ export default function LabelStation() {
               type="text"
               autoComplete="off"
               value={scanUpc}
-              onChange={(e) => setScanUpc(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value
+                if (isExactQueuedEcho(queuedEchoRef.current, next)) {
+                  scanUpcRef.current = ''
+                  setScanUpc('')
+                  e.target.value = ''
+                  return
+                }
+                scanUpcRef.current = next
+                setScanUpc(next)
+              }}
               onKeyDown={handleScanKeyDown}
               placeholder="Scan UPC, SKU, or FNSKU…"
               className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-lg font-mono focus:border-[#404040] focus:ring-1 focus:ring-[#404040]"
