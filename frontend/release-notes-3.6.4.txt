@@ -1,0 +1,11 @@
+MSW Overwatch 3.6.4 — desktop and web release
+
+Label Station queue update since 3.6.3. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Label Station
+- Queue mode keeps each scan as its own row at quantity 1, including repeat UPCs
+- Print all follows scan order instead of grouping matching UPCs together
+- A successful scan is added to the print queue as soon as the lookup is ready
+
+## Upgrade from 3.6.3
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.6.4, download it, then prompt to install now or later. Web/PWA users get 3.6.4 on the next deploy/refresh.

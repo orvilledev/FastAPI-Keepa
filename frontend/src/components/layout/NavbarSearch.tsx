@@ -10,6 +10,7 @@ import { canAccessBcTools } from '../../lib/bcToolsAccess'
 import { canAccessShipmentAnalyzer } from '../../lib/shipmentAnalyzerAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { canWarehouseAccessFnskuLabels } from '../../constants/warehouseAccess'
+import { isLabelCenterAvailable } from '../../lib/privatePath'
 
 type SearchItem = {
   label: string
@@ -32,9 +33,11 @@ function buildSearchItems(
 ): SearchItem[] {
   if (isWarehouseOnly) {
     const warehouseItems: SearchItem[] = [
-      { label: 'Label Center', path: '/label-center', section: 'Tools' },
       { label: 'Label Station', path: '/label-station', section: 'Tools' },
     ]
+    if (isLabelCenterAvailable()) {
+      warehouseItems.unshift({ label: 'Label Center', path: '/label-center', section: 'Tools' })
+    }
     if (showFnskuLabels) {
       warehouseItems.push({ label: 'FNSKU Labels', path: '/fnsku-labels', section: 'Tools' })
     }
@@ -93,10 +96,10 @@ function buildSearchItems(
   }
 
   if (hasKeepaAccess) {
-    items.push(
-      { label: 'Label Center', path: '/label-center', section: 'Tools' },
-      { label: 'Label Station', path: '/label-station', section: 'Tools' },
-    )
+    if (isLabelCenterAvailable()) {
+      items.push({ label: 'Label Center', path: '/label-center', section: 'Tools' })
+    }
+    items.push({ label: 'Label Station', path: '/label-station', section: 'Tools' })
   }
 
   items.push(

@@ -22,7 +22,7 @@ import DesktopUpdateOverlay from './components/desktop/DesktopUpdateOverlay'
 import PresenceHeartbeat from './components/admin/PresenceHeartbeat'
 import { systemApi } from './services/api'
 import { fetchMfaStatus, isMfaIdleReverifyDue, recordMfaActivity, shouldShowMfaSetup, shouldShowMfaVerify, shouldSkipMfaForEmail } from './lib/mfa'
-import { getLastPrivatePath, getCurrentRememberedPath, setLastPrivatePath } from './lib/privatePath'
+import { getLastPrivatePath, getCurrentRememberedPath, isLabelCenterAvailable, setLastPrivatePath } from './lib/privatePath'
 import { WAREHOUSE_HOME_PATH, isWarehouseAllowedPath } from './constants/warehouseAccess'
 import { isDevAuthBypass } from './lib/devAuth'
 
@@ -486,7 +486,13 @@ function AppRoutes() {
           />
           <Route
             path="label-center"
-            element={<ProtectedRoute requireLabelStationAccess={true}><LabelCenter /></ProtectedRoute>}
+            element={
+              isLabelCenterAvailable() ? (
+                <ProtectedRoute requireLabelStationAccess={true}><LabelCenter /></ProtectedRoute>
+              ) : (
+                <Navigate to="/label-station" replace />
+              )
+            }
           />
           <Route
             path="label-station"

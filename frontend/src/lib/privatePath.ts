@@ -4,6 +4,11 @@ export function isElectronDesktop(): boolean {
   return typeof window !== 'undefined' && Boolean(window.desktop?.isElectron)
 }
 
+/** Label Center stays on the web. The desktop app keeps Label Station first. */
+export function isLabelCenterAvailable(): boolean {
+  return !isElectronDesktop()
+}
+
 function pathStorage(): Storage {
   return isElectronDesktop() ? window.localStorage : window.sessionStorage
 }

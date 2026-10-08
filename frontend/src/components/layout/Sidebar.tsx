@@ -11,6 +11,7 @@ import { canAccessBcTools } from '../../lib/bcToolsAccess'
 import { canAccessShipmentAnalyzer } from '../../lib/shipmentAnalyzerAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { canWarehouseAccessFnskuLabels } from '../../constants/warehouseAccess'
+import { isLabelCenterAvailable } from '../../lib/privatePath'
 
 // SVG Icon components that inherit text color via currentColor
 const Icons = {
@@ -350,18 +351,20 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
         {isWarehouseOnly ? (
           <>
             <div className="shrink-0 space-y-0.5">
-              <Link
-                to="/label-center"
-                onMouseEnter={() => setHoveredNav('label-center')}
-                className={`sidebar-link ${
-                  navHighlighted('label-center', isActive('/label-center'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.labelCenter}</span>
-                <span className="sidebar-link-label">Label Center</span>
-              </Link>
+              {isLabelCenterAvailable() && (
+                <Link
+                  to="/label-center"
+                  onMouseEnter={() => setHoveredNav('label-center')}
+                  className={`sidebar-link ${
+                    navHighlighted('label-center', isActive('/label-center'))
+                      ? 'sidebar-link-active'
+                      : 'sidebar-link-inactive'
+                  }`}
+                >
+                  <span className="shrink-0">{Icons.labelCenter}</span>
+                  <span className="sidebar-link-label">Label Center</span>
+                </Link>
+              )}
 
               <Link
                 to="/label-station"
@@ -679,7 +682,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
               <span className="sidebar-link-label">DNK AllInventory</span>
             </Link>
 
-            {hasKeepaAccess && (
+            {hasKeepaAccess && isLabelCenterAvailable() && (
               <Link
                 to="/label-center"
                 onMouseEnter={() => setHoveredNav('label-center')}

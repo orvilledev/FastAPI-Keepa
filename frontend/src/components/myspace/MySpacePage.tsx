@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { mySpaceNotesApi, quickAccessApi, getApiBaseUrl } from '../../services/api'
 import type { MySpaceNote, QuickAccessLink } from '../../types'
 import { getApiErrorDetail } from '../../utils/apiErrorMessage'
+import { isLabelCenterAvailable } from '../../lib/privatePath'
 import NoteContent from './NoteContent'
 import {
   BOOKMARKABLE_TOOLS,
@@ -94,8 +95,9 @@ export default function MySpacePage() {
     if (!toolSearchQuery) return []
     return BOOKMARKABLE_TOOLS.filter(
       (t) =>
-        t.label.toLowerCase().includes(toolSearchQuery) ||
-        t.path.toLowerCase().includes(toolSearchQuery),
+        (t.path !== '/label-center' || isLabelCenterAvailable()) &&
+        (t.label.toLowerCase().includes(toolSearchQuery) ||
+          t.path.toLowerCase().includes(toolSearchQuery)),
     )
   }, [toolSearchQuery])
 
