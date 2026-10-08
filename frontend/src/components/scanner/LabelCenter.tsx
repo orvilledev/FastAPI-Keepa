@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import {
+  TEXT_LABEL_PRESETS,
+  buildTextLabelPdf,
+  normalizeLabelText,
+  suggestedTextLabelFilename,
+} from '../../utils/textLabel'
+import {
   buildToBoxLabelsPdf,
   normalizeToNumber,
   parseBoxNumbers,
@@ -15,7 +21,7 @@ type GeneratedLabels = {
   pdf: Uint8Array
 }
 
-function LabelPdfPreview({ pdf, boxes }: { pdf: Uint8Array; boxes: number[] }) {
+function LabelPdfPreview({ pdf, captions }: { pdf: Uint8Array; captions: string[] }) {
   const [pages, setPages] = useState<string[]>([])
   const [failed, setFailed] = useState(false)
 
@@ -60,9 +66,9 @@ function LabelPdfPreview({ pdf, boxes }: { pdf: Uint8Array; boxes: number[] }) {
     <div className="grid gap-4 sm:grid-cols-2">
       {pages.map((src, index) => (
         <img
-          key={boxes[index] ?? index}
+          key={captions[index] ?? index}
           src={src}
-          alt={`Label for box ${boxes[index] ?? index + 1}`}
+          alt={captions[index] ?? 'Label'}
           className="w-full bg-white shadow-sm"
         />
       ))}
@@ -109,6 +115,10 @@ export default function LabelCenter() {
   const [error, setError] = useState<string | null>(null)
   const [generated, setGenerated] = useState<GeneratedLabels | null>(null)
   const [busy, setBusy] = useState<'print' | 'download' | null>(null)
+  const [textInput, setTextInput] = useState('')
+  const [textPdf, setTextPdf] = useState<Uint8Array | null>(null)
+  const [textError, setTextError] = useState<string | null>(null)
+  const [textBusy, setTextBusy] = useState<'print' | 'download' | null>(null)
 
   const summary = useMemo(() => {
     if (!generated) return ''
@@ -147,6 +157,34 @@ export default function LabelCenter() {
       setError(err instanceof Error ? err.message : 'Could not build the label PDF.')
     } finally {
       setBusy(null)
+    }
+  }
+
+  const generateText = (raw: string) => {
+    setTextError(null)
+    try {
+      const text = normalizeLabelText(raw)
+      setTextInput(text)
+      setTextPdf(buildTextLabelPdf(text))
+    } catch (err: unknown) {
+      setTextPdf(null)
+      setTextError(err instanceof Error ? err.message : 'Could not build the text label.')
+    }
+  }
+
+  const withTextPdf = async (action: 'print' | 'download') => {
+    if (!textPdf) return
+    setTextBusy(action)
+    setTextError(null)
+    try {
+      const blob = new Blob([textPdf.slice()], { type: 'application/pdf' })
+      const filename = suggestedTextLabelFilename(textInput)
+      if (action === 'download') downloadBlob(blob, filename)
+      else printPdfBlob(blob)
+    } catch (err: unknown) {
+      setTextError(err instanceof Error ? err.message : 'Could not build the text label.')
+    } finally {
+      setTextBusy(null)
     }
   }
 
@@ -232,9 +270,97 @@ export default function LabelCenter() {
       {generated && (
         <section className="space-y-3">
           <p className="text-sm font-medium text-gray-700 dark:text-slate-300">{summary}</p>
-          <LabelPdfPreview pdf={generated.pdf} boxes={generated.boxes} />
+          <LabelPdfPreview
+            pdf={generated.pdf}
+            captions={generated.boxes.map((boxNumber) => `Label for box ${boxNumber}`)}
+          />
         </section>
       )}
+
+      <section className="space-y-4">
+        <header>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Text label</h2>
+          <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">
+            Same 6×4 inch label. Pick a message or type your own. The type grows until it fills the label.
+          </p>
+        </header>
+
+        <form
+          className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-border dark:bg-surface sm:p-5"
+          onSubmit={(event) => {
+            event.preventDefault()
+            generateText(textInput)
+          }}
+        >
+          <div className="grid gap-2 sm:grid-cols-2">
+            {TEXT_LABEL_PRESETS.map((preset) => {
+              const selected = textInput.trim().replace(/\s+/g, ' ') === preset
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => {
+                    setTextInput(preset)
+                    generateText(preset)
+                  }}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm font-semibold tracking-wide ${
+                    selected
+                      ? 'border-[#404040] bg-[#404040] text-white'
+                      : 'border-gray-300 bg-white text-gray-900 hover:bg-gray-50 dark:border-border dark:bg-surface dark:text-slate-100 dark:hover:bg-surface-hover'
+                  }`}
+                >
+                  {preset}
+                </button>
+              )
+            })}
+          </div>
+          <label className="mt-4 block text-sm font-medium text-gray-800 dark:text-slate-200">
+            Custom text
+            <textarea
+              value={textInput}
+              onChange={(event) => {
+                setTextInput(event.target.value)
+                setTextPdf(null)
+              }}
+              rows={3}
+              placeholder="Type a message"
+              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 outline-none focus:border-[#404040] focus:ring-2 focus:ring-[#404040]/20 dark:border-border dark:bg-surface dark:text-slate-100"
+            />
+          </label>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="submit"
+              className="rounded-lg bg-[#404040] px-4 py-2 text-sm font-medium text-white hover:bg-[#2f2f2f]"
+            >
+              Generate label
+            </button>
+            <button
+              type="button"
+              disabled={!textPdf || textBusy !== null}
+              onClick={() => void withTextPdf('print')}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-border dark:bg-surface dark:text-slate-100 dark:hover:bg-surface-hover"
+            >
+              {textBusy === 'print' ? 'Preparing…' : 'Print'}
+            </button>
+            <button
+              type="button"
+              disabled={!textPdf || textBusy !== null}
+              onClick={() => void withTextPdf('download')}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-border dark:bg-surface dark:text-slate-100 dark:hover:bg-surface-hover"
+            >
+              {textBusy === 'download' ? 'Preparing…' : 'Download PDF'}
+            </button>
+          </div>
+        </form>
+
+        {textError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{textError}</div>
+        )}
+
+        {textPdf && (
+          <LabelPdfPreview pdf={textPdf} captions={['Text label']} />
+        )}
+      </section>
     </div>
   )
 }

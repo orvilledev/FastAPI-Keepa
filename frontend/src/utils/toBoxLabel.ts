@@ -2,8 +2,8 @@ import JsBarcode from 'jsbarcode'
 import { jsPDF } from 'jspdf'
 
 /** One printed label page. 6 in × 4 in, matching a wide carton label. */
-const PAGE_WIDTH_PT = 432
-const PAGE_HEIGHT_PT = 288
+export const PAGE_WIDTH_PT = 432
+export const PAGE_HEIGHT_PT = 288
 
 export const MAX_TO_BOX_LABELS = 200
 
