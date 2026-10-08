@@ -21,17 +21,10 @@ export function normalizeToNumber(raw: string): string {
   return value
 }
 
-/**
- * One box (`1`) or an inclusive range (`1-10`).
- * Returns box numbers in print order.
- */
-export function parseBoxNumbers(raw: string): number[] {
-  const text = raw.trim().replace(/[–—]/g, '-').replace(/\s+/g, '')
-  if (!text) {
-    throw new Error('Enter a box number, or a range such as 1-10.')
-  }
+const BOX_INPUT_HINT = 'Use a box number like 1, a range like 1-10, or a list like 1,2,8.'
 
-  const range = /^(\d+)-(\d+)$/.exec(text)
+function parseBoxToken(token: string): number[] {
+  const range = /^(\d+)-(\d+)$/.exec(token)
   if (range) {
     const start = Number(range[1])
     const end = Number(range[2])
@@ -41,26 +34,50 @@ export function parseBoxNumbers(raw: string): number[] {
     if (end < start) {
       throw new Error('A range must start with the lower box number, such as 1-10.')
     }
-    const count = end - start + 1
-    if (count > MAX_TO_BOX_LABELS) {
-      throw new Error(`A single run can print at most ${MAX_TO_BOX_LABELS} labels.`)
-    }
-    return Array.from({ length: count }, (_, index) => start + index)
+    return Array.from({ length: end - start + 1 }, (_, index) => start + index)
   }
 
-  if (!/^\d+$/.test(text)) {
-    throw new Error('Use a box number like 1, or a range like 1-10.')
+  if (!/^\d+$/.test(token)) {
+    throw new Error(BOX_INPUT_HINT)
   }
-  const box = Number(text)
+  const box = Number(token)
   if (!Number.isSafeInteger(box) || box < 1) {
     throw new Error('Box numbers must be 1 or greater.')
   }
   return [box]
 }
 
+/**
+ * One box (`1`), an inclusive range (`1-10`), or a comma-separated list (`1,2,8`).
+ * List items stay in the order they were typed.
+ */
+export function parseBoxNumbers(raw: string): number[] {
+  const text = raw.trim().replace(/[–—]/g, '-').replace(/\s+/g, '')
+  if (!text) {
+    throw new Error('Enter a box number, a range such as 1-10, or a list such as 1,2,8.')
+  }
+
+  const parts = text.split(',').filter((part) => part.length > 0)
+  if (parts.length === 0) {
+    throw new Error(BOX_INPUT_HINT)
+  }
+  const boxes = parts.flatMap(parseBoxToken)
+  if (boxes.length > MAX_TO_BOX_LABELS) {
+    throw new Error(`A single run can print at most ${MAX_TO_BOX_LABELS} labels.`)
+  }
+  return boxes
+}
+
+function isContiguousRun(boxes: number[]): boolean {
+  return boxes.every((box, index) => index === 0 || box === boxes[index - 1] + 1)
+}
+
 export function suggestedToBoxLabelFilename(toNumber: string, boxes: number[]): string {
   if (boxes.length === 1) return `${toNumber}-box-${boxes[0]}.pdf`
-  return `${toNumber}-boxes-${boxes[0]}-${boxes[boxes.length - 1]}.pdf`
+  if (isContiguousRun(boxes)) return `${toNumber}-boxes-${boxes[0]}-${boxes[boxes.length - 1]}.pdf`
+  const listed = boxes.join('-')
+  if (listed.length <= 40) return `${toNumber}-boxes-${listed}.pdf`
+  return `${toNumber}-boxes.pdf`
 }
 
 function renderBarcodeDataUrl(value: string): string {
@@ -123,7 +140,7 @@ function drawToBoxLabel(doc: jsPDF, toNumber: string, boxNumber: number, barcode
 /** One PDF page per box. The barcode encodes the TO number on every page. */
 export function buildToBoxLabelsPdf(toNumber: string, boxes: number[]): Uint8Array {
   if (boxes.length === 0) {
-    throw new Error('Enter a box number, or a range such as 1-10.')
+    throw new Error('Enter a box number, a range such as 1-10, or a list such as 1,2,8.')
   }
   const barcode = renderBarcodeDataUrl(toNumber)
   const doc = new jsPDF({

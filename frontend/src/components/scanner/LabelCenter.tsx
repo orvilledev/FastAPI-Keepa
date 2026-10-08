@@ -114,7 +114,11 @@ export default function LabelCenter() {
     if (!generated) return ''
     const count = generated.boxes.length
     if (count === 1) return `1 label for box ${generated.boxes[0]}.`
-    return `${count} labels, box ${generated.boxes[0]} through box ${generated.boxes[count - 1]}.`
+    const contiguous = generated.boxes.every((box, index) => index === 0 || box === generated.boxes[index - 1] + 1)
+    if (contiguous) {
+      return `${count} labels, box ${generated.boxes[0]} through box ${generated.boxes[count - 1]}.`
+    }
+    return `${count} labels for boxes ${generated.boxes.join(', ')}.`
   }, [generated])
 
   const generate = () => {
@@ -151,8 +155,8 @@ export default function LabelCenter() {
       <header>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Label Center</h1>
         <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">
-          Enter a TO number and the boxes to print. Box 1 makes one label. A range such as 1-10
-          makes one label for each box, each with its own barcode.
+          Enter a TO number and the boxes to print. Use one box, a range such as 1-10, or a list
+          such as 1,2,8. Each box gets its own label.
         </p>
       </header>
 
@@ -185,14 +189,15 @@ export default function LabelCenter() {
                 setBoxInput(event.target.value)
                 setGenerated(null)
               }}
-              placeholder="1 or 1-10"
+              placeholder="1, 1-10, or 1,2,8"
               autoComplete="off"
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 outline-none focus:border-[#404040] focus:ring-2 focus:ring-[#404040]/20 dark:border-border dark:bg-surface dark:text-slate-100"
             />
           </label>
         </div>
         <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
-          One number prints that box. A range prints every box from the first number through the last.
+          One number prints that box. A range prints every box from the first through the last.
+          Commas print only the boxes you list, in that order.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <button
