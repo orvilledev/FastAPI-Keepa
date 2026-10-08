@@ -1,0 +1,20 @@
+MSW Overwatch 3.6.3 — desktop and web release
+
+Feature release since 3.6.2. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## FBA Box Contents
+- DNK Tool: turn a CCL workbook into a Box Contents file
+- Manifest Compare & Correct: match Box Contents against Amazon manifests
+- Compare summary UPCs stay as text so Excel does not switch them to scientific notation
+
+## Label Station
+- Apparel 3x3 template without the sold-as-set notice
+- Apparel labels updated to 3x2 with a return-eligibility notice and centered spacing
+- Queue mode with Print all
+- Scan mode uses a charcoal segmented toggle
+
+## Access
+- Freight Class Calculator is open to all signed-in users except Hello
+
+## Upgrade from 3.6.2
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.6.3, download it, then prompt to install now or later. Web/PWA users get 3.6.3 on the next deploy/refresh.
