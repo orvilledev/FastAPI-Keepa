@@ -163,6 +163,7 @@ export default function LabelStation() {
   const pendingPrintUpcRef = useRef<string | null>(null)
   const printingRef = useRef(false)
   const queueIdRef = useRef(0)
+  const queuedScanKeyRef = useRef<string | null>(null)
   const [scanUpc, setScanUpc] = useState('')
   const [product, setProduct] = useState<WarehouseCatalogProduct | null>(null)
   const [lookupError, setLookupError] = useState(false)
@@ -307,6 +308,23 @@ export default function LabelStation() {
     },
     [quantity, clearScan],
   )
+
+  useEffect(() => {
+    if (!scanUpc.trim()) queuedScanKeyRef.current = null
+  }, [scanUpc])
+
+  // Queue mode commits the row when the scan resolves, even if the scanner's
+  // Enter never latches the pending-print flag. The key blocks a second commit
+  // of the same on-screen scan, and resets once the field is cleared.
+  useEffect(() => {
+    if (printMode !== 'queue' || status !== 'ready' || !product) return
+    const upc = scanUpc.trim()
+    if (!upc || !scanMatchesCatalogProduct(upc, product)) return
+    const key = `${upc}\0${product.upc}\0${product.fnsku}`
+    if (queuedScanKeyRef.current === key) return
+    queuedScanKeyRef.current = key
+    addToQueue(product)
+  }, [printMode, status, product, scanUpc, addToQueue])
 
   const updateQueueQty = (id: string, nextQty: number) => {
     setQueue((prev) =>
