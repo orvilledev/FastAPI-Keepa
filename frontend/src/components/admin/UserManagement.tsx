@@ -1556,33 +1556,44 @@ export default function UserManagement() {
                     ['Ends', maintenanceSuccess.end],
                     ['Length', maintenanceSuccess.length],
                     ['Timezone', maintenanceSuccess.timezone],
-                    ['Message', maintenanceSuccess.message],
                   ] as const
-                ).map(([label, value]) => (
-                  <div
-                    key={label}
-                    className="grid grid-cols-[5.5rem_1fr] items-start gap-3 rounded-2xl bg-white px-3.5 py-2.5 shadow-sm ring-1 ring-amber-900/5"
-                  >
-                    <dt className="pt-0.5 text-xs font-semibold uppercase tracking-wide text-[#b08968]">
-                      {label}
-                    </dt>
-                    <dd className={`font-medium text-[#3d2b1f] ${label === 'Message' ? 'break-words' : ''}`}>
-                      {label === 'Status' ? (
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                            maintenanceSuccess.status === 'Scheduled'
-                              ? 'bg-[#ffe8b8] text-[#8a5a12]'
-                              : 'bg-[#d8f3e4] text-[#1f7a4d]'
-                          }`}
-                        >
-                          {value}
-                        </span>
-                      ) : (
-                        value
-                      )}
-                    </dd>
-                  </div>
-                ))}
+                ).map(([label, value]) =>
+                  label === 'Starts' || label === 'Ends' ? (
+                    <div
+                      key={label}
+                      className="rounded-2xl bg-[#fff4d8] px-4 py-3 shadow-sm ring-2 ring-[#f6b73c]"
+                    >
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-[#8a5a12]">
+                        {label}
+                      </dt>
+                      <dd className="mt-1 text-lg font-semibold leading-snug text-[#3d2b1f]">{value}</dd>
+                    </div>
+                  ) : (
+                    <div
+                      key={label}
+                      className="grid grid-cols-[5.5rem_1fr] items-start gap-3 rounded-2xl bg-white px-3.5 py-2.5 shadow-sm ring-1 ring-amber-900/5"
+                    >
+                      <dt className="pt-0.5 text-xs font-semibold uppercase tracking-wide text-[#b08968]">
+                        {label}
+                      </dt>
+                      <dd className="font-medium text-[#3d2b1f]">
+                        {label === 'Status' ? (
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                              maintenanceSuccess.status === 'Scheduled'
+                                ? 'bg-[#ffe8b8] text-[#8a5a12]'
+                                : 'bg-[#d8f3e4] text-[#1f7a4d]'
+                            }`}
+                          >
+                            {value}
+                          </span>
+                        ) : (
+                          value
+                        )}
+                      </dd>
+                    </div>
+                  ),
+                )}
               </dl>
               <div className="px-5 pb-5 pt-3">
                 <button
