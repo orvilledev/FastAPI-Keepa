@@ -261,6 +261,7 @@ function formatZonedDisplay(iso: string | null | undefined, timeZone: string): s
   try {
     return new Intl.DateTimeFormat(undefined, {
       timeZone,
+      weekday: 'long',
       year: 'numeric',
       month: 'numeric',
       day: 'numeric',
