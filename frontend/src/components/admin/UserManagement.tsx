@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { authApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
+import AppLogo from '../common/AppLogo'
 
 interface User {
   id: string
@@ -1539,50 +1540,7 @@ export default function UserManagement() {
                     <path d="M8 0 9.4 5.2 15 6.2 9.4 7.6 8 13 6.6 7.6 1 6.2 6.6 5.2Z" />
                   </svg>
                 </div>
-                <div className="mx-auto flex h-28 w-28 items-center justify-center">
-                  <svg viewBox="0 0 120 120" className="h-28 w-28" aria-hidden="true">
-                    <ellipse cx="60" cy="108" rx="30" ry="6" fill="#eadcc4" />
-                    <g transform="rotate(-28 28 78)">
-                      <rect x="8" y="70" width="34" height="10" rx="5" fill="#5b8def" />
-                      <circle cx="14" cy="75" r="9" fill="none" stroke="#5b8def" strokeWidth="7" />
-                      <circle cx="14" cy="75" r="3.5" fill="#fffaf3" />
-                    </g>
-                    <rect x="28" y="46" width="68" height="50" rx="16" fill="#f6b73c" />
-                    <rect x="28" y="46" width="68" height="18" rx="10" fill="#e89b16" />
-                    <path
-                      d="M46 48v-7a14 14 0 0 1 28 0v7"
-                      fill="none"
-                      stroke="#c46a12"
-                      strokeWidth="6"
-                      strokeLinecap="round"
-                    />
-                    <rect x="54" y="58" width="12" height="7" rx="3" fill="#fff4d4" />
-                    <circle cx="48" cy="78" r="3.4" fill="#4a3422" />
-                    <circle cx="72" cy="78" r="3.4" fill="#4a3422" />
-                    <circle cx="49.2" cy="76.8" r="1.1" fill="#fff" />
-                    <circle cx="73.2" cy="76.8" r="1.1" fill="#fff" />
-                    <path
-                      d="M52 88c3.2 3.4 12.8 3.4 16 0"
-                      fill="none"
-                      stroke="#4a3422"
-                      strokeWidth="2.6"
-                      strokeLinecap="round"
-                    />
-                    <circle cx="40" cy="86" r="3.2" fill="#fb7185" opacity="0.7" />
-                    <circle cx="80" cy="86" r="3.2" fill="#fb7185" opacity="0.7" />
-                    <g transform="translate(78 18)">
-                      <circle cx="16" cy="16" r="14" fill="#34a36a" />
-                      <path
-                        d="M10 16.5 14.2 20.6 22.5 11.8"
-                        fill="none"
-                        stroke="#fff"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </g>
-                  </svg>
-                </div>
+                <AppLogo alt="MSW Overwatch" className="mx-auto h-20 w-20" />
                 <h2 id="maintenance-success-title" className="text-xl font-semibold text-[#3d2b1f]">
                   {maintenanceSuccess.title}
                 </h2>
