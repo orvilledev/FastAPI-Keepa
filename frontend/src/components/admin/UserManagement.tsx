@@ -1519,30 +1519,78 @@ export default function UserManagement() {
             onClick={() => setMaintenanceSuccess(null)}
           >
             <div
-              className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5"
+              className="w-full max-w-md overflow-hidden rounded-[28px] bg-[#fffaf3] shadow-2xl ring-1 ring-amber-900/10"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 px-6 pb-5 pt-6 text-white">
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 ring-1 ring-white/30">
-                    <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor" aria-hidden="true">
-                      <path
-                        fillRule="evenodd"
-                        d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.3a1 1 0 0 1-1.42.006L3.29 9.22a1 1 0 1 1 1.42-1.408l4.04 4.074 6.54-6.59a1 1 0 0 1 1.414-.006Z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </span>
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-emerald-100">Success</p>
-                    <h2 id="maintenance-success-title" className="text-lg font-semibold leading-snug">
-                      {maintenanceSuccess.title}
-                    </h2>
-                    <p className="mt-1 text-sm text-emerald-50/90">{maintenanceSuccess.subtitle}</p>
-                  </div>
+              <div className="relative bg-gradient-to-b from-[#fff1d6] to-[#fffaf3] px-6 pb-2 pt-6 text-center">
+                <div
+                  className="pointer-events-none absolute left-6 top-5 h-3 w-3 rounded-full bg-[#f6c453]"
+                  aria-hidden="true"
+                />
+                <div
+                  className="pointer-events-none absolute right-8 top-8 h-2 w-2 rounded-full bg-[#7dcea0]"
+                  aria-hidden="true"
+                />
+                <div
+                  className="pointer-events-none absolute right-5 top-4 h-4 w-4 rotate-12 text-[#f4a261]"
+                  aria-hidden="true"
+                >
+                  <svg viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M8 0 9.4 5.2 15 6.2 9.4 7.6 8 13 6.6 7.6 1 6.2 6.6 5.2Z" />
+                  </svg>
                 </div>
+                <div className="mx-auto flex h-28 w-28 items-center justify-center">
+                  <svg viewBox="0 0 120 120" className="h-28 w-28" aria-hidden="true">
+                    <ellipse cx="60" cy="108" rx="30" ry="6" fill="#eadcc4" />
+                    <g transform="rotate(-28 28 78)">
+                      <rect x="8" y="70" width="34" height="10" rx="5" fill="#5b8def" />
+                      <circle cx="14" cy="75" r="9" fill="none" stroke="#5b8def" strokeWidth="7" />
+                      <circle cx="14" cy="75" r="3.5" fill="#fffaf3" />
+                    </g>
+                    <rect x="28" y="46" width="68" height="50" rx="16" fill="#f6b73c" />
+                    <rect x="28" y="46" width="68" height="18" rx="10" fill="#e89b16" />
+                    <path
+                      d="M46 48v-7a14 14 0 0 1 28 0v7"
+                      fill="none"
+                      stroke="#c46a12"
+                      strokeWidth="6"
+                      strokeLinecap="round"
+                    />
+                    <rect x="54" y="58" width="12" height="7" rx="3" fill="#fff4d4" />
+                    <circle cx="48" cy="78" r="3.4" fill="#4a3422" />
+                    <circle cx="72" cy="78" r="3.4" fill="#4a3422" />
+                    <circle cx="49.2" cy="76.8" r="1.1" fill="#fff" />
+                    <circle cx="73.2" cy="76.8" r="1.1" fill="#fff" />
+                    <path
+                      d="M52 88c3.2 3.4 12.8 3.4 16 0"
+                      fill="none"
+                      stroke="#4a3422"
+                      strokeWidth="2.6"
+                      strokeLinecap="round"
+                    />
+                    <circle cx="40" cy="86" r="3.2" fill="#fb7185" opacity="0.7" />
+                    <circle cx="80" cy="86" r="3.2" fill="#fb7185" opacity="0.7" />
+                    <g transform="translate(78 18)">
+                      <circle cx="16" cy="16" r="14" fill="#34a36a" />
+                      <path
+                        d="M10 16.5 14.2 20.6 22.5 11.8"
+                        fill="none"
+                        stroke="#fff"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </g>
+                  </svg>
+                </div>
+                <h2 id="maintenance-success-title" className="text-xl font-semibold text-[#3d2b1f]">
+                  {maintenanceSuccess.title}
+                </h2>
+                <p className="mx-auto mt-1 max-w-xs text-sm leading-relaxed text-[#7a624c]">
+                  {maintenanceSuccess.subtitle}
+                </p>
               </div>
-              <dl className="divide-y divide-gray-100 px-6 py-2 text-sm">
+              <dl className="space-y-2 px-5 pb-2 pt-3 text-sm">
                 {(
                   [
                     ['Status', maintenanceSuccess.status],
@@ -1553,17 +1601,20 @@ export default function UserManagement() {
                     ['Message', maintenanceSuccess.message],
                   ] as const
                 ).map(([label, value]) => (
-                  <div key={label} className="grid grid-cols-[6.5rem_1fr] gap-3 py-2.5">
-                    <dt className="text-gray-500">{label}</dt>
-                    <dd
-                      className={`font-medium text-gray-900 ${label === 'Message' ? 'break-words' : ''}`}
-                    >
+                  <div
+                    key={label}
+                    className="grid grid-cols-[5.5rem_1fr] items-start gap-3 rounded-2xl bg-white px-3.5 py-2.5 shadow-sm ring-1 ring-amber-900/5"
+                  >
+                    <dt className="pt-0.5 text-xs font-semibold uppercase tracking-wide text-[#b08968]">
+                      {label}
+                    </dt>
+                    <dd className={`font-medium text-[#3d2b1f] ${label === 'Message' ? 'break-words' : ''}`}>
                       {label === 'Status' ? (
                         <span
-                          className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                             maintenanceSuccess.status === 'Scheduled'
-                              ? 'bg-amber-100 text-amber-900'
-                              : 'bg-emerald-100 text-emerald-800'
+                              ? 'bg-[#ffe8b8] text-[#8a5a12]'
+                              : 'bg-[#d8f3e4] text-[#1f7a4d]'
                           }`}
                         >
                           {value}
@@ -1575,13 +1626,13 @@ export default function UserManagement() {
                   </div>
                 ))}
               </dl>
-              <div className="flex justify-end border-t border-gray-100 px-6 py-4">
+              <div className="px-5 pb-5 pt-3">
                 <button
                   type="button"
                   onClick={() => setMaintenanceSuccess(null)}
-                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                  className="w-full rounded-full bg-[#34a36a] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#2b8b5a]"
                 >
-                  Done
+                  Got it
                 </button>
               </div>
             </div>
