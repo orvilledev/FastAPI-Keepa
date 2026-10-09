@@ -4,15 +4,15 @@ export function isElectronDesktop(): boolean {
   return typeof window !== 'undefined' && Boolean(window.desktop?.isElectron)
 }
 
-/** Desktop Label Center is limited to this warehouse station. Everyone else sees it on the web. */
-const LABEL_CENTER_DESKTOP_EMAILS = new Set([
-  'warehouse1@metroshoewarehouse.com',
+/** Label Center is hidden for this account on the desktop app. */
+const LABEL_CENTER_DESKTOP_BLOCKED_EMAILS = new Set([
+  'hello@warehouserepublic.com',
 ])
 
-/** Label Center stays on the web, except for the desktop warehouse station above. */
+/** On Electron, everyone sees Label Center except the blocked account. The web stays open. */
 export function isLabelCenterAvailable(email?: string | null): boolean {
   if (!isElectronDesktop()) return true
-  return LABEL_CENTER_DESKTOP_EMAILS.has((email || '').trim().toLowerCase())
+  return !LABEL_CENTER_DESKTOP_BLOCKED_EMAILS.has((email || '').trim().toLowerCase())
 }
 
 function pathStorage(): Storage {

@@ -1,0 +1,10 @@
+MSW Overwatch 3.6.8 — desktop and web release
+
+Label Center on the desktop app for every account except hello@warehouserepublic.com. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Label Center
+- The desktop app shows Label Center for every signed-in account except hello@warehouserepublic.com
+- That account still opens Label Station instead of Label Center on the desktop app
+
+## Upgrade from 3.6.7
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.6.8, download it, then prompt to install now or later. Web/PWA users get 3.6.8 on the next deploy/refresh.
