@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { authApi } from '../../services/api'
+import { notifyMaintenanceScheduleChanged } from '../layout/MaintenanceScheduleBanner'
 import { useUser } from '../../contexts/UserContext'
 import AppLogo from '../common/AppLogo'
 
@@ -511,6 +512,7 @@ export default function UserManagement() {
         maintenanceDurationHours > 0 ? maintenanceDurationHours : 0
       )
       applyMaintenanceState(updated)
+      notifyMaintenanceScheduleChanged()
       if (nextMode) setMaintenanceSuccess(maintenanceSuccessFromState(updated, 'enabled'))
     } catch (err: unknown) {
       const msg =
@@ -591,6 +593,7 @@ export default function UserManagement() {
         }
       )
       applyMaintenanceState(updated)
+      notifyMaintenanceScheduleChanged()
       if (updated.scheduled_start_at && !updated.maintenance_mode) {
         setMaintenanceSuccess(maintenanceSuccessFromState(updated, 'scheduled'))
       } else if (updated.maintenance_mode) {

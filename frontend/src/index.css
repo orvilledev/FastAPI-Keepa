@@ -694,6 +694,12 @@ code {
   }
 }
 
+/* Upcoming-maintenance strip. Kept off theme tint overrides so it stays orange. */
+.maintenance-schedule-banner {
+  background-color: #f6e2c4;
+  color: #3a2a14;
+}
+
 /*
  * Dark mode compatibility for legacy Tailwind utility classes used across the app.
  * These only affect presentation — no business logic.

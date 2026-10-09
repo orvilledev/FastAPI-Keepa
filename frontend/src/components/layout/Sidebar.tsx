@@ -320,7 +320,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-50 flex h-app-screen w-60 shrink-0 flex-col border-r border-gray-200/80 bg-white/80 shadow-lg backdrop-blur-lg transition-transform duration-300 ease-in-out dark:border-border/80 dark:bg-surface/90 lg:static lg:z-auto lg:translate-x-0 lg:shadow-lg lg:transition-none ${
+      className={`fixed inset-y-0 left-0 z-50 flex h-app-screen w-60 shrink-0 flex-col border-r border-gray-200/80 bg-white/80 shadow-lg backdrop-blur-lg transition-transform duration-300 ease-in-out dark:border-border/80 dark:bg-surface/90 lg:static lg:z-auto lg:h-full lg:translate-x-0 lg:shadow-lg lg:transition-none ${
         mobileOpen ? 'translate-x-0' : '-translate-x-full'
       }`}
     >

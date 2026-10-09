@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
+import MaintenanceScheduleBanner from './MaintenanceScheduleBanner'
 import Navbar from './Navbar'
 import Sidebar from './Sidebar'
 
@@ -33,7 +34,9 @@ export default function Layout() {
   }, [mobileNavOpen])
 
   return (
-    <div className="flex h-app-screen min-h-0 overflow-hidden app-shell-bg">
+    <div className="flex h-app-screen min-h-0 flex-col overflow-hidden app-shell-bg">
+      <MaintenanceScheduleBanner />
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
       {/* Backdrop for the mobile drawer — never rendered/visible on lg+. */}
       <div
         aria-hidden="true"
@@ -50,6 +53,7 @@ export default function Layout() {
             <Outlet />
           </div>
         </main>
+      </div>
       </div>
     </div>
   )
