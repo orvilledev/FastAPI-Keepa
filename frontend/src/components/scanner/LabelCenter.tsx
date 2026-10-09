@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
+import { getDocument } from 'pdfjs-dist'
+import 'pdfjs-dist/build/pdf.worker.mjs'
 import {
   TEXT_LABEL_PRESETS,
   buildTextLabelPdf,
@@ -12,8 +13,6 @@ import {
   parseBoxNumbers,
   suggestedToBoxLabelFilename,
 } from '../../utils/toBoxLabel'
-
-GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
 
 type GeneratedLabels = {
   toNumber: string
@@ -29,7 +28,12 @@ function LabelPdfPreview({ pdf, captions }: { pdf: Uint8Array; captions: string[
     let cancelled = false
     setPages([])
     setFailed(false)
-    const loading = getDocument({ data: pdf.slice() })
+    const loading = getDocument({
+      data: pdf.slice(),
+      useWorkerFetch: false,
+      isOffscreenCanvasSupported: false,
+      useWasm: false,
+    })
     loading.promise
       .then(async (doc) => {
         const urls: string[] = []
