@@ -4,6 +4,7 @@ import { mySpaceNotesApi, quickAccessApi, getApiBaseUrl } from '../../services/a
 import type { MySpaceNote, QuickAccessLink } from '../../types'
 import { getApiErrorDetail } from '../../utils/apiErrorMessage'
 import { isLabelCenterAvailable } from '../../lib/privatePath'
+import { useUser } from '../../contexts/UserContext'
 import NoteContent from './NoteContent'
 import {
   BOOKMARKABLE_TOOLS,
@@ -43,6 +44,8 @@ function loadErrorMessage(err: unknown, kind: string): string {
 }
 
 export default function MySpacePage() {
+  const { userInfo, authUser } = useUser()
+  const labelCenterAvailable = isLabelCenterAvailable(userInfo?.email || authUser?.email)
   const [tab, setTab] = useState<TabId>('bookmarks')
   const [links, setLinks] = useState<QuickAccessLink[]>([])
   const [notes, setNotes] = useState<MySpaceNote[]>([])
@@ -95,11 +98,11 @@ export default function MySpacePage() {
     if (!toolSearchQuery) return []
     return BOOKMARKABLE_TOOLS.filter(
       (t) =>
-        (t.path !== '/label-center' || isLabelCenterAvailable()) &&
+        (t.path !== '/label-center' || labelCenterAvailable) &&
         (t.label.toLowerCase().includes(toolSearchQuery) ||
           t.path.toLowerCase().includes(toolSearchQuery)),
     )
-  }, [toolSearchQuery])
+  }, [toolSearchQuery, labelCenterAvailable])
 
   const toolsByGroup = useMemo(() => {
     const map = new Map<string, BookmarkableTool[]>()

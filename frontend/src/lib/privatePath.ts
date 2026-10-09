@@ -4,9 +4,15 @@ export function isElectronDesktop(): boolean {
   return typeof window !== 'undefined' && Boolean(window.desktop?.isElectron)
 }
 
-/** Label Center stays on the web. The desktop app keeps Label Station first. */
-export function isLabelCenterAvailable(): boolean {
-  return !isElectronDesktop()
+/** Desktop Label Center is limited to this warehouse station. Everyone else sees it on the web. */
+const LABEL_CENTER_DESKTOP_EMAILS = new Set([
+  'warehouse1@metroshoewarehouse.com',
+])
+
+/** Label Center stays on the web, except for the desktop warehouse station above. */
+export function isLabelCenterAvailable(email?: string | null): boolean {
+  if (!isElectronDesktop()) return true
+  return LABEL_CENTER_DESKTOP_EMAILS.has((email || '').trim().toLowerCase())
 }
 
 function pathStorage(): Storage {

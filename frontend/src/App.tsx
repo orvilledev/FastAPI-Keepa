@@ -487,7 +487,7 @@ function AppRoutes() {
           <Route
             path="label-center"
             element={
-              isLabelCenterAvailable() ? (
+              isLabelCenterAvailable(userInfo?.email || authUser?.email) ? (
                 <ProtectedRoute requireLabelStationAccess={true}><LabelCenter /></ProtectedRoute>
               ) : (
                 <Navigate to="/label-station" replace />

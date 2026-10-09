@@ -351,7 +351,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
         {isWarehouseOnly ? (
           <>
             <div className="shrink-0 space-y-0.5">
-              {isLabelCenterAvailable() && (
+              {isLabelCenterAvailable(accountEmail) && (
                 <Link
                   to="/label-center"
                   onMouseEnter={() => setHoveredNav('label-center')}
@@ -682,7 +682,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
               <span className="sidebar-link-label">DNK AllInventory</span>
             </Link>
 
-            {hasKeepaAccess && isLabelCenterAvailable() && (
+            {hasKeepaAccess && isLabelCenterAvailable(accountEmail) && (
               <Link
                 to="/label-center"
                 onMouseEnter={() => setHoveredNav('label-center')}

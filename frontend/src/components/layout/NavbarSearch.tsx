@@ -30,12 +30,13 @@ function buildSearchItems(
   showShipmentAnalyzer: boolean,
   showFreightClass: boolean,
   showFnskuLabels: boolean,
+  showLabelCenter: boolean,
 ): SearchItem[] {
   if (isWarehouseOnly) {
     const warehouseItems: SearchItem[] = [
       { label: 'Label Station', path: '/label-station', section: 'Tools' },
     ]
-    if (isLabelCenterAvailable()) {
+    if (showLabelCenter) {
       warehouseItems.unshift({ label: 'Label Center', path: '/label-center', section: 'Tools' })
     }
     if (showFnskuLabels) {
@@ -96,7 +97,7 @@ function buildSearchItems(
   }
 
   if (hasKeepaAccess) {
-    if (isLabelCenterAvailable()) {
+    if (showLabelCenter) {
       items.push({ label: 'Label Center', path: '/label-center', section: 'Tools' })
     }
     items.push({ label: 'Label Station', path: '/label-station', section: 'Tools' })
@@ -186,7 +187,9 @@ export default function NavbarSearch() {
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
-  const showFnskuLabels = canWarehouseAccessFnskuLabels(userInfo?.email || authUser?.email)
+  const accountEmail = userInfo?.email || authUser?.email
+  const showFnskuLabels = canWarehouseAccessFnskuLabels(accountEmail)
+  const showLabelCenter = isLabelCenterAvailable(accountEmail)
 
   const searchItems = useMemo(
     () =>
@@ -202,8 +205,9 @@ export default function NavbarSearch() {
         showShipmentAnalyzer,
         showFreightClass,
         showFnskuLabels,
+        showLabelCenter,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools, showShipmentAnalyzer, showFreightClass, showFnskuLabels],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools, showShipmentAnalyzer, showFreightClass, showFnskuLabels, showLabelCenter],
   )
 
   const results = useMemo(() => {
