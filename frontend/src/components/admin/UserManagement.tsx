@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { authApi } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
 
@@ -161,6 +162,98 @@ function zonedDateTimeToIso(date: string, time: string, timeZone: string): strin
   return new Date(utcMs).toISOString()
 }
 
+type MaintenanceSuccessNotice = {
+  title: string
+  subtitle: string
+  status: 'Active' | 'Scheduled'
+  start: string
+  end: string
+  length: string
+  timezone: string
+  message: string
+}
+
+type MaintenanceApiState = {
+  maintenance_mode: boolean
+  message: string
+  duration_hours?: number | null
+  expected_end_at?: string | null
+  scheduled_start_at?: string | null
+  schedule_timezone?: string | null
+}
+
+function formatMaintenanceLength(hours: number | null | undefined): string {
+  if (typeof hours !== 'number' || hours <= 0) return 'Until you turn it off'
+  const rounded = Math.round(hours * 2) / 2
+  if (rounded === 0.5) return '30 minutes'
+  if (Number.isInteger(rounded)) return rounded === 1 ? '1 hour' : `${rounded} hours`
+  return `${rounded} hours`
+}
+
+function timezoneLabel(timeZone: string): string {
+  try {
+    const name = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      timeZoneName: 'longGeneric',
+    })
+      .formatToParts(new Date())
+      .find((part) => part.type === 'timeZoneName')?.value
+    return name ? `${name} · ${timeZone}` : timeZone
+  } catch {
+    return timeZone
+  }
+}
+
+function maintenanceSuccessFromState(
+  state: MaintenanceApiState,
+  kind: 'enabled' | 'scheduled' | 'saved',
+): MaintenanceSuccessNotice {
+  const tz = (state.schedule_timezone || '').trim() || DEFAULT_MAINTENANCE_TIMEZONE
+  const scheduled = Boolean(state.scheduled_start_at) && !state.maintenance_mode
+  const start = scheduled
+    ? formatZonedDisplay(state.scheduled_start_at, tz)
+    : state.maintenance_mode
+      ? 'Right now'
+      : '—'
+  const end = state.expected_end_at
+    ? formatZonedDisplay(state.expected_end_at, tz)
+    : 'Until you turn it off'
+  if (kind === 'scheduled' || scheduled) {
+    return {
+      title: 'Maintenance scheduled',
+      subtitle: 'The app will enter maintenance automatically for this window.',
+      status: 'Scheduled',
+      start: start || '—',
+      end,
+      length: formatMaintenanceLength(state.duration_hours),
+      timezone: timezoneLabel(tz),
+      message: state.message || '—',
+    }
+  }
+  if (kind === 'enabled') {
+    return {
+      title: 'Maintenance enabled',
+      subtitle: 'Only superadmin and allowlisted emails can use the app until this ends.',
+      status: 'Active',
+      start,
+      end,
+      length: formatMaintenanceLength(state.duration_hours),
+      timezone: timezoneLabel(tz),
+      message: state.message || '—',
+    }
+  }
+  return {
+    title: 'Maintenance details saved',
+    subtitle: 'The active maintenance window now uses these details.',
+    status: 'Active',
+    start,
+    end,
+    length: formatMaintenanceLength(state.duration_hours),
+    timezone: timezoneLabel(tz),
+    message: state.message || '—',
+  }
+}
+
 function formatZonedDisplay(iso: string | null | undefined, timeZone: string): string {
   if (!iso) return ''
   const d = new Date(iso)
@@ -198,6 +291,7 @@ export default function UserManagement() {
   const [maintenanceScheduleEndDate, setMaintenanceScheduleEndDate] = useState('')
   const [maintenanceScheduleEndTime, setMaintenanceScheduleEndTime] = useState('')
   const [maintenanceSaving, setMaintenanceSaving] = useState(false)
+  const [maintenanceSuccess, setMaintenanceSuccess] = useState<MaintenanceSuccessNotice | null>(null)
   const [emailTransport, setEmailTransport] = useState<'auto' | 'graph' | 'smtp'>('auto')
   const [emailEffectiveTransport, setEmailEffectiveTransport] = useState<'graph' | 'smtp'>('smtp')
   const [emailSmtpConfigured, setEmailSmtpConfigured] = useState(false)
@@ -390,6 +484,15 @@ export default function UserManagement() {
     return () => window.clearInterval(timer)
   }, [isSuperadmin, userInfoLoading])
 
+  useEffect(() => {
+    if (!maintenanceSuccess) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMaintenanceSuccess(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [maintenanceSuccess])
+
   const handleToggleMaintenanceMode = async () => {
     const nextMode = !maintenanceMode
     const confirmed = window.confirm(
@@ -406,6 +509,7 @@ export default function UserManagement() {
         maintenanceDurationHours > 0 ? maintenanceDurationHours : 0
       )
       applyMaintenanceState(updated)
+      if (nextMode) setMaintenanceSuccess(maintenanceSuccessFromState(updated, 'enabled'))
     } catch (err: unknown) {
       const msg =
         err && typeof err === 'object' && 'response' in err
@@ -485,6 +589,11 @@ export default function UserManagement() {
         }
       )
       applyMaintenanceState(updated)
+      if (updated.scheduled_start_at && !updated.maintenance_mode) {
+        setMaintenanceSuccess(maintenanceSuccessFromState(updated, 'scheduled'))
+      } else if (updated.maintenance_mode) {
+        setMaintenanceSuccess(maintenanceSuccessFromState(updated, 'saved'))
+      }
     } catch (err: unknown) {
       const msg =
         err && typeof err === 'object' && 'response' in err
@@ -1399,6 +1508,85 @@ export default function UserManagement() {
           </table>
         </div>
       </div>
+      {maintenanceSuccess &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[2px]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="maintenance-success-title"
+            onClick={() => setMaintenanceSuccess(null)}
+          >
+            <div
+              className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 px-6 pb-5 pt-6 text-white">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 ring-1 ring-white/30">
+                    <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor" aria-hidden="true">
+                      <path
+                        fillRule="evenodd"
+                        d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.3a1 1 0 0 1-1.42.006L3.29 9.22a1 1 0 1 1 1.42-1.408l4.04 4.074 6.54-6.59a1 1 0 0 1 1.414-.006Z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </span>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-emerald-100">Success</p>
+                    <h2 id="maintenance-success-title" className="text-lg font-semibold leading-snug">
+                      {maintenanceSuccess.title}
+                    </h2>
+                    <p className="mt-1 text-sm text-emerald-50/90">{maintenanceSuccess.subtitle}</p>
+                  </div>
+                </div>
+              </div>
+              <dl className="divide-y divide-gray-100 px-6 py-2 text-sm">
+                {(
+                  [
+                    ['Status', maintenanceSuccess.status],
+                    ['Starts', maintenanceSuccess.start],
+                    ['Ends', maintenanceSuccess.end],
+                    ['Length', maintenanceSuccess.length],
+                    ['Timezone', maintenanceSuccess.timezone],
+                    ['Message', maintenanceSuccess.message],
+                  ] as const
+                ).map(([label, value]) => (
+                  <div key={label} className="grid grid-cols-[6.5rem_1fr] gap-3 py-2.5">
+                    <dt className="text-gray-500">{label}</dt>
+                    <dd
+                      className={`font-medium text-gray-900 ${label === 'Message' ? 'break-words' : ''}`}
+                    >
+                      {label === 'Status' ? (
+                        <span
+                          className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            maintenanceSuccess.status === 'Scheduled'
+                              ? 'bg-amber-100 text-amber-900'
+                              : 'bg-emerald-100 text-emerald-800'
+                          }`}
+                        >
+                          {value}
+                        </span>
+                      ) : (
+                        value
+                      )}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              <div className="flex justify-end border-t border-gray-100 px-6 py-4">
+                <button
+                  type="button"
+                  onClick={() => setMaintenanceSuccess(null)}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }
