@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getDocument } from 'pdfjs-dist'
 import 'pdfjs-dist/build/pdf.worker.mjs'
 import {
@@ -13,11 +13,38 @@ import {
   parseBoxNumbers,
   suggestedToBoxLabelFilename,
 } from '../../utils/toBoxLabel'
+import {
+  LABEL_CENTER_STOCKS,
+  LABEL_CENTER_STOCK_INFO,
+  batchZplJobs,
+  getLabelCenterDpi,
+  getLabelCenterPrinter,
+  getLabelCenterStock,
+  labelCenterPageSize,
+  labelCenterPdfToZpl,
+  labelCenterStockDimensions,
+  saveLabelCenterDpi,
+  saveLabelCenterPrinter,
+  saveLabelCenterStock,
+  type LabelCenterStock,
+} from '../../utils/labelCenterPrint'
+import { SUPPORTED_DPIS, detectPrinterDpi, type LabelDpi } from '../../utils/warehouseLabel'
 
 type GeneratedLabels = {
   toNumber: string
   boxes: number[]
+  stock: LabelCenterStock
   pdf: Uint8Array
+}
+
+type GeneratedText = {
+  text: string
+  stock: LabelCenterStock
+  pdf: Uint8Array
+}
+
+function labelCount(count: number): string {
+  return count === 1 ? '1 label' : `${count} labels`
 }
 
 function LabelPdfPreview({ pdf, captions }: { pdf: Uint8Array; captions: string[] }) {
@@ -118,11 +145,107 @@ export default function LabelCenter() {
   const [boxInput, setBoxInput] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [generated, setGenerated] = useState<GeneratedLabels | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState<'print' | 'download' | null>(null)
   const [textInput, setTextInput] = useState('')
-  const [textPdf, setTextPdf] = useState<Uint8Array | null>(null)
+  const [textLabel, setTextLabel] = useState<GeneratedText | null>(null)
   const [textError, setTextError] = useState<string | null>(null)
+  const [textNotice, setTextNotice] = useState<string | null>(null)
   const [textBusy, setTextBusy] = useState<'print' | 'download' | null>(null)
+
+  const [stock, setStock] = useState<LabelCenterStock>(getLabelCenterStock)
+  const [printers, setPrinters] = useState<DesktopPrinter[]>([])
+  const [selectedPrinter, setSelectedPrinter] = useState<string>(getLabelCenterPrinter)
+  const [selectedDpi, setSelectedDpi] = useState<LabelDpi>(getLabelCenterDpi)
+  const [loadingPrinters, setLoadingPrinters] = useState(false)
+  const [printerError, setPrinterError] = useState<string | null>(null)
+  const canPrintDirect = Boolean(window.desktop?.isElectron && window.desktop?.printZpl)
+  const stockDimensions = labelCenterStockDimensions(stock)
+
+  const refreshPrinters = useCallback(async () => {
+    if (!window.desktop?.listPrinters) return
+    setLoadingPrinters(true)
+    setPrinterError(null)
+    try {
+      const result = await window.desktop.listPrinters()
+      setPrinters(result.printers || [])
+      if (!result.ok) setPrinterError(result.message || 'Could not list printers.')
+    } catch (err: unknown) {
+      setPrinterError(err instanceof Error ? err.message : 'Could not list printers.')
+    } finally {
+      setLoadingPrinters(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (canPrintDirect) void refreshPrinters()
+  }, [canPrintDirect, refreshPrinters])
+
+  const selectedPrinterInfo = printers.find((printer) => printer.name === selectedPrinter)
+  const selectedPrinterLabel = selectedPrinterInfo?.displayName || selectedPrinter
+  const savedPrinterMissing =
+    Boolean(selectedPrinter) && !loadingPrinters && printers.length > 0 && !selectedPrinterInfo
+
+  const handleSelectPrinter = (name: string) => {
+    setSelectedPrinter(name)
+    saveLabelCenterPrinter(name)
+    const detected = detectPrinterDpi(printers.find((printer) => printer.name === name)?.displayName || name)
+    if (detected) {
+      setSelectedDpi(detected)
+      saveLabelCenterDpi(detected)
+    }
+  }
+
+  const handleSelectDpi = (dpi: LabelDpi) => {
+    setSelectedDpi(dpi)
+    saveLabelCenterDpi(dpi)
+  }
+
+  const handleSelectStock = (next: LabelCenterStock) => {
+    if (next === stock) return
+    setStock(next)
+    saveLabelCenterStock(next)
+    setNotice(null)
+    setTextNotice(null)
+    const page = labelCenterPageSize(next)
+    if (generated) {
+      setGenerated({
+        ...generated,
+        stock: next,
+        pdf: buildToBoxLabelsPdf(generated.toNumber, generated.boxes, page),
+      })
+    }
+    if (textLabel) {
+      setTextLabel({ ...textLabel, stock: next, pdf: buildTextLabelPdf(textLabel.text, page) })
+    }
+  }
+
+  /** Sends every page straight to the chosen Zebra. Returns the success message. */
+  const printDirect = async (pdf: Uint8Array, labelStock: LabelCenterStock): Promise<string> => {
+    const printerName = selectedPrinter.trim()
+    if (!printerName) {
+      throw new Error('Choose a Zebra printer in the printer section before printing.')
+    }
+    if (!selectedPrinterInfo) {
+      throw new Error(`${printerName} is not connected. Press Refresh or choose another printer.`)
+    }
+    const printZpl = window.desktop?.printZpl
+    if (!printZpl) throw new Error('Direct printing is not available in this app version.')
+
+    const jobs = await labelCenterPdfToZpl(pdf, labelStock, selectedDpi)
+    let sent = 0
+    for (const batch of batchZplJobs(jobs)) {
+      const result = await printZpl({ printerName, zpl: batch.join('\n') })
+      if (!result.ok) {
+        const reason = result.message || 'Print failed.'
+        throw new Error(
+          sent > 0 ? `${reason} ${sent} of ${jobs.length} labels were already sent.` : reason,
+        )
+      }
+      sent += batch.length
+    }
+    return `Sent ${labelCount(jobs.length)} to ${selectedPrinterLabel} (${labelCenterStockDimensions(labelStock)}).`
+  }
 
   const summary = useMemo(() => {
     if (!generated) return ''
@@ -137,11 +260,12 @@ export default function LabelCenter() {
 
   const generate = () => {
     setError(null)
+    setNotice(null)
     try {
       const toNumber = normalizeToNumber(toInput)
       const boxes = parseBoxNumbers(boxInput)
-      const pdf = buildToBoxLabelsPdf(toNumber, boxes)
-      setGenerated({ toNumber, boxes, pdf })
+      const pdf = buildToBoxLabelsPdf(toNumber, boxes, labelCenterPageSize(stock))
+      setGenerated({ toNumber, boxes, stock, pdf })
     } catch (err: unknown) {
       setGenerated(null)
       setError(err instanceof Error ? err.message : 'Could not build labels.')
@@ -152,10 +276,12 @@ export default function LabelCenter() {
     if (!generated) return
     setBusy(action)
     setError(null)
+    setNotice(null)
     try {
       const blob = new Blob([generated.pdf.slice()], { type: 'application/pdf' })
       const filename = suggestedToBoxLabelFilename(generated.toNumber, generated.boxes)
       if (action === 'download') downloadBlob(blob, filename)
+      else if (canPrintDirect) setNotice(await printDirect(generated.pdf, generated.stock))
       else printPdfBlob(blob)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not build the label PDF.')
@@ -166,24 +292,27 @@ export default function LabelCenter() {
 
   const generateText = (raw: string) => {
     setTextError(null)
+    setTextNotice(null)
     try {
       const text = normalizeLabelText(raw)
       setTextInput(text)
-      setTextPdf(buildTextLabelPdf(text))
+      setTextLabel({ text, stock, pdf: buildTextLabelPdf(text, labelCenterPageSize(stock)) })
     } catch (err: unknown) {
-      setTextPdf(null)
+      setTextLabel(null)
       setTextError(err instanceof Error ? err.message : 'Could not build the text label.')
     }
   }
 
   const withTextPdf = async (action: 'print' | 'download') => {
-    if (!textPdf) return
+    if (!textLabel) return
     setTextBusy(action)
     setTextError(null)
+    setTextNotice(null)
     try {
-      const blob = new Blob([textPdf.slice()], { type: 'application/pdf' })
-      const filename = suggestedTextLabelFilename(textInput)
+      const blob = new Blob([textLabel.pdf.slice()], { type: 'application/pdf' })
+      const filename = suggestedTextLabelFilename(textLabel.text)
       if (action === 'download') downloadBlob(blob, filename)
+      else if (canPrintDirect) setTextNotice(await printDirect(textLabel.pdf, textLabel.stock))
       else printPdfBlob(blob)
     } catch (err: unknown) {
       setTextError(err instanceof Error ? err.message : 'Could not build the text label.')
@@ -191,6 +320,12 @@ export default function LabelCenter() {
       setTextBusy(null)
     }
   }
+
+  const printTarget = canPrintDirect
+    ? selectedPrinterInfo
+      ? `Prints to ${selectedPrinterLabel} on ${stockDimensions} stock.`
+      : 'Choose a printer above before printing.'
+    : `Opens the print dialog. Pick your label printer and ${stockDimensions} paper there.`
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -201,6 +336,119 @@ export default function LabelCenter() {
           such as 1,2,8. Each box gets its own label.
         </p>
       </header>
+
+      <section className="space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-border dark:bg-surface sm:p-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-slate-200">Label size</h2>
+          <p className="text-xs text-gray-500 dark:text-slate-400">
+            Applies to TO/box labels and text labels. Match it to the stock loaded in the printer.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {LABEL_CENTER_STOCKS.map((option) => {
+            const info = LABEL_CENTER_STOCK_INFO[option]
+            const active = option === stock
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => handleSelectStock(option)}
+                aria-pressed={active}
+                className={`rounded-lg border-2 p-3 text-left transition ${
+                  active
+                    ? 'border-[#404040] bg-gray-50 ring-1 ring-[#404040] dark:bg-surface-hover'
+                    : 'border-gray-200 hover:border-gray-400 dark:border-border'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-800 dark:text-slate-100">
+                    {info.name} ({labelCenterStockDimensions(option)})
+                  </span>
+                  {active && <span className="text-xs font-semibold text-emerald-700">Selected</span>}
+                </div>
+                <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{info.note}</p>
+              </button>
+            )
+          })}
+        </div>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-border dark:bg-surface sm:p-5">
+        <h2 className="text-sm font-semibold text-gray-800 dark:text-slate-200">Zebra printer</h2>
+        {canPrintDirect ? (
+          <>
+            <p className="text-xs text-gray-600 dark:text-slate-400">
+              Labels go straight to the printer you pick here. This choice is separate from Label
+              Station, so each page can use its own printer.
+            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="text-sm">
+                <span className="mb-1 block text-gray-600 dark:text-slate-400">Printer</span>
+                <select
+                  value={selectedPrinter}
+                  onChange={(event) => handleSelectPrinter(event.target.value)}
+                  disabled={loadingPrinters}
+                  className="w-72 rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 disabled:opacity-50 dark:border-border dark:bg-surface dark:text-slate-100"
+                >
+                  <option value="">
+                    {loadingPrinters
+                      ? 'Detecting printers…'
+                      : printers.length === 0
+                        ? 'No printers detected'
+                        : 'Choose a printer…'}
+                  </option>
+                  {selectedPrinter && !selectedPrinterInfo && (
+                    <option value={selectedPrinter}>{selectedPrinter} (not connected)</option>
+                  )}
+                  {printers.map((printer) => (
+                    <option key={printer.name} value={printer.name}>
+                      {printer.displayName}
+                      {printer.isDefault ? ' (default)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block text-gray-600 dark:text-slate-400">Print resolution</span>
+                <select
+                  value={selectedDpi}
+                  onChange={(event) => handleSelectDpi(Number(event.target.value) as LabelDpi)}
+                  className="w-40 rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-border dark:bg-surface dark:text-slate-100"
+                >
+                  {SUPPORTED_DPIS.map((dpi) => (
+                    <option key={dpi} value={dpi}>
+                      {dpi} dpi
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={() => void refreshPrinters()}
+                disabled={loadingPrinters}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-50 dark:border-border dark:text-slate-100 dark:hover:bg-surface-hover"
+              >
+                {loadingPrinters ? 'Refreshing…' : 'Refresh'}
+              </button>
+            </div>
+            {savedPrinterMissing && (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
+                {selectedPrinter} is not connected. Plug it in and press Refresh, or choose another printer.
+              </p>
+            )}
+            {printerError && <p className="text-xs text-red-700">{printerError}</p>}
+            <p className="text-xs text-gray-500 dark:text-slate-400">
+              Match the resolution to the print head (ZD420-203 = 203 dpi, ZD420-300 = 300 dpi). It is
+              detected from the printer name when possible; change it if labels print too small or get cut off.
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-gray-600 dark:text-slate-400">
+            Open the desktop app to print straight to a chosen Zebra printer. In the browser, Print opens
+            the system dialog, so pick the label printer and {stockDimensions} paper there.
+          </p>
+        )}
+      </section>
 
       <form
         className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-border dark:bg-surface sm:p-5"
@@ -254,7 +502,13 @@ export default function LabelCenter() {
             onClick={() => void withPdf('print')}
             className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-border dark:bg-surface dark:text-slate-100 dark:hover:bg-surface-hover"
           >
-            {busy === 'print' ? 'Preparing…' : 'Print'}
+            {busy === 'print'
+              ? canPrintDirect
+                ? 'Printing…'
+                : 'Preparing…'
+              : generated
+                ? `Print ${labelCount(generated.boxes.length)}`
+                : 'Print'}
           </button>
           <button
             type="button"
@@ -265,10 +519,14 @@ export default function LabelCenter() {
             {busy === 'download' ? 'Preparing…' : 'Download PDF'}
           </button>
         </div>
+        <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">{printTarget}</p>
       </form>
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>
+      )}
+      {notice && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>
       )}
 
       {generated && (
@@ -285,7 +543,8 @@ export default function LabelCenter() {
         <header>
           <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Text label</h2>
           <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">
-            Same 2.25×1.5 inch label. Pick a message or type your own. The type grows until it fills the label.
+            Prints on the {stockDimensions} size selected above. Pick a message or type your own. The type
+            grows until it fills the label.
           </p>
         </header>
 
@@ -324,7 +583,7 @@ export default function LabelCenter() {
               value={textInput}
               onChange={(event) => {
                 setTextInput(event.target.value)
-                setTextPdf(null)
+                setTextLabel(null)
               }}
               rows={3}
               placeholder="Type a message"
@@ -340,29 +599,35 @@ export default function LabelCenter() {
             </button>
             <button
               type="button"
-              disabled={!textPdf || textBusy !== null}
+              disabled={!textLabel || textBusy !== null}
               onClick={() => void withTextPdf('print')}
               className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-border dark:bg-surface dark:text-slate-100 dark:hover:bg-surface-hover"
             >
-              {textBusy === 'print' ? 'Preparing…' : 'Print'}
+              {textBusy === 'print' ? (canPrintDirect ? 'Printing…' : 'Preparing…') : 'Print'}
             </button>
             <button
               type="button"
-              disabled={!textPdf || textBusy !== null}
+              disabled={!textLabel || textBusy !== null}
               onClick={() => void withTextPdf('download')}
               className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-border dark:bg-surface dark:text-slate-100 dark:hover:bg-surface-hover"
             >
               {textBusy === 'download' ? 'Preparing…' : 'Download PDF'}
             </button>
           </div>
+          <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">{printTarget}</p>
         </form>
 
         {textError && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{textError}</div>
         )}
+        {textNotice && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+            {textNotice}
+          </div>
+        )}
 
-        {textPdf && (
-          <LabelPdfPreview pdf={textPdf} captions={['Text label']} />
+        {textLabel && (
+          <LabelPdfPreview pdf={textLabel.pdf} captions={['Text label']} />
         )}
       </section>
     </div>

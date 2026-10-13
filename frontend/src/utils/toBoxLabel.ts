@@ -5,11 +5,14 @@ import { jsPDF } from 'jspdf'
 export const PAGE_WIDTH_PT = 162
 export const PAGE_HEIGHT_PT = 108
 
-/** Artwork was laid out on a 6×4 in page. Scale it onto the smaller stock. */
-const FROM_6X4 = PAGE_WIDTH_PT / 432
+/** PDF page size in points. Layouts assume a 3:2 page (2.25×1.5, 3×2, 6×4 in). */
+export type LabelPageSize = { width: number; height: number }
+export const DEFAULT_LABEL_PAGE: LabelPageSize = { width: PAGE_WIDTH_PT, height: PAGE_HEIGHT_PT }
 
-function fit(value: number): number {
-  return value * FROM_6X4
+/** Artwork was laid out on a 6×4 in page. Scale it onto the chosen stock. */
+function scaleFrom6x4(page: LabelPageSize): (value: number) => number {
+  const factor = page.width / 432
+  return (value) => value * factor
 }
 
 export const MAX_TO_BOX_LABELS = 200
@@ -104,22 +107,29 @@ function renderBarcodeDataUrl(value: string): string {
 /** Helvetica cap height, so the gaps are measured from the ink, not the baseline. */
 const CAP_HEIGHT = 0.718
 
-function drawToBoxLabel(doc: jsPDF, toNumber: string, boxNumber: number, barcode: string) {
+function drawToBoxLabel(
+  doc: jsPDF,
+  page: LabelPageSize,
+  toNumber: string,
+  boxNumber: number,
+  barcode: string,
+) {
+  const fit = scaleFrom6x4(page)
   const inset = fit(10)
   doc.setDrawColor(0, 0, 0)
   doc.setLineWidth(fit(2.4))
-  doc.roundedRect(inset, inset, PAGE_WIDTH_PT - inset * 2, PAGE_HEIGHT_PT - inset * 2, fit(16), fit(16))
+  doc.roundedRect(inset, inset, page.width - inset * 2, page.height - inset * 2, fit(16), fit(16))
 
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(0, 0, 0)
   let toFontSize = fit(58)
   doc.setFontSize(toFontSize)
-  while (toFontSize > fit(22) && doc.getTextWidth(toNumber) > PAGE_WIDTH_PT - fit(56)) {
+  while (toFontSize > fit(22) && doc.getTextWidth(toNumber) > page.width - fit(56)) {
     toFontSize -= fit(2)
     doc.setFontSize(toFontSize)
   }
   const toBaseline = fit(72)
-  doc.text(toNumber, PAGE_WIDTH_PT / 2, toBaseline, { align: 'center' })
+  doc.text(toNumber, page.width / 2, toBaseline, { align: 'center' })
 
   const boxFontSize = fit(46)
   const boxBaseline = fit(246)
@@ -128,7 +138,7 @@ function drawToBoxLabel(doc: jsPDF, toNumber: string, boxNumber: number, barcode
   const gap = (boxInkTop - toBaseline - barcodeHeight) / 2
   const barcodeY = toBaseline + gap
   const barcodeX = fit(20)
-  const barcodeWidth = PAGE_WIDTH_PT - fit(40)
+  const barcodeWidth = page.width - fit(40)
   doc.addImage(barcode, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight)
 
   const boxLabel = 'Box'
@@ -136,7 +146,7 @@ function drawToBoxLabel(doc: jsPDF, toNumber: string, boxNumber: number, barcode
   const numberText = String(boxNumber)
   const numberWidth = doc.getTextWidth(numberText)
   const underlineWidth = Math.max(fit(92), numberWidth + fit(20))
-  const right = PAGE_WIDTH_PT - fit(30)
+  const right = page.width - fit(30)
   const numberX = right - underlineWidth
   doc.text(boxLabel, numberX - fit(14), boxBaseline, { align: 'right' })
   doc.text(numberText, numberX + underlineWidth / 2, boxBaseline, { align: 'center' })
@@ -145,22 +155,26 @@ function drawToBoxLabel(doc: jsPDF, toNumber: string, boxNumber: number, barcode
 }
 
 /** One PDF page per box. The barcode encodes the TO number on every page. */
-export function buildToBoxLabelsPdf(toNumber: string, boxes: number[]): Uint8Array {
+export function buildToBoxLabelsPdf(
+  toNumber: string,
+  boxes: number[],
+  page: LabelPageSize = DEFAULT_LABEL_PAGE,
+): Uint8Array {
   if (boxes.length === 0) {
     throw new Error('Enter a box number, a range such as 1-10, or a list such as 1,2,8.')
   }
   const barcode = renderBarcodeDataUrl(toNumber)
   const doc = new jsPDF({
     unit: 'pt',
-    format: [PAGE_WIDTH_PT, PAGE_HEIGHT_PT],
+    format: [page.width, page.height],
     orientation: 'landscape',
     compress: true,
   })
   boxes.forEach((boxNumber, index) => {
     if (index > 0) {
-      doc.addPage([PAGE_WIDTH_PT, PAGE_HEIGHT_PT], 'landscape')
+      doc.addPage([page.width, page.height], 'landscape')
     }
-    drawToBoxLabel(doc, toNumber, boxNumber, barcode)
+    drawToBoxLabel(doc, page, toNumber, boxNumber, barcode)
   })
   return new Uint8Array(doc.output('arraybuffer'))
 }
