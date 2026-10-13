@@ -42,9 +42,17 @@ type ToolPanelProps = {
     totalQty: number
     shipmentId: string
   }>
+  children?: ReactNode
 }
 
-function ToolPanel({ title, description, expectedInput, defaultFilename, generate }: ToolPanelProps) {
+function ToolPanel({
+  title,
+  description,
+  expectedInput,
+  defaultFilename,
+  generate,
+  children,
+}: ToolPanelProps) {
   const [open, setOpen] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -270,6 +278,7 @@ function ToolPanel({ title, description, expectedInput, defaultFilename, generat
       <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm text-gray-600">
         {expectedInput}
       </div>
+      {children}
       </div>
       )}
     </section>
@@ -381,6 +390,184 @@ type CompareSummary = {
   removedQty: number
   lastBox: number
   shipmentId: string
+}
+
+function Tool2ManifestCompare() {
+  const [outputFile, setOutputFile] = useState<File | null>(null)
+  const [manifestFile, setManifestFile] = useState<File | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<CompareSummary | null>(null)
+  const [resultBlob, setResultBlob] = useState<Blob | null>(null)
+  const [resultFilename, setResultFilename] = useState('Box Contents - Corrected.xlsx')
+
+  const clearResult = useCallback(() => {
+    setError(null)
+    setSuccess(null)
+    setResultBlob(null)
+  }, [])
+
+  const reset = useCallback(() => {
+    setOutputFile(null)
+    setManifestFile(null)
+    clearResult()
+  }, [clearResult])
+
+  const handleCompare = useCallback(async () => {
+    if (!outputFile || !manifestFile || generating) return
+    setGenerating(true)
+    clearResult()
+    try {
+      const result = await fbaBoxContentsApi.compareTool2(outputFile, manifestFile)
+      setResultBlob(result.blob)
+      setResultFilename(result.filename)
+      setSuccess({
+        filename: result.filename,
+        rowCount: result.rowCount,
+        boxCount: result.boxCount,
+        upcCount: result.upcCount,
+        totalQty: result.totalQty,
+        remappedCount: result.remappedCount,
+        addedCount: result.addedCount,
+        addedQty: result.addedQty,
+        removedCount: result.removedCount,
+        removedQty: result.removedQty,
+        lastBox: result.lastBox,
+        shipmentId: result.shipmentId,
+      })
+      downloadBlob(result.blob, result.filename)
+    } catch (err: unknown) {
+      const ax = err as {
+        response?: { data?: Blob | { detail?: string } }
+        message?: string
+      }
+      let detail: string | undefined
+      const data = ax.response?.data
+      if (data instanceof Blob) {
+        try {
+          const text = await data.text()
+          const parsed = JSON.parse(text) as { detail?: string }
+          detail = parsed.detail
+        } catch {
+          detail = undefined
+        }
+      } else if (data && typeof data === 'object') {
+        detail = data.detail
+      }
+      setError(detail || ax.message || 'Failed to compare the Output to the manifest.')
+    } finally {
+      setGenerating(false)
+    }
+  }, [outputFile, manifestFile, generating, clearResult])
+
+  return (
+    <div className="space-y-4 border-t border-gray-200 pt-6">
+      <div>
+        <h3 className="text-base font-semibold text-gray-900">Manifest Compare &amp; Correct</h3>
+        <p className="mt-1 text-sm text-gray-600">
+          Upload the NFA and SMW <strong>Output</strong> file and the Amazon Seller Central{' '}
+          <strong>manifest</strong> (source of truth). Missing quantities are added to the{' '}
+          <strong>last box</strong>, highlighted in <span className="bg-yellow-200 px-1">yellow</span>,
+          and a corrected workbook is downloaded.
+        </p>
+      </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+          Downloaded <strong>{success.filename}</strong> ({success.rowCount} line
+          {success.rowCount === 1 ? '' : 's'}, {success.boxCount} box
+          {success.boxCount === 1 ? '' : 'es'}, {success.totalQty} units
+          {success.remappedCount
+            ? `, ${success.remappedCount} Old SKU remap${success.remappedCount === 1 ? '' : 's'}`
+            : ''}
+          {success.addedCount ? `, +${success.addedQty} in box ${success.lastBox}` : ''}
+          {success.removedQty ? `, −${success.removedQty} removed` : ''}
+          {success.shipmentId ? `, ${success.shipmentId}` : ''}).
+        </div>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FileSlot
+          label="1. Output"
+          hint="NFA and SMW Output.xlsx (Box Contents + Dimensions)"
+          file={outputFile}
+          onFile={(f) => {
+            clearResult()
+            setOutputFile(f)
+          }}
+          onInvalid={setError}
+        />
+        <FileSlot
+          label="2. Manifest"
+          hint="Seller Central Box packing information.xlsx"
+          file={manifestFile}
+          onFile={(f) => {
+            clearResult()
+            setManifestFile(f)
+          }}
+          onInvalid={setError}
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          disabled={!outputFile || !manifestFile || generating}
+          onClick={() => void handleCompare()}
+          className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+        >
+          {generating ? 'Comparing…' : 'Compare & download corrected'}
+        </button>
+        {resultBlob && (
+          <button
+            type="button"
+            onClick={() => downloadBlob(resultBlob, resultFilename)}
+            className="rounded-md border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100"
+          >
+            Download again
+          </button>
+        )}
+        {(outputFile || manifestFile) && (
+          <button
+            type="button"
+            onClick={reset}
+            disabled={generating}
+            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm text-gray-600">
+        <h4 className="font-semibold text-gray-900">How it works</h4>
+        <ul className="mt-2 list-disc space-y-1 pl-5">
+          <li>
+            The <strong>manifest</strong> expected quantities and SKUs are the source of truth.
+          </li>
+          <li>
+            Output rows are kept as packed. Missing SKUs / shortfall quantities are appended as new
+            rows in the <strong>last box</strong>, highlighted yellow, and listed in the E–G summary
+            (shipment id, Box #, Qty); the Sum of QTY pivot moves to column I.
+          </li>
+          <li>
+            UPCs that map to an Old SKU on the manifest (via the catalog) are remapped and
+            highlighted yellow. Units the manifest does not expect are removed.
+          </li>
+          <li>Dimensions are copied unchanged from the Output.</li>
+          <li>
+            Download named <code>{'{shipment_id} - Corrected.xlsx'}</code>, for example{' '}
+            <code>FBA19RL0N7D1 - Corrected.xlsx</code>.
+          </li>
+        </ul>
+      </div>
+    </div>
+  )
 }
 
 function DnkToolPanel() {
@@ -911,7 +1098,9 @@ export default function FbaBoxContents() {
           </ul>
           </>
         }
-      />
+      >
+        <Tool2ManifestCompare />
+      </ToolPanel>
 
       <ToolPanel
         title="OBZ Tool"

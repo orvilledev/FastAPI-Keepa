@@ -604,6 +604,8 @@ def reconcile_to_amz(
     rows: Sequence[ContentRow],
     amz: ParsedAmz,
     upc_to_old_sku: Mapping[str, str],
+    *,
+    preserve_rows: bool = False,
 ) -> Reconciliation:
     """Force Box Contents totals to equal the AMZ expected quantities.
 
@@ -615,6 +617,10 @@ def reconcile_to_amz(
     the highest box numbers first but never take a box below
     ``MIN_UNITS_PER_BOX``, and any box left empty by units the AMZ file does not
     expect is seeded from the units being added.
+
+    With ``preserve_rows=True`` the Output rows stay as packed: zero-quantity
+    lines are kept, and every added unit becomes its own row after the existing
+    rows of its box instead of topping up a matching row.
     """
     targets: dict[str, int | float] = {}
     for sku in amz.skus:
@@ -669,6 +675,7 @@ def reconcile_to_amz(
     box_totals: dict[int, int | float] = {box: 0 for box in box_numbers}
     for row in work:
         box_totals[row.box_number] += row.qty
+    zero_rows = {id(row) for row in work if not row.qty} if preserve_rows else set()
 
     def take_from(index: int, take: int | float) -> None:
         work[index].qty -= take
@@ -719,7 +726,10 @@ def reconcile_to_amz(
             take_from(index, take)
             surplus -= take
 
-    kept = [row for row in work if row.qty]
+    def is_kept(row: _WorkRow) -> bool:
+        return bool(row.qty) or id(row) in zero_rows
+
+    kept = [row for row in work if is_kept(row)]
     # Placements are decided before any row is touched so the "added units" tab
     # reports the box each unit actually lands in.
     placements: list[AdjustmentRow] = []
@@ -780,7 +790,7 @@ def reconcile_to_amz(
     for placement in placements:
         slot = (placement.identifier, placement.box_number)
         existing = existing_rows.get(slot)
-        if existing is not None:
+        if existing is not None and (not preserve_rows or existing.added):
             existing.qty += placement.qty
             existing.added = True
             continue
@@ -794,7 +804,7 @@ def reconcile_to_amz(
         appended.append(new_row)
 
     # Seeding can target any box, so re-sort to keep the Output's box ordering.
-    rows_out = [row for row in kept if row.qty] + appended
+    rows_out = [row for row in kept if is_kept(row)] + appended
     sequence = {id(row): index for index, row in enumerate(rows_out)}
     rows_out.sort(key=lambda row: (row.box_number, sequence[id(row)]))
 

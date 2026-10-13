@@ -40,6 +40,12 @@ from app.services.fba_box_contents_tool2 import (
     generate_fba_box_contents_tool2,
     sanitize_download_filename as sanitize_tool2_download_filename,
 )
+from app.services.fba_box_contents_tool2_compare import (
+    FbaBoxContentsTool2CompareError,
+    generate_tool2_manifest_compare,
+    parse_manifest as parse_tool2_manifest,
+    parse_tool2_output,
+)
 from app.utils.error_handler import handle_api_errors
 
 logger = logging.getLogger(__name__)
@@ -133,6 +139,76 @@ async def generate_fba_box_contents_tool2_file(
         content=result.file_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers=_response_headers(safe_name, result),
+    )
+
+
+@router.post("/fba-box-contents/compare-tool2", response_model=None)
+@limiter.limit(RateLimits.FILE_UPLOAD)
+@handle_api_errors("compare NFA and SMW Output to manifest")
+async def compare_tool2_output_to_manifest(
+    request: Request,
+    output_file: UploadFile = File(..., description="NFA and SMW Tool Output.xlsx"),
+    manifest_file: UploadFile = File(..., description="Amazon Seller Central manifest.xlsx"),
+    current_user=Depends(get_fba_box_contents_user),
+    db: Client = Depends(get_supabase),
+):
+    """NFA and SMW Tool — compare the Output to the manifest and download the corrected workbook."""
+    _ = current_user
+    _validate_upload(output_file)
+    _validate_upload(manifest_file)
+
+    output_raw = await output_file.read()
+    if not output_raw:
+        raise HTTPException(status_code=400, detail="Output file is empty.")
+    if len(output_raw) > _MAX_BYTES:
+        raise HTTPException(status_code=400, detail="Output file is too large (max 15 MB).")
+
+    manifest_raw = await manifest_file.read()
+    if not manifest_raw:
+        raise HTTPException(status_code=400, detail="Manifest file is empty.")
+    if len(manifest_raw) > _MAX_BYTES:
+        raise HTTPException(status_code=400, detail="Manifest file is too large (max 15 MB).")
+
+    try:
+        parsed_output = parse_tool2_output(output_raw)
+        parsed_manifest = parse_tool2_manifest(manifest_raw)
+    except FbaBoxContentsTool2CompareError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    output_upcs = sorted({row.identifier for row in parsed_output.rows})
+    amz_ids = sorted({row.sku_id for row in parsed_manifest.skus})
+    repo = CatalogOldSkusRepository(db)
+    try:
+        catalog_rows = repo.lookup_by_upcs_and_old_skus(output_upcs, amz_ids)
+    except Exception as exc:
+        logger.error("Old SKUs lookup failed for NFA and SMW compare: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to look up Old SKUs catalog mappings.",
+        ) from exc
+
+    try:
+        result = generate_tool2_manifest_compare(
+            output_raw,
+            manifest_raw,
+            catalog_rows,
+            output_filename=output_file.filename,
+        )
+    except FbaBoxContentsTool2CompareError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return Response(
+        content=result.file_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            **_response_headers(result.filename, result),
+            "X-Fba-Remapped-Count": str(result.remapped_count),
+            "X-Fba-Added-Count": str(result.added_count),
+            "X-Fba-Added-Qty": str(result.added_qty),
+            "X-Fba-Removed-Count": str(result.removed_count),
+            "X-Fba-Removed-Qty": str(result.removed_qty),
+            "X-Fba-Last-Box": str(result.last_box),
+        },
     )
 
 
