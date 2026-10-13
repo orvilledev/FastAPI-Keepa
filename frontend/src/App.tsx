@@ -16,6 +16,7 @@ import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/common/ProtectedRoute'
 import WarehouseRouteGuard from './components/common/WarehouseRouteGuard'
 import MfaGate from './components/auth/MfaGate'
+import NightlyStationLogout from './components/auth/NightlyStationLogout'
 import About from './components/About'
 import Maintenance from './components/Maintenance'
 import DesktopUpdateOverlay from './components/desktop/DesktopUpdateOverlay'
@@ -272,6 +273,7 @@ function PrivateLayout() {
   return (
     <MfaGate>
       <IdleMfaGuard />
+      <NightlyStationLogout />
       <TrackingScanProvider>
         <WarehouseRouteGuard>
           <Layout />

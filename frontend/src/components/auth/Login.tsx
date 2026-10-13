@@ -6,6 +6,7 @@ import { recordWebAuditEvent } from '../../lib/auditEvents'
 import ThemeSelector from '../common/ThemeSelector'
 import AppLogo from '../common/AppLogo'
 import { WAREHOUSE_HOME_PATH } from '../../constants/warehouseAccess'
+import { markNightlyFreshLogin } from '../../lib/nightlyStationLogout'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -73,6 +74,7 @@ export default function Login() {
       })
 
       if (signInError) throw signInError
+      markNightlyFreshLogin(email)
       await routeAfterPasswordSignIn()
     } catch (loginError: unknown) {
       const message = loginError instanceof Error ? loginError.message : 'Failed to login'
