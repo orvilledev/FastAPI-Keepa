@@ -1397,8 +1397,8 @@ export default function FbaBoxContents() {
           </>
         }
       >
-        <Tool2CartonNumbers />
         <Tool2ManifestCompare />
+        <Tool2CartonNumbers />
       </ToolPanel>
 
       <ToolPanel
