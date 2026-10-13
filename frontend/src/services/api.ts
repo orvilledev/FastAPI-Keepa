@@ -1859,6 +1859,17 @@ export type FbaBoxContentsResult = {
   shipmentId: string
 }
 
+export type FbaCartonNumbersShipment = { shipmentId: string; boxCount: number }
+
+export type FbaCartonNumbersResult = {
+  blob: Blob
+  filename: string
+  shipmentCount: number
+  boxCount: number
+  skippedCount: number
+  shipments: FbaCartonNumbersShipment[]
+}
+
 export type FbaBoxContentsDnkCompareResult = FbaBoxContentsResult & {
   remappedCount: number
   addedCount: number
@@ -1927,6 +1938,49 @@ export const fbaBoxContentsApi = {
         upcCount: Number(headers['x-fba-upc-count'] || 0),
         totalQty: Number(headers['x-fba-total-qty'] || 0),
         shipmentId: String(headers['x-fba-shipment-id'] || ''),
+      }
+    } catch (err: unknown) {
+      return readBlobError(err)
+    }
+  },
+
+  /** NFA and SMW Tool — carton dumps (loose or in .zip) into a Carton Numbers workbook. */
+  generateCartonNumbers: async (files: File[]): Promise<FbaCartonNumbersResult> => {
+    const form = new FormData()
+    files.forEach((file) => form.append('files', file))
+    try {
+      const response = await api.post<Blob>(
+        '/api/v1/fba-box-contents/generate-carton-numbers',
+        form,
+        { responseType: 'blob', timeout: 180_000 },
+      )
+      const headers = response.headers || {}
+      const filenameHeader = headers['x-fba-filename']
+      const disposition = headers['content-disposition'] as string | undefined
+      let filename =
+        (typeof filenameHeader === 'string' && filenameHeader.trim()) || 'Carton Numbers.xlsx'
+      if ((!filenameHeader || !String(filenameHeader).trim()) && disposition) {
+        const match = /filename="?([^";]+)"?/i.exec(disposition)
+        if (match?.[1]) filename = match[1]
+      }
+      const shipments = String(headers['x-fba-shipment-summary'] || '')
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .map((part) => {
+          const split = part.lastIndexOf(':')
+          return {
+            shipmentId: split >= 0 ? part.slice(0, split) : part,
+            boxCount: split >= 0 ? Number(part.slice(split + 1)) || 0 : 0,
+          }
+        })
+      return {
+        blob: response.data,
+        filename,
+        shipmentCount: Number(headers['x-fba-shipment-count'] || 0),
+        boxCount: Number(headers['x-fba-box-count'] || 0),
+        skippedCount: Number(headers['x-fba-skipped-count'] || 0),
+        shipments,
       }
     } catch (err: unknown) {
       return readBlobError(err)

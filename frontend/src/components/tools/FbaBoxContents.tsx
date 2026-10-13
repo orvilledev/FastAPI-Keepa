@@ -392,6 +392,304 @@ type CompareSummary = {
   shipmentId: string
 }
 
+const CARTON_ACCEPTED =
+  `${ACCEPTED},.zip,application/zip,application/x-zip-compressed`
+const CARTON_FILE_PATTERN = /\.(xls|xlsx|xlsm|zip)$/i
+const MAX_CARTON_FILES = 100
+
+type CartonNumbersSummary = {
+  filename: string
+  shipmentCount: number
+  boxCount: number
+  skippedCount: number
+  shipments: Array<{ shipmentId: string; boxCount: number }>
+}
+
+function cartonFileKey(file: File): string {
+  return `${file.name}:${file.size}:${file.lastModified}`
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`
+}
+
+function Tool2CartonNumbers() {
+  const [files, setFiles] = useState<File[]>([])
+  const [isDragging, setIsDragging] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<CartonNumbersSummary | null>(null)
+  const [resultBlob, setResultBlob] = useState<Blob | null>(null)
+  const [resultFilename, setResultFilename] = useState('Carton Numbers.xlsx')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const clearResult = useCallback(() => {
+    setError(null)
+    setSuccess(null)
+    setResultBlob(null)
+  }, [])
+
+  const reset = useCallback(() => {
+    setFiles([])
+    clearResult()
+    if (inputRef.current) inputRef.current.value = ''
+  }, [clearResult])
+
+  const addFiles = useCallback(
+    (incoming: File[]) => {
+      clearResult()
+      if (incoming.length === 0) return
+      const unsupported = incoming.filter((file) => !CARTON_FILE_PATTERN.test(file.name))
+      const supported = incoming.filter((file) => CARTON_FILE_PATTERN.test(file.name))
+      let message: string | null = null
+      if (unsupported.length > 0) {
+        message = `Only .xls, .xlsx, or .zip files are supported. Skipped: ${unsupported
+          .map((file) => file.name)
+          .join(', ')}.`
+      }
+      const seen = new Set(files.map(cartonFileKey))
+      let next = [...files]
+      for (const file of supported) {
+        const key = cartonFileKey(file)
+        if (!seen.has(key)) {
+          seen.add(key)
+          next.push(file)
+        }
+      }
+      if (next.length > MAX_CARTON_FILES) {
+        message = `Upload at most ${MAX_CARTON_FILES} files at a time. Extra files were not added.`
+        next = next.slice(0, MAX_CARTON_FILES)
+      }
+      setFiles(next)
+      if (message) setError(message)
+    },
+    [files, clearResult],
+  )
+
+  const removeFile = useCallback(
+    (index: number) => {
+      clearResult()
+      setFiles((current) => current.filter((_, position) => position !== index))
+    },
+    [clearResult],
+  )
+
+  const handleGenerate = useCallback(async () => {
+    if (files.length === 0 || generating) return
+    setGenerating(true)
+    clearResult()
+    try {
+      const result = await fbaBoxContentsApi.generateCartonNumbers(files)
+      setResultBlob(result.blob)
+      setResultFilename(result.filename)
+      setSuccess({
+        filename: result.filename,
+        shipmentCount: result.shipmentCount,
+        boxCount: result.boxCount,
+        skippedCount: result.skippedCount,
+        shipments: result.shipments,
+      })
+      downloadBlob(result.blob, result.filename)
+    } catch (err: unknown) {
+      const ax = err as {
+        response?: { data?: Blob | { detail?: string } }
+        message?: string
+      }
+      let detail: string | undefined
+      const data = ax.response?.data
+      if (data instanceof Blob) {
+        try {
+          const text = await data.text()
+          const parsed = JSON.parse(text) as { detail?: string }
+          detail = parsed.detail
+        } catch {
+          detail = undefined
+        }
+      } else if (data && typeof data === 'object') {
+        detail = data.detail
+      }
+      setError(detail || ax.message || 'Failed to generate the Carton Numbers workbook.')
+    } finally {
+      setGenerating(false)
+    }
+  }, [files, generating, clearResult])
+
+  return (
+    <div className="space-y-4 border-t border-gray-200 pt-6">
+      <div>
+        <h3 className="text-base font-semibold text-gray-900">Carton Numbers</h3>
+        <p className="mt-1 text-sm text-gray-600">
+          Upload one or more carton files, or a <strong>.zip</strong> of them. Each shipment becomes
+          its own sheet in one <strong>Carton Numbers</strong> workbook, and every{' '}
+          <code>Carton#:</code> barcode is numbered as Box Number 1, 2, 3… in the order it appears.
+        </p>
+      </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="space-y-2 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+          <p>
+            Downloaded <strong>{success.filename}</strong> ({success.shipmentCount} shipment
+            {success.shipmentCount === 1 ? '' : 's'}, {success.boxCount} box
+            {success.boxCount === 1 ? '' : 'es'}).
+          </p>
+          {success.shipments.length > 0 && (
+            <ul className="grid gap-x-6 gap-y-0.5 text-xs sm:grid-cols-2">
+              {success.shipments.map((shipment, index) => (
+                <li key={`${shipment.shipmentId}-${index}`}>
+                  <span className="font-medium">{shipment.shipmentId}</span> — {shipment.boxCount} box
+                  {shipment.boxCount === 1 ? '' : 'es'}
+                </li>
+              ))}
+            </ul>
+          )}
+          {success.skippedCount > 0 && (
+            <p className="text-xs text-green-900">
+              {success.skippedCount} other file{success.skippedCount === 1 ? '' : 's'} inside the
+              zip {success.skippedCount === 1 ? 'was' : 'were'} not Excel and{' '}
+              {success.skippedCount === 1 ? 'was' : 'were'} ignored.
+            </p>
+          )}
+        </div>
+      )}
+
+      <div
+        className={`rounded-xl border-2 border-dashed p-6 text-center transition-colors ${
+          isDragging
+            ? 'border-indigo-500 bg-indigo-50'
+            : 'border-gray-300 bg-gray-50 hover:border-gray-400'
+        }`}
+        onDragOver={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsDragging(true)
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsDragging(false)
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsDragging(false)
+          addFiles(Array.from(e.dataTransfer.files ?? []))
+        }}
+      >
+        <p className="text-sm text-gray-600">
+          Drag and drop <strong>.xls</strong>, <strong>.xlsx</strong>, or <strong>.zip</strong> files
+          here, or
+        </p>
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          accept={CARTON_ACCEPTED}
+          className="hidden"
+          onChange={(e) => {
+            addFiles(Array.from(e.target.files ?? []))
+            if (inputRef.current) inputRef.current.value = ''
+          }}
+        />
+
+        {files.length > 0 && (
+          <div className="mx-auto mt-4 max-w-xl text-left">
+            <p className="text-sm font-medium text-gray-800">
+              {files.length} file{files.length === 1 ? '' : 's'} selected
+            </p>
+            <ul className="mt-2 max-h-48 divide-y divide-gray-200 overflow-y-auto rounded-lg border border-gray-200 bg-white">
+              {files.map((file, index) => (
+                <li
+                  key={cartonFileKey(file)}
+                  className="flex items-center justify-between gap-3 px-3 py-1.5 text-sm"
+                >
+                  <span className="min-w-0 flex-1 truncate text-gray-800" title={file.name}>
+                    {file.name}
+                  </span>
+                  <span className="shrink-0 text-xs text-gray-500">{formatFileSize(file.size)}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeFile(index)}
+                    disabled={generating}
+                    aria-label={`Remove ${file.name}`}
+                    className="shrink-0 rounded px-1.5 text-gray-500 hover:bg-gray-100 hover:text-red-600 disabled:opacity-50"
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={generating}
+            className="rounded-md bg-[#404040] px-4 py-2 text-sm font-medium text-white hover:bg-black disabled:opacity-50"
+          >
+            {files.length > 0 ? 'Add files' : 'Upload files'}
+          </button>
+          <button
+            type="button"
+            disabled={files.length === 0 || generating}
+            onClick={() => void handleGenerate()}
+            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {generating ? 'Generating…' : 'Generate & download'}
+          </button>
+          {resultBlob && (
+            <button
+              type="button"
+              onClick={() => downloadBlob(resultBlob, resultFilename)}
+              className="rounded-md border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100"
+            >
+              Download again
+            </button>
+          )}
+          {files.length > 0 && (
+            <button
+              type="button"
+              onClick={reset}
+              disabled={generating}
+              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm text-gray-600">
+        <h4 className="font-semibold text-gray-900">How it works</h4>
+        <ul className="mt-2 list-disc space-y-1 pl-5">
+          <li>
+            Use the same carton files as the Output above (first row <code>PO#:</code> and the FBA
+            shipment id, then <code>Carton#:</code> blocks). Upload several at once, or one zip.
+          </li>
+          <li>
+            One sheet per shipment, named by its FBA id. Columns: <code>Original Carton</code>{' '}
+            (<code>Carton#:</code>), the carton barcode kept as text, and <code>Box Number</code>.
+          </li>
+          <li>
+            Sheets follow the order of your files. Each shipment can be uploaded once, and its box
+            count must match the file&apos;s <code>Total Ctns</code> footer.
+          </li>
+          <li>
+            Download named <code>Carton Numbers.xlsx</code>.
+          </li>
+        </ul>
+      </div>
+    </div>
+  )
+}
+
 function Tool2ManifestCompare() {
   const [outputFile, setOutputFile] = useState<File | null>(null)
   const [manifestFile, setManifestFile] = useState<File | null>(null)
@@ -1099,6 +1397,7 @@ export default function FbaBoxContents() {
           </>
         }
       >
+        <Tool2CartonNumbers />
         <Tool2ManifestCompare />
       </ToolPanel>
 

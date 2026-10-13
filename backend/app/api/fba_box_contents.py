@@ -9,6 +9,12 @@ from app.database import get_supabase
 from app.dependencies import get_fba_box_contents_user
 from app.middleware.rate_limiter import RateLimits, limiter
 from app.repositories.catalog_old_skus_repository import CatalogOldSkusRepository
+from app.services.fba_carton_numbers import (
+    MAX_ARCHIVE_BYTES as CARTON_NUMBERS_MAX_ARCHIVE_BYTES,
+    MAX_FILES as CARTON_NUMBERS_MAX_FILES,
+    FbaCartonNumbersError,
+    generate_carton_numbers,
+)
 from app.services.fba_box_contents import (
     DEFAULT_OUTPUT_FILENAME,
     FbaBoxContentsError,
@@ -139,6 +145,72 @@ async def generate_fba_box_contents_tool2_file(
         content=result.file_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers=_response_headers(safe_name, result),
+    )
+
+
+def _carton_numbers_summary(shipments) -> str:
+    """``FBA19AAA:46,FBA19BBB:52`` — ASCII-only so it is safe in a response header."""
+    parts = []
+    for shipment in shipments:
+        shipment_id = shipment.shipment_id.encode("ascii", "replace").decode("ascii")
+        shipment_id = shipment_id.replace(",", " ").replace(":", " ").strip()
+        parts.append(f"{shipment_id}:{len(shipment.carton_ids)}")
+    return ",".join(parts)
+
+
+@router.post("/fba-box-contents/generate-carton-numbers", response_model=None)
+@limiter.limit(RateLimits.FILE_UPLOAD)
+@handle_api_errors("generate NFA and SMW Carton Numbers workbook")
+async def generate_carton_numbers_file(
+    request: Request,
+    files: list[UploadFile] = File(..., description="FBA carton dumps (.xls/.xlsx) or .zip archives"),
+    current_user=Depends(get_fba_box_contents_user),
+):
+    """NFA and SMW Tool — carton dumps into a Carton Numbers workbook (one sheet per shipment)."""
+    _ = current_user
+    if not files:
+        raise HTTPException(status_code=400, detail="No files were uploaded.")
+    if len(files) > CARTON_NUMBERS_MAX_FILES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Upload at most {CARTON_NUMBERS_MAX_FILES} files at a time.",
+        )
+
+    uploads: list[tuple[str, bytes]] = []
+    for file in files:
+        name = file.filename or "upload"
+        limit = CARTON_NUMBERS_MAX_ARCHIVE_BYTES if name.lower().endswith(".zip") else _MAX_BYTES
+        if file.size is not None and file.size > limit:
+            raise HTTPException(
+                status_code=400,
+                detail=f'"{name}" is too large (max {limit // (1024 * 1024)} MB).',
+            )
+        raw = await file.read()
+        if not raw:
+            raise HTTPException(status_code=400, detail=f'"{name}" is empty.')
+        if len(raw) > limit:
+            raise HTTPException(
+                status_code=400,
+                detail=f'"{name}" is too large (max {limit // (1024 * 1024)} MB).',
+            )
+        uploads.append((name, raw))
+
+    try:
+        result = generate_carton_numbers(uploads)
+    except FbaCartonNumbersError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return Response(
+        content=result.file_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="{result.filename}"',
+            "X-Fba-Filename": result.filename,
+            "X-Fba-Box-Count": str(result.box_count),
+            "X-Fba-Shipment-Count": str(result.shipment_count),
+            "X-Fba-Skipped-Count": str(result.skipped_count),
+            "X-Fba-Shipment-Summary": _carton_numbers_summary(result.shipments),
+        },
     )
 
 

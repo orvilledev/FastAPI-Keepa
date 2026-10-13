@@ -168,6 +168,7 @@ def test_handler_logged_routes_are_not_double_logged(method, path):
         ("POST", "/api/v1/fnsku-box-pivot/generate", "fnsku_box_pivot.generate", "tool"),
         ("POST", "/api/v1/fba-box-contents/generate", "fba_box_contents.generate", "tool"),
         ("POST", "/api/v1/fba-box-contents/generate-tool2", "fba_box_contents.generate_tool2", "tool"),
+        ("POST", "/api/v1/fba-box-contents/generate-carton-numbers", "fba_box_contents.generate_carton_numbers", "tool"),
         ("POST", "/api/v1/fba-box-contents/generate-obz", "fba_box_contents.generate_obz", "tool"),
         ("POST", "/api/v1/fba-box-contents/generate-dnk", "fba_box_contents.generate_dnk", "tool"),
         ("POST", "/api/v1/warehouse-products/check-skus", "warehouse.check_skus", "tool"),
