@@ -1,0 +1,22 @@
+MSW Overwatch 3.7.0 — desktop and web release
+
+Feature release since 3.6.9. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## NFA and SMW Tool
+- **Manifest Compare and Correct** adjusts Output quantities so they match the manifest
+- **Carton Numbers** turns several carton files, or a zip of them, into one workbook of box numbers
+- Carton Numbers sits below Manifest Compare and Correct
+
+## Label Center
+- Choose the stock size and send labels straight to a selected Zebra so the wrong printer cannot print extra pages
+
+## Maintenance
+- An upcoming maintenance banner appears across the app
+- Enabling or scheduling maintenance shows a confirmation with the MSW Overwatch logo
+- Start and end times include the weekday and stay highlighted
+
+## Shared stations
+- The two shared station accounts sign out at 1:00 AM Central, with reminders beforehand, and stay password-only
+
+## Upgrade from 3.6.9
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.7.0, download it, then prompt to install now or later. Web/PWA users get 3.7.0 on the next deploy/refresh.
