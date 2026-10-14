@@ -1,5 +1,6 @@
 import { createWorker } from 'tesseract.js'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
+import { pdfWorkerSrcWithPolyfill } from '../lib/uint8ArrayBinary'
 import {
   BinaryBitmap,
   BarcodeFormat,
@@ -12,10 +13,9 @@ import {
 import JSZip from 'jszip'
 import * as XLSX from 'xlsx-js-style'
 
-GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url
-).toString()
+GlobalWorkerOptions.workerSrc = pdfWorkerSrcWithPolyfill(
+  new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString(),
+)
 
 export type TrackingScannerRow = {
   source_file: string

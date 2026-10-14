@@ -1,3 +1,4 @@
+import '../../lib/uint8ArrayBinary'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getDocument } from 'pdfjs-dist'
 import 'pdfjs-dist/build/pdf.worker.mjs'

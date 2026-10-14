@@ -1,3 +1,4 @@
+import '../lib/uint8ArrayBinary'
 import { getDocument } from 'pdfjs-dist'
 import type { LabelPageSize } from './toBoxLabel'
 import { DEFAULT_LABEL_DPI, SUPPORTED_DPIS, type LabelDpi } from './warehouseLabel'
