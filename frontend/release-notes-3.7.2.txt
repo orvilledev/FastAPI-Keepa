@@ -1,0 +1,13 @@
+MSW Overwatch 3.7.2 — desktop and web release
+
+Patch release since 3.7.1. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Label Center
+- Label previews draw in the desktop app, and labels print to the selected Zebra
+- Fixes the "i.toHex is not a function" and "getOrInsertComputed is not a function" errors by using a PDF engine built for the desktop app's browser, so this kind of error does not come back one method at a time
+
+## Tracking Scanner
+- Uses the same PDF engine, so PDF reading behaves the same on the desktop app and the web
+
+## Upgrade from 3.7.1
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.7.2, download it, then prompt to install now or later. Web/PWA users get 3.7.2 on the next deploy/refresh.
