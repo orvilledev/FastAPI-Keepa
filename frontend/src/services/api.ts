@@ -3002,6 +3002,7 @@ export type FbaShipmentLine = {
   counted: number
   missing: number
   status: string
+  not_in_list?: boolean
 }
 
 export type FbaShipmentUploadList = {
@@ -3014,6 +3015,7 @@ export type FbaShipmentUploadList = {
 export type FbaShipmentDetail = {
   upload: FbaShipmentUpload
   lines: FbaShipmentLine[]
+  unknown_lines?: FbaShipmentLine[]
   total: number
   limit: number
   offset: number

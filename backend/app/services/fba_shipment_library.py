@@ -21,6 +21,7 @@ def strip_upc_label(value: str) -> str:
 STATUS_MISSING = "Missing Items"
 STATUS_ACCOUNTED = "All Accounted"
 STATUS_OVERAGE = "Overage"
+STATUS_NOT_IN_LIST = "Not in the list"
 
 
 def count_progress(shipped: int, counted: int) -> tuple[int, str]:

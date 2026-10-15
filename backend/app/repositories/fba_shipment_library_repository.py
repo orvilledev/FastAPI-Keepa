@@ -13,9 +13,11 @@ logger = logging.getLogger(__name__)
 _UPLOADS = "fba_shipment_uploads"
 _LINES = "fba_shipment_lines"
 _COUNTS = "fba_shipment_counts"
+_UNKNOWNS = "fba_shipment_unknown_scans"
 _MIGRATION_HINT = (
-    "Run backend/database/migrations/create_fba_shipment_library.sql "
-    "and create_fba_shipment_counts.sql in the Supabase SQL Editor."
+    "Run backend/database/migrations/create_fba_shipment_library.sql, "
+    "create_fba_shipment_counts.sql, and create_fba_shipment_unknown_scans.sql "
+    "in the Supabase SQL Editor."
 )
 _INSERT_CHUNK = 500
 
@@ -49,7 +51,7 @@ def _raise_persist_error(exc: Exception) -> None:
         or "could not find the table" in message
     )
     if missing_table and (
-        _UPLOADS in message or _LINES in message or _COUNTS in message or "relation" in message
+        _UPLOADS in message or _LINES in message or _COUNTS in message or _UNKNOWNS in message or "relation" in message
     ):
         raise ValueError(f"The FBA Shipment Library tables are missing. {_MIGRATION_HINT}") from exc
     if "row-level security" in message or "permission denied" in message:
@@ -234,6 +236,86 @@ class FbaShipmentLibraryRepository:
                 _raise_persist_error(exc)
             if updated.data:
                 return current + 1
+        raise ValueError("Could not record that scan. Scan it again.")
+
+    def list_unknown_scans(self, upload_id: str, user_id: str) -> List[dict]:
+        if not upload_id or not user_id:
+            return []
+        try:
+            response = (
+                self.db.table(_UNKNOWNS)
+                .select("*")
+                .eq("upload_id", upload_id)
+                .eq("user_id", user_id)
+                .order("updated_at", desc=True)
+                .execute()
+            )
+        except Exception as exc:
+            if _is_missing_table(exc):
+                return []
+            _raise_persist_error(exc)
+        return list(response.data or [])
+
+    def increment_unknown_scan(self, upload_id: str, user_id: str, external_id: str) -> dict:
+        """Record a barcode that is not on this shipment. Each scan adds 1."""
+        for _ in range(5):
+            try:
+                existing = (
+                    self.db.table(_UNKNOWNS)
+                    .select("id, counted, external_id")
+                    .eq("upload_id", upload_id)
+                    .eq("user_id", user_id)
+                    .eq("external_id", external_id)
+                    .limit(1)
+                    .execute()
+                )
+            except Exception as exc:
+                _raise_persist_error(exc)
+            rows = existing.data or []
+            if not rows:
+                try:
+                    created = (
+                        self.db.table(_UNKNOWNS)
+                        .insert(
+                            {
+                                "upload_id": upload_id,
+                                "user_id": user_id,
+                                "external_id": external_id,
+                                "counted": 1,
+                            }
+                        )
+                        .execute()
+                    )
+                    saved = (created.data or [None])[0]
+                    if saved:
+                        return saved
+                    return {
+                        "id": "",
+                        "external_id": external_id,
+                        "counted": 1,
+                    }
+                except Exception as exc:
+                    if _is_unique_violation(exc):
+                        continue
+                    _raise_persist_error(exc)
+            current = int(rows[0].get("counted") or 0)
+            try:
+                updated = (
+                    self.db.table(_UNKNOWNS)
+                    .update(
+                        {
+                            "counted": current + 1,
+                            "updated_at": datetime.now(timezone.utc).isoformat(),
+                        }
+                    )
+                    .eq("id", rows[0]["id"])
+                    .eq("counted", current)
+                    .execute()
+                )
+            except Exception as exc:
+                _raise_persist_error(exc)
+            if updated.data:
+                return updated.data[0]
         raise ValueError("Could not record that scan. Scan it again.")
 
     def delete_upload(self, upload_id: str) -> None:

@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from app.services.fba_shipment_library import count_progress, strip_upc_label
+from app.services.fba_shipment_library import STATUS_NOT_IN_LIST, count_progress, strip_upc_label
 
 
 class FbaShipmentUploadResponse(BaseModel):
@@ -32,6 +32,7 @@ class FbaShipmentLineResponse(BaseModel):
     counted: int = 0
     missing: int = 0
     status: str = "Missing Items"
+    not_in_list: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -42,6 +43,10 @@ class FbaShipmentLineResponse(BaseModel):
 
     @model_validator(mode="after")
     def _fill_count_progress(self) -> "FbaShipmentLineResponse":
+        if self.not_in_list:
+            self.missing = 0
+            self.status = STATUS_NOT_IN_LIST
+            return self
         self.missing, self.status = count_progress(self.shipped, self.counted)
         return self
 
@@ -56,6 +61,7 @@ class FbaShipmentUploadListResponse(BaseModel):
 class FbaShipmentDetailResponse(BaseModel):
     upload: FbaShipmentUploadResponse
     lines: List[FbaShipmentLineResponse]
+    unknown_lines: List[FbaShipmentLineResponse] = []
     total: int
     limit: int
     offset: int

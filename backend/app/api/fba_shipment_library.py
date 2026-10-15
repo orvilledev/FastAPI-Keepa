@@ -72,6 +72,18 @@ def _creator_snapshot(db: Client, current_user: dict) -> tuple[str, str, str]:
     return str(current_user["id"]), email, name
 
 
+def _unknown_line(row: dict) -> FbaShipmentLineResponse:
+    return FbaShipmentLineResponse(
+        id=row["id"],
+        line_number=0,
+        merchant_sku="",
+        external_id=row.get("external_id") or "",
+        shipped=0,
+        counted=int(row.get("counted") or 0),
+        not_in_list=True,
+    )
+
+
 def _upload_response(row: dict, current_user: dict, *, can_manage_any: bool) -> FbaShipmentUploadResponse:
     created_by = str(row.get("created_by") or "")
     owned = created_by == str(current_user.get("id") or "") or can_manage_any
@@ -139,6 +151,7 @@ def get_fba_shipment(
             [str(row.get("id") or "") for row in lines],
             str(current_user["id"]),
         )
+        unknown_rows = repo.list_unknown_scans(upload_id, str(current_user["id"]))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     for row in lines:
@@ -146,6 +159,7 @@ def get_fba_shipment(
     return FbaShipmentDetailResponse(
         upload=_upload_response(upload, current_user, can_manage_any=can_manage_any),
         lines=[FbaShipmentLineResponse(**row) for row in lines],
+        unknown_lines=[_unknown_line(row) for row in unknown_rows],
         total=total,
         limit=limit,
         offset=offset,
@@ -171,9 +185,10 @@ def scan_fba_shipment(
             raise HTTPException(status_code=404, detail="That shipment upload was not found.")
         matches = repo.lines_for_barcode(upload_id, barcode)
         if not matches:
-            raise HTTPException(
-                status_code=404,
-                detail=f"{barcode} is not an external-id on this shipment.",
+            saved = repo.increment_unknown_scan(upload_id, str(current_user["id"]), barcode)
+            return FbaShipmentScanResult(
+                barcode=barcode,
+                line=_unknown_line(saved),
             )
         counts = repo.counts_for_lines(
             [str(row.get("id") or "") for row in matches],

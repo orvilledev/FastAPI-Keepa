@@ -3,10 +3,14 @@ from pathlib import Path
 
 import pytest
 
+from uuid import uuid4
+
+from app.models.fba_shipment_library import FbaShipmentLineResponse
 from app.services.fba_shipment_library import (
     FbaShipmentParseError,
     STATUS_ACCOUNTED,
     STATUS_MISSING,
+    STATUS_NOT_IN_LIST,
     STATUS_OVERAGE,
     choose_line_for_scan,
     count_progress,
@@ -45,6 +49,21 @@ def test_count_progress_missing_accounted_and_overage():
     assert count_progress(3, 2) == (1, STATUS_MISSING)
     assert count_progress(3, 3) == (0, STATUS_ACCOUNTED)
     assert count_progress(3, 4) == (0, STATUS_OVERAGE)
+
+
+def test_unknown_barcode_is_marked_not_in_the_list():
+    row = FbaShipmentLineResponse(
+        id=uuid4(),
+        line_number=0,
+        merchant_sku="",
+        external_id="UPC: 999000",
+        shipped=0,
+        counted=2,
+        not_in_list=True,
+    )
+    assert row.external_id == "999000"
+    assert row.status == STATUS_NOT_IN_LIST
+    assert row.counted == 2
 
 
 def test_scan_fills_the_line_that_still_has_units_left():

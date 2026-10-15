@@ -18,9 +18,17 @@ function externalId(value: string): string {
 }
 
 function statusClass(status: string): string {
-  if (status === 'All Accounted') return 'bg-emerald-50 text-emerald-800'
-  if (status === 'Overage') return 'bg-red-50 text-red-800'
-  return 'bg-amber-50 text-amber-900'
+  if (status === 'All Accounted') return 'bg-emerald-600 text-white'
+  if (status === 'Overage') return 'bg-orange-600 text-white'
+  if (status === 'Not in the list') return 'bg-red-600 text-white'
+  return 'bg-amber-500 text-white'
+}
+
+function rowClass(line: FbaShipmentLine): string {
+  if (line.not_in_list || line.status === 'Not in the list') return 'border-b border-red-200 bg-red-100 text-red-950'
+  if (line.status === 'All Accounted') return 'border-b border-emerald-200 bg-emerald-100 text-emerald-950'
+  if (line.status === 'Overage') return 'border-b border-orange-200 bg-orange-100 text-orange-950'
+  return 'border-b border-amber-200 bg-amber-50 text-amber-950'
 }
 
 function formatWhen(iso: string): string {
@@ -48,6 +56,8 @@ export default function FbaShipmentLibrary() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selected, setSelected] = useState<FbaShipmentUpload | null>(null)
   const [lines, setLines] = useState<FbaShipmentLine[]>([])
+  const [unknownLines, setUnknownLines] = useState<FbaShipmentLine[]>([])
+  const [scanAlert, setScanAlert] = useState<string | null>(null)
   const [lineTotal, setLineTotal] = useState(0)
   const [lineOffset, setLineOffset] = useState(0)
   const [lineSearchInput, setLineSearchInput] = useState('')
@@ -82,6 +92,7 @@ export default function FbaShipmentLibrary() {
     if (!selectedId) {
       setSelected(null)
       setLines([])
+      setUnknownLines([])
       setLineTotal(0)
       return
     }
@@ -96,6 +107,7 @@ export default function FbaShipmentLibrary() {
       )
       setSelected(result.upload)
       setLines(result.lines)
+      setUnknownLines(result.unknown_lines || [])
       setLineTotal(result.total)
     } catch (err) {
       setError(errorMessage(err, 'Failed to open that shipment.'))
@@ -109,6 +121,7 @@ export default function FbaShipmentLibrary() {
   }, [loadLines])
 
   useEffect(() => {
+    setScanAlert(null)
     if (selectedId) scanRef.current?.focus()
   }, [selectedId])
 
@@ -120,14 +133,26 @@ export default function FbaShipmentLibrary() {
     setError(null)
     try {
       const result = await fbaShipmentLibraryApi.scan(selectedId, code)
-      setLines((current) =>
-        current.map((line) => (line.id === result.line.id ? result.line : line)),
-      )
       setActiveLineId(result.line.id)
-      setNotice(
-        `${result.barcode}: counted ${result.line.counted} of ${result.line.shipped}. Missing ${result.line.missing}. ${result.line.status}.`,
-      )
       setBarcode('')
+      if (result.line.not_in_list) {
+        setNotice(null)
+        setScanAlert(`${result.barcode} is not in the list.`)
+        setUnknownLines((current) => [
+          result.line,
+          ...current.filter(
+            (line) => line.id !== result.line.id && externalId(line.external_id) !== result.barcode,
+          ),
+        ])
+      } else {
+        setScanAlert(null)
+        setLines((current) =>
+          current.map((line) => (line.id === result.line.id ? result.line : line)),
+        )
+        setNotice(
+          `${result.barcode}: counted ${result.line.counted} of ${result.line.shipped}. Missing ${result.line.missing}. ${result.line.status}.`,
+        )
+      }
       window.setTimeout(() => {
         document.getElementById(`fba-line-${result.line.id}`)?.scrollIntoView({ block: 'nearest' })
       }, 0)
@@ -484,6 +509,11 @@ export default function FbaShipmentLibrary() {
               change anyone else’s.
             </p>
           </form>
+          {scanAlert && (
+            <div className="mt-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
+              {scanAlert}
+            </div>
+          )}
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
@@ -503,24 +533,26 @@ export default function FbaShipmentLibrary() {
                       Loading lines…
                     </td>
                   </tr>
-                ) : lines.length === 0 ? (
+                ) : lines.length === 0 && unknownLines.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-2 py-6 text-gray-500">
                       No matching lines.
                     </td>
                   </tr>
                 ) : (
-                  lines.map((line) => (
+                  [...unknownLines, ...lines].map((line) => (
                     <tr
                       key={line.id}
                       id={`fba-line-${line.id}`}
-                      className={`border-b border-gray-100 ${activeLineId === line.id ? 'bg-amber-50' : ''}`}
+                      className={`${rowClass(line)} ${activeLineId === line.id ? 'outline outline-2 outline-offset-[-2px] outline-gray-700' : ''}`}
                     >
-                      <td className="px-2 py-2 font-medium text-gray-900">{line.merchant_sku}</td>
+                      <td className="px-2 py-2 font-medium">{line.merchant_sku || '—'}</td>
                       <td className="px-2 py-2">{externalId(line.external_id) || '—'}</td>
-                      <td className="px-2 py-2">{line.shipped}</td>
+                      <td className="px-2 py-2">{line.not_in_list ? '—' : line.shipped}</td>
                       <td className="px-2 py-2">{line.counted ?? 0}</td>
-                      <td className="px-2 py-2">{line.missing ?? Math.max(0, line.shipped - (line.counted ?? 0))}</td>
+                      <td className="px-2 py-2">
+                        {line.not_in_list ? '—' : (line.missing ?? Math.max(0, line.shipped - (line.counted ?? 0)))}
+                      </td>
                       <td className="px-2 py-2">
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(line.status || 'Missing Items')}`}>
                           {line.status || 'Missing Items'}
