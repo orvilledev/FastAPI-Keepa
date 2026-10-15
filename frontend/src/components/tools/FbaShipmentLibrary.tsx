@@ -65,6 +65,7 @@ export default function FbaShipmentLibrary() {
   const [lineSearch, setLineSearch] = useState('')
   const [linesLoading, setLinesLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [pendingRemove, setPendingRemove] = useState<FbaShipmentUpload | null>(null)
   const [barcode, setBarcode] = useState('')
   const [scanning, setScanning] = useState(false)
   const [activeLineId, setActiveLineId] = useState<string | null>(null)
@@ -214,17 +215,20 @@ export default function FbaShipmentLibrary() {
     }
   }
 
-  const handleDelete = async (upload: FbaShipmentUpload) => {
-    const ok = window.confirm(
-      `Remove the ${upload.shipment_id} upload from ${upload.created_by_name || 'this user'}? Other uploads stay.`,
-    )
-    if (!ok) return
+  const handleDelete = (upload: FbaShipmentUpload) => {
+    setPendingRemove(upload)
+  }
+
+  const confirmDelete = async () => {
+    const upload = pendingRemove
+    if (!upload) return
     setDeletingId(upload.id)
     setError(null)
     try {
       await fbaShipmentLibraryApi.remove(upload.id)
       if (selectedId === upload.id) setSelectedId(null)
       setNotice(`Removed ${upload.shipment_id}.`)
+      setPendingRemove(null)
       setRefreshKey((value) => value + 1)
     } catch (err) {
       setError(errorMessage(err, 'Failed to remove that upload.'))
@@ -543,7 +547,7 @@ export default function FbaShipmentLibrary() {
                         <button
                           type="button"
                           disabled={deletingId === upload.id}
-                          className="ml-3 text-sm font-medium text-red-700 hover:text-red-900 disabled:opacity-50"
+                          className="ml-10 border-l border-gray-200 pl-4 text-sm font-medium text-red-700 hover:text-red-900 disabled:opacity-50"
                           onClick={() => void handleDelete(upload)}
                         >
                           Remove
@@ -745,6 +749,49 @@ export default function FbaShipmentLibrary() {
             </div>
           )}
         </section>
+      )}
+      {pendingRemove && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="presentation"
+          onClick={() => {
+            if (!deletingId) setPendingRemove(null)
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="remove-shipment-title"
+            className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="remove-shipment-title" className="text-lg font-semibold text-gray-900">
+              Remove this shipment?
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Are you sure you want to remove shipment {pendingRemove.shipment_id}? This deletes that upload
+              and its counts. Other shipments stay.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={deletingId === pendingRemove.id}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                onClick={() => setPendingRemove(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deletingId === pendingRemove.id}
+                className="rounded-lg bg-red-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
+                onClick={() => void confirmDelete()}
+              >
+                {deletingId === pendingRemove.id ? 'Removing…' : 'Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
