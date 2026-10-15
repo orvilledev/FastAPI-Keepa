@@ -44,6 +44,7 @@ export default function FbaShipmentLibrary() {
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [mine, setMine] = useState(false)
+  const [showArchive, setShowArchive] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -74,7 +75,7 @@ export default function FbaShipmentLibrary() {
     setLoading(true)
     setError(null)
     try {
-      const result = await fbaShipmentLibraryApi.list(PAGE_SIZE, offset, search, mine)
+      const result = await fbaShipmentLibraryApi.list(PAGE_SIZE, offset, search, mine, showArchive)
       setUploads(result.items)
       setTotal(result.total)
     } catch (err) {
@@ -82,7 +83,7 @@ export default function FbaShipmentLibrary() {
     } finally {
       setLoading(false)
     }
-  }, [mine, offset, refreshKey, search])
+  }, [mine, offset, refreshKey, search, showArchive])
 
   useEffect(() => {
     void loadUploads()
@@ -153,6 +154,9 @@ export default function FbaShipmentLibrary() {
           `${result.barcode}: counted ${result.line.counted} of ${result.line.shipped}. Missing ${result.line.missing}. ${result.line.status}.`,
         )
       }
+      setSelected((current) =>
+        current ? { ...current, fully_accounted: result.fully_accounted } : current,
+      )
       window.setTimeout(() => {
         document.getElementById(`fba-line-${result.line.id}`)?.scrollIntoView({ block: 'nearest' })
       }, 0)
@@ -229,6 +233,68 @@ export default function FbaShipmentLibrary() {
     }
   }
 
+  const handleAccess = async (upload: FbaShipmentUpload, locked: boolean) => {
+    setError(null)
+    try {
+      const saved = await fbaShipmentLibraryApi.setAccess(upload.id, locked)
+      setUploads((current) => current.map((item) => (item.id === saved.id ? { ...item, ...saved } : item)))
+      setSelected((current) =>
+        current?.id === saved.id ? { ...current, ...saved, fully_accounted: current.fully_accounted } : current,
+      )
+      setNotice(
+        locked
+          ? `${saved.shipment_id} is locked. Only you can open it.`
+          : `${saved.shipment_id} is shared. Other workers can open it and count on their own.`,
+      )
+      if (locked && !saved.owned_by_me) setRefreshKey((value) => value + 1)
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to change who can open this shipment.'))
+    }
+  }
+
+  const handleArchive = async (upload: FbaShipmentUpload) => {
+    const ok = window.confirm(
+      `Archive ${upload.shipment_id}? It will leave the active list and stay in Completed shipments.`,
+    )
+    if (!ok) return
+    setError(null)
+    try {
+      await fbaShipmentLibraryApi.archive(upload.id)
+      setNotice(`${upload.shipment_id} is in the completed archive.`)
+      if (selectedId === upload.id) setSelectedId(null)
+      setRefreshKey((value) => value + 1)
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to archive this shipment.'))
+    }
+  }
+
+  const handleReport = async (upload: FbaShipmentUpload) => {
+    setError(null)
+    try {
+      const result = await fbaShipmentLibraryApi.downloadReport(upload.id)
+      const url = URL.createObjectURL(result.blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = result.filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      const data = (err as { response?: { data?: unknown } })?.response?.data
+      if (data instanceof Blob) {
+        try {
+          const parsed = JSON.parse(await data.text()) as { detail?: string }
+          setError(parsed.detail || 'Failed to download the accounting report.')
+          return
+        } catch {
+          /* fall through */
+        }
+      }
+      setError(errorMessage(err, 'Failed to download the accounting report.'))
+    }
+  }
+
   const page = Math.floor(offset / PAGE_SIZE) + 1
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const linePage = Math.floor(lineOffset / LINE_PAGE_SIZE) + 1
@@ -241,8 +307,9 @@ export default function FbaShipmentLibrary() {
         <p className="mt-2 max-w-3xl text-sm text-gray-600">
           Upload the official FBA shipment <strong>.tsv</strong>. The tool stores the yellow fields only:{' '}
           <strong>Shipment ID</strong>, <strong>Merchant SKU</strong>, <strong>external-id</strong>, and{' '}
-          <strong>Shipped</strong>. Each upload stays in the system. Everyone with access can see every upload,
-          and a new upload does not remove one created by someone else.
+          <strong>Shipped</strong>. The owner can lock a shipment or share it when other workers need to count it.
+          Each person keeps their own counts. When every line is All Accounted, download the accounting report and
+          archive the shipment into Completed shipments.
         </p>
       </div>
 
@@ -311,10 +378,36 @@ export default function FbaShipmentLibrary() {
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold text-gray-900">Stored shipments</h2>
+            <h2 className="text-sm font-semibold text-gray-900">
+              {showArchive ? 'Completed shipments' : 'Stored shipments'}
+            </h2>
             <p className="text-xs text-gray-500">{total} upload{total === 1 ? '' : 's'} visible</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-lg bg-gray-100 p-0.5 text-sm">
+              <button
+                type="button"
+                className={`rounded-md px-3 py-1 ${!showArchive ? 'bg-white font-medium text-gray-900 shadow-sm' : 'text-gray-600'}`}
+                onClick={() => {
+                  setShowArchive(false)
+                  setOffset(0)
+                  setSelectedId(null)
+                }}
+              >
+                Active
+              </button>
+              <button
+                type="button"
+                className={`rounded-md px-3 py-1 ${showArchive ? 'bg-white font-medium text-gray-900 shadow-sm' : 'text-gray-600'}`}
+                onClick={() => {
+                  setShowArchive(true)
+                  setOffset(0)
+                  setSelectedId(null)
+                }}
+              >
+                Archive
+              </button>
+            </div>
             <div className="inline-flex rounded-lg bg-gray-100 p-0.5 text-sm">
               <button
                 type="button"
@@ -371,20 +464,21 @@ export default function FbaShipmentLibrary() {
                 <th className="px-2 py-2">Uploaded by</th>
                 <th className="px-2 py-2">When</th>
                 <th className="px-2 py-2">File</th>
+                <th className="px-2 py-2">Access</th>
                 <th className="px-2 py-2" />
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-2 py-6 text-gray-500">
+                  <td colSpan={8} className="px-2 py-6 text-gray-500">
                     Loading stored shipments…
                   </td>
                 </tr>
               ) : uploads.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-2 py-6 text-gray-500">
-                    No shipments stored yet.
+                  <td colSpan={8} className="px-2 py-6 text-gray-500">
+                    {showArchive ? 'No completed shipments yet.' : 'No shipments stored yet.'}
                   </td>
                 </tr>
               ) : (
@@ -401,6 +495,21 @@ export default function FbaShipmentLibrary() {
                     <td className="max-w-[12rem] truncate px-2 py-2 text-gray-600" title={upload.source_filename}>
                       {upload.source_filename || '—'}
                     </td>
+                    <td className="px-2 py-2">
+                      {upload.archived_at ? (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                          Archived
+                        </span>
+                      ) : upload.is_locked ? (
+                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+                          Locked
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                          Shared
+                        </span>
+                      )}
+                    </td>
                     <td className="px-2 py-2 whitespace-nowrap text-right">
                       <button
                         type="button"
@@ -414,6 +523,15 @@ export default function FbaShipmentLibrary() {
                       >
                         View
                       </button>
+                      {upload.owned_by_me && !upload.archived_at && (
+                        <button
+                          type="button"
+                          className="ml-3 text-sm font-medium text-gray-800 hover:text-gray-950"
+                          onClick={() => void handleAccess(upload, !upload.is_locked)}
+                        >
+                          {upload.is_locked ? 'Share' : 'Lock'}
+                        </button>
+                      )}
                       {upload.owned_by_me && (
                         <button
                           type="button"
@@ -464,8 +582,40 @@ export default function FbaShipmentLibrary() {
               <p className="text-xs text-gray-500">
                 {selected.created_by_name || selected.created_by_email || 'Unknown'} ·{' '}
                 {formatWhen(selected.created_at)} · {lineTotal} matching row{lineTotal === 1 ? '' : 's'}
+                {selected.is_locked ? ' · Locked' : ' · Shared'}
+                {selected.archived_at ? ' · Archived' : ''}
               </p>
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {selected.fully_accounted && (
+                <button
+                  type="button"
+                  className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-800"
+                  onClick={() => void handleReport(selected)}
+                >
+                  Download report
+                </button>
+              )}
+              {selected.owned_by_me && selected.fully_accounted && !selected.archived_at && (
+                <button
+                  type="button"
+                  className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50"
+                  onClick={() => void handleArchive(selected)}
+                >
+                  Archive
+                </button>
+              )}
+            </div>
+          </div>
+          {!selected.fully_accounted && !selected.archived_at && (
+            <p className="mt-2 text-xs text-gray-500">
+              Download and archive are available when every line is All Accounted.
+            </p>
+          )}
+          {selected.archived_at && (
+            <p className="mt-2 text-xs text-gray-500">This shipment is in the completed archive.</p>
+          )}
+          <div className="mt-3 flex flex-wrap items-end justify-end">
             <form
               className="flex gap-2"
               onSubmit={(event) => {
@@ -488,6 +638,7 @@ export default function FbaShipmentLibrary() {
               </button>
             </form>
           </div>
+          {!selected.archived_at && (
           <form className="mt-4 flex flex-wrap items-center gap-2" onSubmit={(event) => void handleScan(event)}>
             <input
               ref={scanRef}
@@ -509,6 +660,7 @@ export default function FbaShipmentLibrary() {
               change anyone else’s.
             </p>
           </form>
+          )}
           {scanAlert && (
             <div className="mt-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
               {scanAlert}

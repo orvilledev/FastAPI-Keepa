@@ -24,6 +24,13 @@ STATUS_OVERAGE = "Overage"
 STATUS_NOT_IN_LIST = "Not in the list"
 
 
+def is_fully_accounted(shipped_and_counted: list[tuple[int, int]]) -> bool:
+    """True when every line has been counted for exactly its shipped quantity."""
+    if not shipped_and_counted:
+        return False
+    return all(counted == shipped for shipped, counted in shipped_and_counted)
+
+
 def count_progress(shipped: int, counted: int) -> tuple[int, str]:
     """Missing is what is still left of Shipped. Status follows the scan total."""
     missing = max(0, shipped - counted)
@@ -162,3 +169,67 @@ def parse_fba_shipment_tsv(content: bytes) -> ParsedFbaShipment:
         raise FbaShipmentParseError("The file has a Shipment ID but no item rows to store.")
 
     return ParsedFbaShipment(shipment_id=shipment_id, lines=lines)
+
+
+def build_accounting_workbook(
+    *,
+    shipment_id: str,
+    counted_by: str,
+    lines: list[dict],
+    unknown_lines: list[dict],
+) -> bytes:
+    """Excel report of one user's count against the shipment."""
+    from io import BytesIO
+    from datetime import datetime, timezone
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    fills = {
+        STATUS_ACCOUNTED: PatternFill("solid", fgColor="BBF7D0"),
+        STATUS_MISSING: PatternFill("solid", fgColor="FDE68A"),
+        STATUS_OVERAGE: PatternFill("solid", fgColor="FDBA74"),
+        STATUS_NOT_IN_LIST: PatternFill("solid", fgColor="FECACA"),
+    }
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Accounting"
+    sheet.append(["Shipment ID", shipment_id])
+    sheet.append(["Counted by", counted_by])
+    sheet.append(["Generated", datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")])
+    sheet.append([])
+    header = ["Merchant SKU", "external-id", "Shipped", "Counted", "Missing", "Status"]
+    sheet.append(header)
+    for cell in sheet[5]:
+        cell.font = Font(bold=True)
+    for line in lines:
+        shipped = int(line.get("shipped") or 0)
+        counted = int(line.get("counted") or 0)
+        missing, status = count_progress(shipped, counted)
+        sheet.append([
+            line.get("merchant_sku") or "",
+            line.get("external_id") or "",
+            shipped,
+            counted,
+            missing,
+            status,
+        ])
+        fill = fills.get(status)
+        if fill:
+            for cell in sheet[sheet.max_row]:
+                cell.fill = fill
+    if unknown_lines:
+        sheet.append([])
+        sheet.append(["Not in the list"])
+        sheet.append(["external-id", "Counted", "Status"])
+        for row in unknown_lines:
+            sheet.append([
+                row.get("external_id") or "",
+                int(row.get("counted") or 0),
+                STATUS_NOT_IN_LIST,
+            ])
+            for cell in sheet[sheet.max_row]:
+                cell.fill = fills[STATUS_NOT_IN_LIST]
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()

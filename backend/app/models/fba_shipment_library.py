@@ -19,6 +19,9 @@ class FbaShipmentUploadResponse(BaseModel):
     created_by_name: str = ""
     created_at: datetime
     owned_by_me: bool = False
+    is_locked: bool = False
+    archived_at: Optional[datetime] = None
+    fully_accounted: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -78,3 +81,8 @@ class FbaShipmentScanRequest(BaseModel):
 class FbaShipmentScanResult(BaseModel):
     line: FbaShipmentLineResponse
     barcode: str
+    fully_accounted: bool = False
+
+
+class FbaShipmentAccessRequest(BaseModel):
+    locked: bool

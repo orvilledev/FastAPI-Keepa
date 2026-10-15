@@ -16,8 +16,8 @@ _COUNTS = "fba_shipment_counts"
 _UNKNOWNS = "fba_shipment_unknown_scans"
 _MIGRATION_HINT = (
     "Run backend/database/migrations/create_fba_shipment_library.sql, "
-    "create_fba_shipment_counts.sql, and create_fba_shipment_unknown_scans.sql "
-    "in the Supabase SQL Editor."
+    "create_fba_shipment_counts.sql, create_fba_shipment_unknown_scans.sql, "
+    "and add_fba_shipment_library_access.sql in the Supabase SQL Editor."
 )
 _INSERT_CHUNK = 500
 
@@ -73,14 +73,30 @@ class FbaShipmentLibraryRepository:
         offset: int = 0,
         search: Optional[str] = None,
         created_by: Optional[str] = None,
+        archived: bool = False,
+        viewer_id: Optional[str] = None,
+        see_locked: bool = False,
     ) -> Tuple[List[dict], int]:
         limit = max(1, min(limit, 100))
         offset = max(0, offset)
         query = self.db.table(_UPLOADS).select("*", count="exact")
         if created_by:
             query = query.eq("created_by", created_by)
+        if archived:
+            query = query.not_.is_("archived_at", "null")
+        else:
+            query = query.is_("archived_at", "null")
         upload_ids = self._upload_ids_for_line_search(search)
-        query = self._apply_upload_search(query, search, upload_ids)
+        search_or = self._upload_search_or(search, upload_ids)
+        visibility = None
+        if viewer_id and not see_locked:
+            visibility = f"is_locked.eq.false,created_by.eq.{viewer_id}"
+        if visibility and search_or:
+            query.params = query.params.add("and", f"(or({visibility}),or({search_or}))")
+        elif visibility:
+            query = query.or_(visibility)
+        elif search_or:
+            query.params = query.params.add("or", f"({search_or})")
         response = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
         return list(response.data or []), int(response.count or 0)
 
@@ -88,6 +104,59 @@ class FbaShipmentLibraryRepository:
         response = self.db.table(_UPLOADS).select("*").eq("id", upload_id).limit(1).execute()
         rows = response.data or []
         return rows[0] if rows else None
+
+    def list_line_quantities(self, upload_id: str) -> List[dict]:
+        rows: List[dict] = []
+        offset = 0
+        while True:
+            response = (
+                self.db.table(_LINES)
+                .select("id,line_number,merchant_sku,external_id,shipped")
+                .eq("upload_id", upload_id)
+                .order("line_number")
+                .range(offset, offset + 499)
+                .execute()
+            )
+            chunk = list(response.data or [])
+            rows.extend(chunk)
+            if len(chunk) < 500:
+                return rows
+            offset += 500
+
+    def set_locked(self, upload_id: str, locked: bool) -> dict:
+        try:
+            response = (
+                self.db.table(_UPLOADS)
+                .update({"is_locked": locked})
+                .eq("id", upload_id)
+                .execute()
+            )
+        except Exception as exc:
+            _raise_persist_error(exc)
+        rows = response.data or []
+        if not rows:
+            raise ValueError("The shipment lock was not saved.")
+        return rows[0]
+
+    def archive_upload(self, upload_id: str, user_id: str) -> dict:
+        try:
+            response = (
+                self.db.table(_UPLOADS)
+                .update(
+                    {
+                        "archived_at": datetime.now(timezone.utc).isoformat(),
+                        "archived_by": user_id,
+                    }
+                )
+                .eq("id", upload_id)
+                .execute()
+            )
+        except Exception as exc:
+            _raise_persist_error(exc)
+        rows = response.data or []
+        if not rows:
+            raise ValueError("The shipment was not archived.")
+        return rows[0]
 
     def list_lines(
         self,
@@ -367,10 +436,10 @@ class FbaShipmentLibraryRepository:
                     found.append(upload_id)
         return found
 
-    def _apply_upload_search(self, query, search: Optional[str], upload_ids: List[str]):
+    def _upload_search_or(self, search: Optional[str], upload_ids: List[str]) -> Optional[str]:
         term = " ".join((search or "").strip().replace(",", " ").split())
         if not term:
-            return query
+            return None
         escaped = _escape_like(term)
         pattern = f'"%{escaped}%"'
         clauses = [
@@ -380,8 +449,7 @@ class FbaShipmentLibraryRepository:
         ]
         if upload_ids:
             clauses.append(f"id.in.({','.join(upload_ids)})")
-        query.params = query.params.add("or", f"({','.join(clauses)})")
-        return query
+        return ",".join(clauses)
 
     def _apply_line_search(self, query, search: Optional[str]):
         term = " ".join((search or "").strip().replace(",", " ").split())

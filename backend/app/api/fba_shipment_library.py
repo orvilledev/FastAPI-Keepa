@@ -3,12 +3,14 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import StreamingResponse
 from supabase import Client
 
 from app.database import get_supabase
 from app.dependencies import get_old_skus_user, is_superadmin_user
 from app.middleware.rate_limiter import RateLimits, limiter
 from app.models.fba_shipment_library import (
+    FbaShipmentAccessRequest,
     FbaShipmentDetailResponse,
     FbaShipmentImportResult,
     FbaShipmentLineResponse,
@@ -20,7 +22,9 @@ from app.models.fba_shipment_library import (
 from app.repositories.fba_shipment_library_repository import FbaShipmentLibraryRepository
 from app.services.fba_shipment_library import (
     FbaShipmentParseError,
+    build_accounting_workbook,
     choose_line_for_scan,
+    is_fully_accounted,
     parse_fba_shipment_tsv,
     strip_upc_label,
 )
@@ -98,7 +102,32 @@ def _upload_response(row: dict, current_user: dict, *, can_manage_any: bool) -> 
         created_by_name=row.get("created_by_name") or "",
         created_at=row["created_at"],
         owned_by_me=owned,
+        is_locked=bool(row.get("is_locked")),
+        archived_at=row.get("archived_at"),
+        fully_accounted=bool(row.get("fully_accounted")),
     )
+
+
+def _owns_upload(upload: dict, current_user: dict, can_manage_any: bool) -> bool:
+    return str(upload.get("created_by") or "") == str(current_user.get("id") or "") or can_manage_any
+
+
+def _require_visible(upload: dict, current_user: dict, can_manage_any: bool) -> None:
+    if upload.get("is_locked") and not _owns_upload(upload, current_user, can_manage_any):
+        raise HTTPException(
+            status_code=403,
+            detail="This shipment is locked. Only the owner can open it.",
+        )
+
+
+def _user_is_accounted(repo: FbaShipmentLibraryRepository, upload_id: str, user_id: str) -> bool:
+    rows = repo.list_line_quantities(upload_id)
+    counts = repo.counts_for_lines([str(row.get("id") or "") for row in rows], user_id)
+    pairs = [
+        (int(row.get("shipped") or 0), counts.get(str(row.get("id") or ""), 0))
+        for row in rows
+    ]
+    return is_fully_accounted(pairs)
 
 
 @router.get("/fba-shipment-library", response_model=FbaShipmentUploadListResponse)
@@ -108,6 +137,7 @@ def list_fba_shipments(
     offset: int = Query(0, ge=0),
     search: Optional[str] = Query(None),
     mine: bool = Query(False),
+    archived: bool = Query(False),
     current_user: dict = Depends(get_old_skus_user),
     db: Client = Depends(get_supabase),
 ):
@@ -119,6 +149,9 @@ def list_fba_shipments(
             offset=offset,
             search=search,
             created_by=str(current_user["id"]) if mine else None,
+            archived=archived,
+            viewer_id=str(current_user["id"]),
+            see_locked=can_manage_any,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -146,6 +179,7 @@ def get_fba_shipment(
         upload = repo.get_upload(upload_id)
         if not upload:
             raise HTTPException(status_code=404, detail="That shipment upload was not found.")
+        _require_visible(upload, current_user, can_manage_any)
         lines, total = repo.list_lines(upload_id, limit=limit, offset=offset, search=search)
         counts = repo.counts_for_lines(
             [str(row.get("id") or "") for row in lines],
@@ -156,6 +190,7 @@ def get_fba_shipment(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     for row in lines:
         row["counted"] = counts.get(str(row.get("id") or ""), 0)
+    upload["fully_accounted"] = _user_is_accounted(repo, upload_id, str(current_user["id"]))
     return FbaShipmentDetailResponse(
         upload=_upload_response(upload, current_user, can_manage_any=can_manage_any),
         lines=[FbaShipmentLineResponse(**row) for row in lines],
@@ -183,12 +218,17 @@ def scan_fba_shipment(
         upload = repo.get_upload(upload_id)
         if not upload:
             raise HTTPException(status_code=404, detail="That shipment upload was not found.")
+        _require_visible(upload, current_user, is_superadmin_user(current_user, db))
+        if upload.get("archived_at"):
+            raise HTTPException(status_code=400, detail="This shipment is archived and can no longer be scanned.")
+        user_id = str(current_user["id"])
         matches = repo.lines_for_barcode(upload_id, barcode)
         if not matches:
-            saved = repo.increment_unknown_scan(upload_id, str(current_user["id"]), barcode)
+            saved = repo.increment_unknown_scan(upload_id, user_id, barcode)
             return FbaShipmentScanResult(
                 barcode=barcode,
                 line=_unknown_line(saved),
+                fully_accounted=_user_is_accounted(repo, upload_id, user_id),
             )
         counts = repo.counts_for_lines(
             [str(row.get("id") or "") for row in matches],
@@ -208,6 +248,103 @@ def scan_fba_shipment(
     return FbaShipmentScanResult(
         barcode=barcode,
         line=FbaShipmentLineResponse(**target),
+        fully_accounted=_user_is_accounted(repo, upload_id, str(current_user["id"])),
+    )
+
+
+@router.post("/fba-shipment-library/{upload_id}/access", response_model=FbaShipmentUploadResponse)
+@handle_api_errors("change FBA shipment access")
+def set_fba_shipment_access(
+    upload_id: str,
+    body: FbaShipmentAccessRequest,
+    current_user: dict = Depends(get_old_skus_user),
+    db: Client = Depends(get_supabase),
+):
+    """Owner locks a shipment so only they can open it, or shares it with other workers."""
+    repo = FbaShipmentLibraryRepository(db)
+    can_manage_any = is_superadmin_user(current_user, db)
+    try:
+        upload = repo.get_upload(upload_id)
+        if not upload:
+            raise HTTPException(status_code=404, detail="That shipment upload was not found.")
+        if not _owns_upload(upload, current_user, can_manage_any):
+            raise HTTPException(status_code=403, detail="Only the owner can lock or share this shipment.")
+        saved = repo.set_locked(upload_id, body.locked)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _upload_response(saved, current_user, can_manage_any=can_manage_any)
+
+
+@router.post("/fba-shipment-library/{upload_id}/archive", response_model=FbaShipmentUploadResponse)
+@handle_api_errors("archive FBA shipment")
+def archive_fba_shipment(
+    upload_id: str,
+    current_user: dict = Depends(get_old_skus_user),
+    db: Client = Depends(get_supabase),
+):
+    """Move a fully accounted shipment into the completed archive."""
+    repo = FbaShipmentLibraryRepository(db)
+    can_manage_any = is_superadmin_user(current_user, db)
+    try:
+        upload = repo.get_upload(upload_id)
+        if not upload:
+            raise HTTPException(status_code=404, detail="That shipment upload was not found.")
+        if not _owns_upload(upload, current_user, can_manage_any):
+            raise HTTPException(status_code=403, detail="Only the owner can archive this shipment.")
+        if upload.get("archived_at"):
+            raise HTTPException(status_code=400, detail="This shipment is already archived.")
+        if not _user_is_accounted(repo, upload_id, str(current_user["id"])):
+            raise HTTPException(
+                status_code=400,
+                detail="Archive is available after every line is All Accounted.",
+            )
+        saved = repo.archive_upload(upload_id, str(current_user["id"]))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    saved["fully_accounted"] = True
+    return _upload_response(saved, current_user, can_manage_any=can_manage_any)
+
+
+@router.get("/fba-shipment-library/{upload_id}/report")
+@handle_api_errors("download FBA accounting report")
+def download_fba_accounting_report(
+    upload_id: str,
+    current_user: dict = Depends(get_old_skus_user),
+    db: Client = Depends(get_supabase),
+):
+    """Download this user's accounting workbook once every line is All Accounted."""
+    repo = FbaShipmentLibraryRepository(db)
+    can_manage_any = is_superadmin_user(current_user, db)
+    try:
+        upload = repo.get_upload(upload_id)
+        if not upload:
+            raise HTTPException(status_code=404, detail="That shipment upload was not found.")
+        _require_visible(upload, current_user, can_manage_any)
+        user_id = str(current_user["id"])
+        if not _user_is_accounted(repo, upload_id, user_id):
+            raise HTTPException(
+                status_code=400,
+                detail="The accounting report is available after every line is All Accounted.",
+            )
+        rows = repo.list_line_quantities(upload_id)
+        counts = repo.counts_for_lines([str(row.get("id") or "") for row in rows], user_id)
+        for row in rows:
+            row["counted"] = counts.get(str(row.get("id") or ""), 0)
+        unknown_rows = repo.list_unknown_scans(upload_id, user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _, _, name = _creator_snapshot(db, current_user)
+    content = build_accounting_workbook(
+        shipment_id=upload.get("shipment_id") or "shipment",
+        counted_by=name or (current_user.get("email") or ""),
+        lines=rows,
+        unknown_lines=unknown_rows,
+    )
+    filename = f"{upload.get('shipment_id') or 'shipment'} Accounting.xlsx"
+    return StreamingResponse(
+        iter([content]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

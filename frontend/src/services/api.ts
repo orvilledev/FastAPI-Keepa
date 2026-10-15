@@ -2991,6 +2991,9 @@ export type FbaShipmentUpload = {
   created_by_name: string
   created_at: string
   owned_by_me: boolean
+  is_locked: boolean
+  archived_at: string | null
+  fully_accounted: boolean
 }
 
 export type FbaShipmentLine = {
@@ -3027,9 +3030,10 @@ export const fbaShipmentLibraryApi = {
     offset = 0,
     search?: string,
     mine = false,
+    archived = false,
   ): Promise<FbaShipmentUploadList> => {
     const response = await api.get('/api/v1/fba-shipment-library', {
-      params: { limit, offset, search: search || undefined, mine },
+      params: { limit, offset, search: search || undefined, mine, archived },
     })
     return response.data
   },
@@ -3055,9 +3059,31 @@ export const fbaShipmentLibraryApi = {
   remove: async (uploadId: string): Promise<void> => {
     await api.delete(`/api/v1/fba-shipment-library/${uploadId}`)
   },
-  scan: async (uploadId: string, barcode: string): Promise<{ barcode: string; line: FbaShipmentLine }> => {
+  scan: async (
+    uploadId: string,
+    barcode: string,
+  ): Promise<{ barcode: string; line: FbaShipmentLine; fully_accounted: boolean }> => {
     const response = await api.post(`/api/v1/fba-shipment-library/${uploadId}/scan`, { barcode })
     return response.data
+  },
+  setAccess: async (uploadId: string, locked: boolean): Promise<FbaShipmentUpload> => {
+    const response = await api.post(`/api/v1/fba-shipment-library/${uploadId}/access`, { locked })
+    return response.data
+  },
+  archive: async (uploadId: string): Promise<FbaShipmentUpload> => {
+    const response = await api.post(`/api/v1/fba-shipment-library/${uploadId}/archive`)
+    return response.data
+  },
+  downloadReport: async (uploadId: string): Promise<{ blob: Blob; filename: string }> => {
+    const response = await api.get(`/api/v1/fba-shipment-library/${uploadId}/report`, {
+      responseType: 'blob',
+    })
+    const header = String(response.headers['content-disposition'] || '')
+    const match = /filename="([^"]+)"/.exec(header)
+    return {
+      blob: response.data as Blob,
+      filename: match?.[1] || 'Accounting.xlsx',
+    }
   },
 }
 

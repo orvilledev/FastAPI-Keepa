@@ -14,6 +14,7 @@ from app.services.fba_shipment_library import (
     STATUS_OVERAGE,
     choose_line_for_scan,
     count_progress,
+    is_fully_accounted,
     parse_fba_shipment_tsv,
 )
 
@@ -42,6 +43,13 @@ def test_parser_keeps_only_yellow_fields():
         ("845028000003", "845028000003", 3),
         ("845028000010", "845028000010", 4),
     ]
+
+
+def test_fully_accounted_requires_every_line_to_match_shipped():
+    assert is_fully_accounted([]) is False
+    assert is_fully_accounted([(3, 3), (1, 1)]) is True
+    assert is_fully_accounted([(3, 2)]) is False
+    assert is_fully_accounted([(3, 4)]) is False
 
 
 def test_count_progress_missing_accounted_and_overage():
