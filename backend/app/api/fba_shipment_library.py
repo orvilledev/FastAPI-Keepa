@@ -312,7 +312,7 @@ def download_fba_accounting_report(
     current_user: dict = Depends(get_old_skus_user),
     db: Client = Depends(get_supabase),
 ):
-    """Download this user's accounting workbook once every line is All Accounted."""
+    """Download this user's accounting workbook for the shipment."""
     repo = FbaShipmentLibraryRepository(db)
     can_manage_any = is_superadmin_user(current_user, db)
     try:
@@ -321,11 +321,6 @@ def download_fba_accounting_report(
             raise HTTPException(status_code=404, detail="That shipment upload was not found.")
         _require_visible(upload, current_user, can_manage_any)
         user_id = str(current_user["id"])
-        if not _user_is_accounted(repo, upload_id, user_id):
-            raise HTTPException(
-                status_code=400,
-                detail="The accounting report is available after every line is All Accounted.",
-            )
         rows = repo.list_line_quantities(upload_id)
         counts = repo.counts_for_lines([str(row.get("id") or "") for row in rows], user_id)
         for row in rows:

@@ -308,8 +308,8 @@ export default function FbaShipmentLibrary() {
           Upload the official FBA shipment <strong>.tsv</strong>. The tool stores the yellow fields only:{' '}
           <strong>Shipment ID</strong>, <strong>Merchant SKU</strong>, <strong>external-id</strong>, and{' '}
           <strong>Shipped</strong>. The owner can lock a shipment or share it when other workers need to count it.
-          Each person keeps their own counts. When every line is All Accounted, download the accounting report and
-          archive the shipment into Completed shipments.
+          Each person keeps their own counts. Download report is on each shipment. Archive moves it into
+          Completed shipments once every line is All Accounted.
         </p>
       </div>
 
@@ -513,7 +513,14 @@ export default function FbaShipmentLibrary() {
                     <td className="px-2 py-2 whitespace-nowrap text-right">
                       <button
                         type="button"
-                        className="text-sm font-medium text-indigo-700 hover:text-indigo-900"
+                        className="text-sm font-medium text-emerald-700 hover:text-emerald-900"
+                        onClick={() => void handleReport(upload)}
+                      >
+                        Download
+                      </button>
+                      <button
+                        type="button"
+                        className="ml-3 text-sm font-medium text-indigo-700 hover:text-indigo-900"
                         onClick={() => {
                           setSelectedId(upload.id)
                           setLineOffset(0)
@@ -587,15 +594,13 @@ export default function FbaShipmentLibrary() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {selected.fully_accounted && (
-                <button
-                  type="button"
-                  className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-800"
-                  onClick={() => void handleReport(selected)}
-                >
-                  Download report
-                </button>
-              )}
+              <button
+                type="button"
+                className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-800"
+                onClick={() => void handleReport(selected)}
+              >
+                Download report
+              </button>
               {selected.owned_by_me && selected.fully_accounted && !selected.archived_at && (
                 <button
                   type="button"
@@ -609,7 +614,7 @@ export default function FbaShipmentLibrary() {
           </div>
           {!selected.fully_accounted && !selected.archived_at && (
             <p className="mt-2 text-xs text-gray-500">
-              Download and archive are available when every line is All Accounted.
+              Archive is available when every line is All Accounted. Download report works with the count so far.
             </p>
           )}
           {selected.archived_at && (
