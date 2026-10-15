@@ -3,9 +3,9 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from app.services.fba_shipment_library import strip_upc_label
+from app.services.fba_shipment_library import count_progress, strip_upc_label
 
 
 class FbaShipmentUploadResponse(BaseModel):
@@ -29,6 +29,9 @@ class FbaShipmentLineResponse(BaseModel):
     merchant_sku: str
     external_id: str = ""
     shipped: int = 0
+    counted: int = 0
+    missing: int = 0
+    status: str = "Missing Items"
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -36,6 +39,11 @@ class FbaShipmentLineResponse(BaseModel):
     @classmethod
     def _drop_upc_label(cls, value: object) -> str:
         return strip_upc_label("" if value is None else str(value))
+
+    @model_validator(mode="after")
+    def _fill_count_progress(self) -> "FbaShipmentLineResponse":
+        self.missing, self.status = count_progress(self.shipped, self.counted)
+        return self
 
 
 class FbaShipmentUploadListResponse(BaseModel):
@@ -55,3 +63,12 @@ class FbaShipmentDetailResponse(BaseModel):
 
 class FbaShipmentImportResult(BaseModel):
     upload: FbaShipmentUploadResponse
+
+
+class FbaShipmentScanRequest(BaseModel):
+    barcode: str
+
+
+class FbaShipmentScanResult(BaseModel):
+    line: FbaShipmentLineResponse
+    barcode: str

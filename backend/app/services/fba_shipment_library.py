@@ -18,6 +18,30 @@ def strip_upc_label(value: str) -> str:
     return _UPC_PREFIX.sub("", (value or "").strip()).strip()
 
 
+STATUS_MISSING = "Missing Items"
+STATUS_ACCOUNTED = "All Accounted"
+STATUS_OVERAGE = "Overage"
+
+
+def count_progress(shipped: int, counted: int) -> tuple[int, str]:
+    """Missing is what is still left of Shipped. Status follows the scan total."""
+    missing = max(0, shipped - counted)
+    if counted > shipped:
+        return missing, STATUS_OVERAGE
+    if counted == shipped:
+        return missing, STATUS_ACCOUNTED
+    return missing, STATUS_MISSING
+
+
+def choose_line_for_scan(matches: list[dict]) -> dict:
+    """Add the scan to the first matching line that still has units left."""
+    ordered = sorted(matches, key=lambda row: int(row.get("line_number") or 0))
+    for row in ordered:
+        if int(row.get("counted") or 0) < int(row.get("shipped") or 0):
+            return row
+    return ordered[0]
+
+
 class FbaShipmentParseError(ValueError):
     """The file is not the official FBA shipment template."""
 

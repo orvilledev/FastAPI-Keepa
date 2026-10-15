@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react'
 import {
   fbaShipmentLibraryApi,
   type FbaShipmentLine,
@@ -15,6 +15,12 @@ function errorMessage(err: unknown, fallback: string): string {
 
 function externalId(value: string): string {
   return value.replace(/^UPC:\s*/i, '').trim()
+}
+
+function statusClass(status: string): string {
+  if (status === 'All Accounted') return 'bg-emerald-50 text-emerald-800'
+  if (status === 'Overage') return 'bg-red-50 text-red-800'
+  return 'bg-amber-50 text-amber-900'
 }
 
 function formatWhen(iso: string): string {
@@ -48,6 +54,10 @@ export default function FbaShipmentLibrary() {
   const [lineSearch, setLineSearch] = useState('')
   const [linesLoading, setLinesLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [barcode, setBarcode] = useState('')
+  const [scanning, setScanning] = useState(false)
+  const [activeLineId, setActiveLineId] = useState<string | null>(null)
+  const scanRef = useRef<HTMLInputElement>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
   const loadUploads = useCallback(async () => {
@@ -97,6 +107,37 @@ export default function FbaShipmentLibrary() {
   useEffect(() => {
     void loadLines()
   }, [loadLines])
+
+  useEffect(() => {
+    if (selectedId) scanRef.current?.focus()
+  }, [selectedId])
+
+  const handleScan = async (event: FormEvent) => {
+    event.preventDefault()
+    const code = barcode.trim()
+    if (!selectedId || !code || scanning) return
+    setScanning(true)
+    setError(null)
+    try {
+      const result = await fbaShipmentLibraryApi.scan(selectedId, code)
+      setLines((current) =>
+        current.map((line) => (line.id === result.line.id ? result.line : line)),
+      )
+      setActiveLineId(result.line.id)
+      setNotice(
+        `${result.barcode}: counted ${result.line.counted} of ${result.line.shipped}. Missing ${result.line.missing}. ${result.line.status}.`,
+      )
+      setBarcode('')
+      window.setTimeout(() => {
+        document.getElementById(`fba-line-${result.line.id}`)?.scrollIntoView({ block: 'nearest' })
+      }, 0)
+    } catch (err) {
+      setError(errorMessage(err, 'That scan was not counted.'))
+    } finally {
+      setScanning(false)
+      scanRef.current?.focus()
+    }
+  }
 
   const acceptFile = (incoming: File | null | undefined) => {
     if (!incoming) return
@@ -422,6 +463,27 @@ export default function FbaShipmentLibrary() {
               </button>
             </form>
           </div>
+          <form className="mt-4 flex flex-wrap items-center gap-2" onSubmit={(event) => void handleScan(event)}>
+            <input
+              ref={scanRef}
+              value={barcode}
+              onChange={(event) => setBarcode(event.target.value)}
+              placeholder="Scan external-id / UPC"
+              autoComplete="off"
+              className="w-72 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            />
+            <button
+              type="submit"
+              disabled={!barcode.trim() || scanning}
+              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {scanning ? 'Counting…' : 'Count 1'}
+            </button>
+            <p className="text-xs text-gray-500">
+              One scan counts as 1. Shipped stays the file quantity. Your counts stay on this shipment and do not
+              change anyone else’s.
+            </p>
+          </form>
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
@@ -429,27 +491,41 @@ export default function FbaShipmentLibrary() {
                   <th className="bg-amber-100 px-2 py-2">Merchant SKU</th>
                   <th className="bg-amber-100 px-2 py-2">external-id</th>
                   <th className="bg-amber-100 px-2 py-2">Shipped</th>
+                  <th className="bg-amber-100 px-2 py-2">Counted</th>
+                  <th className="bg-amber-100 px-2 py-2">Missing</th>
+                  <th className="bg-amber-100 px-2 py-2">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {linesLoading ? (
                   <tr>
-                    <td colSpan={3} className="px-2 py-6 text-gray-500">
+                    <td colSpan={6} className="px-2 py-6 text-gray-500">
                       Loading lines…
                     </td>
                   </tr>
                 ) : lines.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="px-2 py-6 text-gray-500">
+                    <td colSpan={6} className="px-2 py-6 text-gray-500">
                       No matching lines.
                     </td>
                   </tr>
                 ) : (
                   lines.map((line) => (
-                    <tr key={line.id} className="border-b border-gray-100">
+                    <tr
+                      key={line.id}
+                      id={`fba-line-${line.id}`}
+                      className={`border-b border-gray-100 ${activeLineId === line.id ? 'bg-amber-50' : ''}`}
+                    >
                       <td className="px-2 py-2 font-medium text-gray-900">{line.merchant_sku}</td>
                       <td className="px-2 py-2">{externalId(line.external_id) || '—'}</td>
                       <td className="px-2 py-2">{line.shipped}</td>
+                      <td className="px-2 py-2">{line.counted ?? 0}</td>
+                      <td className="px-2 py-2">{line.missing ?? Math.max(0, line.shipped - (line.counted ?? 0))}</td>
+                      <td className="px-2 py-2">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(line.status || 'Missing Items')}`}>
+                          {line.status || 'Missing Items'}
+                        </span>
+                      </td>
                     </tr>
                   ))
                 )}

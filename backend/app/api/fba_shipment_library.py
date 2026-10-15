@@ -12,11 +12,18 @@ from app.models.fba_shipment_library import (
     FbaShipmentDetailResponse,
     FbaShipmentImportResult,
     FbaShipmentLineResponse,
+    FbaShipmentScanRequest,
+    FbaShipmentScanResult,
     FbaShipmentUploadListResponse,
     FbaShipmentUploadResponse,
 )
 from app.repositories.fba_shipment_library_repository import FbaShipmentLibraryRepository
-from app.services.fba_shipment_library import FbaShipmentParseError, parse_fba_shipment_tsv
+from app.services.fba_shipment_library import (
+    FbaShipmentParseError,
+    choose_line_for_scan,
+    parse_fba_shipment_tsv,
+    strip_upc_label,
+)
 from app.utils.error_handler import handle_api_errors
 from app.utils.user_display_name import profile_display_name
 
@@ -128,14 +135,64 @@ def get_fba_shipment(
         if not upload:
             raise HTTPException(status_code=404, detail="That shipment upload was not found.")
         lines, total = repo.list_lines(upload_id, limit=limit, offset=offset, search=search)
+        counts = repo.counts_for_lines(
+            [str(row.get("id") or "") for row in lines],
+            str(current_user["id"]),
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    for row in lines:
+        row["counted"] = counts.get(str(row.get("id") or ""), 0)
     return FbaShipmentDetailResponse(
         upload=_upload_response(upload, current_user, can_manage_any=can_manage_any),
         lines=[FbaShipmentLineResponse(**row) for row in lines],
         total=total,
         limit=limit,
         offset=offset,
+    )
+
+
+@router.post("/fba-shipment-library/{upload_id}/scan", response_model=FbaShipmentScanResult)
+@handle_api_errors("scan FBA shipment barcode")
+def scan_fba_shipment(
+    upload_id: str,
+    body: FbaShipmentScanRequest,
+    current_user: dict = Depends(get_old_skus_user),
+    db: Client = Depends(get_supabase),
+):
+    """Count one unit for the scanned external-id. Counts belong to the signed-in user."""
+    barcode = strip_upc_label(body.barcode or "")
+    if not barcode:
+        raise HTTPException(status_code=400, detail="Scan an external-id barcode.")
+    repo = FbaShipmentLibraryRepository(db)
+    try:
+        upload = repo.get_upload(upload_id)
+        if not upload:
+            raise HTTPException(status_code=404, detail="That shipment upload was not found.")
+        matches = repo.lines_for_barcode(upload_id, barcode)
+        if not matches:
+            raise HTTPException(
+                status_code=404,
+                detail=f"{barcode} is not an external-id on this shipment.",
+            )
+        counts = repo.counts_for_lines(
+            [str(row.get("id") or "") for row in matches],
+            str(current_user["id"]),
+        )
+        for row in matches:
+            row["counted"] = counts.get(str(row.get("id") or ""), 0)
+        target = choose_line_for_scan(matches)
+        counted = repo.increment_count(
+            upload_id,
+            str(target["id"]),
+            str(current_user["id"]),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    target["counted"] = counted
+    return FbaShipmentScanResult(
+        barcode=barcode,
+        line=FbaShipmentLineResponse(**target),
     )
 
 

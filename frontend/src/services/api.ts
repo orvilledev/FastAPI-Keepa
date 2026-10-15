@@ -2999,6 +2999,9 @@ export type FbaShipmentLine = {
   merchant_sku: string
   external_id: string
   shipped: number
+  counted: number
+  missing: number
+  status: string
 }
 
 export type FbaShipmentUploadList = {
@@ -3049,6 +3052,10 @@ export const fbaShipmentLibraryApi = {
   },
   remove: async (uploadId: string): Promise<void> => {
     await api.delete(`/api/v1/fba-shipment-library/${uploadId}`)
+  },
+  scan: async (uploadId: string, barcode: string): Promise<{ barcode: string; line: FbaShipmentLine }> => {
+    const response = await api.post(`/api/v1/fba-shipment-library/${uploadId}/scan`, { barcode })
+    return response.data
   },
 }
 
