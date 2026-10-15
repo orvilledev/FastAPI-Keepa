@@ -3,7 +3,9 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from app.services.fba_shipment_library import strip_upc_label
 
 
 class FbaShipmentUploadResponse(BaseModel):
@@ -29,6 +31,11 @@ class FbaShipmentLineResponse(BaseModel):
     shipped: int = 0
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("external_id", mode="before")
+    @classmethod
+    def _drop_upc_label(cls, value: object) -> str:
+        return strip_upc_label("" if value is None else str(value))
 
 
 class FbaShipmentUploadListResponse(BaseModel):

@@ -13,6 +13,10 @@ function errorMessage(err: unknown, fallback: string): string {
   return typeof detail === 'string' && detail.trim() ? detail : fallback
 }
 
+function externalId(value: string): string {
+  return value.replace(/^UPC:\s*/i, '').trim()
+}
+
 function formatWhen(iso: string): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
@@ -444,7 +448,7 @@ export default function FbaShipmentLibrary() {
                   lines.map((line) => (
                     <tr key={line.id} className="border-b border-gray-100">
                       <td className="px-2 py-2 font-medium text-gray-900">{line.merchant_sku}</td>
-                      <td className="px-2 py-2">{line.external_id || '—'}</td>
+                      <td className="px-2 py-2">{externalId(line.external_id) || '—'}</td>
                       <td className="px-2 py-2">{line.shipped}</td>
                     </tr>
                   ))

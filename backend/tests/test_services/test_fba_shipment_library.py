@@ -27,8 +27,8 @@ def test_parser_keeps_only_yellow_fields():
     assert parsed.shipment_id == "FBA19T3YGF07"
     assert parsed.total_shipped == 7
     assert [(line.merchant_sku, line.external_id, line.shipped) for line in parsed.lines] == [
-        ("845028000003", "UPC: 845028000003", 3),
-        ("845028000010", "UPC: 845028000010", 4),
+        ("845028000003", "845028000003", 3),
+        ("845028000010", "845028000010", 4),
     ]
 
 
@@ -43,7 +43,7 @@ def test_official_sample_file():
 
     assert parsed.shipment_id == "FBA19T3YGF07"
     assert parsed.lines[0].merchant_sku == "845028000003"
-    assert parsed.lines[0].external_id == "UPC: 845028000003"
+    assert parsed.lines[0].external_id == "845028000003"
     assert parsed.lines[0].shipped == 3
     assert parsed.lines[1].shipped == 3
     assert len(parsed.lines) == 287

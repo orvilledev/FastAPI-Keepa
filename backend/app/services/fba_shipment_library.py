@@ -6,8 +6,16 @@ Shipment ID, Merchant SKU, external-id, and Shipped.
 from __future__ import annotations
 
 import csv
+import re
 from dataclasses import dataclass
 from io import StringIO
+
+_UPC_PREFIX = re.compile(r"^UPC:\s*", re.IGNORECASE)
+
+
+def strip_upc_label(value: str) -> str:
+    """Drop a leading ``UPC:`` label so external-id stores the code only."""
+    return _UPC_PREFIX.sub("", (value or "").strip()).strip()
 
 
 class FbaShipmentParseError(ValueError):
@@ -114,7 +122,7 @@ def parse_fba_shipment_tsv(content: bytes) -> ParsedFbaShipment:
         merchant_sku = (padded[sku_col] or "").strip()
         if not merchant_sku:
             continue
-        external_id = (padded[external_col] or "").strip()
+        external_id = strip_upc_label(padded[external_col] or "")
         shipped = _parse_shipped(padded[shipped_col], merchant_sku, header_index + 1 + offset)
         lines.append(
             FbaShipmentLine(
