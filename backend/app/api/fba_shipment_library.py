@@ -1,4 +1,4 @@
-"""FBA Shipment Library — store yellow fields from the official shipment TSV."""
+"""FBA Order Checker — store yellow fields from the official shipment TSV."""
 import logging
 from typing import Optional
 

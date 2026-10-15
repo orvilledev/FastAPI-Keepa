@@ -209,7 +209,7 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         Tools includes <strong>Micro Tools</strong>, <strong>Tracking Extractor</strong>, <strong>FNSKU Labels</strong>,{' '}
         <strong>FNSKU Pack Station</strong>, <strong>Manifest Generator</strong>, <strong>DNK AllInventory</strong>, and{' '}
         <strong>Label Station</strong>. <strong>BC Tools</strong> holds <strong>FBA Box Contents</strong>,{' '}
-        <strong>FBA Shipment Library</strong>, <strong>FBA Upload Compare</strong>,{' '}
+        <strong>FBA Order Checker</strong>, <strong>FBA Upload Compare</strong>,{' '}
         <strong>Product Catalog Formatter</strong>, and{' '}
         <strong>Shipment Manager</strong> for allowlisted accounts, plus <strong>Freight Class</strong> and{' '}
         <strong>SMW Shipment Analyzer</strong> for signed-in users who are allowed those tools.{' '}
@@ -271,10 +271,10 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     ),
   },
   {
-    q: 'What is FBA Shipment Library?',
+    q: 'What is FBA Order Checker?',
     a: (
       <>
-        FBA Shipment Library stores the yellow columns from the official Amazon FBA shipment .tsv: Shipment ID, Merchant
+        FBA Order Checker stores the yellow columns from the official Amazon FBA shipment .tsv: Shipment ID, Merchant
         SKU, external-id, and Shipped. Each upload is kept, even if you leave the page. Everyone with BC Tools access
         can see every upload and use the stored lines. A new upload does not delete someone else’s. You can remove only
         an upload you created.

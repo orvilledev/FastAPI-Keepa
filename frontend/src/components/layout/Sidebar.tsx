@@ -751,7 +751,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
                   }`}
                 >
                   <span className="shrink-0">{Icons.fbaShipmentLibrary}</span>
-                  <span className="sidebar-link-label">FBA Shipment Library</span>
+                  <span className="sidebar-link-label">FBA Order Checker</span>
                 </Link>
               )}
               {canUseBcTools && (

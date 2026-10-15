@@ -1,4 +1,4 @@
-"""Pydantic models for the FBA Shipment Library."""
+"""Pydantic models for FBA Order Checker."""
 from datetime import datetime
 from typing import List, Optional
 from uuid import UUID

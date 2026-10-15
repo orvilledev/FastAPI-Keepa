@@ -303,7 +303,7 @@ export default function FbaShipmentLibrary() {
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">FBA Shipment Library</h1>
+        <h1 className="text-2xl font-bold text-gray-900">FBA Order Checker</h1>
         <p className="mt-2 max-w-3xl text-sm text-gray-600">
           Upload the official FBA shipment <strong>.tsv</strong>. The tool stores the yellow fields only:{' '}
           <strong>Shipment ID</strong>, <strong>Merchant SKU</strong>, <strong>external-id</strong>, and{' '}

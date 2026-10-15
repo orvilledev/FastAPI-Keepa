@@ -1,4 +1,4 @@
-"""Data access for the FBA Shipment Library."""
+"""Data access for FBA Order Checker."""
 from __future__ import annotations
 
 import logging
@@ -53,7 +53,7 @@ def _raise_persist_error(exc: Exception) -> None:
     if missing_table and (
         _UPLOADS in message or _LINES in message or _COUNTS in message or _UNKNOWNS in message or "relation" in message
     ):
-        raise ValueError(f"The FBA Shipment Library tables are missing. {_MIGRATION_HINT}") from exc
+        raise ValueError(f"The FBA Order Checker tables are missing. {_MIGRATION_HINT}") from exc
     if "row-level security" in message or "permission denied" in message:
         raise ValueError(
             "Saving was blocked by database permissions. "
