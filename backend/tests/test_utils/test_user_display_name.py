@@ -1,6 +1,7 @@
 from app.utils.user_display_name import (
     capitalize_person_name,
     format_stored_creator_name,
+    given_name,
     profile_display_name,
     resolve_user_display_name,
 )
@@ -47,6 +48,13 @@ def test_format_stored_creator_name_converts_email():
         format_stored_creator_name("stephanie@metroshoewarehouse.com")
         == "Stephanie"
     )
+
+
+def test_given_name_keeps_the_first_name_only():
+    assert given_name("Orville") == "Orville"
+    assert given_name("Cameron Smith") == "Cameron"
+    assert given_name("brittany gibson") == "Brittany"
+    assert given_name("sunshine@metroshoewarehouse.com") == "Sunshine"
 
 
 def test_format_stored_creator_name_preserves_scheduled_run():

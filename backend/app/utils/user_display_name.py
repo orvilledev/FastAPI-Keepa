@@ -59,6 +59,14 @@ def profile_display_name(profile: Mapping[str, Any], current_user: Mapping[str, 
     )
 
 
+def given_name(value: Optional[str]) -> Optional[str]:
+    """First name only (Orville Barba → Orville, Cameron Smith → Cameron)."""
+    formatted = format_stored_creator_name(value)
+    if not formatted:
+        return None
+    return formatted.split()[0]
+
+
 def format_stored_creator_name(value: Optional[str]) -> Optional[str]:
     """Format a persisted created_by_name (fixes legacy rows that stored email)."""
     if not isinstance(value, str) or not value.strip():

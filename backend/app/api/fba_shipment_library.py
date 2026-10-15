@@ -29,7 +29,7 @@ from app.services.fba_shipment_library import (
     strip_upc_label,
 )
 from app.utils.error_handler import handle_api_errors
-from app.utils.user_display_name import profile_display_name
+from app.utils.user_display_name import given_name, profile_display_name
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ def _creator_snapshot(db: Client, current_user: dict) -> tuple[str, str, str]:
     try:
         response = (
             db.table("profiles")
-            .select("display_name, full_name, email")
+            .select("display_name, email")
             .eq("id", current_user["id"])
             .limit(1)
             .execute()
@@ -72,8 +72,31 @@ def _creator_snapshot(db: Client, current_user: dict) -> tuple[str, str, str]:
     except Exception:
         logger.debug("FBA shipment library profile lookup failed", exc_info=True)
     email = (current_user.get("email") or profile.get("email") or "").strip().lower()
-    name = profile_display_name(profile, current_user) or ""
+    name = given_name(profile_display_name(profile, current_user)) or ""
     return str(current_user["id"]), email, name
+
+
+def _given_names_by_user(db: Client, user_ids: list[str]) -> dict[str, str]:
+    """Live first names from profiles, so older uploads do not keep the email handle."""
+    ids = list(dict.fromkeys(user_id for user_id in user_ids if user_id))
+    if not ids:
+        return {}
+    try:
+        response = (
+            db.table("profiles")
+            .select("id, display_name, email")
+            .in_("id", ids)
+            .execute()
+        )
+    except Exception:
+        logger.debug("FBA shipment uploader name lookup failed", exc_info=True)
+        return {}
+    names: dict[str, str] = {}
+    for row in response.data or []:
+        name = given_name(profile_display_name(row, {}))
+        if name:
+            names[str(row.get("id") or "")] = name
+    return names
 
 
 def _unknown_line(row: dict) -> FbaShipmentLineResponse:
@@ -88,9 +111,17 @@ def _unknown_line(row: dict) -> FbaShipmentLineResponse:
     )
 
 
-def _upload_response(row: dict, current_user: dict, *, can_manage_any: bool) -> FbaShipmentUploadResponse:
+def _upload_response(
+    row: dict,
+    current_user: dict,
+    *,
+    can_manage_any: bool,
+    uploader_names: Optional[dict[str, str]] = None,
+) -> FbaShipmentUploadResponse:
     created_by = str(row.get("created_by") or "")
     owned = created_by == str(current_user.get("id") or "") or can_manage_any
+    stored = given_name(row.get("created_by_name")) or given_name(row.get("created_by_email")) or ""
+    name = (uploader_names or {}).get(created_by) or stored
     return FbaShipmentUploadResponse(
         id=row["id"],
         shipment_id=row.get("shipment_id") or "",
@@ -99,7 +130,7 @@ def _upload_response(row: dict, current_user: dict, *, can_manage_any: bool) -> 
         total_shipped=int(row.get("total_shipped") or 0),
         created_by=row.get("created_by"),
         created_by_email=row.get("created_by_email") or "",
-        created_by_name=row.get("created_by_name") or "",
+        created_by_name=name,
         created_at=row["created_at"],
         owned_by_me=owned,
         is_locked=bool(row.get("is_locked")),
@@ -155,8 +186,17 @@ def list_fba_shipments(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    uploader_names = _given_names_by_user(db, [str(row.get("created_by") or "") for row in items])
     return FbaShipmentUploadListResponse(
-        items=[_upload_response(row, current_user, can_manage_any=can_manage_any) for row in items],
+        items=[
+            _upload_response(
+                row,
+                current_user,
+                can_manage_any=can_manage_any,
+                uploader_names=uploader_names,
+            )
+            for row in items
+        ],
         total=total,
         limit=limit,
         offset=offset,
@@ -192,7 +232,12 @@ def get_fba_shipment(
         row["counted"] = counts.get(str(row.get("id") or ""), 0)
     upload["fully_accounted"] = _user_is_accounted(repo, upload_id, str(current_user["id"]))
     return FbaShipmentDetailResponse(
-        upload=_upload_response(upload, current_user, can_manage_any=can_manage_any),
+        upload=_upload_response(
+            upload,
+            current_user,
+            can_manage_any=can_manage_any,
+            uploader_names=_given_names_by_user(db, [str(upload.get("created_by") or "")]),
+        ),
         lines=[FbaShipmentLineResponse(**row) for row in lines],
         unknown_lines=[_unknown_line(row) for row in unknown_rows],
         total=total,
@@ -272,7 +317,12 @@ def set_fba_shipment_access(
         saved = repo.set_locked(upload_id, body.locked)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return _upload_response(saved, current_user, can_manage_any=can_manage_any)
+    return _upload_response(
+        saved,
+        current_user,
+        can_manage_any=can_manage_any,
+        uploader_names=_given_names_by_user(db, [str(saved.get("created_by") or "")]),
+    )
 
 
 @router.post("/fba-shipment-library/{upload_id}/archive", response_model=FbaShipmentUploadResponse)
@@ -302,7 +352,12 @@ def archive_fba_shipment(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     saved["fully_accounted"] = True
-    return _upload_response(saved, current_user, can_manage_any=can_manage_any)
+    return _upload_response(
+        saved,
+        current_user,
+        can_manage_any=can_manage_any,
+        uploader_names=_given_names_by_user(db, [str(saved.get("created_by") or "")]),
+    )
 
 
 @router.get("/fba-shipment-library/{upload_id}/report")
@@ -395,6 +450,7 @@ async def import_fba_shipment(
             saved,
             current_user,
             can_manage_any=is_superadmin_user(current_user, db),
+            uploader_names=_given_names_by_user(db, [str(saved.get("created_by") or "")]),
         )
     )
 
