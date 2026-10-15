@@ -2980,6 +2980,78 @@ export const catalogOldSkusApi = {
   },
 }
 
+export type FbaShipmentUpload = {
+  id: string
+  shipment_id: string
+  source_filename: string
+  line_count: number
+  total_shipped: number
+  created_by: string | null
+  created_by_email: string
+  created_by_name: string
+  created_at: string
+  owned_by_me: boolean
+}
+
+export type FbaShipmentLine = {
+  id: string
+  line_number: number
+  merchant_sku: string
+  external_id: string
+  shipped: number
+}
+
+export type FbaShipmentUploadList = {
+  items: FbaShipmentUpload[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export type FbaShipmentDetail = {
+  upload: FbaShipmentUpload
+  lines: FbaShipmentLine[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export const fbaShipmentLibraryApi = {
+  list: async (
+    limit = 50,
+    offset = 0,
+    search?: string,
+    mine = false,
+  ): Promise<FbaShipmentUploadList> => {
+    const response = await api.get('/api/v1/fba-shipment-library', {
+      params: { limit, offset, search: search || undefined, mine },
+    })
+    return response.data
+  },
+  get: async (
+    uploadId: string,
+    limit = 100,
+    offset = 0,
+    search?: string,
+  ): Promise<FbaShipmentDetail> => {
+    const response = await api.get(`/api/v1/fba-shipment-library/${uploadId}`, {
+      params: { limit, offset, search: search || undefined },
+    })
+    return response.data
+  },
+  importFile: async (file: File): Promise<{ upload: FbaShipmentUpload }> => {
+    const form = new FormData()
+    form.append('file', file)
+    const response = await api.post('/api/v1/fba-shipment-library/import', form, {
+      timeout: 120_000,
+    })
+    return response.data
+  },
+  remove: async (uploadId: string): Promise<void> => {
+    await api.delete(`/api/v1/fba-shipment-library/${uploadId}`)
+  },
+}
+
 export const systemApi = {
   getMaintenanceStatus: async (): Promise<{
     maintenance_mode: boolean

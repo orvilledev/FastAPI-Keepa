@@ -117,6 +117,7 @@ function buildSearchItems(
       items.push({ label: 'FBA Box Contents', path: '/fba-box-contents', section: 'BC Tools' })
     }
     items.push(
+      { label: 'FBA Shipment Library', path: '/fba-shipment-library', section: 'BC Tools' },
       { label: 'FBA Upload Compare', path: '/fba-upload-compare', section: 'BC Tools' },
       { label: 'Product Catalog Formatter', path: '/product-catalog-formatter', section: 'BC Tools' },
       { label: 'Shipment Manager', path: '/shipment-manager', section: 'BC Tools' },

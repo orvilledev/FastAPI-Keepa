@@ -27,6 +27,7 @@ export const BOOKMARKABLE_TOOLS: BookmarkableTool[] = [
   { path: '/label-center', label: 'Label Center', group: 'Tools' },
   { path: '/label-station', label: 'Label Station', group: 'Tools' },
   { path: '/fba-box-contents', label: 'FBA Box Contents', group: 'BC Tools' },
+  { path: '/fba-shipment-library', label: 'FBA Shipment Library', group: 'BC Tools' },
   { path: '/fba-upload-compare', label: 'FBA Upload Compare', group: 'BC Tools' },
   { path: '/product-catalog-formatter', label: 'Product Catalog Formatter', group: 'BC Tools' },
   { path: '/shipment-manager', label: 'Shipment Manager', group: 'BC Tools' },

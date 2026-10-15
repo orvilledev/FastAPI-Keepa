@@ -135,6 +135,12 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 3h3m3 0h.01M13 20h7" />
     </svg>
   ),
+  fbaShipmentLibrary: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7h16M4 12h16M4 17h10" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16" />
+    </svg>
+  ),
   fbaUploadCompare: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h8M8 12h5m-9 8h14a2 2 0 002-2V7a2 2 0 00-2-2h-3.5a1 1 0 01-.8-.4l-.9-1.2A1 1 0 0010.7 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -732,6 +738,20 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
                 >
                   <span className="shrink-0">{Icons.fbaBoxContents}</span>
                   <span className="sidebar-link-label">FBA Box Contents</span>
+                </Link>
+              )}
+              {canUseBcTools && (
+                <Link
+                  to="/fba-shipment-library"
+                  onMouseEnter={() => setHoveredNav('fba-shipment-library')}
+                  className={`sidebar-link ${
+                    navHighlighted('fba-shipment-library', isActive('/fba-shipment-library'))
+                      ? 'sidebar-link-active'
+                      : 'sidebar-link-inactive'
+                  }`}
+                >
+                  <span className="shrink-0">{Icons.fbaShipmentLibrary}</span>
+                  <span className="sidebar-link-label">FBA Shipment Library</span>
                 </Link>
               )}
               {canUseBcTools && (
