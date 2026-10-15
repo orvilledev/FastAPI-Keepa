@@ -135,6 +135,7 @@ def _upload_response(
         owned_by_me=owned,
         is_locked=bool(row.get("is_locked")),
         archived_at=row.get("archived_at"),
+        trashed_at=row.get("trashed_at"),
         fully_accounted=bool(row.get("fully_accounted")),
     )
 
@@ -144,6 +145,8 @@ def _owns_upload(upload: dict, current_user: dict, can_manage_any: bool) -> bool
 
 
 def _require_visible(upload: dict, current_user: dict, can_manage_any: bool) -> None:
+    if upload.get("trashed_at") and not _owns_upload(upload, current_user, can_manage_any):
+        raise HTTPException(status_code=404, detail="That shipment upload was not found.")
     if upload.get("is_locked") and not _owns_upload(upload, current_user, can_manage_any):
         raise HTTPException(
             status_code=403,
@@ -169,6 +172,7 @@ def list_fba_shipments(
     search: Optional[str] = Query(None),
     mine: bool = Query(False),
     archived: bool = Query(False),
+    trashed: bool = Query(False),
     current_user: dict = Depends(get_old_skus_user),
     db: Client = Depends(get_supabase),
 ):
@@ -179,8 +183,9 @@ def list_fba_shipments(
             limit=limit,
             offset=offset,
             search=search,
-            created_by=str(current_user["id"]) if mine else None,
+            created_by=str(current_user["id"]) if mine or (trashed and not can_manage_any) else None,
             archived=archived,
+            trashed=trashed,
             viewer_id=str(current_user["id"]),
             see_locked=can_manage_any,
         )
@@ -264,6 +269,8 @@ def scan_fba_shipment(
         if not upload:
             raise HTTPException(status_code=404, detail="That shipment upload was not found.")
         _require_visible(upload, current_user, is_superadmin_user(current_user, db))
+        if upload.get("trashed_at"):
+            raise HTTPException(status_code=400, detail="This shipment is in Trash. Restore it before scanning.")
         if upload.get("archived_at"):
             raise HTTPException(status_code=400, detail="This shipment is archived and can no longer be scanned.")
         user_id = str(current_user["id"])
@@ -314,6 +321,8 @@ def set_fba_shipment_access(
             raise HTTPException(status_code=404, detail="That shipment upload was not found.")
         if not _owns_upload(upload, current_user, can_manage_any):
             raise HTTPException(status_code=403, detail="Only the owner can lock or share this shipment.")
+        if upload.get("trashed_at"):
+            raise HTTPException(status_code=400, detail="Restore this shipment from Trash before changing access.")
         saved = repo.set_locked(upload_id, body.locked)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -341,6 +350,8 @@ def archive_fba_shipment(
             raise HTTPException(status_code=404, detail="That shipment upload was not found.")
         if not _owns_upload(upload, current_user, can_manage_any):
             raise HTTPException(status_code=403, detail="Only the owner can archive this shipment.")
+        if upload.get("trashed_at"):
+            raise HTTPException(status_code=400, detail="Restore this shipment from Trash before archiving it.")
         if upload.get("archived_at"):
             raise HTTPException(status_code=400, detail="This shipment is already archived.")
         if not _user_is_accounted(repo, upload_id, str(current_user["id"])):
@@ -455,6 +466,92 @@ async def import_fba_shipment(
     )
 
 
+def _require_owner(upload: dict, current_user: dict, db: Client) -> None:
+    owner = str(upload.get("created_by") or "")
+    if owner != str(current_user.get("id") or "") and not is_superadmin_user(current_user, db):
+        raise HTTPException(
+            status_code=403,
+            detail="You can remove only shipments you uploaded.",
+        )
+
+
+@router.post("/fba-shipment-library/trash/empty")
+@handle_api_errors("empty FBA shipment trash")
+def empty_fba_trash(
+    mine: bool = Query(False),
+    current_user: dict = Depends(get_old_skus_user),
+    db: Client = Depends(get_supabase),
+):
+    repo = FbaShipmentLibraryRepository(db)
+    can_manage_any = is_superadmin_user(current_user, db)
+    owner = str(current_user["id"]) if mine or not can_manage_any else None
+    try:
+        deleted = repo.empty_trash(created_by=owner)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"deleted": deleted}
+
+
+@router.post("/fba-shipment-library/{upload_id}/trash", response_model=FbaShipmentUploadResponse)
+@handle_api_errors("trash FBA shipment")
+def trash_fba_shipment(
+    upload_id: str,
+    current_user: dict = Depends(get_old_skus_user),
+    db: Client = Depends(get_supabase),
+):
+    repo = FbaShipmentLibraryRepository(db)
+    can_manage_any = is_superadmin_user(current_user, db)
+    try:
+        upload = repo.get_upload(upload_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not upload:
+        raise HTTPException(status_code=404, detail="That shipment upload was not found.")
+    _require_owner(upload, current_user, db)
+    if upload.get("trashed_at"):
+        raise HTTPException(status_code=400, detail="That shipment is already in Trash.")
+    try:
+        saved = repo.trash_upload(upload_id, str(current_user["id"]))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _upload_response(
+        saved,
+        current_user,
+        can_manage_any=can_manage_any,
+        uploader_names=_given_names_by_user(db, [str(saved.get("created_by") or "")]),
+    )
+
+
+@router.post("/fba-shipment-library/{upload_id}/restore", response_model=FbaShipmentUploadResponse)
+@handle_api_errors("restore FBA shipment")
+def restore_fba_shipment(
+    upload_id: str,
+    current_user: dict = Depends(get_old_skus_user),
+    db: Client = Depends(get_supabase),
+):
+    repo = FbaShipmentLibraryRepository(db)
+    can_manage_any = is_superadmin_user(current_user, db)
+    try:
+        upload = repo.get_upload(upload_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not upload:
+        raise HTTPException(status_code=404, detail="That shipment upload was not found.")
+    _require_owner(upload, current_user, db)
+    if not upload.get("trashed_at"):
+        raise HTTPException(status_code=400, detail="That shipment is not in Trash.")
+    try:
+        saved = repo.restore_upload(upload_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _upload_response(
+        saved,
+        current_user,
+        can_manage_any=can_manage_any,
+        uploader_names=_given_names_by_user(db, [str(saved.get("created_by") or "")]),
+    )
+
+
 @router.delete("/fba-shipment-library/{upload_id}")
 @handle_api_errors("delete FBA shipment")
 def delete_fba_shipment(
@@ -469,11 +566,11 @@ def delete_fba_shipment(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not upload:
         raise HTTPException(status_code=404, detail="That shipment upload was not found.")
-    owner = str(upload.get("created_by") or "")
-    if owner != str(current_user.get("id") or "") and not is_superadmin_user(current_user, db):
+    _require_owner(upload, current_user, db)
+    if not upload.get("trashed_at"):
         raise HTTPException(
-            status_code=403,
-            detail="You can remove only shipments you uploaded.",
+            status_code=400,
+            detail="Move the shipment to Trash before removing it for good.",
         )
     try:
         repo.delete_upload(upload_id)

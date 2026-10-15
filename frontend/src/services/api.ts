@@ -2993,6 +2993,7 @@ export type FbaShipmentUpload = {
   owned_by_me: boolean
   is_locked: boolean
   archived_at: string | null
+  trashed_at: string | null
   fully_accounted: boolean
 }
 
@@ -3030,10 +3031,17 @@ export const fbaShipmentLibraryApi = {
     offset = 0,
     search?: string,
     mine = false,
-    archived = false,
+    view: 'active' | 'archive' | 'trash' = 'active',
   ): Promise<FbaShipmentUploadList> => {
     const response = await api.get('/api/v1/fba-shipment-library', {
-      params: { limit, offset, search: search || undefined, mine, archived },
+      params: {
+        limit,
+        offset,
+        search: search || undefined,
+        mine,
+        archived: view === 'archive',
+        trashed: view === 'trash',
+      },
     })
     return response.data
   },
@@ -3057,7 +3065,20 @@ export const fbaShipmentLibraryApi = {
     return response.data
   },
   remove: async (uploadId: string): Promise<void> => {
+    await api.post(`/api/v1/fba-shipment-library/${uploadId}/trash`)
+  },
+  restore: async (uploadId: string): Promise<FbaShipmentUpload> => {
+    const response = await api.post(`/api/v1/fba-shipment-library/${uploadId}/restore`)
+    return response.data
+  },
+  purge: async (uploadId: string): Promise<void> => {
     await api.delete(`/api/v1/fba-shipment-library/${uploadId}`)
+  },
+  emptyTrash: async (mine = false): Promise<{ deleted: number }> => {
+    const response = await api.post('/api/v1/fba-shipment-library/trash/empty', null, {
+      params: { mine },
+    })
+    return response.data
   },
   scan: async (
     uploadId: string,

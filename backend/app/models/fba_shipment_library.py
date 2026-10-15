@@ -21,6 +21,7 @@ class FbaShipmentUploadResponse(BaseModel):
     owned_by_me: bool = False
     is_locked: bool = False
     archived_at: Optional[datetime] = None
+    trashed_at: Optional[datetime] = None
     fully_accounted: bool = False
 
     model_config = ConfigDict(from_attributes=True)

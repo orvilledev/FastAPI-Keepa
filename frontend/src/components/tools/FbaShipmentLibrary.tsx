@@ -44,7 +44,7 @@ export default function FbaShipmentLibrary() {
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [mine, setMine] = useState(false)
-  const [showArchive, setShowArchive] = useState(false)
+  const [listView, setListView] = useState<'active' | 'archive' | 'trash'>('active')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -65,7 +65,9 @@ export default function FbaShipmentLibrary() {
   const [lineSearch, setLineSearch] = useState('')
   const [linesLoading, setLinesLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [pendingRemove, setPendingRemove] = useState<FbaShipmentUpload | null>(null)
+  const [pendingRemove, setPendingRemove] = useState<
+    { mode: 'trash' | 'purge'; upload: FbaShipmentUpload } | { mode: 'empty' } | null
+  >(null)
   const [barcode, setBarcode] = useState('')
   const [scanning, setScanning] = useState(false)
   const [activeLineId, setActiveLineId] = useState<string | null>(null)
@@ -76,7 +78,7 @@ export default function FbaShipmentLibrary() {
     setLoading(true)
     setError(null)
     try {
-      const result = await fbaShipmentLibraryApi.list(PAGE_SIZE, offset, search, mine, showArchive)
+      const result = await fbaShipmentLibraryApi.list(PAGE_SIZE, offset, search, mine, listView)
       setUploads(result.items)
       setTotal(result.total)
     } catch (err) {
@@ -84,7 +86,7 @@ export default function FbaShipmentLibrary() {
     } finally {
       setLoading(false)
     }
-  }, [mine, offset, refreshKey, search, showArchive])
+  }, [listView, mine, offset, refreshKey, search])
 
   useEffect(() => {
     void loadUploads()
@@ -216,24 +218,51 @@ export default function FbaShipmentLibrary() {
   }
 
   const handleDelete = (upload: FbaShipmentUpload) => {
-    setPendingRemove(upload)
+    setPendingRemove({ mode: upload.trashed_at ? 'purge' : 'trash', upload })
   }
 
   const confirmDelete = async () => {
-    const upload = pendingRemove
-    if (!upload) return
-    setDeletingId(upload.id)
+    const pending = pendingRemove
+    if (!pending) return
     setError(null)
+    const busyId = pending.mode === 'empty' ? 'empty' : pending.upload.id
+    setDeletingId(busyId)
     try {
-      await fbaShipmentLibraryApi.remove(upload.id)
-      if (selectedId === upload.id) setSelectedId(null)
-      setNotice(`Removed ${upload.shipment_id}.`)
+      if (pending.mode === 'empty') {
+        const result = await fbaShipmentLibraryApi.emptyTrash(mine)
+        setNotice(result.deleted === 0 ? 'Trash is already empty.' : 'Trash is empty. Those shipments are gone.')
+        setSelectedId(null)
+      } else if (pending.mode === 'purge') {
+        await fbaShipmentLibraryApi.purge(pending.upload.id)
+        if (selectedId === pending.upload.id) setSelectedId(null)
+        setNotice(`Permanently removed ${pending.upload.shipment_id}.`)
+      } else {
+        await fbaShipmentLibraryApi.remove(pending.upload.id)
+        if (selectedId === pending.upload.id) setSelectedId(null)
+        setNotice(`${pending.upload.shipment_id} is in Trash.`)
+      }
       setPendingRemove(null)
       setRefreshKey((value) => value + 1)
     } catch (err) {
-      setError(errorMessage(err, 'Failed to remove that upload.'))
+      setError(errorMessage(err, 'Failed to update Trash.'))
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  const handleRestore = async (upload: FbaShipmentUpload) => {
+    setError(null)
+    try {
+      await fbaShipmentLibraryApi.restore(upload.id)
+      if (selectedId === upload.id) setSelectedId(null)
+      setNotice(
+        upload.archived_at
+          ? `${upload.shipment_id} is back in the completed archive.`
+          : `${upload.shipment_id} is back in the active list.`,
+      )
+      setRefreshKey((value) => value + 1)
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to restore that shipment.'))
     }
   }
 
@@ -313,7 +342,8 @@ export default function FbaShipmentLibrary() {
           <strong>Shipment ID</strong>, <strong>Merchant SKU</strong>, <strong>external-id</strong>, and{' '}
           <strong>Shipped</strong>. The owner can lock a shipment or share it when other workers need to count it.
           Each person keeps their own counts. Download report is on each shipment. Archive moves it into
-          Completed shipments once every line is All Accounted.
+          Completed shipments once every line is All Accounted. Remove sends a shipment to Trash, where it
+          stays until it is removed for good or Trash is emptied.
         </p>
       </div>
 
@@ -383,17 +413,27 @@ export default function FbaShipmentLibrary() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-gray-900">
-              {showArchive ? 'Completed shipments' : 'Stored shipments'}
+              {listView === 'trash' ? 'Trash' : listView === 'archive' ? 'Completed shipments' : 'Stored shipments'}
             </h2>
             <p className="text-xs text-gray-500">{total} upload{total === 1 ? '' : 's'} visible</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {listView === 'trash' && (
+              <button
+                type="button"
+                disabled={total === 0 || deletingId === 'empty'}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-red-700 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-40"
+                onClick={() => setPendingRemove({ mode: 'empty' })}
+              >
+                Empty trash
+              </button>
+            )}
             <div className="inline-flex rounded-lg bg-gray-100 p-0.5 text-sm">
               <button
                 type="button"
-                className={`rounded-md px-3 py-1 ${!showArchive ? 'bg-white font-medium text-gray-900 shadow-sm' : 'text-gray-600'}`}
+                className={`rounded-md px-3 py-1 ${listView === 'active' ? 'bg-white font-medium text-gray-900 shadow-sm' : 'text-gray-600'}`}
                 onClick={() => {
-                  setShowArchive(false)
+                  setListView('active')
                   setOffset(0)
                   setSelectedId(null)
                 }}
@@ -402,14 +442,25 @@ export default function FbaShipmentLibrary() {
               </button>
               <button
                 type="button"
-                className={`rounded-md px-3 py-1 ${showArchive ? 'bg-white font-medium text-gray-900 shadow-sm' : 'text-gray-600'}`}
+                className={`rounded-md px-3 py-1 ${listView === 'archive' ? 'bg-white font-medium text-gray-900 shadow-sm' : 'text-gray-600'}`}
                 onClick={() => {
-                  setShowArchive(true)
+                  setListView('archive')
                   setOffset(0)
                   setSelectedId(null)
                 }}
               >
                 Archive
+              </button>
+              <button
+                type="button"
+                className={`rounded-md px-3 py-1 ${listView === 'trash' ? 'bg-white font-medium text-gray-900 shadow-sm' : 'text-gray-600'}`}
+                onClick={() => {
+                  setListView('trash')
+                  setOffset(0)
+                  setSelectedId(null)
+                }}
+              >
+                Trash
               </button>
             </div>
             <div className="inline-flex rounded-lg bg-gray-100 p-0.5 text-sm">
@@ -482,7 +533,11 @@ export default function FbaShipmentLibrary() {
               ) : uploads.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-2 py-6 text-gray-500">
-                    {showArchive ? 'No completed shipments yet.' : 'No shipments stored yet.'}
+                    {listView === 'trash'
+                      ? 'Trash is empty.'
+                      : listView === 'archive'
+                        ? 'No completed shipments yet.'
+                        : 'No shipments stored yet.'}
                   </td>
                 </tr>
               ) : (
@@ -500,7 +555,11 @@ export default function FbaShipmentLibrary() {
                       {upload.source_filename || '—'}
                     </td>
                     <td className="px-2 py-2">
-                      {upload.archived_at ? (
+                      {upload.trashed_at ? (
+                        <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">
+                          Trash
+                        </span>
+                      ) : upload.archived_at ? (
                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
                           Archived
                         </span>
@@ -515,16 +574,18 @@ export default function FbaShipmentLibrary() {
                       )}
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap text-right">
+                      {listView !== 'trash' && (
+                        <button
+                          type="button"
+                          className="text-sm font-medium text-emerald-700 hover:text-emerald-900"
+                          onClick={() => void handleReport(upload)}
+                        >
+                          Download
+                        </button>
+                      )}
                       <button
                         type="button"
-                        className="text-sm font-medium text-emerald-700 hover:text-emerald-900"
-                        onClick={() => void handleReport(upload)}
-                      >
-                        Download
-                      </button>
-                      <button
-                        type="button"
-                        className="ml-3 text-sm font-medium text-indigo-700 hover:text-indigo-900"
+                        className={`${listView === 'trash' ? '' : 'ml-3 '}text-sm font-medium text-indigo-700 hover:text-indigo-900`}
                         onClick={() => {
                           setSelectedId(upload.id)
                           setLineOffset(0)
@@ -534,7 +595,16 @@ export default function FbaShipmentLibrary() {
                       >
                         View
                       </button>
-                      {upload.owned_by_me && !upload.archived_at && (
+                      {listView === 'trash' && upload.owned_by_me && (
+                        <button
+                          type="button"
+                          className="ml-3 text-sm font-medium text-gray-800 hover:text-gray-950"
+                          onClick={() => void handleRestore(upload)}
+                        >
+                          Restore
+                        </button>
+                      )}
+                      {upload.owned_by_me && !upload.archived_at && listView !== 'trash' && (
                         <button
                           type="button"
                           className="ml-3 text-sm font-medium text-gray-800 hover:text-gray-950"
@@ -550,7 +620,7 @@ export default function FbaShipmentLibrary() {
                           className="ml-10 border-l border-gray-200 pl-4 text-sm font-medium text-red-700 hover:text-red-900 disabled:opacity-50"
                           onClick={() => void handleDelete(upload)}
                         >
-                          Remove
+                          {listView === 'trash' ? 'Delete' : 'Remove'}
                         </button>
                       )}
                     </td>
@@ -605,7 +675,7 @@ export default function FbaShipmentLibrary() {
               >
                 Download report
               </button>
-              {selected.owned_by_me && selected.fully_accounted && !selected.archived_at && (
+              {selected.owned_by_me && selected.fully_accounted && !selected.archived_at && !selected.trashed_at && (
                 <button
                   type="button"
                   className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50"
@@ -616,12 +686,15 @@ export default function FbaShipmentLibrary() {
               )}
             </div>
           </div>
-          {!selected.fully_accounted && !selected.archived_at && (
+          {selected.trashed_at && (
+            <p className="mt-2 text-xs text-gray-500">This shipment is in Trash. Restore it to count again.</p>
+          )}
+          {!selected.fully_accounted && !selected.archived_at && !selected.trashed_at && (
             <p className="mt-2 text-xs text-gray-500">
               Archive is available when every line is All Accounted. Download report works with the count so far.
             </p>
           )}
-          {selected.archived_at && (
+          {selected.archived_at && !selected.trashed_at && (
             <p className="mt-2 text-xs text-gray-500">This shipment is in the completed archive.</p>
           )}
           <div className="mt-3 flex flex-wrap items-end justify-end">
@@ -647,7 +720,7 @@ export default function FbaShipmentLibrary() {
               </button>
             </form>
           </div>
-          {!selected.archived_at && (
+          {!selected.archived_at && !selected.trashed_at && (
           <form className="mt-4 flex flex-wrap items-center gap-2" onSubmit={(event) => void handleScan(event)}>
             <input
               ref={scanRef}
@@ -766,16 +839,23 @@ export default function FbaShipmentLibrary() {
             onClick={(event) => event.stopPropagation()}
           >
             <h2 id="remove-shipment-title" className="text-lg font-semibold text-gray-900">
-              Remove this shipment?
+              {pendingRemove.mode === 'empty'
+                ? 'Empty Trash?'
+                : pendingRemove.mode === 'purge'
+                  ? 'Remove this shipment for good?'
+                  : 'Remove this shipment?'}
             </h2>
             <p className="mt-2 text-sm text-gray-600">
-              Are you sure you want to remove shipment {pendingRemove.shipment_id}? This deletes that upload
-              and its counts. Other shipments stay.
+              {pendingRemove.mode === 'empty'
+                ? 'Are you sure you want to empty Trash? Every shipment in Trash will be permanently removed.'
+                : pendingRemove.mode === 'purge'
+                  ? `Are you sure you want to permanently remove shipment ${pendingRemove.upload.shipment_id}? This cannot be undone.`
+                  : `Are you sure you want to remove shipment ${pendingRemove.upload.shipment_id}? It will move to Trash and stay there until you delete it or empty Trash.`}
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
-                disabled={deletingId === pendingRemove.id}
+                disabled={Boolean(deletingId)}
                 className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
                 onClick={() => setPendingRemove(null)}
               >
@@ -783,11 +863,17 @@ export default function FbaShipmentLibrary() {
               </button>
               <button
                 type="button"
-                disabled={deletingId === pendingRemove.id}
+                disabled={Boolean(deletingId)}
                 className="rounded-lg bg-red-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
                 onClick={() => void confirmDelete()}
               >
-                {deletingId === pendingRemove.id ? 'Removing…' : 'Remove'}
+                {deletingId
+                  ? 'Removing…'
+                  : pendingRemove.mode === 'empty'
+                    ? 'Empty trash'
+                    : pendingRemove.mode === 'purge'
+                      ? 'Delete'
+                      : 'Move to Trash'}
               </button>
             </div>
           </div>

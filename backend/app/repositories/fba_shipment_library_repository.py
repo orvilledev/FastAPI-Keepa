@@ -17,7 +17,8 @@ _UNKNOWNS = "fba_shipment_unknown_scans"
 _MIGRATION_HINT = (
     "Run backend/database/migrations/create_fba_shipment_library.sql, "
     "create_fba_shipment_counts.sql, create_fba_shipment_unknown_scans.sql, "
-    "and add_fba_shipment_library_access.sql in the Supabase SQL Editor."
+    "add_fba_shipment_library_access.sql, and add_fba_shipment_library_trash.sql "
+    "in the Supabase SQL Editor."
 )
 _INSERT_CHUNK = 500
 
@@ -74,6 +75,7 @@ class FbaShipmentLibraryRepository:
         search: Optional[str] = None,
         created_by: Optional[str] = None,
         archived: bool = False,
+        trashed: bool = False,
         viewer_id: Optional[str] = None,
         see_locked: bool = False,
     ) -> Tuple[List[dict], int]:
@@ -82,10 +84,12 @@ class FbaShipmentLibraryRepository:
         query = self.db.table(_UPLOADS).select("*", count="exact")
         if created_by:
             query = query.eq("created_by", created_by)
-        if archived:
-            query = query.not_.is_("archived_at", "null")
+        if trashed:
+            query = query.not_.is_("trashed_at", "null")
+        elif archived:
+            query = query.is_("trashed_at", "null").not_.is_("archived_at", "null")
         else:
-            query = query.is_("archived_at", "null")
+            query = query.is_("trashed_at", "null").is_("archived_at", "null")
         upload_ids = self._upload_ids_for_line_search(search)
         search_or = self._upload_search_or(search, upload_ids)
         visibility = None
@@ -97,7 +101,8 @@ class FbaShipmentLibraryRepository:
             query.params = query.params.add("or", f"({visibility})")
         elif search_or:
             query.params = query.params.add("or", f"({search_or})")
-        response = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+        order_column = "trashed_at" if trashed else "created_at"
+        response = query.order(order_column, desc=True).range(offset, offset + limit - 1).execute()
         return list(response.data or []), int(response.count or 0)
 
     def get_upload(self, upload_id: str) -> Optional[dict]:
@@ -386,6 +391,54 @@ class FbaShipmentLibraryRepository:
             if updated.data:
                 return updated.data[0]
         raise ValueError("Could not record that scan. Scan it again.")
+
+    def trash_upload(self, upload_id: str, user_id: str) -> dict:
+        try:
+            response = (
+                self.db.table(_UPLOADS)
+                .update(
+                    {
+                        "trashed_at": datetime.now(timezone.utc).isoformat(),
+                        "trashed_by": user_id,
+                    }
+                )
+                .eq("id", upload_id)
+                .execute()
+            )
+        except Exception as exc:
+            _raise_persist_error(exc)
+        rows = response.data or []
+        if not rows:
+            raise ValueError("The shipment was not moved to Trash.")
+        return rows[0]
+
+    def restore_upload(self, upload_id: str) -> dict:
+        try:
+            response = (
+                self.db.table(_UPLOADS)
+                .update({"trashed_at": None, "trashed_by": None})
+                .eq("id", upload_id)
+                .execute()
+            )
+        except Exception as exc:
+            _raise_persist_error(exc)
+        rows = response.data or []
+        if not rows:
+            raise ValueError("The shipment was not restored.")
+        return rows[0]
+
+    def empty_trash(self, *, created_by: Optional[str] = None) -> int:
+        query = self.db.table(_UPLOADS).select("id").not_.is_("trashed_at", "null")
+        if created_by:
+            query = query.eq("created_by", created_by)
+        try:
+            response = query.execute()
+        except Exception as exc:
+            _raise_persist_error(exc)
+        ids = [str(row.get("id") or "") for row in (response.data or []) if row.get("id")]
+        for upload_id in ids:
+            self.delete_upload(upload_id)
+        return len(ids)
 
     def delete_upload(self, upload_id: str) -> None:
         try:
