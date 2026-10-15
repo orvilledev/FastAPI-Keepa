@@ -94,7 +94,7 @@ class FbaShipmentLibraryRepository:
         if visibility and search_or:
             query.params = query.params.add("and", f"(or({visibility}),or({search_or}))")
         elif visibility:
-            query = query.or_(visibility)
+            query.params = query.params.add("or", f"({visibility})")
         elif search_or:
             query.params = query.params.add("or", f"({search_or})")
         response = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
