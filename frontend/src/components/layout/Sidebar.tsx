@@ -198,9 +198,11 @@ interface SidebarProps {
   mobileOpen?: boolean
   /** Mobile-only: called when a navigation link is tapped so the drawer can close. */
   onNavigate?: () => void
+  /** Desktop: slide the sidebar off to the left. */
+  collapsed?: boolean
 }
 
-export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps = {}) {
+export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = false }: SidebarProps = {}) {
   const location = useLocation()
   const { hasKeepaAccess, isWarehouseOnly, isSuperadmin, userInfo, authUser } = useUser()
   const canUseProjects = canAccessProjects(
@@ -326,9 +328,9 @@ export default function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-50 flex h-app-screen w-60 shrink-0 flex-col border-r border-gray-200/80 bg-white/80 shadow-lg backdrop-blur-lg transition-transform duration-300 ease-in-out dark:border-border/80 dark:bg-surface/90 lg:static lg:z-auto lg:h-full lg:translate-x-0 lg:shadow-lg lg:transition-none ${
+      className={`fixed inset-y-0 left-0 z-50 flex h-app-screen w-60 shrink-0 flex-col overflow-hidden border-r border-gray-200/80 bg-white/80 shadow-lg backdrop-blur-lg transition-[transform,width] duration-300 ease-in-out dark:border-border/80 dark:bg-surface/90 lg:static lg:z-auto lg:h-full lg:translate-x-0 [&>*]:w-60 [&>*]:min-w-60 [&>*]:shrink-0 ${
         mobileOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}
+      } ${collapsed ? 'lg:w-0 lg:border-r-0 lg:shadow-none' : 'lg:w-60'}`}
     >
       <div className="flex h-20 shrink-0 items-center px-4">
         <div className="flex min-w-0 flex-1 items-center gap-3">
