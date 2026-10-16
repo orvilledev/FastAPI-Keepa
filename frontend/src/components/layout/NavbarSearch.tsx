@@ -34,29 +34,29 @@ function buildSearchItems(
 ): SearchItem[] {
   if (isWarehouseOnly) {
     const warehouseItems: SearchItem[] = [
-      { label: 'Label Station', path: '/label-station', section: 'Tools' },
+      { label: 'Label Station', path: '/label-station', section: 'Warehouse Tools' },
     ]
     if (showLabelCenter) {
-      warehouseItems.unshift({ label: 'Label Center', path: '/label-center', section: 'Tools' })
+      warehouseItems.unshift({ label: 'Label Center', path: '/label-center', section: 'Warehouse Tools' })
     }
     if (showFnskuLabels) {
-      warehouseItems.push({ label: 'FNSKU Labels', path: '/fnsku-labels', section: 'Tools' })
+      warehouseItems.push({ label: 'FNSKU Labels', path: '/fnsku-labels', section: 'Warehouse Tools' })
     }
     warehouseItems.push(
-      { label: 'FNSKU Pack Station', path: '/fnsku-pack-station', section: 'Tools' },
+      { label: 'FNSKU Pack Station', path: '/fnsku-pack-station', section: 'Warehouse Tools' },
     )
     if (showFreightClass) {
       warehouseItems.push({
         label: 'Freight Class Calculator',
         path: '/freight-class-calculator',
-        section: 'Tools',
+        section: 'Warehouse Tools',
       })
     }
     if (showShipmentAnalyzer) {
       warehouseItems.push({
         label: 'SMW Shipment Analyzer',
         path: '/smw-shipment-analyzer',
-        section: 'Tools',
+        section: 'Warehouse Tools',
       })
     }
     warehouseItems.push(
@@ -98,37 +98,39 @@ function buildSearchItems(
 
   if (hasKeepaAccess) {
     if (showLabelCenter) {
-      items.push({ label: 'Label Center', path: '/label-center', section: 'Tools' })
+      items.push({ label: 'Label Center', path: '/label-center', section: 'Warehouse Tools' })
     }
-    items.push({ label: 'Label Station', path: '/label-station', section: 'Tools' })
+    items.push({ label: 'Label Station', path: '/label-station', section: 'Warehouse Tools' })
   }
 
   items.push(
-    { label: 'Micro Tools', path: '/micro-tools', section: 'Tools' },
-    { label: 'Tracking Extractor', path: '/tracking-scanner', section: 'Tools' },
-    { label: 'FNSKU Labels', path: '/fnsku-labels', section: 'Tools' },
-    { label: 'FNSKU Pack Station', path: '/fnsku-pack-station', section: 'Tools' },
-    { label: 'Manifest Generator', path: '/manifest-generator', section: 'Tools' },
-    { label: 'DNK AllInventory', path: '/dnk-all-inventory', section: 'Tools' },
+    { label: 'Micro Tools', path: '/micro-tools', section: 'Warehouse Tools' },
+    { label: 'Tracking Extractor', path: '/tracking-scanner', section: 'Warehouse Tools' },
+    { label: 'FNSKU Labels', path: '/fnsku-labels', section: 'Warehouse Tools' },
+    { label: 'FNSKU Pack Station', path: '/fnsku-pack-station', section: 'Warehouse Tools' },
+    { label: 'Manifest Generator', path: '/manifest-generator', section: 'Warehouse Tools' },
+    { label: 'DNK AllInventory', path: '/dnk-all-inventory', section: 'Warehouse Tools' },
   )
+  if (showBcTools) {
+    items.push({ label: 'FBA Order Checker', path: '/fba-shipment-library', section: 'Warehouse Tools' })
+  }
+  if (showFreightClass) {
+    items.push({
+      label: 'Freight Class Calculator',
+      path: '/freight-class-calculator',
+      section: 'Warehouse Tools',
+    })
+  }
 
   if (showBcTools) {
     if (showFbaBoxContents) {
       items.push({ label: 'FBA Box Contents', path: '/fba-box-contents', section: 'BC Tools' })
     }
     items.push(
-      { label: 'FBA Order Checker', path: '/fba-shipment-library', section: 'BC Tools' },
       { label: 'FBA Upload Compare', path: '/fba-upload-compare', section: 'BC Tools' },
       { label: 'Product Catalog Formatter', path: '/product-catalog-formatter', section: 'BC Tools' },
       { label: 'Shipment Manager', path: '/shipment-manager', section: 'BC Tools' },
     )
-  }
-  if (showFreightClass) {
-    items.push({
-      label: 'Freight Class Calculator',
-      path: '/freight-class-calculator',
-      section: 'BC Tools',
-    })
   }
   if (showShipmentAnalyzer) {
     items.push({
