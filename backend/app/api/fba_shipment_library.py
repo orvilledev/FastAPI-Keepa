@@ -276,31 +276,56 @@ def scan_fba_shipment(
         user_id = str(current_user["id"])
         matches = repo.lines_for_barcode(upload_id, barcode)
         if not matches:
-            saved = repo.increment_unknown_scan(upload_id, user_id, barcode)
+            # The box row is saved first so a missing table stops the scan before it is counted.
+            box_scan_id = (
+                repo.record_box_scan(upload_id, user_id, barcode, body.box_number)
+                if body.box_number is not None
+                else None
+            )
+            try:
+                saved = repo.increment_unknown_scan(upload_id, user_id, barcode)
+            except Exception:
+                if box_scan_id:
+                    repo.delete_box_scan(box_scan_id)
+                raise
             return FbaShipmentScanResult(
                 barcode=barcode,
+                box_number=body.box_number,
                 line=_unknown_line(saved),
                 fully_accounted=_user_is_accounted(repo, upload_id, user_id),
             )
         counts = repo.counts_for_lines(
             [str(row.get("id") or "") for row in matches],
-            str(current_user["id"]),
+            user_id,
         )
         for row in matches:
             row["counted"] = counts.get(str(row.get("id") or ""), 0)
         target = choose_line_for_scan(matches)
-        counted = repo.increment_count(
-            upload_id,
-            str(target["id"]),
-            str(current_user["id"]),
+        box_scan_id = (
+            repo.record_box_scan(
+                upload_id,
+                user_id,
+                strip_upc_label(target.get("external_id") or barcode),
+                body.box_number,
+                str(target["id"]),
+            )
+            if body.box_number is not None
+            else None
         )
+        try:
+            counted = repo.increment_count(upload_id, str(target["id"]), user_id)
+        except Exception:
+            if box_scan_id:
+                repo.delete_box_scan(box_scan_id)
+            raise
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     target["counted"] = counted
     return FbaShipmentScanResult(
         barcode=barcode,
+        box_number=body.box_number,
         line=FbaShipmentLineResponse(**target),
-        fully_accounted=_user_is_accounted(repo, upload_id, str(current_user["id"])),
+        fully_accounted=_user_is_accounted(repo, upload_id, user_id),
     )
 
 
@@ -392,15 +417,20 @@ def download_fba_accounting_report(
         for row in rows:
             row["counted"] = counts.get(str(row.get("id") or ""), 0)
         unknown_rows = repo.list_unknown_scans(upload_id, user_id)
+        box_scans = repo.list_box_scans(upload_id, user_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     _, _, name = _creator_snapshot(db, current_user)
-    content = build_accounting_workbook(
-        shipment_id=upload.get("shipment_id") or "shipment",
-        counted_by=name or (current_user.get("email") or ""),
-        lines=rows,
-        unknown_lines=unknown_rows,
-    )
+    try:
+        content = build_accounting_workbook(
+            shipment_id=upload.get("shipment_id") or "shipment",
+            counted_by=name or (current_user.get("email") or ""),
+            lines=rows,
+            unknown_lines=unknown_rows,
+            box_scans=box_scans,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     filename = f"{upload.get('shipment_id') or 'shipment'} Accounting.xlsx"
     return StreamingResponse(
         iter([content]),

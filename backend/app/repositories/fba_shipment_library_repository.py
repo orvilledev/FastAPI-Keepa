@@ -14,9 +14,11 @@ _UPLOADS = "fba_shipment_uploads"
 _LINES = "fba_shipment_lines"
 _COUNTS = "fba_shipment_counts"
 _UNKNOWNS = "fba_shipment_unknown_scans"
+_BOX_SCANS = "fba_shipment_box_scans"
 _MIGRATION_HINT = (
     "Run backend/database/migrations/create_fba_shipment_library.sql, "
     "create_fba_shipment_counts.sql, create_fba_shipment_unknown_scans.sql, "
+    "create_fba_shipment_box_scans.sql, "
     "add_fba_shipment_library_access.sql, and add_fba_shipment_library_trash.sql "
     "in the Supabase SQL Editor."
 )
@@ -52,7 +54,12 @@ def _raise_persist_error(exc: Exception) -> None:
         or "could not find the table" in message
     )
     if missing_table and (
-        _UPLOADS in message or _LINES in message or _COUNTS in message or _UNKNOWNS in message or "relation" in message
+        _UPLOADS in message
+        or _LINES in message
+        or _COUNTS in message
+        or _UNKNOWNS in message
+        or _BOX_SCANS in message
+        or "relation" in message
     ):
         raise ValueError(f"The FBA Order Checker tables are missing. {_MIGRATION_HINT}") from exc
     if "row-level security" in message or "permission denied" in message:
@@ -391,6 +398,69 @@ class FbaShipmentLibraryRepository:
             if updated.data:
                 return updated.data[0]
         raise ValueError("Could not record that scan. Scan it again.")
+
+    def record_box_scan(
+        self,
+        upload_id: str,
+        user_id: str,
+        external_id: str,
+        box_number: int,
+        line_id: Optional[str] = None,
+    ) -> str:
+        """Remember which box one scanned unit went into. Returns the new row id."""
+        payload: Dict[str, Any] = {
+            "upload_id": upload_id,
+            "user_id": user_id,
+            "external_id": external_id,
+            "box_number": int(box_number),
+        }
+        if line_id:
+            payload["line_id"] = line_id
+        try:
+            response = self.db.table(_BOX_SCANS).insert(payload).execute()
+        except Exception as exc:
+            _raise_persist_error(exc)
+        rows = response.data or []
+        if not rows or not rows[0].get("id"):
+            raise ValueError("The box number for that scan was not saved. Scan it again.")
+        return str(rows[0]["id"])
+
+    def delete_box_scan(self, box_scan_id: str) -> None:
+        """Undo a box record when the matching count could not be saved."""
+        if not box_scan_id:
+            return
+        try:
+            self.db.table(_BOX_SCANS).delete().eq("id", box_scan_id).execute()
+        except Exception:
+            logger.exception("Failed to roll back FBA box scan %s", box_scan_id)
+
+    def list_box_scans(self, upload_id: str, user_id: str) -> List[dict]:
+        """This user's box scans for the shipment, oldest first. Missing table reads as empty."""
+        if not upload_id or not user_id:
+            return []
+        rows: List[dict] = []
+        offset = 0
+        while True:
+            try:
+                response = (
+                    self.db.table(_BOX_SCANS)
+                    .select("external_id, box_number, created_at")
+                    .eq("upload_id", upload_id)
+                    .eq("user_id", user_id)
+                    .order("created_at")
+                    .order("id")
+                    .range(offset, offset + 999)
+                    .execute()
+                )
+            except Exception as exc:
+                if _is_missing_table(exc):
+                    return []
+                _raise_persist_error(exc)
+            chunk = list(response.data or [])
+            rows.extend(chunk)
+            if len(chunk) < 1000:
+                return rows
+            offset += 1000
 
     def trash_upload(self, upload_id: str, user_id: str) -> dict:
         try:

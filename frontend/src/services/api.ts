@@ -3118,8 +3118,17 @@ export const fbaShipmentLibraryApi = {
   scan: async (
     uploadId: string,
     barcode: string,
-  ): Promise<{ barcode: string; line: FbaShipmentLine; fully_accounted: boolean }> => {
-    const response = await api.post(`/api/v1/fba-shipment-library/${uploadId}/scan`, { barcode })
+    boxNumber: number,
+  ): Promise<{
+    barcode: string
+    box_number: number | null
+    line: FbaShipmentLine
+    fully_accounted: boolean
+  }> => {
+    const response = await api.post(`/api/v1/fba-shipment-library/${uploadId}/scan`, {
+      barcode,
+      box_number: boxNumber,
+    })
     return response.data
   },
   setAccess: async (uploadId: string, locked: boolean): Promise<FbaShipmentUpload> => {

@@ -69,9 +69,11 @@ export default function FbaShipmentLibrary() {
     { mode: 'trash' | 'purge'; upload: FbaShipmentUpload } | { mode: 'empty' } | null
   >(null)
   const [barcode, setBarcode] = useState('')
+  const [boxNumber, setBoxNumber] = useState('')
   const [scanning, setScanning] = useState(false)
   const [activeLineId, setActiveLineId] = useState<string | null>(null)
   const scanRef = useRef<HTMLInputElement>(null)
+  const boxRef = useRef<HTMLInputElement>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
   const loadUploads = useCallback(async () => {
@@ -126,22 +128,33 @@ export default function FbaShipmentLibrary() {
 
   useEffect(() => {
     setScanAlert(null)
-    if (selectedId) scanRef.current?.focus()
+    // A box number from another shipment must never carry over.
+    setBoxNumber('')
+    if (selectedId) boxRef.current?.focus()
   }, [selectedId])
+
+  const boxValue = /^\d{1,5}$/.test(boxNumber.trim()) ? Number(boxNumber.trim()) : 0
+  const boxReady = boxValue >= 1 && boxValue <= 99999
 
   const handleScan = async (event: FormEvent) => {
     event.preventDefault()
     const code = barcode.trim()
     if (!selectedId || !code || scanning) return
+    if (!boxReady) {
+      setScanAlert(null)
+      setError('Enter the box number first (1 to 99999), then scan.')
+      boxRef.current?.focus()
+      return
+    }
     setScanning(true)
     setError(null)
     try {
-      const result = await fbaShipmentLibraryApi.scan(selectedId, code)
+      const result = await fbaShipmentLibraryApi.scan(selectedId, code, boxValue)
       setActiveLineId(result.line.id)
       setBarcode('')
       if (result.line.not_in_list) {
         setNotice(null)
-        setScanAlert(`${result.barcode} is not in the list.`)
+        setScanAlert(`${result.barcode} is not in the list. Placed in Box ${boxValue}.`)
         setUnknownLines((current) => [
           result.line,
           ...current.filter(
@@ -154,7 +167,7 @@ export default function FbaShipmentLibrary() {
           current.map((line) => (line.id === result.line.id ? result.line : line)),
         )
         setNotice(
-          `${result.barcode}: counted ${result.line.counted} of ${result.line.shipped}. Missing ${result.line.missing}. ${result.line.status}.`,
+          `${result.barcode} → Box ${boxValue}: counted ${result.line.counted} of ${result.line.shipped}. Missing ${result.line.missing}. ${result.line.status}.`,
         )
       }
       setSelected((current) =>
@@ -721,25 +734,54 @@ export default function FbaShipmentLibrary() {
             </form>
           </div>
           {!selected.archived_at && !selected.trashed_at && (
-          <form className="mt-4 flex flex-wrap items-center gap-2" onSubmit={(event) => void handleScan(event)}>
-            <input
-              ref={scanRef}
-              value={barcode}
-              onChange={(event) => setBarcode(event.target.value)}
-              placeholder="Scan external-id / UPC"
-              autoComplete="off"
-              className="w-72 rounded-lg border border-gray-300 px-3 py-2 text-sm"
-            />
+          <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={(event) => void handleScan(event)}>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600">
+                Box number
+              </span>
+              <input
+                ref={boxRef}
+                value={boxNumber}
+                onChange={(event) => setBoxNumber(event.target.value.replace(/\D/g, '').slice(0, 5))}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    if (boxReady) scanRef.current?.focus()
+                  }
+                }}
+                inputMode="numeric"
+                placeholder="e.g. 1"
+                autoComplete="off"
+                aria-label="Box number"
+                className={`w-28 rounded-lg border px-3 py-2 text-center text-lg font-bold ${
+                  boxReady ? 'border-emerald-400 bg-emerald-50 text-emerald-900' : 'border-amber-400 bg-amber-50'
+                }`}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600">
+                Scan item
+              </span>
+              <input
+                ref={scanRef}
+                value={barcode}
+                onChange={(event) => setBarcode(event.target.value)}
+                placeholder="Scan external-id / UPC"
+                autoComplete="off"
+                className="w-72 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+            </label>
             <button
               type="submit"
-              disabled={!barcode.trim() || scanning}
+              disabled={!barcode.trim() || !boxReady || scanning}
               className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {scanning ? 'Counting…' : 'Count 1'}
+              {scanning ? 'Counting…' : boxReady ? `Count 1 into Box ${boxValue}` : 'Count 1'}
             </button>
-            <p className="text-xs text-gray-500">
-              One scan counts as 1. Shipped stays the file quantity. Your counts stay on this shipment and do not
-              change anyone else’s.
+            <p className="basis-full text-xs text-gray-500">
+              Type the box number first. Every scan is placed in that box and listed on the Boxed tab of the
+              report. One scan counts as 1. Shipped stays the file quantity. Your counts stay on this shipment and
+              do not change anyone else’s.
             </p>
           </form>
           )}

@@ -3,9 +3,14 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.services.fba_shipment_library import STATUS_NOT_IN_LIST, count_progress, strip_upc_label
+from app.services.fba_shipment_library import (
+    MAX_BOX_NUMBER,
+    STATUS_NOT_IN_LIST,
+    count_progress,
+    strip_upc_label,
+)
 
 
 class FbaShipmentUploadResponse(BaseModel):
@@ -77,11 +82,13 @@ class FbaShipmentImportResult(BaseModel):
 
 class FbaShipmentScanRequest(BaseModel):
     barcode: str
+    box_number: Optional[int] = Field(default=None, ge=1, le=MAX_BOX_NUMBER)
 
 
 class FbaShipmentScanResult(BaseModel):
     line: FbaShipmentLineResponse
     barcode: str
+    box_number: Optional[int] = None
     fully_accounted: bool = False
 
 

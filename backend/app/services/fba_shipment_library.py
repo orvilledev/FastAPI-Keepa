@@ -171,14 +171,311 @@ def parse_fba_shipment_tsv(content: bytes) -> ParsedFbaShipment:
     return ParsedFbaShipment(shipment_id=shipment_id, lines=lines)
 
 
+BOXED_SHEET = "Boxed"
+BOXED_HEADER = ["external-id", "Counted", "Box Number"]
+MAX_BOX_NUMBER = 99999
+
+BoxedRow = tuple[str, "int | None"]
+
+
+def accounting_totals_by_external_id(lines: list[dict], unknown_lines: list[dict]) -> dict[str, int]:
+    """Counted units per external-id exactly as the Accounting sheet reports them."""
+    totals: dict[str, int] = {}
+    for row in [*lines, *unknown_lines]:
+        external_id = strip_upc_label(str(row.get("external_id") or ""))
+        counted = int(row.get("counted") or 0)
+        if not external_id or counted <= 0:
+            continue
+        totals[external_id] = totals.get(external_id, 0) + counted
+    return totals
+
+
+def build_boxed_rows(
+    *,
+    lines: list[dict],
+    unknown_lines: list[dict],
+    box_scans: list[dict],
+) -> list[BoxedRow]:
+    """One (external-id, box number) row per counted unit, matching the Accounting sheet.
+
+    ``box_scans`` must already be in scan order. A scan is kept only while the
+    external-id still has units in the Accounting count, so Boxed can never exceed
+    Accounting. Units counted without a box (for example before boxes existed) are
+    added at the end with a blank box number, so the two sheets always agree.
+    """
+    expected = accounting_totals_by_external_id(lines, unknown_lines)
+    placed: dict[str, int] = {}
+    rows: list[BoxedRow] = []
+    for scan in box_scans:
+        external_id = strip_upc_label(str(scan.get("external_id") or ""))
+        if not external_id or placed.get(external_id, 0) >= expected.get(external_id, 0):
+            continue
+        box_number = scan.get("box_number")
+        if box_number is None:
+            continue
+        rows.append((external_id, int(box_number)))
+        placed[external_id] = placed.get(external_id, 0) + 1
+    for external_id in sorted(expected):
+        for _ in range(expected[external_id] - placed.get(external_id, 0)):
+            rows.append((external_id, None))
+    return rows
+
+
+def _verify_boxed_matches_accounting(
+    rows: list[BoxedRow],
+    lines: list[dict],
+    unknown_lines: list[dict],
+) -> None:
+    expected = accounting_totals_by_external_id(lines, unknown_lines)
+    boxed: dict[str, int] = {}
+    for external_id, _ in rows:
+        boxed[external_id] = boxed.get(external_id, 0) + 1
+    if boxed != expected:
+        raise ValueError(
+            "The Boxed totals do not match the Accounting totals, so the report was not created. "
+            "Scan the shipment again or contact support."
+        )
+
+
+def _column_letter(index: int) -> str:
+    from openpyxl.utils import get_column_letter
+
+    return get_column_letter(index)
+
+
+def _add_boxed_pivot(sheet, rows: list[BoxedRow], first_column: int = 7) -> None:
+    """Excel PivotTable beside the Boxed rows: external-id down, Box Number across, sum of Counted."""
+    from datetime import datetime, timezone
+
+    from openpyxl.pivot.cache import (
+        CacheDefinition,
+        CacheField,
+        CacheSource,
+        SharedItems,
+        WorksheetSource,
+    )
+    from openpyxl.pivot.fields import Index, Missing, Number, Text
+    from openpyxl.pivot.record import Record, RecordList
+    from openpyxl.pivot.table import (
+        DataField,
+        FieldItem,
+        Location,
+        PivotField,
+        PivotTableStyle,
+        RowColField,
+        RowColItem,
+        TableDefinition,
+    )
+    from openpyxl.styles import Font
+
+    external_ids = sorted({external_id for external_id, _ in rows})
+    box_numbers = sorted({box for _, box in rows if box is not None})
+    has_blank = any(box is None for _, box in rows)
+    box_items: list["int | None"] = [*box_numbers, *([None] if has_blank else [])]
+    ext_index = {value: pos for pos, value in enumerate(external_ids)}
+    box_index = {value: pos for pos, value in enumerate(box_items)}
+
+    cache = CacheDefinition(
+        refreshOnLoad=True,
+        refreshedBy="MSW Overwatch",
+        refreshedDate=(
+            datetime.now(timezone.utc).replace(tzinfo=None) - datetime(1899, 12, 30)
+        ).total_seconds()
+        / 86400,
+        createdVersion=8,
+        refreshedVersion=8,
+        minRefreshableVersion=3,
+        recordCount=len(rows),
+        cacheSource=CacheSource(
+            type="worksheet",
+            worksheetSource=WorksheetSource(ref=f"A1:C{len(rows) + 1}", sheet=BOXED_SHEET),
+        ),
+        cacheFields=[
+            CacheField(
+                name=BOXED_HEADER[0],
+                numFmtId=0,
+                sharedItems=SharedItems(
+                    _fields=[Text(v=value) for value in external_ids],
+                    count=len(external_ids),
+                ),
+            ),
+            CacheField(
+                name=BOXED_HEADER[1],
+                numFmtId=0,
+                sharedItems=SharedItems(
+                    containsSemiMixedTypes=False,
+                    containsString=False,
+                    containsNumber=True,
+                    containsInteger=True,
+                    minValue=1,
+                    maxValue=1,
+                ),
+            ),
+            CacheField(
+                name=BOXED_HEADER[2],
+                numFmtId=0,
+                sharedItems=SharedItems(
+                    _fields=[Missing() if box is None else Number(v=box) for box in box_items],
+                    containsSemiMixedTypes=None if has_blank else False,
+                    containsString=False,
+                    containsBlank=True if has_blank else None,
+                    containsNumber=True if box_numbers else None,
+                    containsInteger=True if box_numbers else None,
+                    minValue=min(box_numbers) if box_numbers else None,
+                    maxValue=max(box_numbers) if box_numbers else None,
+                    count=len(box_items),
+                ),
+            ),
+        ],
+    )
+    cache.records = RecordList(
+        count=len(rows),
+        r=[
+            Record(
+                _fields=[
+                    Index(v=ext_index[external_id]),
+                    Number(v=1),
+                    Index(v=box_index[box]),
+                ]
+            )
+            for external_id, box in rows
+        ],
+    )
+
+    last_column = first_column + 1 + len(box_items)
+    last_row = 2 + len(external_ids) + 1
+    pivot = TableDefinition(
+        name="PivotTable1",
+        cacheId=1,
+        dataCaption="Values",
+        updatedVersion=8,
+        minRefreshableVersion=3,
+        createdVersion=8,
+        useAutoFormatting=True,
+        itemPrintTitles=True,
+        indent=0,
+        outline=True,
+        outlineData=True,
+        multipleFieldFilters=False,
+        applyWidthHeightFormats=True,
+        location=Location(
+            ref=f"{_column_letter(first_column)}1:{_column_letter(last_column)}{last_row}",
+            firstHeaderRow=1,
+            firstDataRow=2,
+            firstDataCol=1,
+        ),
+        pivotFields=[
+            PivotField(
+                axis="axisRow",
+                showAll=False,
+                items=[
+                    *[FieldItem(x=pos) for pos in range(len(external_ids))],
+                    FieldItem(t="default"),
+                ],
+            ),
+            PivotField(dataField=True, showAll=False),
+            PivotField(
+                axis="axisCol",
+                showAll=False,
+                items=[
+                    *[FieldItem(x=pos) for pos in range(len(box_items))],
+                    FieldItem(t="default"),
+                ],
+            ),
+        ],
+        rowFields=[RowColField(x=0)],
+        rowItems=[
+            *[RowColItem(t="data", x=[Index(v=pos)]) for pos in range(len(external_ids))],
+            RowColItem(t="grand", x=[Index(v=0)]),
+        ],
+        colFields=[RowColField(x=2)],
+        colItems=[
+            *[RowColItem(t="data", x=[Index(v=pos)]) for pos in range(len(box_items))],
+            RowColItem(t="grand", x=[Index(v=0)]),
+        ],
+        dataFields=[DataField(name="Sum of Counted", fld=1, baseField=0, baseItem=0)],
+        pivotTableStyleInfo=PivotTableStyle(
+            name="PivotStyleLight16",
+            showRowHeaders=True,
+            showColHeaders=True,
+            showRowStripes=False,
+            showColStripes=False,
+            showLastColumn=True,
+        ),
+    )
+    pivot.cache = cache
+    sheet.add_pivot(pivot)
+
+    # The cells Excel shows until the pivot refreshes. refreshOnLoad rebuilds it on open.
+    bold = Font(bold=True)
+    grid: dict[tuple[str, "int | None"], int] = {}
+    for external_id, box in rows:
+        grid[(external_id, box)] = grid.get((external_id, box), 0) + 1
+
+    def put(row: int, offset: int, value, *, is_bold: bool = False) -> None:
+        cell = sheet.cell(row=row, column=first_column + offset, value=value)
+        if isinstance(value, str):
+            cell.data_type = "s"
+        if is_bold:
+            cell.font = bold
+
+    put(1, 0, "Sum of Counted", is_bold=True)
+    put(1, 1, "Column Labels", is_bold=True)
+    put(2, 0, "Row Labels", is_bold=True)
+    for pos, box in enumerate(box_items):
+        put(2, 1 + pos, "(blank)" if box is None else box, is_bold=True)
+    put(2, 1 + len(box_items), "Grand Total", is_bold=True)
+    for row_pos, external_id in enumerate(external_ids):
+        row_number = 3 + row_pos
+        put(row_number, 0, external_id)
+        row_total = 0
+        for pos, box in enumerate(box_items):
+            count = grid.get((external_id, box), 0)
+            if count:
+                put(row_number, 1 + pos, count)
+                row_total += count
+        put(row_number, 1 + len(box_items), row_total, is_bold=True)
+    total_row = 3 + len(external_ids)
+    put(total_row, 0, "Grand Total", is_bold=True)
+    for pos, box in enumerate(box_items):
+        put(total_row, 1 + pos, sum(c for (_, b), c in grid.items() if b == box), is_bold=True)
+    put(total_row, 1 + len(box_items), len(rows), is_bold=True)
+
+    sheet.column_dimensions[_column_letter(first_column)].width = 18
+    for pos in range(len(box_items) + 1):
+        sheet.column_dimensions[_column_letter(first_column + 1 + pos)].width = 12
+
+
+def _add_boxed_sheet(workbook, rows: list[BoxedRow]) -> None:
+    from openpyxl.styles import Font
+
+    sheet = workbook.create_sheet(BOXED_SHEET)
+    sheet.append(BOXED_HEADER)
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+    for external_id, box in rows:
+        sheet.append([external_id, 1, box])
+        sheet.cell(row=sheet.max_row, column=1).data_type = "s"
+    sheet.column_dimensions["A"].width = 20
+    sheet.column_dimensions["B"].width = 10
+    sheet.column_dimensions["C"].width = 13
+    if rows:
+        _add_boxed_pivot(sheet, rows)
+
+
 def build_accounting_workbook(
     *,
     shipment_id: str,
     counted_by: str,
     lines: list[dict],
     unknown_lines: list[dict],
+    box_scans: list[dict] | None = None,
 ) -> bytes:
-    """Excel report of one user's count against the shipment."""
+    """Excel report of one user's count against the shipment.
+
+    Sheet 1 (Accounting) is the per-SKU summary. Sheet 2 (Boxed) lists every counted
+    unit with its box number plus a pivot, and always adds up to the Accounting sheet.
+    """
     from io import BytesIO
     from datetime import datetime, timezone
 
@@ -230,6 +527,9 @@ def build_accounting_workbook(
             ])
             for cell in sheet[sheet.max_row]:
                 cell.fill = fills[STATUS_NOT_IN_LIST]
+    boxed_rows = build_boxed_rows(lines=lines, unknown_lines=unknown_lines, box_scans=box_scans or [])
+    _verify_boxed_matches_accounting(boxed_rows, lines, unknown_lines)
+    _add_boxed_sheet(workbook, boxed_rows)
     buffer = BytesIO()
     workbook.save(buffer)
     return buffer.getvalue()
