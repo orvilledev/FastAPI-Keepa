@@ -5,13 +5,13 @@ import type { MySpaceNote, QuickAccessLink } from '../../types'
 import { getApiErrorDetail } from '../../utils/apiErrorMessage'
 import { isLabelCenterAvailable } from '../../lib/privatePath'
 import { useUser } from '../../contexts/UserContext'
+import CustomLinksPanel from './CustomLinksPanel'
 import NoteContent from './NoteContent'
 import {
   BOOKMARKABLE_TOOLS,
   CUSTOM_LINK_ICON,
   TOOL_BOOKMARK_ICON,
   isAppToolUrl,
-  normalizeExternalUrl,
   type BookmarkableTool,
 } from './toolCatalog'
 
@@ -19,7 +19,7 @@ type TabId = 'bookmarks' | 'links' | 'notes'
 
 const TABS: { id: TabId; label: string; hint: string }[] = [
   { id: 'bookmarks', label: 'Tool bookmarks', hint: 'Search for a tool, then pin it' },
-  { id: 'links', label: 'Custom links', hint: 'Save any URL for quick open' },
+  { id: 'links', label: 'Custom links', hint: 'Group links into a category and share it with registered accounts' },
   { id: 'notes', label: 'Notes', hint: 'Write notes with clickable links' },
 ]
 
@@ -76,13 +76,6 @@ export default function MySpacePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busyKey, setBusyKey] = useState<string | null>(null)
-
-  // Custom link form
-  const [linkTitle, setLinkTitle] = useState('')
-  const [linkUrl, setLinkUrl] = useState('')
-  const [editingLinkId, setEditingLinkId] = useState<string | null>(null)
-  const [linkFormError, setLinkFormError] = useState('')
-  const [showLinkForm, setShowLinkForm] = useState(false)
 
   // Notes form
   const [noteTitle, setNoteTitle] = useState('')
@@ -191,74 +184,6 @@ export default function MySpacePage() {
       }
     } catch (err) {
       setError(getApiErrorDetail(err) || 'Could not update bookmark.')
-    } finally {
-      setBusyKey(null)
-    }
-  }
-
-  const resetLinkForm = () => {
-    setLinkTitle('')
-    setLinkUrl('')
-    setEditingLinkId(null)
-    setLinkFormError('')
-    setShowLinkForm(false)
-  }
-
-  const startEditLink = (link: QuickAccessLink) => {
-    setEditingLinkId(link.id)
-    setLinkTitle(link.title)
-    setLinkUrl(link.url)
-    setLinkFormError('')
-    setShowLinkForm(true)
-  }
-
-  const saveCustomLink = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const title = linkTitle.trim()
-    const url = normalizeExternalUrl(linkUrl)
-    if (!title) {
-      setLinkFormError('Title is required.')
-      return
-    }
-    if (!url || (!url.startsWith('/') && !/^https?:\/\//i.test(url))) {
-      setLinkFormError('Enter a valid URL.')
-      return
-    }
-    setBusyKey('link-save')
-    setLinkFormError('')
-    try {
-      if (editingLinkId) {
-        const updated = await quickAccessApi.updateLink(editingLinkId, {
-          title,
-          url,
-          icon: CUSTOM_LINK_ICON,
-        })
-        setLinks((prev) => prev.map((l) => (l.id === editingLinkId ? updated : l)))
-      } else {
-        const created = await quickAccessApi.createLink({
-          title,
-          url,
-          icon: CUSTOM_LINK_ICON,
-          display_order: customLinks.length,
-        })
-        setLinks((prev) => [...prev, created])
-      }
-      resetLinkForm()
-    } catch (err) {
-      setLinkFormError(getApiErrorDetail(err) || 'Could not save link.')
-    } finally {
-      setBusyKey(null)
-    }
-  }
-
-  const deleteCustomLink = async (linkId: string) => {
-    if (!confirm('Remove this link?')) return
-    setBusyKey(`link:${linkId}`)
-    try {
-      await quickAccessApi.deleteLink(linkId)
-      setLinks((prev) => prev.filter((l) => l.id !== linkId))
-    } catch (err) {
-      setError(getApiErrorDetail(err) || 'Could not delete link.')
     } finally {
       setBusyKey(null)
     }
@@ -590,122 +515,7 @@ export default function MySpacePage() {
       )}
 
       {tab === 'links' && (
-        <section className="space-y-6">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">
-              Your links
-            </h2>
-            <button
-              type="button"
-              onClick={() => {
-                resetLinkForm()
-                setShowLinkForm(true)
-              }}
-              className="rounded-full bg-[#81B81D] px-4 py-2 text-xs font-semibold text-[#1c3308] shadow-sm hover:bg-[#6fa018]"
-            >
-              Add link
-            </button>
-          </div>
-
-          {showLinkForm && (
-            <form
-              onSubmit={saveCustomLink}
-              className="space-y-3 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-200/80 dark:bg-surface dark:ring-border"
-            >
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-500">Title</label>
-                <input
-                  value={linkTitle}
-                  onChange={(e) => setLinkTitle(e.target.value)}
-                  className={fieldClass}
-                  placeholder="e.g. Seller Central"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-500">URL</label>
-                <input
-                  value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  className={fieldClass}
-                  placeholder="https://…"
-                />
-              </div>
-              {linkFormError && <p className="text-sm text-red-600">{linkFormError}</p>}
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  disabled={busyKey === 'link-save'}
-                  className="rounded-full bg-[#81B81D] px-4 py-1.5 text-xs font-semibold text-[#1c3308] hover:bg-[#6fa018] disabled:opacity-60"
-                >
-                  {editingLinkId ? 'Save' : 'Add'}
-                </button>
-                <button
-                  type="button"
-                  onClick={resetLinkForm}
-                  className="rounded-md px-3 py-1.5 text-xs text-gray-500 hover:text-gray-800"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          )}
-
-          {customLinks.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[#81B81D]/40 bg-[#81B81D]/5 px-4 py-8 text-center">
-              <p className="text-sm font-medium text-[#404040] dark:text-slate-100">No custom links yet.</p>
-              <p className="mt-1 text-sm text-gray-500">Add a URL you open all the time.</p>
-            </div>
-          ) : (
-            <ul className="grid gap-3 sm:grid-cols-2">
-              {customLinks.map((link) => {
-                const mark = toolMark(link.title)
-                return (
-                  <li
-                    key={link.id}
-                    className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200/80 transition hover:-translate-y-0.5 hover:shadow-md hover:ring-[#81B81D]/50 dark:bg-surface dark:ring-border"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span
-                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${mark.tile}`}
-                      >
-                        {mark.initials}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <a
-                          href={normalizeExternalUrl(link.url)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block truncate text-sm font-semibold text-[#404040] hover:text-[#5a8a12] dark:text-slate-100"
-                        >
-                          {link.title}
-                        </a>
-                        <p className="mt-0.5 truncate font-mono text-[11px] text-gray-400">{link.url}</p>
-                        <div className="mt-3 flex gap-2 text-xs">
-                          <button
-                            type="button"
-                            onClick={() => startEditLink(link)}
-                            className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-600 hover:bg-gray-200 dark:bg-surface-muted"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busyKey === `link:${link.id}`}
-                            onClick={() => void deleteCustomLink(link.id)}
-                            className="rounded-full px-2.5 py-1 font-medium text-gray-400 hover:bg-red-50 hover:text-red-600"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </section>
+        <CustomLinksPanel personalLinks={customLinks} onPersonalLinksChange={setLinks} />
       )}
 
       {tab === 'notes' && (

@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { isMfaAuthRoute, redirectForIncompleteMfa } from '../lib/mfa'
 import { isElectronDesktop } from '../lib/privatePath'
 import type {
-  MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, DashboardWidget, UserTool, MicroToolRecord, JobAid, Notification, ComprehensiveReportRow, SellerName, CliChatSession, CliChatMessage, TrackingHistorySummary, TrackingHistoryDetail, TrackingScannerRow,
+  MapVendorType, BatchJob, JobStatus, PriceAlert, UPC, MAP, SchedulerStatus, SchedulerSettings, PublicTool, QuickAccessLink, QuickAccessGroup, QuickAccessPerson, DashboardWidget, UserTool, MicroToolRecord, JobAid, Notification, ComprehensiveReportRow, SellerName, CliChatSession, CliChatMessage, TrackingHistorySummary, TrackingHistoryDetail, TrackingScannerRow,
   ManualEmailDraft,
   ManualEmailDraftOpenResult,
   WarehouseProductLookup, WarehouseProductImportResult, WarehouseProduct, WarehouseSkuCheckResult,
@@ -1195,6 +1195,7 @@ export const quickAccessApi = {
     url: string
     icon?: string
     display_order?: number
+    group_id?: string | null
   }) => {
     const response = await api.post<QuickAccessLink>('/api/v1/quick-access', linkData)
     return response.data
@@ -1204,12 +1205,46 @@ export const quickAccessApi = {
     url?: string
     icon?: string
     display_order?: number
+    group_id?: string | null
+    place_in_group?: boolean
   }) => {
     const response = await api.put<QuickAccessLink>(`/api/v1/quick-access/${linkId}`, linkData)
     return response.data
   },
   deleteLink: async (linkId: string) => {
     const response = await api.delete(`/api/v1/quick-access/${linkId}`)
+    return response.data
+  },
+  getGroups: async () => {
+    const response = await api.get<QuickAccessGroup[]>('/api/v1/quick-access/groups')
+    return response.data
+  },
+  createGroup: async (title: string) => {
+    const response = await api.post<QuickAccessGroup>('/api/v1/quick-access/groups', { title })
+    return response.data
+  },
+  renameGroup: async (groupId: string, title: string) => {
+    const response = await api.patch<QuickAccessGroup>(
+      `/api/v1/quick-access/groups/${groupId}`,
+      { title },
+    )
+    return response.data
+  },
+  shareGroup: async (groupId: string, emails: string[]) => {
+    const response = await api.put<QuickAccessGroup>(
+      `/api/v1/quick-access/groups/${groupId}/shares`,
+      { emails },
+    )
+    return response.data
+  },
+  deleteGroup: async (groupId: string) => {
+    const response = await api.delete(`/api/v1/quick-access/groups/${groupId}`)
+    return response.data
+  },
+  searchPeople: async (q: string) => {
+    const response = await api.get<QuickAccessPerson[]>('/api/v1/quick-access/people', {
+      params: { q },
+    })
     return response.data
   },
 }

@@ -406,6 +406,33 @@ export interface QuickAccessLink {
   display_order: number
   created_at: string
   updated_at: string
+  group_id?: string | null
+  added_by_email?: string | null
+  added_by_name?: string | null
+  can_edit?: boolean
+}
+
+export interface QuickAccessPerson {
+  id: string
+  email: string
+  display_name?: string | null
+}
+
+export interface QuickAccessGroupMember {
+  user_id: string
+  email: string
+  display_name?: string | null
+}
+
+export interface QuickAccessGroup {
+  id: string
+  title: string
+  owner_id: string
+  owner_email: string
+  owner_name?: string | null
+  is_owner: boolean
+  members: QuickAccessGroupMember[]
+  links: QuickAccessLink[]
 }
 
 /** Personal note in My Space. Content may include markdown links and bare URLs. */
