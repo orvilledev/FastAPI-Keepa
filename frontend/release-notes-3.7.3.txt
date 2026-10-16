@@ -1,0 +1,21 @@
+MSW Overwatch 3.7.3 — desktop and web release
+
+Patch release since 3.7.2. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## FBA Order Checker
+- Official shipment TSVs keep the yellow fields, shared with every user who can open the tool
+- Each person counts barcodes on a shipment; scans update counted, missing, and status, including codes that are not on the shipment
+- Owners can lock or share a count, then download and archive it when every line is accounted
+- The accounting download is on each row, without waiting for a finished count
+- Shared shipments load for other users, and the uploader is shown by first name
+- Removing a shipment asks first and moves it to Trash until it is deleted or Trash is emptied
+
+## Sidebar
+- The Tools section is now Warehouse Tools
+- FBA Order Checker and Freight Class are listed there
+
+## My Space
+- Bookmarks, custom links, and notes use a card layout that is easier to scan
+
+## Upgrade from 3.7.2
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.7.3, download it, then prompt to install now or later. Web/PWA users get 3.7.3 on the next deploy/refresh.
