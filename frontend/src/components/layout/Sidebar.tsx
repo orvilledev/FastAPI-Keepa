@@ -9,6 +9,7 @@ import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 import { canAccessBcTools } from '../../lib/bcToolsAccess'
 import { canAccessShipmentAnalyzer } from '../../lib/shipmentAnalyzerAccess'
+import { canAccessFbaOrderChecker } from '../../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { canWarehouseAccessFnskuLabels } from '../../constants/warehouseAccess'
 import { isLabelCenterAvailable } from '../../lib/privatePath'
@@ -227,6 +228,10 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     accountEmail,
     isSuperadmin,
   )
+  const canUseFbaOrderChecker = canAccessFbaOrderChecker(
+    accountEmail,
+    isSuperadmin,
+  )
   const canUseFreightClass = canAccessFreightClassCalculator(
     accountEmail,
     isSuperadmin,
@@ -414,6 +419,21 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                 <span className="shrink-0">{Icons.fnskuBoxPivot}</span>
                 <span className="sidebar-link-label">FNSKU Pack Station</span>
               </Link>
+
+              {canUseFbaOrderChecker && (
+                <Link
+                  to="/fba-shipment-library"
+                  onMouseEnter={() => setHoveredNav('fba-shipment-library')}
+                  className={`sidebar-link ${
+                    navHighlighted('fba-shipment-library', isActive('/fba-shipment-library'))
+                      ? 'sidebar-link-active'
+                      : 'sidebar-link-inactive'
+                  }`}
+                >
+                  <span className="shrink-0">{Icons.fbaShipmentLibrary}</span>
+                  <span className="sidebar-link-label">FBA Order Checker</span>
+                </Link>
+              )}
 
               {canUseFreightClass && (
                 <Link
@@ -720,7 +740,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
               </Link>
             )}
 
-            {canUseBcTools && (
+            {canUseFbaOrderChecker && (
               <Link
                 to="/fba-shipment-library"
                 onMouseEnter={() => setHoveredNav('fba-shipment-library')}

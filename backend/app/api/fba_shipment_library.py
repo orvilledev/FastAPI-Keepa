@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from supabase import Client
 
 from app.database import get_supabase
-from app.dependencies import get_old_skus_user, is_superadmin_user
+from app.dependencies import get_fba_order_checker_user, is_superadmin_user
 from app.middleware.rate_limiter import RateLimits, limiter
 from app.models.fba_shipment_library import (
     FbaShipmentAccessRequest,
@@ -173,7 +173,7 @@ def list_fba_shipments(
     mine: bool = Query(False),
     archived: bool = Query(False),
     trashed: bool = Query(False),
-    current_user: dict = Depends(get_old_skus_user),
+    current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
     repo = FbaShipmentLibraryRepository(db)
@@ -215,7 +215,7 @@ def get_fba_shipment(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     search: Optional[str] = Query(None),
-    current_user: dict = Depends(get_old_skus_user),
+    current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
     repo = FbaShipmentLibraryRepository(db)
@@ -256,7 +256,7 @@ def get_fba_shipment(
 def scan_fba_shipment(
     upload_id: str,
     body: FbaShipmentScanRequest,
-    current_user: dict = Depends(get_old_skus_user),
+    current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
     """Count one unit for the scanned external-id. Counts belong to the signed-in user."""
@@ -309,7 +309,7 @@ def scan_fba_shipment(
 def set_fba_shipment_access(
     upload_id: str,
     body: FbaShipmentAccessRequest,
-    current_user: dict = Depends(get_old_skus_user),
+    current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
     """Owner locks a shipment so only they can open it, or shares it with other workers."""
@@ -338,7 +338,7 @@ def set_fba_shipment_access(
 @handle_api_errors("archive FBA shipment")
 def archive_fba_shipment(
     upload_id: str,
-    current_user: dict = Depends(get_old_skus_user),
+    current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
     """Move a fully accounted shipment into the completed archive."""
@@ -375,7 +375,7 @@ def archive_fba_shipment(
 @handle_api_errors("download FBA accounting report")
 def download_fba_accounting_report(
     upload_id: str,
-    current_user: dict = Depends(get_old_skus_user),
+    current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
     """Download this user's accounting workbook for the shipment."""
@@ -415,7 +415,7 @@ def download_fba_accounting_report(
 async def import_fba_shipment(
     request: Request,
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_old_skus_user),
+    current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
     """Store Shipment ID, Merchant SKU, external-id, and Shipped. Does not replace earlier uploads."""
@@ -479,7 +479,7 @@ def _require_owner(upload: dict, current_user: dict, db: Client) -> None:
 @handle_api_errors("empty FBA shipment trash")
 def empty_fba_trash(
     mine: bool = Query(False),
-    current_user: dict = Depends(get_old_skus_user),
+    current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
     repo = FbaShipmentLibraryRepository(db)
@@ -496,7 +496,7 @@ def empty_fba_trash(
 @handle_api_errors("trash FBA shipment")
 def trash_fba_shipment(
     upload_id: str,
-    current_user: dict = Depends(get_old_skus_user),
+    current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
     repo = FbaShipmentLibraryRepository(db)
@@ -526,7 +526,7 @@ def trash_fba_shipment(
 @handle_api_errors("restore FBA shipment")
 def restore_fba_shipment(
     upload_id: str,
-    current_user: dict = Depends(get_old_skus_user),
+    current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
     repo = FbaShipmentLibraryRepository(db)
@@ -556,7 +556,7 @@ def restore_fba_shipment(
 @handle_api_errors("delete FBA shipment")
 def delete_fba_shipment(
     upload_id: str,
-    current_user: dict = Depends(get_old_skus_user),
+    current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
     repo = FbaShipmentLibraryRepository(db)

@@ -469,7 +469,7 @@ function AppRoutes() {
           <Route
             path="fba-shipment-library"
             element={
-              <ProtectedRoute requireOldSkusAccess={true}>
+              <ProtectedRoute requireFbaOrderCheckerAccess={true}>
                 <FbaShipmentLibrary />
               </ProtectedRoute>
             }

@@ -8,6 +8,7 @@ import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 import { canAccessBcTools } from '../../lib/bcToolsAccess'
 import { canAccessShipmentAnalyzer } from '../../lib/shipmentAnalyzerAccess'
+import { canAccessFbaOrderChecker } from '../../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { canWarehouseAccessFnskuLabels } from '../../constants/warehouseAccess'
 import { isLabelCenterAvailable } from '../../lib/privatePath'
@@ -29,6 +30,7 @@ function buildSearchItems(
   showBcTools: boolean,
   showShipmentAnalyzer: boolean,
   showFreightClass: boolean,
+  showFbaOrderChecker: boolean,
   showFnskuLabels: boolean,
   showLabelCenter: boolean,
 ): SearchItem[] {
@@ -45,6 +47,13 @@ function buildSearchItems(
     warehouseItems.push(
       { label: 'FNSKU Pack Station', path: '/fnsku-pack-station', section: 'Warehouse Tools' },
     )
+    if (showFbaOrderChecker) {
+      warehouseItems.push({
+        label: 'FBA Order Checker',
+        path: '/fba-shipment-library',
+        section: 'Warehouse Tools',
+      })
+    }
     if (showFreightClass) {
       warehouseItems.push({
         label: 'Freight Class Calculator',
@@ -111,7 +120,7 @@ function buildSearchItems(
     { label: 'Manifest Generator', path: '/manifest-generator', section: 'Warehouse Tools' },
     { label: 'DNK AllInventory', path: '/dnk-all-inventory', section: 'Warehouse Tools' },
   )
-  if (showBcTools) {
+  if (showFbaOrderChecker) {
     items.push({ label: 'FBA Order Checker', path: '/fba-shipment-library', section: 'Warehouse Tools' })
   }
   if (showFreightClass) {
@@ -190,6 +199,10 @@ export default function NavbarSearch() {
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
+  const showFbaOrderChecker = canAccessFbaOrderChecker(
+    userInfo?.email || authUser?.email,
+    isSuperadmin,
+  )
   const accountEmail = userInfo?.email || authUser?.email
   const showFnskuLabels = canWarehouseAccessFnskuLabels(accountEmail)
   const showLabelCenter = isLabelCenterAvailable(accountEmail)
@@ -207,10 +220,11 @@ export default function NavbarSearch() {
         showBcTools,
         showShipmentAnalyzer,
         showFreightClass,
+        showFbaOrderChecker,
         showFnskuLabels,
         showLabelCenter,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools, showShipmentAnalyzer, showFreightClass, showFnskuLabels, showLabelCenter],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools, showShipmentAnalyzer, showFreightClass, showFbaOrderChecker, showFnskuLabels, showLabelCenter],
   )
 
   const results = useMemo(() => {

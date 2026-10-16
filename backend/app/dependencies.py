@@ -268,6 +268,32 @@ def get_freight_class_user(
     return current_user
 
 
+_DEFAULT_FBA_ORDER_CHECKER_BLOCKED = frozenset({"hello@warehouserepublic.com"})
+
+
+def is_fba_order_checker_allowed_user(current_user: dict, db: Client) -> bool:
+    """True for signed-in users except Hello@warehouserepublic."""
+    email = (current_user.get("email") or "").strip().lower()
+    if email in _DEFAULT_FBA_ORDER_CHECKER_BLOCKED:
+        return False
+    if is_superadmin_user(current_user, db):
+        return True
+    return bool(email)
+
+
+def get_fba_order_checker_user(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+) -> dict:
+    """Verify user may use FBA Order Checker."""
+    if not is_fba_order_checker_allowed_user(current_user, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="FBA Order Checker is not available for this account",
+        )
+    return current_user
+
+
 def is_projects_allowed_user(current_user: dict, db: Client) -> bool:
     """True for superadmin or emails on the Projects page allowlist."""
     if is_superadmin_user(current_user, db):
