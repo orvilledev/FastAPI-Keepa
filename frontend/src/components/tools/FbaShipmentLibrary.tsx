@@ -126,6 +126,35 @@ export default function FbaShipmentLibrary() {
     void loadLines()
   }, [loadLines])
 
+  const scanningRef = useRef(false)
+  scanningRef.current = scanning
+
+  // Counts are shared, so pick up scans made by other people on this shipment without reopening it.
+  useEffect(() => {
+    if (!selectedId) return
+    let cancelled = false
+    const refresh = async () => {
+      if (cancelled || scanningRef.current || document.visibilityState === 'hidden') return
+      try {
+        const result = await fbaShipmentLibraryApi.get(selectedId, LINE_PAGE_SIZE, lineOffset, lineSearch)
+        if (cancelled || scanningRef.current) return
+        setSelected(result.upload)
+        setLines(result.lines)
+        setUnknownLines(result.unknown_lines || [])
+        setLineTotal(result.total)
+      } catch {
+        // The next refresh or a manual action reports a real problem.
+      }
+    }
+    const interval = window.setInterval(() => void refresh(), 8_000)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+  }, [lineOffset, lineSearch, selectedId])
+
   useEffect(() => {
     setScanAlert(null)
     // A box number from another shipment must never carry over.
@@ -354,7 +383,7 @@ export default function FbaShipmentLibrary() {
           Upload the official FBA shipment <strong>.tsv</strong>. The tool stores the yellow fields only:{' '}
           <strong>Shipment ID</strong>, <strong>Merchant SKU</strong>, <strong>external-id</strong>, and{' '}
           <strong>Shipped</strong>. The owner can lock a shipment or share it when other workers need to count it.
-          Each person keeps their own counts. Download report is on each shipment. Archive moves it into
+          Counts are shared: everyone who opens a shipment sees the same scans. Download report is on each shipment. Archive moves it into
           Completed shipments once every line is All Accounted. Remove sends a shipment to Trash, where it
           stays until it is removed for good or Trash is emptied.
         </p>
@@ -780,8 +809,8 @@ export default function FbaShipmentLibrary() {
             </button>
             <p className="basis-full text-xs text-gray-500">
               Type the box number first. Every scan is placed in that box and listed on the Boxed tab of the
-              report. One scan counts as 1. Shipped stays the file quantity. Your counts stay on this shipment and
-              do not change anyone else’s.
+              report. One scan counts as 1. Shipped stays the file quantity. Counts are shared, so scans by anyone
+              on this shipment show for everyone.
             </p>
           </form>
           )}

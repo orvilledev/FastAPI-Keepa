@@ -229,29 +229,69 @@ class FbaShipmentLibraryRepository:
             raise
         return upload
 
-    def counts_for_lines(self, line_ids: List[str], user_id: str) -> Dict[str, int]:
-        """This user's counted total for each line. Missing table reads as zero."""
+    def counts_for_lines(self, line_ids: List[str], user_id: Optional[str] = None) -> Dict[str, int]:
+        """Counted total for each line. Missing table reads as zero.
+
+        Counts belong to the shipment, so by default every person's scans are added up and
+        everyone who can open the shipment sees the same numbers. Pass ``user_id`` to limit
+        the total to one person's scans.
+        """
         ids = [line_id for line_id in line_ids if line_id]
-        if not ids or not user_id:
+        if not ids:
             return {}
         found: Dict[str, int] = {}
         for start in range(0, len(ids), 200):
             chunk = ids[start : start + 200]
-            try:
-                response = (
-                    self.db.table(_COUNTS)
-                    .select("line_id, counted")
-                    .eq("user_id", user_id)
-                    .in_("line_id", chunk)
-                    .execute()
-                )
-            except Exception as exc:
-                if _is_missing_table(exc):
-                    return {}
-                _raise_persist_error(exc)
-            for row in response.data or []:
-                found[str(row.get("line_id") or "")] = int(row.get("counted") or 0)
+            offset = 0
+            while True:
+                try:
+                    query = self.db.table(_COUNTS).select("line_id, counted").in_("line_id", chunk)
+                    if user_id:
+                        query = query.eq("user_id", user_id)
+                    response = query.order("id").range(offset, offset + 999).execute()
+                except Exception as exc:
+                    if _is_missing_table(exc):
+                        return {}
+                    _raise_persist_error(exc)
+                rows = list(response.data or [])
+                for row in rows:
+                    key = str(row.get("line_id") or "")
+                    found[key] = found.get(key, 0) + int(row.get("counted") or 0)
+                if len(rows) < 1000:
+                    break
+                offset += 1000
         return found
+
+    def counter_user_ids(self, upload_id: str) -> List[str]:
+        """Everyone who has scanned on this shipment, in first-scan order."""
+        if not upload_id:
+            return []
+        ids: List[str] = []
+        for table in (_COUNTS, _UNKNOWNS, _BOX_SCANS):
+            offset = 0
+            while True:
+                try:
+                    response = (
+                        self.db.table(table)
+                        .select("user_id")
+                        .eq("upload_id", upload_id)
+                        .order("id")
+                        .range(offset, offset + 999)
+                        .execute()
+                    )
+                except Exception as exc:
+                    if _is_missing_table(exc):
+                        break
+                    _raise_persist_error(exc)
+                rows = list(response.data or [])
+                for row in rows:
+                    user = str(row.get("user_id") or "")
+                    if user and user not in ids:
+                        ids.append(user)
+                if len(rows) < 1000:
+                    break
+                offset += 1000
+        return ids
 
     def lines_for_barcode(self, upload_id: str, barcode: str) -> List[dict]:
         code = barcode.strip()
@@ -319,23 +359,44 @@ class FbaShipmentLibraryRepository:
                 return current + 1
         raise ValueError("Could not record that scan. Scan it again.")
 
-    def list_unknown_scans(self, upload_id: str, user_id: str) -> List[dict]:
-        if not upload_id or not user_id:
+    def list_unknown_scans(self, upload_id: str, user_id: Optional[str] = None) -> List[dict]:
+        """Barcodes scanned that are not on the shipment, newest first.
+
+        Everyone's scans of the same barcode are added into one row. Pass ``user_id`` to
+        limit the list to one person's scans.
+        """
+        if not upload_id:
             return []
-        try:
-            response = (
-                self.db.table(_UNKNOWNS)
-                .select("*")
-                .eq("upload_id", upload_id)
-                .eq("user_id", user_id)
-                .order("updated_at", desc=True)
-                .execute()
-            )
-        except Exception as exc:
-            if _is_missing_table(exc):
-                return []
-            _raise_persist_error(exc)
-        return list(response.data or [])
+        rows: List[dict] = []
+        offset = 0
+        while True:
+            try:
+                query = self.db.table(_UNKNOWNS).select("*").eq("upload_id", upload_id)
+                if user_id:
+                    query = query.eq("user_id", user_id)
+                response = (
+                    query.order("updated_at", desc=True)
+                    .order("id")
+                    .range(offset, offset + 999)
+                    .execute()
+                )
+            except Exception as exc:
+                if _is_missing_table(exc):
+                    return []
+                _raise_persist_error(exc)
+            chunk = list(response.data or [])
+            rows.extend(chunk)
+            if len(chunk) < 1000:
+                break
+            offset += 1000
+        merged: Dict[str, dict] = {}
+        for row in rows:
+            key = str(row.get("external_id") or "")
+            if key in merged:
+                merged[key]["counted"] = int(merged[key].get("counted") or 0) + int(row.get("counted") or 0)
+            else:
+                merged[key] = {**row, "counted": int(row.get("counted") or 0)}
+        return list(merged.values())
 
     def increment_unknown_scan(self, upload_id: str, user_id: str, external_id: str) -> dict:
         """Record a barcode that is not on this shipment. Each scan adds 1."""
@@ -434,20 +495,26 @@ class FbaShipmentLibraryRepository:
         except Exception:
             logger.exception("Failed to roll back FBA box scan %s", box_scan_id)
 
-    def list_box_scans(self, upload_id: str, user_id: str) -> List[dict]:
-        """This user's box scans for the shipment, oldest first. Missing table reads as empty."""
-        if not upload_id or not user_id:
+    def list_box_scans(self, upload_id: str, user_id: Optional[str] = None) -> List[dict]:
+        """Box scans for the shipment, oldest first. Missing table reads as empty.
+
+        Includes every person's scans unless ``user_id`` limits it to one person.
+        """
+        if not upload_id:
             return []
         rows: List[dict] = []
         offset = 0
         while True:
             try:
-                response = (
+                query = (
                     self.db.table(_BOX_SCANS)
                     .select("external_id, box_number, created_at")
                     .eq("upload_id", upload_id)
-                    .eq("user_id", user_id)
-                    .order("created_at")
+                )
+                if user_id:
+                    query = query.eq("user_id", user_id)
+                response = (
+                    query.order("created_at")
                     .order("id")
                     .range(offset, offset + 999)
                     .execute()

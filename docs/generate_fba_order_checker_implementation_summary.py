@@ -166,7 +166,7 @@ def _make_page_callback(page_num: int):
                     "<b>BC Tools \u2192 FBA Order Checker</b>. Authorized users upload "
                     "the official Amazon FBA shipment <b>.tsv</b>. The tool keeps "
                     "<b>Shipment ID</b>, <b>Merchant SKU</b>, <b>external-id</b>, and "
-                    "<b>Shipped</b>, then lets each person scan and count on their own. "
+                    "<b>Shipped</b>, then lets people scan and count together on one shared count. "
                     "Owners can lock or share a shipment, download an accounting report, "
                     "archive a finished count, or move a shipment to Trash.",
                     s_intro,
@@ -460,7 +460,7 @@ def _rollout_table(S: dict) -> Table:
         Spacer(1, 5),
         Paragraph(
             "Lock hides the shipment from other workers. Share opens it again. "
-            "Each person still has their own counts",
+            "Counts are shared: everyone who can open the shipment sees every scan",
             S["bullet"],
         ),
         Spacer(1, 5),
@@ -537,7 +537,8 @@ def build_pdf() -> Path:
             "FBA Order Checker keeps the yellow fields from the official "
             "Amazon FBA shipment file so a count can continue after someone "
             "leaves the page. Several people can see the same upload and "
-            "work their own counts. A new upload never deletes an earlier one.",
+            "add to the same count, and the page refreshes on its own. "
+            "A new upload never deletes an earlier one.",
             S["body"],
         ),
     ]

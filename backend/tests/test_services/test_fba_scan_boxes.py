@@ -31,8 +31,14 @@ class FakeRepo:
     def lines_for_barcode(self, upload_id, barcode):
         return [dict(row) for row in self.lines if row["external_id"] == barcode]
 
-    def counts_for_lines(self, line_ids, user_id):
+    def counts_for_lines(self, line_ids, user_id=None):
         return {key: value for key, value in self.counts.items() if key in line_ids}
+
+    def list_unknown_scans(self, upload_id, user_id=None):
+        return [
+            {"id": UNKNOWN_ID, "external_id": key, "counted": value}
+            for key, value in self.unknowns.items()
+        ]
 
     def list_line_quantities(self, upload_id):
         return [dict(row) for row in self.lines]

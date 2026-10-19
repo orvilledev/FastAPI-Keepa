@@ -154,9 +154,10 @@ def _require_visible(upload: dict, current_user: dict, can_manage_any: bool) -> 
         )
 
 
-def _user_is_accounted(repo: FbaShipmentLibraryRepository, upload_id: str, user_id: str) -> bool:
+def _is_accounted(repo: FbaShipmentLibraryRepository, upload_id: str) -> bool:
+    """True when everyone's scans together account for every line."""
     rows = repo.list_line_quantities(upload_id)
-    counts = repo.counts_for_lines([str(row.get("id") or "") for row in rows], user_id)
+    counts = repo.counts_for_lines([str(row.get("id") or "") for row in rows])
     pairs = [
         (int(row.get("shipped") or 0), counts.get(str(row.get("id") or ""), 0))
         for row in rows
@@ -226,16 +227,13 @@ def get_fba_shipment(
             raise HTTPException(status_code=404, detail="That shipment upload was not found.")
         _require_visible(upload, current_user, can_manage_any)
         lines, total = repo.list_lines(upload_id, limit=limit, offset=offset, search=search)
-        counts = repo.counts_for_lines(
-            [str(row.get("id") or "") for row in lines],
-            str(current_user["id"]),
-        )
-        unknown_rows = repo.list_unknown_scans(upload_id, str(current_user["id"]))
+        counts = repo.counts_for_lines([str(row.get("id") or "") for row in lines])
+        unknown_rows = repo.list_unknown_scans(upload_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     for row in lines:
         row["counted"] = counts.get(str(row.get("id") or ""), 0)
-    upload["fully_accounted"] = _user_is_accounted(repo, upload_id, str(current_user["id"]))
+    upload["fully_accounted"] = _is_accounted(repo, upload_id)
     return FbaShipmentDetailResponse(
         upload=_upload_response(
             upload,
@@ -259,7 +257,7 @@ def scan_fba_shipment(
     current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
-    """Count one unit for the scanned external-id. Counts belong to the signed-in user."""
+    """Count one unit for the scanned external-id. Counts are shared by everyone on the shipment."""
     barcode = strip_upc_label(body.barcode or "")
     if not barcode:
         raise HTTPException(status_code=400, detail="Scan an external-id barcode.")
@@ -288,16 +286,18 @@ def scan_fba_shipment(
                 if box_scan_id:
                     repo.delete_box_scan(box_scan_id)
                 raise
+            # Show the shipment-wide total, not only this person's scans of the barcode.
+            for shared in repo.list_unknown_scans(upload_id):
+                if str(shared.get("external_id") or "") == barcode:
+                    saved = {**saved, "counted": int(shared.get("counted") or 0)}
+                    break
             return FbaShipmentScanResult(
                 barcode=barcode,
                 box_number=body.box_number,
                 line=_unknown_line(saved),
-                fully_accounted=_user_is_accounted(repo, upload_id, user_id),
+                fully_accounted=_is_accounted(repo, upload_id),
             )
-        counts = repo.counts_for_lines(
-            [str(row.get("id") or "") for row in matches],
-            user_id,
-        )
+        counts = repo.counts_for_lines([str(row.get("id") or "") for row in matches])
         for row in matches:
             row["counted"] = counts.get(str(row.get("id") or ""), 0)
         target = choose_line_for_scan(matches)
@@ -318,6 +318,8 @@ def scan_fba_shipment(
             if box_scan_id:
                 repo.delete_box_scan(box_scan_id)
             raise
+        # Show the shipment-wide total, not only this person's scans of the line.
+        counted = repo.counts_for_lines([str(target["id"])]).get(str(target["id"]), counted)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     target["counted"] = counted
@@ -325,7 +327,7 @@ def scan_fba_shipment(
         barcode=barcode,
         box_number=body.box_number,
         line=FbaShipmentLineResponse(**target),
-        fully_accounted=_user_is_accounted(repo, upload_id, user_id),
+        fully_accounted=_is_accounted(repo, upload_id),
     )
 
 
@@ -379,7 +381,7 @@ def archive_fba_shipment(
             raise HTTPException(status_code=400, detail="Restore this shipment from Trash before archiving it.")
         if upload.get("archived_at"):
             raise HTTPException(status_code=400, detail="This shipment is already archived.")
-        if not _user_is_accounted(repo, upload_id, str(current_user["id"])):
+        if not _is_accounted(repo, upload_id):
             raise HTTPException(
                 status_code=400,
                 detail="Archive is available after every line is All Accounted.",
@@ -403,7 +405,7 @@ def download_fba_accounting_report(
     current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
-    """Download this user's accounting workbook for the shipment."""
+    """Download the accounting workbook with everyone's counts for the shipment."""
     repo = FbaShipmentLibraryRepository(db)
     can_manage_any = is_superadmin_user(current_user, db)
     try:
@@ -411,20 +413,24 @@ def download_fba_accounting_report(
         if not upload:
             raise HTTPException(status_code=404, detail="That shipment upload was not found.")
         _require_visible(upload, current_user, can_manage_any)
-        user_id = str(current_user["id"])
         rows = repo.list_line_quantities(upload_id)
-        counts = repo.counts_for_lines([str(row.get("id") or "") for row in rows], user_id)
+        counts = repo.counts_for_lines([str(row.get("id") or "") for row in rows])
         for row in rows:
             row["counted"] = counts.get(str(row.get("id") or ""), 0)
-        unknown_rows = repo.list_unknown_scans(upload_id, user_id)
-        box_scans = repo.list_box_scans(upload_id, user_id)
+        unknown_rows = repo.list_unknown_scans(upload_id)
+        box_scans = repo.list_box_scans(upload_id)
+        counter_ids = repo.counter_user_ids(upload_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     _, _, name = _creator_snapshot(db, current_user)
+    counter_names = _given_names_by_user(db, counter_ids)
+    counted_by = ", ".join(
+        dict.fromkeys(counter_names[user] for user in counter_ids if counter_names.get(user))
+    )
     try:
         content = build_accounting_workbook(
             shipment_id=upload.get("shipment_id") or "shipment",
-            counted_by=name or (current_user.get("email") or ""),
+            counted_by=counted_by or name or (current_user.get("email") or ""),
             lines=rows,
             unknown_lines=unknown_rows,
             box_scans=box_scans,
