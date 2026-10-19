@@ -110,13 +110,13 @@ def _make_page_callback(page_num: int):
 
             c.setFont("SegoeUI", 9)
             c.setFillColor(C_SUBTITLE)
-            c.drawRightString(PAGE_W - M_R, PAGE_H - 62, "October 2026 \u00b7 App v3.6.7")
+            c.drawRightString(PAGE_W - M_R, PAGE_H - 62, "October 2026 \u00b7 App v3.7.2")
 
             c.setFillColor(C_ACCENT_BAR)
             c.rect(M_L, PAGE_H - 86.25, C_W, 2.25, fill=1, stroke=0)
 
             badge_y_top = 97.125
-            badge_y_bottom = 205.0
+            badge_y_bottom = 222.0
             badge_h = badge_y_bottom - badge_y_top
 
             c.setFillColor(colors.white)
@@ -160,11 +160,12 @@ def _make_page_callback(page_num: int):
                 Paragraph("STATUS: SUCCESSFULLY IMPLEMENTED", s_status),
                 Spacer(1, 6),
                 Paragraph(
-                    "<b>Label Center</b> prints carton labels in the browser. "
+                    "<b>Label Center</b> prints carton labels in the browser and the desktop app. "
                     "Staff enter a <b>TO number</b> and the boxes to print "
                     "(one box, a range, or a list), or pick a <b>text label</b>. "
-                    "Each label is <b>2.25 \u00d7 1.5 in</b>. On the desktop app, "
-                    "everyone sees Label Center except <b>hello@warehouserepublic.com</b>.",
+                    "Stock is <b>2.25 \u00d7 1.5</b>, <b>3 \u00d7 2</b>, or <b>6 \u00d7 4 in</b>. "
+                    "On the desktop app the job goes straight to a chosen <b>Zebra</b>. "
+                    "Everyone sees Label Center except <b>hello@warehouserepublic.com</b>.",
                     s_intro,
                 ),
             ]
@@ -280,12 +281,12 @@ def _glance_table(S: dict) -> Table:
             [
                 "TO / box labels",
                 "TO number plus one box, a range (<b>1-10</b>), or a list (<b>1,2,8</b>)",
-                "One <b>2.25 \u00d7 1.5 in</b> page per box; CODE128 of the TO number",
+                "One page per box at the chosen stock; CODE128 of the TO number",
             ],
             [
                 "Text label",
                 "A preset message or custom text (up to 180 characters)",
-                "One label; bold type grows until it fills the page",
+                "One label at the chosen stock; bold type grows until it fills the page",
             ],
         ],
         col_fracs=[0.22, 0.40, 0.38],
@@ -303,16 +304,22 @@ def _flow_table(S: dict) -> Table:
                 "(hidden on desktop for hello@warehouserepublic.com)",
             ],
             [
-                "2. Enter the job",
+                "2. Choose stock",
+                "<b>2.25 \u00d7 1.5</b> (default), <b>3 \u00d7 2</b>, or <b>6 \u00d7 4 in</b>. "
+                "The choice is remembered on this computer.",
+            ],
+            [
+                "3. Enter the job",
                 "Type the TO number and the boxes, or pick / type a text message",
             ],
             [
-                "3. Generate",
-                "The browser builds the PDF locally and draws a preview of every page",
+                "4. Generate",
+                "The app builds the PDF locally and draws a preview of every page",
             ],
             [
-                "4. Print or save",
-                "<b>Print</b> opens the system print dialog; <b>Download PDF</b> saves the file",
+                "5. Print or save",
+                "Desktop: <b>Print</b> sends ZPL to the chosen Zebra. "
+                "Browser: Print opens the system dialog. <b>Download PDF</b> saves the file.",
             ],
         ],
         col_fracs=[0.18, 0.82],
@@ -326,8 +333,9 @@ def _to_box_table(S: dict) -> Table:
         [
             [
                 "Stock",
-                "<b>2.25 in \u00d7 1.5 in</b> landscape (162 \u00d7 108 pt). "
-                "Artwork scaled from the earlier 6 \u00d7 4 in layout.",
+                "<b>2.25 \u00d7 1.5</b> (standard), <b>3 \u00d7 2</b> (Apparel stock), "
+                "or <b>6 \u00d7 4 in</b>. The 3:2 artwork scales. "
+                "A 6 \u00d7 4 label is turned 90\u00b0 for a Zebra print head.",
             ],
             [
                 "TO number",
@@ -378,7 +386,7 @@ def _text_table(S: dict) -> Table:
             ],
             [
                 "Stock",
-                "Same <b>2.25 \u00d7 1.5 in</b> page and rounded border as the TO / box label",
+                "Same chosen size and rounded border as the TO / box label",
             ],
             [
                 "File name",
@@ -445,12 +453,12 @@ def _rollout_table(S: dict) -> Table:
         ),
         Spacer(1, 5),
         Paragraph(
-            "Text preset <b>BAGGED READY TO LABEL</b> fills the 2.25 \u00d7 1.5 in page; Print and Download both work",
+            "Text preset <b>BAGGED READY TO LABEL</b> fills the chosen stock; Print and Download both work",
             S["bullet"],
         ),
         Spacer(1, 5),
         Paragraph(
-            "Desktop 3.6.7 is the published GitHub release so installed apps can auto-update",
+            "Desktop: pick the Zebra, match 203 or 300 dpi, and confirm Print sends the label without the Windows dialog",
             S["bullet"],
         ),
     ]
@@ -479,7 +487,7 @@ def build_pdf() -> Path:
         M_L,
         M_B,
         C_W,
-        PAGE_H - 230 - M_B,
+        PAGE_H - 248 - M_B,
         id="p1",
         leftPadding=0,
         rightPadding=0,
@@ -544,7 +552,7 @@ def build_pdf() -> Path:
         ),
         Spacer(1, 4),
         Paragraph(
-            "Floor messages use the same 2.25 \u00d7 1.5 in label",
+            "Floor messages use the same stock size as the TO / box labels",
             S["bullet"],
         ),
         Spacer(1, 4),
@@ -634,7 +642,14 @@ def build_pdf() -> Path:
         ),
         Spacer(1, 4),
         Paragraph(
-            "Preview renders each PDF page with PDF.js",
+            "Desktop print: <b>labelCenterPrint.ts</b> turns each page into ZPL "
+            "and sends it with <b>printer:printZpl</b>",
+            S["bullet"],
+        ),
+        Spacer(1, 4),
+        Paragraph(
+            "Preview and Zebra art use the PDF.js <b>legacy</b> build "
+            "(<b>src/lib/pdfjs.ts</b>) so Electron's older browser can draw the label",
             S["bullet"],
         ),
     ]
@@ -648,7 +663,7 @@ def build_pdf() -> Path:
     story.append(Spacer(1, 6))
     story.append(
         Paragraph(
-            "Both label types print on <b>2.25 \u00d7 1.5 in</b> stock",
+            "Both label types use the stock size selected at the top of the page",
             S["bullet"],
         )
     )
@@ -690,8 +705,8 @@ def build_pdf() -> Path:
     story.append(Spacer(1, 6))
     story.append(
         Paragraph(
-            "Shipped on web / desktop app version <b>3.6.7</b> "
-            "(TO / box labels and text labels on 2.25 \u00d7 1.5 in stock)",
+            "Current web / desktop app version <b>3.7.2</b> "
+            "(stock sizes, direct Zebra print, and the PDF engine used to draw labels)",
             S["bullet"],
         )
     )
@@ -713,7 +728,7 @@ def build_pdf() -> Path:
     story.append(Spacer(1, 4))
     story.append(
         Paragraph(
-            "Windows desktop auto-update is GitHub release <b>v3.6.7</b>",
+            "Windows desktop auto-update is GitHub release <b>v3.7.2</b>",
             S["bullet"],
         )
     )
