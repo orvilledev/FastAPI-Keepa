@@ -1,0 +1,20 @@
+MSW Overwatch 3.7.4 — desktop and web release
+
+Patch release since 3.7.3. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## FBA Order Checker
+- Open to every signed-in account except hello@warehouserepublic.com
+- Scans record a box number
+- The accounting report adds a Boxed tab with a pivot
+
+## Sidebar
+- Collapse the desktop sidebar with the edge arrow so the page can use the full width
+
+## My Space
+- Link categories can be shared with registered accounts so they can add links too
+
+## User Management
+- Superadmins can sign every other user out with one button. The account that clicks it stays signed in
+
+## Upgrade from 3.7.3
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.7.4, download it, then prompt to install now or later. Web/PWA users get 3.7.4 on the next deploy/refresh.
