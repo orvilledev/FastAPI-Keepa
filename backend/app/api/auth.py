@@ -20,6 +20,7 @@ from supabase import Client
 from pydantic import BaseModel
 from typing import List, Optional
 from app.maintenance import get_maintenance_state, set_maintenance_state
+from app.force_logout import set_force_logout
 from app.email_transport import get_email_transport_state, set_email_transport
 from fastapi.security import HTTPAuthorizationCredentials
 from app.services.upc_dnk_print_id_allowlist import (
@@ -511,6 +512,61 @@ def create_user(
         "is_active": row.get("is_active", payload.is_active),
         "has_keepa_access": row.get("has_keepa_access", payload.has_keepa_access),
         "message": "User created successfully",
+    }
+
+
+@router.post("/users/force-logout")
+@limiter.limit(RateLimits.ADMIN_OPERATIONS)
+@handle_api_errors("force logout users")
+def force_logout_users(
+    request: Request,
+    current_user: dict = Depends(get_superadmin_user),
+    db: Client = Depends(get_supabase),
+):
+    """Sign out every account except the superadmin who clicked the button."""
+    exempt_user_id = str(current_user.get("id") or "")
+    if not exempt_user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing user id")
+
+    sessions_revoked = False
+    sessions_removed = 0
+    try:
+        result = db.rpc(
+            "revoke_auth_sessions_except",
+            {"p_keep_user_id": exempt_user_id},
+        ).execute()
+        sessions_revoked = True
+        raw = result.data
+        if isinstance(raw, int):
+            sessions_removed = raw
+        elif isinstance(raw, str) and raw.isdigit():
+            sessions_removed = int(raw)
+    except Exception as exc:
+        logger.warning(
+            "Force logout could not revoke Supabase sessions (run revoke_auth_sessions_except.sql): %s",
+            exc,
+        )
+
+    state = set_force_logout(exempt_user_id)
+    logger.info(
+        "Superadmin %s forced logout (sessions_revoked=%s removed=%s)",
+        current_user.get("email"),
+        sessions_revoked,
+        sessions_removed,
+    )
+    message = "All other users have been signed out."
+    if not sessions_revoked:
+        message = (
+            "Open sessions will be returned to the login page. "
+            "Refresh tokens could not be revoked until "
+            "backend/database/migrations/revoke_auth_sessions_except.sql is applied."
+        )
+    return {
+        "forced_at": state["forced_at"],
+        "exempt_user_id": exempt_user_id,
+        "sessions_revoked": sessions_revoked,
+        "sessions_removed": sessions_removed,
+        "message": message,
     }
 
 

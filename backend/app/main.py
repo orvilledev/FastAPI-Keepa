@@ -16,6 +16,7 @@ from app.scheduler import (
 )
 from app.dependencies import require_app_access
 from app.maintenance import get_maintenance_state
+from app.force_logout import get_force_logout_state
 from app.middleware.audit_logger import AuditLogMiddleware
 from app.middleware.rate_limiter import limiter, log_rate_limit_exceeded, RATE_LIMIT_ERROR_MESSAGE
 import logging
@@ -332,6 +333,12 @@ async def health_check():
 async def maintenance_status():
     """Public maintenance status for frontend routing."""
     return get_maintenance_state()
+
+
+@app.get(f"{settings.api_v1_str}/system/force-logout-status")
+async def force_logout_status():
+    """Public cutoff so open browsers can sign themselves out."""
+    return get_force_logout_state()
 
 
 # Include API routers

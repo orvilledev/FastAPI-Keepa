@@ -85,3 +85,4 @@ temp/
 *.p12
 credentials.json
 service-account*.json
+backend/.force_logout_state.json

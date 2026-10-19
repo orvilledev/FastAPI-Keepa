@@ -294,6 +294,8 @@ export default function UserManagement() {
   const [maintenanceScheduleEndDate, setMaintenanceScheduleEndDate] = useState('')
   const [maintenanceScheduleEndTime, setMaintenanceScheduleEndTime] = useState('')
   const [maintenanceSaving, setMaintenanceSaving] = useState(false)
+  const [forceLogoutSaving, setForceLogoutSaving] = useState(false)
+  const [forceLogoutMessage, setForceLogoutMessage] = useState<string | null>(null)
   const [maintenanceSuccess, setMaintenanceSuccess] = useState<MaintenanceSuccessNotice | null>(null)
   const [emailTransport, setEmailTransport] = useState<'auto' | 'graph' | 'smtp'>('auto')
   const [emailEffectiveTransport, setEmailEffectiveTransport] = useState<'graph' | 'smtp'>('smtp')
@@ -522,6 +524,27 @@ export default function UserManagement() {
       alert(typeof msg === 'string' ? msg : 'Failed to update maintenance mode')
     } finally {
       setMaintenanceSaving(false)
+    }
+  }
+
+  const handleForceLogout = async () => {
+    const confirmed = window.confirm(
+      'Sign out every user except you? Open browsers will return to the login page. Accounts stay active.'
+    )
+    if (!confirmed) return
+    try {
+      setForceLogoutSaving(true)
+      setForceLogoutMessage(null)
+      const result = await authApi.forceLogoutUsers()
+      setForceLogoutMessage(result.message)
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined
+      setForceLogoutMessage(typeof msg === 'string' ? msg : 'Failed to sign out users')
+    } finally {
+      setForceLogoutSaving(false)
     }
   }
 
@@ -1171,6 +1194,29 @@ export default function UserManagement() {
             {maintenanceSaving ? 'Saving...' : 'Save Maintenance Details'}
           </button>
         </div>
+      </div>
+
+      <div className="card p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Sign out all users</h2>
+            <p className="text-sm text-gray-600">
+              Ends every other signed-in session, including open browsers. Your session stays signed in.
+              This does not deactivate accounts.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleForceLogout()}
+            disabled={forceLogoutSaving}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"
+          >
+            {forceLogoutSaving ? 'Signing out...' : 'Sign out all users'}
+          </button>
+        </div>
+        {forceLogoutMessage && (
+          <p className="text-sm text-gray-700">{forceLogoutMessage}</p>
+        )}
       </div>
 
       <div className="card p-4 space-y-3">

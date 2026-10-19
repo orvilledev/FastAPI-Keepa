@@ -140,6 +140,22 @@ api.interceptors.response.use(
   async (error) => {
     // Extract error message from response
     const message = error.response?.data?.detail || error.message || 'An error occurred'
+    const signedOutByAdmin =
+      error.response?.status === 401 &&
+      typeof message === 'string' &&
+      message.toLowerCase().includes('signed out by an administrator')
+
+    if (signedOutByAdmin) {
+      try {
+        sessionStorage.setItem('auth_notice', 'You were signed out by an administrator.')
+      } catch {
+        // Login still works without the notice.
+      }
+      invalidateAuthTokenCache()
+      void supabase.auth.signOut().finally(() => redirectToLogin())
+      return Promise.reject(error)
+    }
+
     const mfaRequired =
       error.response?.status === 401 &&
       typeof message === 'string' &&
@@ -233,6 +249,16 @@ export const authApi = {
   },
   deactivateUser: async (userId: string) => {
     const response = await api.post<{ user_id: string; message: string }>(`/api/v1/auth/users/${userId}/deactivate`)
+    return response.data
+  },
+  forceLogoutUsers: async () => {
+    const response = await api.post<{
+      forced_at: number
+      exempt_user_id: string
+      sessions_revoked: boolean
+      sessions_removed: number
+      message: string
+    }>('/api/v1/auth/users/force-logout')
     return response.data
   },
   updateUserKeepaAccess: async (userId: string, hasKeepaAccess: boolean) => {
@@ -3153,6 +3179,13 @@ export const fbaShipmentLibraryApi = {
 }
 
 export const systemApi = {
+  getForceLogoutStatus: async (): Promise<{
+    forced_at: number | null
+    exempt_user_id: string | null
+  }> => {
+    const response = await api.get('/api/v1/system/force-logout-status')
+    return response.data
+  },
   getMaintenanceStatus: async (): Promise<{
     maintenance_mode: boolean
     message: string

@@ -18,6 +18,15 @@ def decode_jwt_payload(token: str) -> dict[str, Any]:
         return {}
 
 
+def get_jwt_iat(token: str) -> int | None:
+    """Return the issued-at claim (unix seconds), if present."""
+    claims = decode_jwt_payload(token)
+    issued_at = claims.get("iat")
+    if isinstance(issued_at, (int, float)):
+        return int(issued_at)
+    return None
+
+
 def get_jwt_aal(token: str) -> str:
     """Return authenticator assurance level from JWT (aal1 or aal2)."""
     claims = decode_jwt_payload(token)

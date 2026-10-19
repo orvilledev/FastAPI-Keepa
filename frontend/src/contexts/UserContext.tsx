@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
-import { authApi, invalidateAuthTokenCache } from '../services/api'
+import { authApi, invalidateAuthTokenCache, systemApi } from '../services/api'
+import { signOutIfForceLoggedOut } from '../lib/forceLogout'
 import { clearMfaActivity, getMfaExemptEmails, isMfaAuthRoute, isMfaExemptEmail, redirectForIncompleteMfa } from '../lib/mfa'
 import { recordWebAuditEvent } from '../lib/auditEvents'
 import { DEV_BYPASS_AUTH_USER, DEV_BYPASS_USER_INFO, isDevAuthBypass } from '../lib/devAuth'
@@ -219,6 +220,26 @@ function UserProviderAuthenticated({ children }: UserProviderProps) {
     if (!authUser || authLoading) return
     void syncProfileAfterAuth()
   }, [authUser?.id, authLoading, syncProfileAfterAuth])
+
+  useEffect(() => {
+    if (!authUser) return
+    let cancelled = false
+    const tick = async () => {
+      try {
+        const status = await systemApi.getForceLogoutStatus()
+        if (cancelled) return
+        await signOutIfForceLoggedOut(status)
+      } catch {
+        // A later poll or the next API call still applies the cutoff.
+      }
+    }
+    void tick()
+    const interval = window.setInterval(() => void tick(), 10_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [authUser])
 
   const signOut = async () => {
     await recordWebAuditEvent('logout')

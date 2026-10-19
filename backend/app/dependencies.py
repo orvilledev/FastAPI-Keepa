@@ -8,7 +8,8 @@ from app.maintenance import get_maintenance_state
 from uuid import UUID
 import httpx
 import logging
-from app.utils.jwt_utils import get_jwt_aal
+from app.utils.jwt_utils import get_jwt_aal, get_jwt_iat
+from app.force_logout import SIGNED_OUT_BY_ADMIN_DETAIL, token_was_force_logged_out
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +130,12 @@ async def get_current_user(
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid authentication credentials",
+                )
+
+            if token_was_force_logged_out(str(user_data.get("id") or ""), get_jwt_iat(token)):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=SIGNED_OUT_BY_ADMIN_DETAIL,
                 )
             
             import asyncio
