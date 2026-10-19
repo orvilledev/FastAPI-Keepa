@@ -1,0 +1,11 @@
+MSW Overwatch 3.7.5 — desktop and web release
+
+Patch release since 3.7.4. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## FBA Order Checker
+- Counts on a shared shipment are the same for everyone who can open it
+- An open shipment refreshes itself so another person's scans show up without reopening it
+- The accounting report and Boxed tab include every person's scans
+
+## Upgrade from 3.7.4
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.7.5, download it, then prompt to install now or later. Web/PWA users get 3.7.5 on the next deploy/refresh.
