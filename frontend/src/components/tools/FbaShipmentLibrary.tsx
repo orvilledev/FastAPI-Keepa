@@ -502,53 +502,46 @@ export default function FbaShipmentLibrary() {
 
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-gray-900">Upload official template</h2>
-        <div className={scanCountNotice ? 'mt-3 grid grid-cols-1 items-center gap-4 md:grid-cols-2' : 'mt-3'}>
-          {scanCountNotice && (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-              {scanCountNotice}
-            </div>
-          )}
-          <div
-            className={`rounded-xl border-2 border-dashed p-5 text-center transition-colors ${
-              isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 bg-gray-50'
-            }`}
-            onDragOver={(event) => {
-              event.preventDefault()
-              setIsDragging(true)
+        <div
+          className={`mt-3 rounded-xl border-2 border-dashed p-5 text-center transition-colors ${
+            isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 bg-gray-50'
+          }`}
+          onDragOver={(event) => {
+            event.preventDefault()
+            setIsDragging(true)
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+        >
+          <p className="text-sm text-gray-600">
+            Drag and drop the shipment <strong>.tsv</strong> here, or
+          </p>
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".tsv,.txt,.csv,text/tab-separated-values,text/plain"
+            className="hidden"
+            onChange={(event) => {
+              acceptFile(event.target.files?.[0])
+              if (inputRef.current) inputRef.current.value = ''
             }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={handleDrop}
+          />
+          <button
+            type="button"
+            className="mt-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50"
+            onClick={() => inputRef.current?.click()}
           >
-            <p className="text-sm text-gray-600">
-              Drag and drop the shipment <strong>.tsv</strong> here, or
-            </p>
-            <input
-              ref={inputRef}
-              type="file"
-              accept=".tsv,.txt,.csv,text/tab-separated-values,text/plain"
-              className="hidden"
-              onChange={(event) => {
-                acceptFile(event.target.files?.[0])
-                if (inputRef.current) inputRef.current.value = ''
-              }}
-            />
-            <button
-              type="button"
-              className="mt-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50"
-              onClick={() => inputRef.current?.click()}
-            >
-              Choose file
-            </button>
-            <p className="mt-2 truncate text-xs text-gray-600">
-              {file ? (
-                <>
-                  Selected: <strong>{file.name}</strong>
-                </>
-              ) : (
-                'No file selected'
-              )}
-            </p>
-          </div>
+            Choose file
+          </button>
+          <p className="mt-2 truncate text-xs text-gray-600">
+            {file ? (
+              <>
+                Selected: <strong>{file.name}</strong>
+              </>
+            ) : (
+              'No file selected'
+            )}
+          </p>
         </div>
         <button
           type="button"
@@ -848,9 +841,14 @@ export default function FbaShipmentLibrary() {
           {selected.archived_at && !selected.trashed_at && (
             <p className="mt-2 text-xs text-gray-500">This shipment is in the completed archive.</p>
           )}
-          <div className="mt-3 flex flex-wrap items-end justify-end">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            {scanCountNotice && (
+              <div className="min-w-0 flex-1 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800">
+                {scanCountNotice}
+              </div>
+            )}
             <form
-              className="flex gap-2"
+              className="ml-auto flex gap-2"
               onSubmit={(event) => {
                 event.preventDefault()
                 setLineOffset(0)
