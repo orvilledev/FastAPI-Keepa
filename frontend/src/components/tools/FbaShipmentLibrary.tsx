@@ -474,6 +474,8 @@ export default function FbaShipmentLibrary() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const linePage = Math.floor(lineOffset / LINE_PAGE_SIZE) + 1
   const linePageCount = Math.max(1, Math.ceil(lineTotal / LINE_PAGE_SIZE))
+  const scanCountNotice =
+    notice && notice.includes(' → Box ') && notice.includes(': counted ') ? notice : null
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
@@ -492,7 +494,7 @@ export default function FbaShipmentLibrary() {
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
       )}
-      {notice && (
+      {notice && !scanCountNotice && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           {notice}
         </div>
@@ -500,46 +502,53 @@ export default function FbaShipmentLibrary() {
 
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-gray-900">Upload official template</h2>
-        <div
-          className={`mt-3 rounded-xl border-2 border-dashed p-5 text-center transition-colors ${
-            isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 bg-gray-50'
-          }`}
-          onDragOver={(event) => {
-            event.preventDefault()
-            setIsDragging(true)
-          }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={handleDrop}
-        >
-          <p className="text-sm text-gray-600">
-            Drag and drop the shipment <strong>.tsv</strong> here, or
-          </p>
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".tsv,.txt,.csv,text/tab-separated-values,text/plain"
-            className="hidden"
-            onChange={(event) => {
-              acceptFile(event.target.files?.[0])
-              if (inputRef.current) inputRef.current.value = ''
+        <div className={scanCountNotice ? 'mt-3 grid grid-cols-1 items-center gap-4 md:grid-cols-2' : 'mt-3'}>
+          {scanCountNotice && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              {scanCountNotice}
+            </div>
+          )}
+          <div
+            className={`rounded-xl border-2 border-dashed p-5 text-center transition-colors ${
+              isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 bg-gray-50'
+            }`}
+            onDragOver={(event) => {
+              event.preventDefault()
+              setIsDragging(true)
             }}
-          />
-          <button
-            type="button"
-            className="mt-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50"
-            onClick={() => inputRef.current?.click()}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
           >
-            Choose file
-          </button>
-          <p className="mt-2 truncate text-xs text-gray-600">
-            {file ? (
-              <>
-                Selected: <strong>{file.name}</strong>
-              </>
-            ) : (
-              'No file selected'
-            )}
-          </p>
+            <p className="text-sm text-gray-600">
+              Drag and drop the shipment <strong>.tsv</strong> here, or
+            </p>
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".tsv,.txt,.csv,text/tab-separated-values,text/plain"
+              className="hidden"
+              onChange={(event) => {
+                acceptFile(event.target.files?.[0])
+                if (inputRef.current) inputRef.current.value = ''
+              }}
+            />
+            <button
+              type="button"
+              className="mt-2 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50"
+              onClick={() => inputRef.current?.click()}
+            >
+              Choose file
+            </button>
+            <p className="mt-2 truncate text-xs text-gray-600">
+              {file ? (
+                <>
+                  Selected: <strong>{file.name}</strong>
+                </>
+              ) : (
+                'No file selected'
+              )}
+            </p>
+          </div>
         </div>
         <button
           type="button"
