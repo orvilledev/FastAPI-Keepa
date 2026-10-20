@@ -1017,12 +1017,6 @@ export default function ShipmentManager() {
                 ↓
               </button>
             </div>
-            <Link
-              to={`/shipment-manager/${shipment.id}`}
-              className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Open
-            </Link>
             {shipment.can_delete &&
               (renamingShipmentId === shipment.id ? (
                 <>
