@@ -31,10 +31,16 @@ const fieldClass =
 type Props = {
   personalLinks: QuickAccessLink[]
   onPersonalLinksChange: (links: QuickAccessLink[]) => void
+  onGroupedLinkCountChange?: (count: number) => void
 }
 
-export default function CustomLinksPanel({ personalLinks, onPersonalLinksChange }: Props) {
+export default function CustomLinksPanel({
+  personalLinks,
+  onPersonalLinksChange,
+  onGroupedLinkCountChange,
+}: Props) {
   const [groups, setGroups] = useState<QuickAccessGroup[]>([])
+  const [groupsLoaded, setGroupsLoaded] = useState(false)
   const [groupsError, setGroupsError] = useState('')
   const [busyKey, setBusyKey] = useState<string | null>(null)
 
@@ -65,6 +71,7 @@ export default function CustomLinksPanel({ personalLinks, onPersonalLinksChange 
     const rows = await quickAccessApi.getGroups()
     setGroups(rows)
     setGroupsError('')
+    setGroupsLoaded(true)
   }
 
   useEffect(() => {
@@ -91,6 +98,15 @@ export default function CustomLinksPanel({ personalLinks, onPersonalLinksChange 
     () => groups.map((group) => ({ id: group.id, title: group.title })),
     [groups],
   )
+  const groupedLinkCount = useMemo(
+    () => groups.reduce((sum, group) => sum + group.links.length, 0),
+    [groups],
+  )
+
+  useEffect(() => {
+    if (!groupsLoaded) return
+    onGroupedLinkCountChange?.(groupedLinkCount)
+  }, [groupedLinkCount, groupsLoaded, onGroupedLinkCountChange])
 
   const resetLinkForm = () => {
     setLinkTitle('')

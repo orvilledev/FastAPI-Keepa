@@ -75,6 +75,7 @@ export default function MySpacePage() {
   const shipmentManagerAvailable = canAccessShipmentManager(accountEmail)
   const [tab, setTab] = useState<TabId>('bookmarks')
   const [links, setLinks] = useState<QuickAccessLink[]>([])
+  const [groupedLinkCount, setGroupedLinkCount] = useState(0)
   const [notes, setNotes] = useState<MySpaceNote[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -150,6 +151,13 @@ export default function MySpacePage() {
     } catch (linkErr) {
       setLinks([])
       errors.push(loadErrorMessage(linkErr, 'bookmarks'))
+    }
+
+    try {
+      const groups = await quickAccessApi.getGroups()
+      setGroupedLinkCount(groups.reduce((sum, group) => sum + (group.links?.length || 0), 0))
+    } catch {
+      setGroupedLinkCount(0)
     }
 
     try {
@@ -298,7 +306,7 @@ export default function MySpacePage() {
 
   const tabCounts: Record<TabId, number> = {
     bookmarks: toolBookmarks.length,
-    links: customLinks.length,
+    links: customLinks.length + groupedLinkCount,
     notes: notes.length,
   }
 
@@ -519,7 +527,11 @@ export default function MySpacePage() {
       )}
 
       {tab === 'links' && (
-        <CustomLinksPanel personalLinks={customLinks} onPersonalLinksChange={setLinks} />
+        <CustomLinksPanel
+          personalLinks={customLinks}
+          onPersonalLinksChange={setLinks}
+          onGroupedLinkCountChange={setGroupedLinkCount}
+        />
       )}
 
       {tab === 'notes' && (
