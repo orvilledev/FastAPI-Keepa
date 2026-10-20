@@ -128,7 +128,7 @@ export default function FbaShipmentLibrary() {
   const shipmentClosed = Boolean(selected?.archived_at || selected?.trashed_at)
   const filterBox = listedBoxNumber(boxFilter)
   const boxForList = filterBox ?? (shipmentClosed ? undefined : listedBoxNumber(boxNumber))
-  const tableColumns = boxForList != null ? 8 : 7
+  const tableColumns = boxForList != null ? 4 : 7
 
   const loadLines = useCallback(async () => {
     if (!selectedId) {
@@ -926,7 +926,8 @@ export default function FbaShipmentLibrary() {
               <h2 className="text-sm font-semibold text-gray-900">{selected.shipment_id}</h2>
               <p className="text-xs text-gray-500">
                 {selected.created_by_name || selected.created_by_email || 'Unknown'} ·{' '}
-                {formatWhen(selected.created_at)} · {lineTotal} matching row{lineTotal === 1 ? '' : 's'}
+                {formatWhen(selected.created_at)} · {lineTotal + unknownLines.length} matching row
+                {lineTotal + unknownLines.length === 1 ? '' : 's'}
                 {selected.is_locked ? ' · Locked' : ' · Shared'}
                 {selected.archived_at ? ' · Archived' : ''}
               </p>
@@ -1079,11 +1080,16 @@ export default function FbaShipmentLibrary() {
                 <tr>
                   <th className="bg-amber-100 px-2 py-2">Merchant SKU</th>
                   <th className="bg-amber-100 px-2 py-2">{boxForList ? 'UPC' : 'external-id'}</th>
-                  <th className="bg-amber-100 px-2 py-2">Shipped</th>
-                  {boxForList != null && <th className="bg-amber-100 px-2 py-2">In Box {boxForList}</th>}
-                  <th className="bg-amber-100 px-2 py-2">Counted</th>
-                  <th className="bg-amber-100 px-2 py-2">Missing</th>
-                  <th className="bg-amber-100 px-2 py-2">Status</th>
+                  {boxForList != null ? (
+                    <th className="bg-amber-100 px-2 py-2">In Box {boxForList}</th>
+                  ) : (
+                    <>
+                      <th className="bg-amber-100 px-2 py-2">Shipped</th>
+                      <th className="bg-amber-100 px-2 py-2">Counted</th>
+                      <th className="bg-amber-100 px-2 py-2">Missing</th>
+                      <th className="bg-amber-100 px-2 py-2">Status</th>
+                    </>
+                  )}
                   <th className="bg-amber-100 px-2 py-2">Boxes</th>
                 </tr>
               </thead>
@@ -1105,21 +1111,26 @@ export default function FbaShipmentLibrary() {
                     <Fragment key={line.id}>
                     <tr
                       id={`fba-line-${line.id}`}
-                      className={`${rowClass(line)} ${activeLineId === line.id ? 'outline outline-2 outline-offset-[-2px] outline-gray-700' : ''}`}
+                      className={`${boxForList ? 'border-b border-gray-200' : rowClass(line)} ${activeLineId === line.id ? 'outline outline-2 outline-offset-[-2px] outline-gray-700' : ''}`}
                     >
                       <td className="px-2 py-2 font-medium">{line.merchant_sku || '—'}</td>
                       <td className="px-2 py-2">{externalId(line.external_id) || '—'}</td>
-                      <td className="px-2 py-2">{line.not_in_list ? '—' : line.shipped}</td>
-                      {boxForList != null && <td className="px-2 py-2 font-semibold">{line.box_counted ?? 0}</td>}
-                      <td className="px-2 py-2">{line.counted ?? 0}</td>
-                      <td className="px-2 py-2">
-                        {line.not_in_list ? '—' : (line.missing ?? Math.max(0, line.shipped - (line.counted ?? 0)))}
-                      </td>
-                      <td className="px-2 py-2">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(line.status || 'Missing Items')}`}>
-                          {line.status || 'Missing Items'}
-                        </span>
-                      </td>
+                      {boxForList != null ? (
+                        <td className="px-2 py-2 font-semibold">{line.box_counted ?? 0}</td>
+                      ) : (
+                        <>
+                          <td className="px-2 py-2">{line.not_in_list ? '—' : line.shipped}</td>
+                          <td className="px-2 py-2">{line.counted ?? 0}</td>
+                          <td className="px-2 py-2">
+                            {line.not_in_list ? '—' : (line.missing ?? Math.max(0, line.shipped - (line.counted ?? 0)))}
+                          </td>
+                          <td className="px-2 py-2">
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(line.status || 'Missing Items')}`}>
+                              {line.status || 'Missing Items'}
+                            </span>
+                          </td>
+                        </>
+                      )}
                       <td className="px-2 py-2">
                         {(line.counted ?? 0) > 0 && !selected?.trashed_at ? (
                           <button
@@ -1154,22 +1165,9 @@ export default function FbaShipmentLibrary() {
                                   number was saved.
                                 </p>
                               )}
-                              {(boxForList ? boxUnits.filter((unit) => unit.box_number !== boxForList) : boxUnits).length === 0 && boxForList && (
-                                <p className="text-xs text-gray-500">No units of this UPC are in another box.</p>
-                              )}
-                              {(boxForList
-                                ? [
-                                    ...boxUnits.filter((unit) => unit.box_number === boxForList),
-                                    ...boxUnits.filter((unit) => unit.box_number !== boxForList),
-                                  ]
-                                : boxUnits
-                              ).map((unit) => (
+                              {(boxForList ? boxUnits.filter((unit) => unit.box_number === boxForList) : boxUnits).map((unit) => (
                                 <div key={unit.unit_number} className="flex items-center gap-2">
-                                  <span className="w-28 text-sm text-gray-700">
-                                    {boxForList && unit.box_number !== boxForList
-                                      ? `Other box ${unit.box_number ?? '—'}`
-                                      : `Unit ${unit.unit_number}`}
-                                  </span>
+                                  <span className="w-28 text-sm text-gray-700">Unit {unit.unit_number}</span>
                                   <input
                                     value={boxDrafts[String(unit.unit_number)] ?? ''}
                                     onChange={(event) =>
