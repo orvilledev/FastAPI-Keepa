@@ -484,6 +484,59 @@ def update_fba_box_unit(
     return FbaBoxUnitUpdate(unit_number=0, scan_id=scan_id, box_number=body.box_number)
 
 
+@router.delete("/fba-shipment-library/{upload_id}/lines/{line_id}/units", status_code=204)
+@handle_api_errors("delete FBA counted unit")
+def delete_fba_unit(
+    upload_id: str,
+    line_id: str,
+    scan_id: Optional[str] = Query(None),
+    not_in_list: bool = Query(False),
+    current_user: dict = Depends(get_fba_order_checker_user),
+    db: Client = Depends(get_supabase),
+):
+    """Remove one counted unit. The shared count for that UPC goes down by 1."""
+    repo = FbaShipmentLibraryRepository(db)
+    try:
+        upload = repo.get_upload(upload_id)
+        if not upload:
+            raise HTTPException(status_code=404, detail="That shipment upload was not found.")
+        _require_visible(upload, current_user, is_superadmin_user(current_user, db))
+        if upload.get("trashed_at"):
+            raise HTTPException(status_code=400, detail="Restore this shipment from Trash before removing a unit.")
+        if upload.get("archived_at"):
+            raise HTTPException(status_code=400, detail="This shipment is archived and can no longer be changed.")
+        scan = repo.get_box_scan(upload_id, scan_id) if scan_id else None
+        if scan_id and not scan:
+            raise HTTPException(status_code=404, detail="That unit was not found.")
+        user_id = str(scan.get("user_id") or "") if scan else None
+        if not_in_list:
+            found = repo.unknown_scan_total(upload_id, line_id)
+            if not found:
+                raise HTTPException(status_code=404, detail="That counted item was not found.")
+            external_id = strip_upc_label(found[0])
+            if scan and strip_upc_label(str(scan.get("external_id") or "")) != external_id:
+                raise HTTPException(status_code=400, detail="That unit does not belong to this item.")
+            repo.decrement_unknown_scan(upload_id, external_id, user_id)
+        else:
+            line = repo.get_line(upload_id, line_id)
+            if not line:
+                raise HTTPException(status_code=404, detail="That counted item was not found.")
+            if scan and str(scan.get("line_id") or "") != line_id:
+                raise HTTPException(status_code=400, detail="That unit does not belong to this item.")
+            repo.decrement_count(line_id, user_id)
+        if scan_id:
+            try:
+                repo.remove_box_scan(upload_id, scan_id)
+            except Exception:
+                if not_in_list:
+                    repo.increment_unknown_scan(upload_id, user_id or str(current_user["id"]), external_id)
+                else:
+                    repo.increment_count(upload_id, line_id, user_id or str(current_user["id"]))
+                raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post("/fba-shipment-library/{upload_id}/access", response_model=FbaShipmentUploadResponse)
 @handle_api_errors("change FBA shipment access")
 def set_fba_shipment_access(

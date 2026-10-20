@@ -477,6 +477,31 @@ class FbaShipmentLibraryRepository:
                 return current + 1
         raise ValueError("Could not record that scan. Scan it again.")
 
+    def decrement_count(self, line_id: str, user_id: Optional[str] = None) -> None:
+        """Remove one counted unit from a shipment line. Prefer the scanner who saved it."""
+        self._decrement_rows(_COUNTS, "line_id", line_id, user_id=user_id)
+
+    def get_box_scan(self, upload_id: str, scan_id: str) -> Optional[dict]:
+        try:
+            response = (
+                self.db.table(_BOX_SCANS)
+                .select("id, user_id, line_id, external_id, box_number")
+                .eq("upload_id", upload_id)
+                .eq("id", scan_id)
+                .limit(1)
+                .execute()
+            )
+        except Exception as exc:
+            _raise_persist_error(exc)
+        rows = response.data or []
+        return rows[0] if rows else None
+
+    def remove_box_scan(self, upload_id: str, scan_id: str) -> None:
+        try:
+            self.db.table(_BOX_SCANS).delete().eq("upload_id", upload_id).eq("id", scan_id).execute()
+        except Exception as exc:
+            _raise_persist_error(exc)
+
     def list_unknown_scans(self, upload_id: str, user_id: Optional[str] = None) -> List[dict]:
         """Barcodes scanned that are not on the shipment, newest first.
 
@@ -577,6 +602,61 @@ class FbaShipmentLibraryRepository:
             if updated.data:
                 return updated.data[0]
         raise ValueError("Could not record that scan. Scan it again.")
+
+    def decrement_unknown_scan(self, upload_id: str, external_id: str, user_id: Optional[str] = None) -> None:
+        """Remove one counted unit of a barcode that is not on the shipment."""
+        self._decrement_rows(
+            _UNKNOWNS,
+            "external_id",
+            external_id,
+            upload_id=upload_id,
+            user_id=user_id,
+        )
+
+    def _decrement_rows(
+        self,
+        table: str,
+        key_column: str,
+        key_value: str,
+        *,
+        upload_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+    ) -> None:
+        for _ in range(5):
+            try:
+                query = self.db.table(table).select("id, user_id, counted").eq(key_column, key_value)
+                if upload_id:
+                    query = query.eq("upload_id", upload_id)
+                response = query.execute()
+            except Exception as exc:
+                _raise_persist_error(exc)
+            rows = [row for row in (response.data or []) if int(row.get("counted") or 0) > 0]
+            if not rows:
+                raise ValueError("That unit was not found.")
+            preferred = [row for row in rows if user_id and str(row.get("user_id") or "") == str(user_id)]
+            target = (preferred or rows)[0]
+            current = int(target.get("counted") or 0)
+            try:
+                if current <= 1:
+                    self.db.table(table).delete().eq("id", target["id"]).execute()
+                    return
+                updated = (
+                    self.db.table(table)
+                    .update(
+                        {
+                            "counted": current - 1,
+                            "updated_at": datetime.now(timezone.utc).isoformat(),
+                        }
+                    )
+                    .eq("id", target["id"])
+                    .eq("counted", current)
+                    .execute()
+                )
+            except Exception as exc:
+                _raise_persist_error(exc)
+            if updated.data:
+                return
+        raise ValueError("Could not remove that unit. Try again.")
 
     def record_box_scan(
         self,

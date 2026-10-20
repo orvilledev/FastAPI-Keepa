@@ -3173,6 +3173,19 @@ export const fbaShipmentLibraryApi = {
       box_number: boxNumber,
     })
   },
+  deleteUnit: async (
+    uploadId: string,
+    lineId: string,
+    scanId: string | null,
+    notInList = false,
+  ): Promise<void> => {
+    await api.delete(`/api/v1/fba-shipment-library/${uploadId}/lines/${lineId}/units`, {
+      params: {
+        ...(scanId ? { scan_id: scanId } : {}),
+        not_in_list: notInList,
+      },
+    })
+  },
   scan: async (
     uploadId: string,
     barcode: string,

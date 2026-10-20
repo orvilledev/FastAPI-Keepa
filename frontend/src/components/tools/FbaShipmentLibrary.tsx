@@ -379,6 +379,55 @@ export default function FbaShipmentLibrary() {
     }
   }
 
+  const deleteUnit = async (line: FbaShipmentLine, unit: FbaShipmentUnit) => {
+    if (!selectedId || savingUnit) return
+    const label = unit.box_number ? `the unit in box ${unit.box_number}` : 'this counted unit'
+    if (!window.confirm(`Remove ${label}? The count goes down by 1.`)) return
+    setSavingUnit(`delete:${unit.unit_number}`)
+    setError(null)
+    try {
+      await fbaShipmentLibraryApi.deleteUnit(selectedId, line.id, unit.scan_id, Boolean(line.not_in_list))
+      let units: FbaShipmentUnit[]
+      try {
+        units = await fbaShipmentLibraryApi.units(selectedId, line.id, Boolean(line.not_in_list))
+      } catch {
+        const previous = boxCache.current[line.id] || boxUnits
+        units = previous.filter((item) =>
+          unit.scan_id ? item.scan_id !== unit.scan_id : item.unit_number !== unit.unit_number,
+        )
+      }
+      applyUnits(line.id, units)
+      const inFilteredBox = Boolean(boxForList && unit.box_number === boxForList)
+      if (!boxForList || inFilteredBox) {
+        const update = (current: FbaShipmentLine[]) =>
+          current.flatMap((item) => {
+            if (item.id !== line.id) return [item]
+            const counted = Math.max(0, (item.counted ?? 0) - 1)
+            if (line.not_in_list) return counted === 0 ? [] : [{ ...item, counted }]
+            if (boxForList && counted === 0) return []
+            return [lineForBox(item, counted)]
+          })
+        if (line.not_in_list) setUnknownLines(update)
+        else {
+          setLines(update)
+          if (boxForList && (line.counted ?? 0) - 1 <= 0) setLineTotal((total) => Math.max(0, total - 1))
+        }
+        if ((line.counted ?? 0) - 1 <= 0) {
+          openBoxLine.current = null
+          setBoxLineId(null)
+        }
+      } else if (units.length === 0) {
+        openBoxLine.current = null
+        setBoxLineId(null)
+      }
+      if (inFilteredBox) setBoxStored((current) => Math.max(0, (current ?? 0) - 1))
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to remove that unit.'))
+    } finally {
+      setSavingUnit(null)
+    }
+  }
+
   const acceptFile = (incoming: File | null | undefined) => {
     if (!incoming) return
     const name = incoming.name.toLowerCase()
@@ -1074,8 +1123,9 @@ export default function FbaShipmentLibrary() {
                                 </p>
                               ) : (
                                 <p className="text-xs text-gray-500">
-                                  One row per counted unit. Changing a box does not change the count. A blank box is a unit
-                                  that was counted before a box number was saved.
+                                  One row per counted unit. Changing a box does not change the count. Delete removes that
+                                  unit and lowers the count by 1. A blank box is a unit that was counted before a box
+                                  number was saved.
                                 </p>
                               )}
                               {(boxForList ? boxUnits.filter((unit) => unit.box_number !== boxForList) : boxUnits).length === 0 && boxForList && (
@@ -1109,11 +1159,23 @@ export default function FbaShipmentLibrary() {
                                   />
                                   <button
                                     type="button"
-                                    disabled={savingUnit === String(unit.unit_number)}
+                                    disabled={
+                                      savingUnit === String(unit.unit_number) || savingUnit === `delete:${unit.unit_number}`
+                                    }
                                     className="rounded-lg bg-white px-2 py-1 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
                                     onClick={() => void saveUnit(line, unit)}
                                   >
                                     {savingUnit === String(unit.unit_number) ? 'Saving…' : 'Save'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      savingUnit === String(unit.unit_number) || savingUnit === `delete:${unit.unit_number}`
+                                    }
+                                    className="rounded-lg bg-white px-2 py-1 text-sm font-medium text-red-700 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50"
+                                    onClick={() => void deleteUnit(line, unit)}
+                                  >
+                                    {savingUnit === `delete:${unit.unit_number}` ? 'Deleting…' : 'Delete'}
                                   </button>
                                 </div>
                               ))}

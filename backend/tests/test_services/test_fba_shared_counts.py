@@ -141,3 +141,72 @@ def test_the_report_includes_everyones_box_scans():
 
 def test_everyone_who_scanned_is_listed_once():
     assert _repo().counter_user_ids(UPLOAD) == [OWNER, SHARED]
+
+
+class _MutableQuery:
+    def __init__(self, rows):
+        self._rows = rows
+        self._filters: list[tuple[str, object]] = []
+        self._op = "select"
+        self._payload = None
+
+    def select(self, *_args, **_kwargs):
+        self._op = "select"
+        return self
+
+    def update(self, payload):
+        self._op = "update"
+        self._payload = payload
+        return self
+
+    def delete(self):
+        self._op = "delete"
+        return self
+
+    def eq(self, column, value):
+        self._filters.append((column, value))
+        return self
+
+    def limit(self, _count):
+        return self
+
+    def execute(self):
+        matched = [row for row in self._rows if all(row.get(column) == value for column, value in self._filters)]
+        if self._op == "delete":
+            self._rows[:] = [row for row in self._rows if row not in matched]
+            return _Response([dict(row) for row in matched])
+        if self._op == "update":
+            for row in matched:
+                row.update(self._payload)
+            return _Response([dict(row) for row in matched])
+        return _Response([dict(row) for row in matched])
+
+
+class _MutableDb:
+    def __init__(self, tables):
+        self.tables = tables
+
+    def table(self, name):
+        return _MutableQuery(self.tables.setdefault(name, []))
+
+
+def test_deleting_a_unit_removes_that_person_count_then_the_scan():
+    counts = [
+        {"id": "1", "line_id": LINE_A, "user_id": OWNER, "counted": 2},
+        {"id": "2", "line_id": LINE_A, "user_id": SHARED, "counted": 1},
+    ]
+    scans = [
+        {"id": "b1", "upload_id": UPLOAD, "user_id": SHARED, "line_id": LINE_A, "external_id": "111", "box_number": 1},
+    ]
+    repo = FbaShipmentLibraryRepository(_MutableDb({"fba_shipment_counts": counts, "fba_shipment_box_scans": scans}))
+
+    repo.decrement_count(LINE_A, SHARED)
+    assert [row["id"] for row in counts] == ["1"]
+    assert counts[0]["counted"] == 2
+
+    repo.decrement_count(LINE_A, "someone-else")
+    assert counts[0]["counted"] == 1
+
+    repo.remove_box_scan(UPLOAD, "b1")
+    assert scans == []
+    assert repo.get_box_scan(UPLOAD, "b1") is None
