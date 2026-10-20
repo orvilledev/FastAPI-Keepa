@@ -234,6 +234,7 @@ def get_fba_shipment(
         _require_visible(upload, current_user, can_manage_any)
         line_ids = None
         unknown_codes: Optional[set] = None
+        box_units: Optional[int] = None
         if box is not None:
             line_ids, unknown_codes = repo.box_scan_keys(upload_id, box)
         lines, total = repo.list_lines(
@@ -243,7 +244,9 @@ def get_fba_shipment(
             search=search,
             line_ids=line_ids,
         )
-        counts = repo.counts_for_lines([str(row.get("id") or "") for row in lines])
+        counts = repo.counts_for_lines(
+            list(line_ids) if box is not None and line_ids is not None else [str(row.get("id") or "") for row in lines]
+        )
         unknown_rows = repo.list_unknown_scans(upload_id)
         if unknown_codes is not None:
             unknown_rows = [
@@ -257,7 +260,7 @@ def get_fba_shipment(
             in_box_lines, in_box_unknown = repo.counted_in_box(
                 upload_id,
                 box,
-                {str(row.get("id") or ""): int(row.get("counted") or 0) for row in lines},
+                {line_id: int(counts.get(line_id) or 0) for line_id in (line_ids or [])},
                 {
                     strip_upc_label(str(row.get("external_id") or "")): int(row.get("counted") or 0)
                     for row in unknown_rows
@@ -281,6 +284,7 @@ def get_fba_shipment(
                 row["counted"] = counted
                 kept_unknown.append(row)
             unknown_rows = kept_unknown
+            box_units = sum(in_box_lines.values()) + sum(in_box_unknown.values())
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     upload["fully_accounted"] = _is_accounted(repo, upload_id)
@@ -296,6 +300,7 @@ def get_fba_shipment(
         total=total,
         limit=limit,
         offset=offset,
+        box_units=box_units,
     )
 
 

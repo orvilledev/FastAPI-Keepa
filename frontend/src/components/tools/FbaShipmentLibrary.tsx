@@ -73,6 +73,7 @@ export default function FbaShipmentLibrary() {
   const [unknownLines, setUnknownLines] = useState<FbaShipmentLine[]>([])
   const [scanAlert, setScanAlert] = useState<string | null>(null)
   const [lineTotal, setLineTotal] = useState(0)
+  const [boxStored, setBoxStored] = useState<number | null>(null)
   const [lineOffset, setLineOffset] = useState(0)
   const [lineSearchInput, setLineSearchInput] = useState('')
   const [lineSearch, setLineSearch] = useState('')
@@ -123,6 +124,7 @@ export default function FbaShipmentLibrary() {
       setLines([])
       setUnknownLines([])
       setLineTotal(0)
+      setBoxStored(null)
       return
     }
     setLinesLoading(true)
@@ -139,6 +141,7 @@ export default function FbaShipmentLibrary() {
       setLines(result.lines)
       setUnknownLines(result.unknown_lines || [])
       setLineTotal(result.total)
+      setBoxStored(boxForList == null ? null : result.box_units ?? null)
     } catch (err) {
       setError(errorMessage(err, 'Failed to open that shipment.'))
     } finally {
@@ -172,6 +175,7 @@ export default function FbaShipmentLibrary() {
         setLines(result.lines)
         setUnknownLines(result.unknown_lines || [])
         setLineTotal(result.total)
+        setBoxStored(boxForList == null ? null : result.box_units ?? null)
       } catch {
         // The next refresh or a manual action reports a real problem.
       }
@@ -246,6 +250,7 @@ export default function FbaShipmentLibrary() {
       setSelected((current) =>
         current ? { ...current, fully_accounted: result.fully_accounted } : current,
       )
+      if (boxForList) setBoxStored((current) => (current ?? 0) + 1)
       if (openBoxLine.current === result.line.id) {
         applyUnits(
           result.line.id,
@@ -353,6 +358,7 @@ export default function FbaShipmentLibrary() {
             if ((line.counted ?? 0) + delta <= 0) setLineTotal((total) => Math.max(0, total - 1))
           }
           if ((line.counted ?? 0) + delta <= 0) setBoxLineId(null)
+          setBoxStored((current) => Math.max(0, (current ?? 0) + delta))
         }
       }
     } catch (err) {
@@ -946,6 +952,11 @@ export default function FbaShipmentLibrary() {
                   boxReady ? 'border-emerald-400 bg-emerald-50 text-emerald-900' : 'border-amber-400 bg-amber-50'
                 }`}
               />
+              {boxForList != null && boxStored != null && (
+                <span className="mt-1 block text-center text-xs font-semibold text-emerald-800">
+                  {boxStored} {boxStored === 1 ? 'item' : 'items'} in Box {boxForList}
+                </span>
+              )}
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600">
@@ -984,9 +995,9 @@ export default function FbaShipmentLibrary() {
               <thead className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
                 <tr>
                   <th className="bg-amber-100 px-2 py-2">Merchant SKU</th>
-                  <th className="bg-amber-100 px-2 py-2">external-id</th>
+                  <th className="bg-amber-100 px-2 py-2">{boxForList ? 'UPC' : 'external-id'}</th>
                   <th className="bg-amber-100 px-2 py-2">Shipped</th>
-                  <th className="bg-amber-100 px-2 py-2">Counted</th>
+                  <th className="bg-amber-100 px-2 py-2">{boxForList ? `In Box ${boxForList}` : 'Counted'}</th>
                   <th className="bg-amber-100 px-2 py-2">Missing</th>
                   <th className="bg-amber-100 px-2 py-2">Status</th>
                   <th className="bg-amber-100 px-2 py-2">Boxes</th>
@@ -1045,14 +1056,34 @@ export default function FbaShipmentLibrary() {
                             <p className="text-sm text-gray-500">Loading units…</p>
                           ) : (
                             <div className="max-h-64 space-y-2 overflow-y-auto">
-                              <p className="text-xs text-gray-500">
-                                {boxForList
-                                  ? `Units scanned into Box ${boxForList}. Units in other boxes are not listed.`
-                                  : 'One row per counted unit. Changing a box does not change the count. A blank box is a unit that was counted before a box number was saved.'}
-                              </p>
-                              {(boxForList ? boxUnits.filter((unit) => unit.box_number === boxForList) : boxUnits).map((unit) => (
+                              {boxForList ? (
+                                <p className="text-xs text-gray-700">
+                                  UPC <strong>{externalId(line.external_id) || '—'}</strong>
+                                  {' · '}
+                                  {boxUnits.filter((unit) => unit.box_number === boxForList).length} in Box {boxForList}
+                                </p>
+                              ) : (
+                                <p className="text-xs text-gray-500">
+                                  One row per counted unit. Changing a box does not change the count. A blank box is a unit
+                                  that was counted before a box number was saved.
+                                </p>
+                              )}
+                              {(boxForList ? boxUnits.filter((unit) => unit.box_number !== boxForList) : boxUnits).length === 0 && boxForList && (
+                                <p className="text-xs text-gray-500">No units of this UPC are in another box.</p>
+                              )}
+                              {(boxForList
+                                ? [
+                                    ...boxUnits.filter((unit) => unit.box_number === boxForList),
+                                    ...boxUnits.filter((unit) => unit.box_number !== boxForList),
+                                  ]
+                                : boxUnits
+                              ).map((unit) => (
                                 <div key={unit.unit_number} className="flex items-center gap-2">
-                                  <span className="w-16 text-sm text-gray-700">Unit {unit.unit_number}</span>
+                                  <span className="w-28 text-sm text-gray-700">
+                                    {boxForList && unit.box_number !== boxForList
+                                      ? `Other box ${unit.box_number ?? '—'}`
+                                      : `Unit ${unit.unit_number}`}
+                                  </span>
                                   <input
                                     value={boxDrafts[String(unit.unit_number)] ?? ''}
                                     onChange={(event) =>

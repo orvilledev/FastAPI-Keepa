@@ -3090,6 +3090,7 @@ export type FbaShipmentDetail = {
   total: number
   limit: number
   offset: number
+  box_units?: number | null
 }
 
 export const fbaShipmentLibraryApi = {

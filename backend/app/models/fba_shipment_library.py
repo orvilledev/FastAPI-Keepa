@@ -74,6 +74,7 @@ class FbaShipmentDetailResponse(BaseModel):
     total: int
     limit: int
     offset: int
+    box_units: Optional[int] = None
 
 
 class FbaShipmentImportResult(BaseModel):
