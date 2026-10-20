@@ -1445,10 +1445,10 @@ export default function ShipmentManager() {
                   <select
                     value={moveToFolderId}
                     onChange={(e) => setMoveToFolderId(e.target.value)}
-                    aria-label="Move to existing folder"
+                    aria-label="Move to existing group"
                     className={selectClass}
                   >
-                    <option value="">Move to folder…</option>
+                    <option value="">Move to Group…</option>
                     {folders
                       .filter((folder) => !isArchivedFolder(folder))
                       .map((folder) => (
