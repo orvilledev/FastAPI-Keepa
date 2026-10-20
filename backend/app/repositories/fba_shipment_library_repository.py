@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from postgrest.types import ReturnMethod
 from supabase import Client
 
+from app.services.fba_shipment_library import strip_upc_label
+
 logger = logging.getLogger(__name__)
 
 _UPLOADS = "fba_shipment_uploads"
@@ -177,9 +179,12 @@ class FbaShipmentLibraryRepository:
         limit: int = 100,
         offset: int = 0,
         search: Optional[str] = None,
+        line_ids: Optional[List[str]] = None,
     ) -> Tuple[List[dict], int]:
         limit = max(1, min(limit, 500))
         offset = max(0, offset)
+        if line_ids is not None:
+            return self._list_lines_by_id(upload_id, line_ids, limit=limit, offset=offset, search=search)
         query = self.db.table(_LINES).select("*", count="exact").eq("upload_id", upload_id)
         query = self._apply_line_search(query, search)
         response = (
@@ -188,6 +193,64 @@ class FbaShipmentLibraryRepository:
             .execute()
         )
         return list(response.data or []), int(response.count or 0)
+
+    def box_scan_keys(self, upload_id: str, box_number: int) -> Tuple[List[str], set]:
+        """Line ids and unknown barcodes that have at least one scan in this box."""
+        line_ids: List[str] = []
+        seen: set[str] = set()
+        unknown: set[str] = set()
+        offset = 0
+        while True:
+            try:
+                response = (
+                    self.db.table(_BOX_SCANS)
+                    .select("line_id, external_id")
+                    .eq("upload_id", upload_id)
+                    .eq("box_number", int(box_number))
+                    .order("id")
+                    .range(offset, offset + 999)
+                    .execute()
+                )
+            except Exception as exc:
+                if _is_missing_table(exc):
+                    return [], set()
+                _raise_persist_error(exc)
+            chunk = list(response.data or [])
+            for row in chunk:
+                line_id = str(row.get("line_id") or "")
+                if line_id:
+                    if line_id not in seen:
+                        seen.add(line_id)
+                        line_ids.append(line_id)
+                    continue
+                code = strip_upc_label(str(row.get("external_id") or ""))
+                if code:
+                    unknown.add(code)
+            if len(chunk) < 1000:
+                return line_ids, unknown
+            offset += 1000
+
+    def _list_lines_by_id(
+        self,
+        upload_id: str,
+        line_ids: List[str],
+        *,
+        limit: int,
+        offset: int,
+        search: Optional[str],
+    ) -> Tuple[List[dict], int]:
+        ids = [line_id for line_id in line_ids if line_id]
+        if not ids:
+            return [], 0
+        rows: List[dict] = []
+        for start in range(0, len(ids), 100):
+            chunk = ids[start : start + 100]
+            query = self.db.table(_LINES).select("*").eq("upload_id", upload_id).in_("id", chunk)
+            query = self._apply_line_search(query, search)
+            response = query.execute()
+            rows.extend(response.data or [])
+        rows.sort(key=lambda row: (int(row.get("line_number") or 0), str(row.get("id") or "")))
+        return rows[offset : offset + limit], len(rows)
 
     def create_upload(
         self,

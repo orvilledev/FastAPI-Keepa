@@ -24,6 +24,7 @@ from app.models.fba_shipment_library import (
 )
 from app.repositories.fba_shipment_library_repository import FbaShipmentLibraryRepository
 from app.services.fba_shipment_library import (
+    MAX_BOX_NUMBER,
     FbaShipmentParseError,
     build_accounting_workbook,
     choose_line_for_scan,
@@ -220,6 +221,7 @@ def get_fba_shipment(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     search: Optional[str] = Query(None),
+    box: Optional[int] = Query(None, ge=1, le=MAX_BOX_NUMBER),
     current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
@@ -230,9 +232,25 @@ def get_fba_shipment(
         if not upload:
             raise HTTPException(status_code=404, detail="That shipment upload was not found.")
         _require_visible(upload, current_user, can_manage_any)
-        lines, total = repo.list_lines(upload_id, limit=limit, offset=offset, search=search)
+        line_ids = None
+        unknown_codes: Optional[set] = None
+        if box is not None:
+            line_ids, unknown_codes = repo.box_scan_keys(upload_id, box)
+        lines, total = repo.list_lines(
+            upload_id,
+            limit=limit,
+            offset=offset,
+            search=search,
+            line_ids=line_ids,
+        )
         counts = repo.counts_for_lines([str(row.get("id") or "") for row in lines])
         unknown_rows = repo.list_unknown_scans(upload_id)
+        if unknown_codes is not None:
+            unknown_rows = [
+                row
+                for row in unknown_rows
+                if strip_upc_label(str(row.get("external_id") or "")) in unknown_codes
+            ]
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     for row in lines:

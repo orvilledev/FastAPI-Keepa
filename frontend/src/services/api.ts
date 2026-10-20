@@ -3117,9 +3117,10 @@ export const fbaShipmentLibraryApi = {
     limit = 100,
     offset = 0,
     search?: string,
+    box?: number,
   ): Promise<FbaShipmentDetail> => {
     const response = await api.get(`/api/v1/fba-shipment-library/${uploadId}`, {
-      params: { limit, offset, search: search || undefined },
+      params: { limit, offset, search: search || undefined, box: box || undefined },
     })
     return response.data
   },

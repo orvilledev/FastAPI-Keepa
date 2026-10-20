@@ -38,6 +38,11 @@ function formatWhen(iso: string): string {
   return date.toLocaleString()
 }
 
+function listedBoxNumber(value: string): number | undefined {
+  const box = /^\d{1,5}$/.test(value.trim()) ? Number(value.trim()) : 0
+  return box >= 1 && box <= 99999 ? box : undefined
+}
+
 export default function FbaShipmentLibrary() {
   const [uploads, setUploads] = useState<FbaShipmentUpload[]>([])
   const [total, setTotal] = useState(0)
@@ -102,6 +107,9 @@ export default function FbaShipmentLibrary() {
     void loadUploads()
   }, [loadUploads])
 
+  const shipmentClosed = Boolean(selected?.archived_at || selected?.trashed_at)
+  const boxForList = shipmentClosed ? undefined : listedBoxNumber(boxNumber)
+
   const loadLines = useCallback(async () => {
     if (!selectedId) {
       setSelected(null)
@@ -118,6 +126,7 @@ export default function FbaShipmentLibrary() {
         LINE_PAGE_SIZE,
         lineOffset,
         lineSearch,
+        boxForList,
       )
       setSelected(result.upload)
       setLines(result.lines)
@@ -128,7 +137,7 @@ export default function FbaShipmentLibrary() {
     } finally {
       setLinesLoading(false)
     }
-  }, [lineOffset, lineSearch, selectedId])
+  }, [boxForList, lineOffset, lineSearch, selectedId])
 
   useEffect(() => {
     void loadLines()
@@ -144,7 +153,13 @@ export default function FbaShipmentLibrary() {
     const refresh = async () => {
       if (cancelled || scanningRef.current || document.visibilityState === 'hidden') return
       try {
-        const result = await fbaShipmentLibraryApi.get(selectedId, LINE_PAGE_SIZE, lineOffset, lineSearch)
+        const result = await fbaShipmentLibraryApi.get(
+          selectedId,
+          LINE_PAGE_SIZE,
+          lineOffset,
+          lineSearch,
+          boxForList,
+        )
         if (cancelled || scanningRef.current) return
         setSelected(result.upload)
         setLines(result.lines)
@@ -161,7 +176,7 @@ export default function FbaShipmentLibrary() {
       window.clearInterval(interval)
       document.removeEventListener('visibilitychange', refresh)
     }
-  }, [lineOffset, lineSearch, selectedId])
+  }, [boxForList, lineOffset, lineSearch, selectedId])
 
   useEffect(() => {
     setScanAlert(null)
@@ -204,9 +219,12 @@ export default function FbaShipmentLibrary() {
         ])
       } else {
         setScanAlert(null)
-        setLines((current) =>
-          current.map((line) => (line.id === result.line.id ? result.line : line)),
-        )
+        setLines((current) => {
+          const exists = current.some((line) => line.id === result.line.id)
+          if (exists) return current.map((line) => (line.id === result.line.id ? result.line : line))
+          if (!boxReady) return current
+          return [...current, result.line].sort((a, b) => a.line_number - b.line_number)
+        })
         setNotice(
           `${result.barcode} → Box ${boxValue}: counted ${result.line.counted} of ${result.line.shipped}. Missing ${result.line.missing}. ${result.line.status}.`,
         )
@@ -878,7 +896,10 @@ export default function FbaShipmentLibrary() {
               <input
                 ref={boxRef}
                 value={boxNumber}
-                onChange={(event) => setBoxNumber(event.target.value.replace(/\D/g, '').slice(0, 5))}
+                onChange={(event) => {
+                  setBoxNumber(event.target.value.replace(/\D/g, '').slice(0, 5))
+                  setLineOffset(0)
+                }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
                     event.preventDefault()
@@ -949,7 +970,7 @@ export default function FbaShipmentLibrary() {
                 ) : lines.length === 0 && unknownLines.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-2 py-6 text-gray-500">
-                      No matching lines.
+                      {boxForList ? `No items scanned into Box ${boxForList}.` : 'No matching lines.'}
                     </td>
                   </tr>
                 ) : (

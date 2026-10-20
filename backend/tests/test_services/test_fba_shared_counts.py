@@ -88,6 +88,33 @@ def test_unknown_barcodes_from_everyone_are_added_together():
     assert rows == {"999": 3, "888": 1}
 
 
+def test_a_typed_box_keeps_only_items_scanned_into_that_box():
+    db = _Db(
+        {
+            "fba_shipment_lines": [
+                {"id": LINE_A, "upload_id": UPLOAD, "line_number": 2, "merchant_sku": "A"},
+                {"id": LINE_B, "upload_id": UPLOAD, "line_number": 1, "merchant_sku": "B"},
+                {"id": "line-c", "upload_id": UPLOAD, "line_number": 3, "merchant_sku": "C"},
+            ],
+            "fba_shipment_box_scans": [
+                {"id": "b1", "upload_id": UPLOAD, "line_id": LINE_A, "external_id": "111", "box_number": 1},
+                {"id": "b2", "upload_id": UPLOAD, "line_id": LINE_B, "external_id": "222", "box_number": 2},
+                {"id": "b3", "upload_id": UPLOAD, "line_id": None, "external_id": "UPC: 999", "box_number": 1},
+            ],
+        }
+    )
+    repo = FbaShipmentLibraryRepository(db)
+    line_ids, unknown = repo.box_scan_keys(UPLOAD, 1)
+    assert line_ids == [LINE_A]
+    assert unknown == {"999"}
+    rows, total = repo.list_lines(UPLOAD, line_ids=line_ids)
+    assert total == 1
+    assert [row["id"] for row in rows] == [LINE_A]
+    empty_rows, empty_total = repo.list_lines(UPLOAD, line_ids=[])
+    assert empty_rows == []
+    assert empty_total == 0
+
+
 def test_the_report_includes_everyones_box_scans():
     repo = _repo()
     assert [(row["external_id"], row["box_number"]) for row in repo.list_box_scans(UPLOAD)] == [
