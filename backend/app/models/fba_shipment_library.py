@@ -108,3 +108,9 @@ class FbaShipmentUnit(BaseModel):
 
 class FbaShipmentUnitsResponse(BaseModel):
     units: List[FbaShipmentUnit]
+
+
+class FbaBoxUnitUpdate(BaseModel):
+    unit_number: int
+    scan_id: str
+    box_number: int

@@ -502,6 +502,36 @@ class FbaShipmentLibraryRepository:
         """Box rows saved for one shipment line, oldest first."""
         return self._list_box_scan_rows(upload_id, line_id=line_id)
 
+    def unknown_scan_total(self, upload_id: str, row_id: str) -> Optional[tuple[str, int]]:
+        """External-id and combined count for one not-in-list row, without reading every unknown scan."""
+        try:
+            found = (
+                self.db.table(_UNKNOWNS)
+                .select("external_id")
+                .eq("upload_id", upload_id)
+                .eq("id", row_id)
+                .limit(1)
+                .execute()
+            )
+        except Exception as exc:
+            _raise_persist_error(exc)
+        rows = found.data or []
+        if not rows:
+            return None
+        external_id = str(rows[0].get("external_id") or "")
+        try:
+            counted_rows = (
+                self.db.table(_UNKNOWNS)
+                .select("counted")
+                .eq("upload_id", upload_id)
+                .eq("external_id", external_id)
+                .execute()
+            )
+        except Exception as exc:
+            _raise_persist_error(exc)
+        total = sum(int(row.get("counted") or 0) for row in (counted_rows.data or []))
+        return external_id, total
+
     def list_unknown_box_scans(self, upload_id: str, external_id: str) -> List[dict]:
         """Box rows for a barcode that is not on the shipment, oldest first."""
         return self._list_box_scan_rows(upload_id, external_id=external_id, line_id=None)

@@ -76,6 +76,8 @@ export default function FbaShipmentLibrary() {
   const [boxDrafts, setBoxDrafts] = useState<Record<string, string>>({})
   const [boxesLoading, setBoxesLoading] = useState(false)
   const [savingUnit, setSavingUnit] = useState<string | null>(null)
+  const boxCache = useRef<Record<string, FbaShipmentUnit[]>>({})
+  const openBoxLine = useRef<string | null>(null)
   const [scanning, setScanning] = useState(false)
   const [activeLineId, setActiveLineId] = useState<string | null>(null)
   const scanRef = useRef<HTMLInputElement>(null)
@@ -165,6 +167,8 @@ export default function FbaShipmentLibrary() {
     setScanAlert(null)
     setBoxLineId(null)
     setBoxUnits([])
+    boxCache.current = {}
+    openBoxLine.current = null
     // A box number from another shipment must never carry over.
     setBoxNumber('')
     if (selectedId) boxRef.current?.focus()
@@ -210,8 +214,11 @@ export default function FbaShipmentLibrary() {
       setSelected((current) =>
         current ? { ...current, fully_accounted: result.fully_accounted } : current,
       )
-      if (boxLineId === result.line.id) {
-        applyUnits(await fbaShipmentLibraryApi.units(selectedId, result.line.id, Boolean(result.line.not_in_list)))
+      if (openBoxLine.current === result.line.id) {
+        applyUnits(
+          result.line.id,
+          await fbaShipmentLibraryApi.units(selectedId, result.line.id, Boolean(result.line.not_in_list)),
+        )
       }
       window.setTimeout(() => {
         document.getElementById(`fba-line-${result.line.id}`)?.scrollIntoView({ block: 'nearest' })
@@ -224,7 +231,9 @@ export default function FbaShipmentLibrary() {
     }
   }
 
-  const applyUnits = (units: FbaShipmentUnit[]) => {
+  const applyUnits = (lineId: string, units: FbaShipmentUnit[]) => {
+    boxCache.current[lineId] = units
+    if (openBoxLine.current !== lineId) return
     setBoxUnits(units)
     setBoxDrafts(
       Object.fromEntries(units.map((unit) => [String(unit.unit_number), unit.box_number ? String(unit.box_number) : ''])),
@@ -233,20 +242,34 @@ export default function FbaShipmentLibrary() {
 
   const loadUnits = async (line: FbaShipmentLine) => {
     if (!selectedId) return
-    if (boxLineId === line.id) {
+    if (openBoxLine.current === line.id) {
+      openBoxLine.current = null
       setBoxLineId(null)
       return
     }
-    setBoxesLoading(true)
+    openBoxLine.current = line.id
+    setBoxLineId(line.id)
+    const cached = boxCache.current[line.id]
+    if (cached) {
+      setBoxUnits(cached)
+      setBoxDrafts(
+        Object.fromEntries(cached.map((unit) => [String(unit.unit_number), unit.box_number ? String(unit.box_number) : ''])),
+      )
+      setBoxesLoading(false)
+    } else {
+      setBoxUnits([])
+      setBoxesLoading(true)
+    }
     setError(null)
     try {
       const units = await fbaShipmentLibraryApi.units(selectedId, line.id, Boolean(line.not_in_list))
-      setBoxLineId(line.id)
-      applyUnits(units)
+      applyUnits(line.id, units)
     } catch (err) {
-      setError(errorMessage(err, 'Failed to load the boxes for this item.'))
+      if (openBoxLine.current === line.id) {
+        setError(errorMessage(err, 'Failed to load the boxes for this item.'))
+      }
     } finally {
-      setBoxesLoading(false)
+      if (openBoxLine.current === line.id) setBoxesLoading(false)
     }
   }
 
@@ -258,15 +281,32 @@ export default function FbaShipmentLibrary() {
       setError('Enter a box number from 1 to 99999.')
       return
     }
-    setSavingUnit(String(unit.unit_number))
+    const previous = boxCache.current[line.id] || boxUnits
+    const optimistic = previous.map((item) =>
+      item.unit_number === unit.unit_number ? { ...item, box_number: nextBox } : item,
+    )
+    applyUnits(line.id, optimistic)
     setError(null)
+    if (!unit.scan_id) setSavingUnit(String(unit.unit_number))
     try {
-      const units = unit.scan_id
-        ? await fbaShipmentLibraryApi.updateBox(selectedId, unit.scan_id, line.id, nextBox, Boolean(line.not_in_list))
-        : await fbaShipmentLibraryApi.assignBox(selectedId, line.id, nextBox, Boolean(line.not_in_list))
-      applyUnits(units)
-      setNotice(`${externalId(line.external_id) || 'Unit'} ${unit.unit_number} is in Box ${nextBox}.`)
+      if (unit.scan_id) {
+        await fbaShipmentLibraryApi.updateBox(selectedId, unit.scan_id, nextBox)
+      } else {
+        const saved = await fbaShipmentLibraryApi.assignBox(
+          selectedId,
+          line.id,
+          nextBox,
+          Boolean(line.not_in_list),
+        )
+        applyUnits(
+          line.id,
+          optimistic.map((item) =>
+            item.unit_number === unit.unit_number ? { ...item, scan_id: saved.scan_id, box_number: nextBox } : item,
+          ),
+        )
+      }
     } catch (err) {
+      applyUnits(line.id, previous)
       setError(errorMessage(err, 'Failed to save that box number.'))
     } finally {
       setSavingUnit(null)

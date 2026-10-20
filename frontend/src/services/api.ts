@@ -3158,27 +3158,18 @@ export const fbaShipmentLibraryApi = {
     lineId: string,
     boxNumber: number,
     notInList = false,
-  ): Promise<FbaShipmentUnit[]> => {
+  ): Promise<FbaShipmentUnit> => {
     const response = await api.post(
       `/api/v1/fba-shipment-library/${uploadId}/lines/${lineId}/units`,
       { box_number: boxNumber },
       { params: { not_in_list: notInList } },
     )
-    return response.data.units as FbaShipmentUnit[]
+    return response.data as FbaShipmentUnit
   },
-  updateBox: async (
-    uploadId: string,
-    scanId: string,
-    lineId: string,
-    boxNumber: number,
-    notInList = false,
-  ): Promise<FbaShipmentUnit[]> => {
-    const response = await api.patch(
-      `/api/v1/fba-shipment-library/${uploadId}/box-scans/${scanId}`,
-      { box_number: boxNumber },
-      { params: { line_id: lineId, not_in_list: notInList } },
-    )
-    return response.data.units as FbaShipmentUnit[]
+  updateBox: async (uploadId: string, scanId: string, boxNumber: number): Promise<void> => {
+    await api.patch(`/api/v1/fba-shipment-library/${uploadId}/box-scans/${scanId}`, {
+      box_number: boxNumber,
+    })
   },
   scan: async (
     uploadId: string,

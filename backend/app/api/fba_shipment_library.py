@@ -11,6 +11,7 @@ from app.dependencies import get_fba_order_checker_user, is_superadmin_user
 from app.middleware.rate_limiter import RateLimits, limiter
 from app.models.fba_shipment_library import (
     FbaBoxNumberRequest,
+    FbaBoxUnitUpdate,
     FbaShipmentAccessRequest,
     FbaShipmentDetailResponse,
     FbaShipmentUnitsResponse,
@@ -349,14 +350,11 @@ def _box_edit_context(
     if upload.get("trashed_at"):
         raise HTTPException(status_code=400, detail="Restore this shipment from Trash before changing a box.")
     if not_in_list:
-        row = next(
-            (item for item in repo.list_unknown_scans(upload_id) if str(item.get("id") or "") == line_id),
-            None,
-        )
-        if not row:
+        found = repo.unknown_scan_total(upload_id, line_id)
+        if not found:
             raise HTTPException(status_code=404, detail="That counted item was not found.")
-        external_id = strip_upc_label(str(row.get("external_id") or ""))
-        return external_id, None, int(row.get("counted") or 0), repo.list_unknown_box_scans(upload_id, external_id)
+        external_id = strip_upc_label(found[0])
+        return external_id, None, found[1], repo.list_unknown_box_scans(upload_id, external_id)
     line = repo.get_line(upload_id, line_id)
     if not line:
         raise HTTPException(status_code=404, detail="That counted item was not found.")
@@ -385,7 +383,7 @@ def list_fba_box_units(
     return FbaShipmentUnitsResponse(units=units_for_count(counted, scans))
 
 
-@router.post("/fba-shipment-library/{upload_id}/lines/{line_id}/units", response_model=FbaShipmentUnitsResponse)
+@router.post("/fba-shipment-library/{upload_id}/lines/{line_id}/units", response_model=FbaBoxUnitUpdate)
 @handle_api_errors("assign FBA box")
 def assign_fba_box_unit(
     upload_id: str,
@@ -401,45 +399,38 @@ def assign_fba_box_unit(
         external_id, stored_line_id, counted, scans = _box_edit_context(
             repo, upload_id, line_id, not_in_list=not_in_list, current_user=current_user, db=db
         )
-        if not any(unit["scan_id"] is None for unit in units_for_count(counted, scans)):
+        if len(scans) >= counted:
             raise HTTPException(status_code=400, detail="Every counted unit on this item already has a box.")
-        repo.record_box_scan(upload_id, str(current_user["id"]), external_id, body.box_number, stored_line_id)
-        scans = (
-            repo.list_unknown_box_scans(upload_id, external_id)
-            if stored_line_id is None
-            else repo.list_line_box_scans(upload_id, stored_line_id)
+        scan_id = repo.record_box_scan(
+            upload_id, str(current_user["id"]), external_id, body.box_number, stored_line_id
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return FbaShipmentUnitsResponse(units=units_for_count(counted, scans))
+    return FbaBoxUnitUpdate(unit_number=len(scans) + 1, scan_id=scan_id, box_number=body.box_number)
 
 
-@router.patch("/fba-shipment-library/{upload_id}/box-scans/{scan_id}", response_model=FbaShipmentUnitsResponse)
+@router.patch("/fba-shipment-library/{upload_id}/box-scans/{scan_id}", response_model=FbaBoxUnitUpdate)
 @handle_api_errors("edit FBA box")
 def update_fba_box_unit(
     upload_id: str,
     scan_id: str,
     body: FbaBoxNumberRequest,
-    line_id: str = Query(...),
-    not_in_list: bool = Query(False),
     current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
     """Change the box number on one already counted unit."""
     repo = FbaShipmentLibraryRepository(db)
     try:
-        _, _, counted, scans = _box_edit_context(
-            repo, upload_id, line_id, not_in_list=not_in_list, current_user=current_user, db=db
-        )
-        if scan_id not in {str(scan.get("id") or "") for scan in scans}:
-            raise HTTPException(status_code=404, detail="That unit was not found.")
+        upload = repo.get_upload(upload_id)
+        if not upload:
+            raise HTTPException(status_code=404, detail="That shipment upload was not found.")
+        _require_visible(upload, current_user, is_superadmin_user(current_user, db))
+        if upload.get("trashed_at"):
+            raise HTTPException(status_code=400, detail="Restore this shipment from Trash before changing a box.")
         repo.update_box_number(upload_id, scan_id, body.box_number)
-        _, _, counted, scans = _box_edit_context(
-            repo, upload_id, line_id, not_in_list=not_in_list, current_user=current_user, db=db
-        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return FbaShipmentUnitsResponse(units=units_for_count(counted, scans))
+    return FbaBoxUnitUpdate(unit_number=0, scan_id=scan_id, box_number=body.box_number)
 
 
 @router.post("/fba-shipment-library/{upload_id}/access", response_model=FbaShipmentUploadResponse)
