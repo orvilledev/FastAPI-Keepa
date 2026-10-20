@@ -52,22 +52,10 @@ function lineForBox(line: FbaShipmentLine, counted: number): FbaShipmentLine {
 
 function boxScanNotice(barcode: string, box: number, inBox: number, shipment: FbaShipmentLine): string {
   const shipped = shipment.shipped
-  const missing = Math.max(0, shipped - inBox)
-  const here =
-    inBox > shipped
-      ? `${inBox} in this box of ${shipped} shipped. ${inBox - shipped} over.`
-      : missing === 0
-        ? `${inBox} in this box of ${shipped} shipped. All Accounted.`
-        : `${inBox} in this box of ${shipped} shipped. Missing ${missing}.`
-  let message = `${barcode} → Box ${box}: ${here}`
-  const shipmentCounted = shipment.counted ?? 0
-  if (shipmentCounted !== inBox) {
-    const over = shipmentCounted - shipped
-    message +=
-      over > 0
-        ? ` ${shipmentCounted} counted on the shipment, ${over} over.`
-        : ` ${shipmentCounted} counted on the shipment, ${Math.max(0, shipped - shipmentCounted)} still to scan.`
-  }
+  const total = shipment.counted ?? 0
+  let message = `${barcode} → Box ${box}: ${inBox} in this box. ${total} counted.`
+  if (total > shipped) message += ` ${total - shipped} over.`
+  else if (total < shipped) message += ` Missing ${shipped - total}.`
   return message
 }
 
@@ -553,7 +541,7 @@ export default function FbaShipmentLibrary() {
   const linePage = Math.floor(lineOffset / LINE_PAGE_SIZE) + 1
   const linePageCount = Math.max(1, Math.ceil(lineTotal / LINE_PAGE_SIZE))
   const scanCountNotice =
-    notice && notice.includes(' → Box ') && notice.includes(' in this box of ') ? notice : null
+    notice && notice.includes(' → Box ') && notice.includes(' in this box. ') ? notice : null
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
