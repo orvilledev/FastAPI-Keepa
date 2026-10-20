@@ -149,7 +149,6 @@ export default function ShipmentManager() {
   const [vendorCustom, setVendorCustom] = useState('')
   const [saving, setSaving] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
-  const [ledgerId, setLedgerId] = useState<string | null>(null)
   const [clusterGenerateId, setClusterGenerateId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -243,26 +242,6 @@ export default function ShipmentManager() {
       setError(errorDetail(err, 'Could not delete this shipment.'))
     } finally {
       setBusyId(null)
-    }
-  }
-
-  const handleLedger = async (shipment: ShipmentRecord) => {
-    if (ledgerId) return
-    setLedgerId(shipment.id)
-    setError(null)
-    setMessage(null)
-    try {
-      const result = await shipmentsApi.ledger(shipment.id)
-      downloadBlob(result.blob, result.filename)
-      setMessage(
-        `Downloaded ${result.filename} — ${result.skuCount.toLocaleString()} unique UPC` +
-          `${result.skuCount === 1 ? '' : 's'} across ${result.uploadCount} upload` +
-          `${result.uploadCount === 1 ? '' : 's'}.`,
-      )
-    } catch (err) {
-      setError(errorDetail(err, 'Could not download the shipment ledger.'))
-    } finally {
-      setLedgerId(null)
     }
   }
 
@@ -926,7 +905,7 @@ export default function ShipmentManager() {
           {shipment.can_delete ? (
             <select
               value={shipment.status || 'open'}
-              disabled={busyId === shipment.id || ledgerId === shipment.id}
+              disabled={busyId === shipment.id}
               onChange={(e) =>
                 void handleStatusChange(shipment, e.target.value as ShipmentStatusValue)
               }
@@ -996,14 +975,6 @@ export default function ShipmentManager() {
             >
               Open
             </Link>
-            <button
-              type="button"
-              disabled={ledgerId === shipment.id || busyId === shipment.id}
-              onClick={() => void handleLedger(shipment)}
-              className="rounded-md bg-slate-700 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-            >
-              {ledgerId === shipment.id ? 'Building…' : 'Download Ledger'}
-            </button>
             {shipment.folder_id && (
               <button
                 type="button"
@@ -1017,7 +988,7 @@ export default function ShipmentManager() {
             {shipment.can_delete && (
               <button
                 type="button"
-                disabled={busyId === shipment.id || ledgerId === shipment.id}
+                disabled={busyId === shipment.id}
                 onClick={() => void handleDelete(shipment)}
                 className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
               >
