@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from postgrest.types import ReturnMethod
 from supabase import Client
 
-from app.services.fba_shipment_library import strip_upc_label
+from app.services.fba_shipment_library import counts_kept_in_box, strip_upc_label
 
 logger = logging.getLogger(__name__)
 
@@ -229,6 +229,61 @@ class FbaShipmentLibraryRepository:
             if len(chunk) < 1000:
                 return line_ids, unknown
             offset += 1000
+
+    def counted_in_box(
+        self,
+        upload_id: str,
+        box_number: int,
+        line_counts: Dict[str, int],
+        unknown_counts: Dict[str, int],
+    ) -> Tuple[Dict[str, int], Dict[str, int]]:
+        """Counted units that belong to this box, per line and per unknown barcode."""
+        line_ids = [line_id for line_id, counted in line_counts.items() if line_id and counted > 0]
+        unknown_ids = [code for code, counted in unknown_counts.items() if code and counted > 0]
+        return (
+            counts_kept_in_box(
+                self._scan_rows(upload_id, column="line_id", values=line_ids),
+                box_number,
+                line_counts,
+                "line_id",
+            ),
+            counts_kept_in_box(
+                self._scan_rows(upload_id, column="external_id", values=unknown_ids),
+                box_number,
+                unknown_counts,
+                "external_id",
+            ),
+        )
+
+    def _scan_rows(self, upload_id: str, *, column: str, values: List[str]) -> List[dict]:
+        if not upload_id or not values:
+            return []
+        rows: List[dict] = []
+        for start in range(0, len(values), 100):
+            chunk = values[start : start + 100]
+            offset = 0
+            while True:
+                try:
+                    response = (
+                        self.db.table(_BOX_SCANS)
+                        .select("id, line_id, external_id, box_number, created_at")
+                        .eq("upload_id", upload_id)
+                        .in_(column, chunk)
+                        .order("created_at")
+                        .order("id")
+                        .range(offset, offset + 999)
+                        .execute()
+                    )
+                except Exception as exc:
+                    if _is_missing_table(exc):
+                        return rows
+                    _raise_persist_error(exc)
+                page = list(response.data or [])
+                rows.extend(page)
+                if len(page) < 1000:
+                    break
+                offset += 1000
+        return rows
 
     def _list_lines_by_id(
         self,

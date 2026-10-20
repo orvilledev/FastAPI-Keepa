@@ -190,6 +190,47 @@ def accounting_totals_by_external_id(lines: list[dict], unknown_lines: list[dict
     return totals
 
 
+def counts_kept_in_box(
+    scans: list[dict],
+    box_number: int,
+    limits: dict[str, int],
+    key: str,
+) -> dict[str, int]:
+    """How many counted units of each item sit in one box.
+
+    Only the first ``limits`` scans for an item are counted units, in scan order.
+    Later scans and units in other boxes are left out.
+    """
+    grouped: dict[str, list[dict]] = {}
+    for scan in scans:
+        raw = str(scan.get(key) or "")
+        item = strip_upc_label(raw) if key == "external_id" else raw
+        if not item:
+            continue
+        if key == "external_id" and scan.get("line_id"):
+            continue
+        grouped.setdefault(item, []).append(scan)
+    target = int(box_number)
+    counts: dict[str, int] = {}
+    for item, item_scans in grouped.items():
+        limit = max(0, int(limits.get(item) or 0))
+        if limit == 0:
+            continue
+        ordered = sorted(
+            item_scans,
+            key=lambda row: (str(row.get("created_at") or ""), str(row.get("id") or "")),
+        )
+        kept = ordered[:limit]
+        count = sum(
+            1
+            for scan in kept
+            if scan.get("box_number") is not None and int(scan["box_number"]) == target
+        )
+        if count:
+            counts[item] = count
+    return counts
+
+
 def units_for_count(counted: int, scans: list[dict]) -> list[dict]:
     """One slot per counted unit. Saved scans fill the slots in scan order; the rest have no box."""
     counted = max(0, int(counted or 0))

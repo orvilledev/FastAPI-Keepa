@@ -88,6 +88,22 @@ def test_unknown_barcodes_from_everyone_are_added_together():
     assert rows == {"999": 3, "888": 1}
 
 
+def test_counted_in_box_uses_only_that_box():
+    db = _Db(
+        {
+            "fba_shipment_box_scans": [
+                {"id": "1", "upload_id": UPLOAD, "line_id": LINE_A, "external_id": "111", "box_number": 1, "created_at": "1"},
+                {"id": "2", "upload_id": UPLOAD, "line_id": LINE_A, "external_id": "111", "box_number": 1, "created_at": "2"},
+                {"id": "3", "upload_id": UPLOAD, "line_id": LINE_A, "external_id": "111", "box_number": 4, "created_at": "3"},
+            ],
+        }
+    )
+    repo = FbaShipmentLibraryRepository(db)
+    line_counts, unknown_counts = repo.counted_in_box(UPLOAD, 4, {LINE_A: 3}, {})
+    assert line_counts == {LINE_A: 1}
+    assert unknown_counts == {}
+
+
 def test_a_typed_box_keeps_only_items_scanned_into_that_box():
     db = _Db(
         {

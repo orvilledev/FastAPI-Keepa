@@ -251,10 +251,38 @@ def get_fba_shipment(
                 for row in unknown_rows
                 if strip_upc_label(str(row.get("external_id") or "")) in unknown_codes
             ]
+        for row in lines:
+            row["counted"] = counts.get(str(row.get("id") or ""), 0)
+        if box is not None:
+            in_box_lines, in_box_unknown = repo.counted_in_box(
+                upload_id,
+                box,
+                {str(row.get("id") or ""): int(row.get("counted") or 0) for row in lines},
+                {
+                    strip_upc_label(str(row.get("external_id") or "")): int(row.get("counted") or 0)
+                    for row in unknown_rows
+                },
+            )
+            kept_lines = []
+            for row in lines:
+                counted = in_box_lines.get(str(row.get("id") or ""), 0)
+                if counted <= 0:
+                    continue
+                row["counted"] = counted
+                kept_lines.append(row)
+            total -= len(lines) - len(kept_lines)
+            lines = kept_lines
+            kept_unknown = []
+            for row in unknown_rows:
+                code = strip_upc_label(str(row.get("external_id") or ""))
+                counted = in_box_unknown.get(code, 0)
+                if counted <= 0:
+                    continue
+                row["counted"] = counted
+                kept_unknown.append(row)
+            unknown_rows = kept_unknown
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    for row in lines:
-        row["counted"] = counts.get(str(row.get("id") or ""), 0)
     upload["fully_accounted"] = _is_accounted(repo, upload_id)
     return FbaShipmentDetailResponse(
         upload=_upload_response(

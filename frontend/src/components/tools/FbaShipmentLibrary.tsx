@@ -43,6 +43,13 @@ function listedBoxNumber(value: string): number | undefined {
   return box >= 1 && box <= 99999 ? box : undefined
 }
 
+function lineForBox(line: FbaShipmentLine, counted: number): FbaShipmentLine {
+  if (line.not_in_list) return { ...line, counted }
+  const missing = Math.max(0, line.shipped - counted)
+  const status = counted > line.shipped ? 'Overage' : counted === line.shipped ? 'All Accounted' : 'Missing Items'
+  return { ...line, counted, missing, status }
+}
+
 export default function FbaShipmentLibrary() {
   const [uploads, setUploads] = useState<FbaShipmentUpload[]>([])
   const [total, setTotal] = useState(0)
@@ -211,19 +218,26 @@ export default function FbaShipmentLibrary() {
       if (result.line.not_in_list) {
         setNotice(null)
         setScanAlert(`${result.barcode} is not in the list. Placed in Box ${boxValue}.`)
-        setUnknownLines((current) => [
-          result.line,
-          ...current.filter(
-            (line) => line.id !== result.line.id && externalId(line.external_id) !== result.barcode,
-          ),
-        ])
+        setUnknownLines((current) => {
+          const previous = current.find(
+            (line) => line.id === result.line.id || externalId(line.external_id) === result.barcode,
+          )
+          const line = boxForList ? { ...result.line, counted: (previous?.counted ?? 0) + 1 } : result.line
+          return [
+            line,
+            ...current.filter(
+              (item) => item.id !== result.line.id && externalId(item.external_id) !== result.barcode,
+            ),
+          ]
+        })
       } else {
         setScanAlert(null)
         setLines((current) => {
-          const exists = current.some((line) => line.id === result.line.id)
-          if (exists) return current.map((line) => (line.id === result.line.id ? result.line : line))
-          if (!boxReady) return current
-          return [...current, result.line].sort((a, b) => a.line_number - b.line_number)
+          const previous = current.find((line) => line.id === result.line.id)
+          const line = boxForList ? lineForBox(result.line, (previous?.counted ?? 0) + 1) : result.line
+          if (previous) return current.map((item) => (item.id === line.id ? line : item))
+          if (!boxForList) return current
+          return [...current, line].sort((a, b) => a.line_number - b.line_number)
         })
         setNotice(
           `${result.barcode} → Box ${boxValue}: counted ${result.line.counted} of ${result.line.shipped}. Missing ${result.line.missing}. ${result.line.status}.`,
@@ -322,6 +336,24 @@ export default function FbaShipmentLibrary() {
             item.unit_number === unit.unit_number ? { ...item, scan_id: saved.scan_id, box_number: nextBox } : item,
           ),
         )
+      }
+      if (boxForList && unit.box_number !== nextBox) {
+        const delta = (nextBox === boxForList ? 1 : 0) - (unit.box_number === boxForList ? 1 : 0)
+        if (delta !== 0) {
+          const update = (current: FbaShipmentLine[]) =>
+            current.flatMap((item) => {
+              if (item.id !== line.id) return [item]
+              const counted = Math.max(0, (item.counted ?? 0) + delta)
+              if (counted === 0) return []
+              return [line.not_in_list ? { ...item, counted } : lineForBox(item, counted)]
+            })
+          if (line.not_in_list) setUnknownLines(update)
+          else {
+            setLines(update)
+            if ((line.counted ?? 0) + delta <= 0) setLineTotal((total) => Math.max(0, total - 1))
+          }
+          if ((line.counted ?? 0) + delta <= 0) setBoxLineId(null)
+        }
       }
     } catch (err) {
       applyUnits(line.id, previous)
@@ -1014,10 +1046,11 @@ export default function FbaShipmentLibrary() {
                           ) : (
                             <div className="max-h-64 space-y-2 overflow-y-auto">
                               <p className="text-xs text-gray-500">
-                                One row per counted unit. Changing a box does not change the count. A blank box is a unit
-                                that was counted before a box number was saved.
+                                {boxForList
+                                  ? `Units scanned into Box ${boxForList}. Units in other boxes are not listed.`
+                                  : 'One row per counted unit. Changing a box does not change the count. A blank box is a unit that was counted before a box number was saved.'}
                               </p>
-                              {boxUnits.map((unit) => (
+                              {(boxForList ? boxUnits.filter((unit) => unit.box_number === boxForList) : boxUnits).map((unit) => (
                                 <div key={unit.unit_number} className="flex items-center gap-2">
                                   <span className="w-16 text-sm text-gray-700">Unit {unit.unit_number}</span>
                                   <input

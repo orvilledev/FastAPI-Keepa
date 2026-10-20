@@ -16,6 +16,7 @@ from app.services.fba_shipment_library import (
     build_boxed_rows,
     choose_line_for_scan,
     count_progress,
+    counts_kept_in_box,
     is_fully_accounted,
     parse_fba_shipment_tsv,
 )
@@ -236,6 +237,17 @@ def test_units_counted_without_a_box_still_add_up_to_accounting():
     assert _boxed_log(boxed) == [("111", 1, 1), ("111", 1, 1), ("111", 1, None), ("111", 1, None)]
     assert [c.value for c in boxed[2]][7:] == [1, "(blank)", "Grand Total"]
     assert _pivot_cells(boxed) == {("111", 1): 2, ("111", None): 2}
+
+
+def test_a_box_count_ignores_units_placed_in_other_boxes():
+    scans = [
+        {"id": "1", "line_id": "line-a", "box_number": 1, "created_at": "1"},
+        {"id": "2", "line_id": "line-a", "box_number": 1, "created_at": "2"},
+        {"id": "3", "line_id": "line-a", "box_number": 4, "created_at": "3"},
+        {"id": "4", "line_id": "line-a", "box_number": 4, "created_at": "4"},
+    ]
+    assert counts_kept_in_box(scans, 4, {"line-a": 3}, "line_id") == {"line-a": 1}
+    assert counts_kept_in_box(scans, 1, {"line-a": 3}, "line_id") == {"line-a": 2}
 
 
 def test_box_scans_beyond_the_counted_total_are_never_exported():
