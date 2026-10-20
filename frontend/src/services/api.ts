@@ -2600,6 +2600,14 @@ export const shipmentsApi = {
     const response = await api.delete<ShipmentRecord>(`/api/v1/shipments/${shipmentId}/star`)
     return response.data
   },
+  archiveShipment: async (shipmentId: string): Promise<ShipmentRecord> => {
+    const response = await api.post<ShipmentRecord>(`/api/v1/shipments/${shipmentId}/archive`)
+    return response.data
+  },
+  restoreShipment: async (shipmentId: string): Promise<ShipmentRecord> => {
+    const response = await api.post<ShipmentRecord>(`/api/v1/shipments/${shipmentId}/restore`)
+    return response.data
+  },
   starFolder: async (folderId: string): Promise<ShipmentFolder> => {
     const response = await api.post<ShipmentFolder>(`/api/v1/shipments/folders/${folderId}/star`)
     return response.data

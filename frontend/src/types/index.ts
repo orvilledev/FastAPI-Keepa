@@ -124,6 +124,8 @@ export interface ShipmentRecord {
   can_delete: boolean
   /** Per-user follow — shows in Starred section. */
   starred?: boolean
+  /** Set when this shipment is in Archive. */
+  archived_at?: string | null
 }
 
 /** Editable cluster of related shipments in Shipment Manager. */

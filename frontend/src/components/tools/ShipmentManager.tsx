@@ -19,6 +19,10 @@ function isArchivedFolder(folder: ShipmentFolder): boolean {
   return Boolean(folder.archived_at)
 }
 
+function isArchivedShipment(shipment: ShipmentRecord): boolean {
+  return Boolean(shipment.archived_at)
+}
+
 function errorDetail(err: unknown, fallback: string): string {
   const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
   if (typeof detail === 'string' && detail.trim()) return detail
@@ -497,6 +501,58 @@ export default function ShipmentManager() {
     }
   }
 
+  const handleArchiveShipment = async (shipment: ShipmentRecord) => {
+    if (shipment.folder_id || shipment.archived_at || busyId === shipment.id) return
+    const confirmed = window.confirm(
+      `Archive “${shipment.name}”? It leaves Individual shipments and stays available in Archive, where you can open or restore it.`,
+    )
+    if (!confirmed) return
+    setBusyId(shipment.id)
+    setError(null)
+    setMessage(null)
+    try {
+      const updated = await shipmentsApi.archiveShipment(shipment.id)
+      setShipments((prev) =>
+        prev.map((item) => (item.id === shipment.id ? { ...item, ...updated } : item)),
+      )
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        next.delete(shipment.id)
+        return next
+      })
+      setExpandedFolders((prev) => {
+        const next = new Set(prev)
+        next.add(ARCHIVE_SECTION_ID)
+        return next
+      })
+      setMessage(`Archived “${updated.name}”.`)
+    } catch (err) {
+      setError(errorDetail(err, 'Could not archive this shipment.'))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleRestoreShipment = async (shipment: ShipmentRecord) => {
+    if (busyId === shipment.id) return
+    setBusyId(shipment.id)
+    setError(null)
+    setMessage(null)
+    try {
+      const updated = await shipmentsApi.restoreShipment(shipment.id)
+      setShipments((prev) =>
+        prev.map((item) =>
+          item.id === shipment.id ? { ...item, ...updated, archived_at: null } : item,
+        ),
+      )
+      setMessage(`Restored “${updated.name}” to Individual shipments.`)
+    } catch (err) {
+      setError(errorDetail(err, 'Could not restore this shipment.'))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   const openArchivedFolder = (folder: ShipmentFolder) => {
     setExpandedFolders((prev) => {
       const next = new Set(prev)
@@ -795,6 +851,7 @@ export default function ShipmentManager() {
     const byFolder = new Map<string, ShipmentRecord[]>()
     const ungrouped: ShipmentRecord[] = []
     for (const shipment of filtered) {
+      if (isArchivedShipment(shipment)) continue
       if (shipment.folder_id) {
         const list = byFolder.get(shipment.folder_id) || []
         list.push(shipment)
@@ -843,7 +900,7 @@ export default function ShipmentManager() {
   const visibleArchived = useMemo(() => {
     const membersByFolder = new Map<string, ShipmentRecord[]>()
     for (const shipment of filtered) {
-      if (!shipment.folder_id) continue
+      if (!shipment.folder_id || isArchivedShipment(shipment)) continue
       const list = membersByFolder.get(shipment.folder_id) || []
       list.push(shipment)
       membersByFolder.set(shipment.folder_id, list)
@@ -856,12 +913,20 @@ export default function ShipmentManager() {
     })
   }, [archivedFolders, filtered, search, vendorFilter, contributorFilter, uploadsFilter])
 
+  const archivedShipments = useMemo(
+    () => bySortOrder(filtered.filter((item) => isArchivedShipment(item))),
+    [filtered],
+  )
+
   const starredShipments = useMemo(() => {
     const starredFolderIds = new Set(starredFolders.map((folder) => folder.id))
     // Prefer starring a whole folder over duplicating every member under Starred.
     return bySortOrder(
       filtered.filter(
-        (item) => item.starred && (!item.folder_id || !starredFolderIds.has(item.folder_id)),
+        (item) =>
+          item.starred &&
+          !isArchivedShipment(item) &&
+          (!item.folder_id || !starredFolderIds.has(item.folder_id)),
       ),
     )
   }, [filtered, starredFolders])
@@ -879,12 +944,26 @@ export default function ShipmentManager() {
     vendorFilter !== 'all' ||
     contributorFilter !== 'all' ||
     uploadsFilter !== 'all'
+  const archiveItemCount = visibleArchived.length + archivedShipments.length
+  const archiveCountLabel = [
+    visibleArchived.length > 0
+      ? `${visibleArchived.length} group${visibleArchived.length === 1 ? '' : 's'}`
+      : '',
+    archivedShipments.length > 0
+      ? `${archivedShipments.length} shipment${archivedShipments.length === 1 ? '' : 's'}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join(', ')
   const archiveExpanded =
-    expandedFolders.has(ARCHIVE_SECTION_ID) || (filtersActive && visibleArchived.length > 0)
+    expandedFolders.has(ARCHIVE_SECTION_ID) ||
+    (filtersActive && archiveItemCount > 0)
 
   const liveFiltered = useMemo(() => {
     const archivedIds = new Set(archivedFolders.map((folder) => folder.id))
-    return filtered.filter((item) => !item.folder_id || !archivedIds.has(item.folder_id))
+    return filtered.filter(
+      (item) => !isArchivedShipment(item) && (!item.folder_id || !archivedIds.has(item.folder_id)),
+    )
   }, [filtered, archivedFolders])
 
   const allFilteredSelected =
@@ -925,6 +1004,7 @@ export default function ShipmentManager() {
     canMoveUp: boolean,
     canMoveDown: boolean,
     rowKeyPrefix = '',
+    archivedView = false,
   ) => {
     const status = shipmentStatusMeta(shipment.status)
     return (
@@ -937,13 +1017,15 @@ export default function ShipmentManager() {
         }
       >
         <td className={`px-4 py-2 ${indent ? 'pl-10' : ''}`}>
-          <input
-            type="checkbox"
-            checked={selectedIds.has(shipment.id)}
-            onChange={() => toggleSelected(shipment.id)}
-            aria-label={`Select ${shipment.name}`}
-            className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-          />
+          {!archivedView && (
+            <input
+              type="checkbox"
+              checked={selectedIds.has(shipment.id)}
+              onChange={() => toggleSelected(shipment.id)}
+              aria-label={`Select ${shipment.name}`}
+              className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+            />
+          )}
         </td>
         <td className={`px-4 py-2 ${indent ? 'pl-14' : ''}`}>
           {renamingShipmentId === shipment.id ? (
@@ -1008,6 +1090,25 @@ export default function ShipmentManager() {
         <td className="px-4 py-2 text-gray-600">{formatDate(shipment.created_at)}</td>
         <td className="px-4 py-2 text-right">
           <div className="flex flex-wrap items-center justify-end gap-2">
+            {archivedView ? (
+              <>
+                <Link
+                  to={`/shipment-manager/${shipment.id}`}
+                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-800 hover:bg-slate-50"
+                >
+                  Open
+                </Link>
+                <button
+                  type="button"
+                  disabled={busyId === shipment.id}
+                  onClick={() => void handleRestoreShipment(shipment)}
+                  className="rounded-md border border-emerald-300 bg-white px-2.5 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
+                >
+                  {busyId === shipment.id ? 'Restoring…' : 'Restore'}
+                </button>
+              </>
+            ) : (
+              <>
             <button
               type="button"
               disabled={busyId === shipment.id || folderBusy}
@@ -1087,6 +1188,16 @@ export default function ShipmentManager() {
                 Ungroup
               </button>
             )}
+            {!shipment.folder_id && (
+              <button
+                type="button"
+                disabled={busyId === shipment.id || folderBusy}
+                onClick={() => void handleArchiveShipment(shipment)}
+                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-white disabled:opacity-50"
+              >
+                {busyId === shipment.id ? 'Archiving…' : 'Archive'}
+              </button>
+            )}
             {shipment.can_delete && (
               <button
                 type="button"
@@ -1096,6 +1207,8 @@ export default function ShipmentManager() {
               >
                 {busyId === shipment.id ? 'Deleting…' : 'Delete'}
               </button>
+            )}
+              </>
             )}
           </div>
         </td>
@@ -1195,8 +1308,8 @@ export default function ShipmentManager() {
             Register a shipment, let everyone upload their FBA exports into it, then compile one
             WR SKU Update sheet with duplicates removed. Shipments stay here until deleted. Use
             Create group to cluster related shipments. Star a shipment or group to
-            keep it in your personal Starred section at the top. Archive a group to move it into
-            Archive, where you can open it or restore it.
+            keep it in your personal Starred section at the top. Archive a group or an individual
+            shipment to move it into Archive, where you can open it or restore it.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -1479,7 +1592,7 @@ export default function ShipmentManager() {
 
         </div>
 
-        {listRows.length === 0 && !hasStarred ? (
+        {listRows.length === 0 && !hasStarred && filtersActive ? (
           <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-8 text-center">
             <p className="text-sm text-gray-600">No shipments match these filters.</p>
           </div>
@@ -1676,7 +1789,7 @@ export default function ShipmentManager() {
             )}
           </>
         )}
-        {visibleArchived.length > 0 && (
+        {archiveItemCount > 0 && (
           <section className="overflow-hidden rounded-xl border border-gray-200 bg-white">
             <div
               className={`flex items-center justify-between gap-3 px-4 py-3 ${
@@ -1701,10 +1814,7 @@ export default function ShipmentManager() {
                 >
                   Archive
                 </button>
-                <span className="shrink-0 text-xs text-slate-600">
-                  {visibleArchived.length} group
-                  {visibleArchived.length === 1 ? '' : 's'}
-                </span>
+                <span className="shrink-0 text-xs text-slate-600">{archiveCountLabel}</span>
               </div>
               <span className="shrink-0 text-xs text-slate-500">Open or restore</span>
             </div>
@@ -1757,6 +1867,9 @@ export default function ShipmentManager() {
                       }
                     />
                   ))}
+                  {archivedShipments.map((shipment) =>
+                    renderShipmentRow(shipment, false, false, false, 'archive-', true),
+                  )}
                 </tbody>
               </table>
             )}

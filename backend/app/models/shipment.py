@@ -332,6 +332,7 @@ class ShipmentResponse(BaseModel):
     total_units: int = 0
     can_delete: bool = False
     starred: bool = False
+    archived_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 

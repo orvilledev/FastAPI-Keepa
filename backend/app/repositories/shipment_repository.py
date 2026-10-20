@@ -35,6 +35,9 @@ _LEDGER_URL_MIGRATION_HINT = (
 _ARCHIVE_MIGRATION_HINT = (
     "Run backend/database/migrations/add_shipment_folder_archived_at.sql in the Supabase SQL Editor."
 )
+_SHIPMENT_ARCHIVE_MIGRATION_HINT = (
+    "Run backend/database/migrations/add_shipment_archived_at.sql in the Supabase SQL Editor."
+)
 _SORT_ORDER_MIGRATION_HINT = (
     "Run backend/database/migrations/add_shipment_sort_order.sql in the Supabase SQL Editor."
 )
@@ -120,6 +123,16 @@ def _raise_persist_error(exc: Exception, table: str) -> None:
     if missing_archive:
         raise ValueError(
             f"Shipment group archive is not set up yet. {_ARCHIVE_MIGRATION_HINT}"
+        ) from exc
+    missing_shipment_archive = table == _SHIPMENTS and "archived_at" in message and (
+        "column" in message
+        or "schema cache" in message
+        or "pgrst204" in message
+        or "could not find" in message
+    )
+    if missing_shipment_archive:
+        raise ValueError(
+            f"Shipment archive is not set up yet. {_SHIPMENT_ARCHIVE_MIGRATION_HINT}"
         ) from exc
     missing_folder = (
         (table == _SHIPMENTS and "folder_id" in message)

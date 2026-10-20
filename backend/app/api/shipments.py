@@ -278,6 +278,45 @@ def _to_response(
     )
 
 
+def _shipment_mutation_response(
+    db: Client,
+    repo: ShipmentRepository,
+    current_user: dict,
+    shipment: dict,
+) -> ShipmentResponse:
+    """Rebuild a list-row response after archive, restore, or a similar update."""
+    shipment_id = str(shipment["id"])
+    uploads = repo.list_uploads(shipment_id)
+    row_count, unique_upc_count = repo.row_stats(shipment_id)
+    names = _display_names(
+        db,
+        [str(shipment.get("created_by") or "")],
+        {str(shipment.get("created_by") or ""): str(shipment.get("created_by_email") or "")},
+    )
+    folder_id = shipment.get("folder_id")
+    folder_name = _folder_name_map(repo).get(str(folder_id)) if folder_id else None
+    starred_shipments, _starred_folders = _user_star_sets(repo, current_user["id"])
+    vendor = str(shipment.get("vendor") or "")
+    steps = _load_vendor_checklist_steps(db, vendor)
+    admin = _is_admin(db, current_user)
+    return _to_response(
+        shipment,
+        upload_count=len(uploads),
+        contributor_count=len({str(item.get("uploaded_by")) for item in uploads}),
+        row_count=row_count,
+        unique_upc_count=unique_upc_count,
+        total_units=sum(int(item.get("total_units") or 0) for item in uploads),
+        can_delete=admin or str(shipment.get("created_by")) == current_user["id"],
+        created_by_name=_person_name(
+            names, shipment.get("created_by"), shipment.get("created_by_email")
+        ),
+        checklist_steps=steps,
+        can_edit_checklist=is_superadmin_user(current_user, db),
+        folder_name=folder_name,
+        starred=shipment_id in starred_shipments,
+    )
+
+
 def _folder_name_map(repo: ShipmentRepository) -> dict[str, str]:
     try:
         folders = repo.list_folders()
@@ -1123,6 +1162,57 @@ def update_shipment(
         checklist_steps=steps,
         can_edit_checklist=is_superadmin_user(current_user, db),
     )
+
+
+@router.post("/shipments/{shipment_id}/archive", response_model=ShipmentResponse)
+@handle_api_errors("archive shipment")
+def archive_shipment(
+    shipment_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Move one individual shipment into Archive. Grouped shipments stay with their group."""
+    repo = ShipmentRepository(db)
+    shipment = _load_shipment(repo, shipment_id)
+    if shipment.get("folder_id"):
+        raise HTTPException(
+            status_code=400,
+            detail="This shipment is in a group. Ungroup it, or archive the group.",
+        )
+    if shipment.get("archived_at"):
+        updated = shipment
+    else:
+        try:
+            updated = (
+                repo.update_shipment(
+                    str(shipment_id),
+                    {"archived_at": datetime.now(timezone.utc).isoformat()},
+                )
+                or shipment
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _shipment_mutation_response(db, repo, current_user, updated)
+
+
+@router.post("/shipments/{shipment_id}/restore", response_model=ShipmentResponse)
+@handle_api_errors("restore shipment")
+def restore_shipment(
+    shipment_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Return an archived individual shipment to Individual shipments."""
+    repo = ShipmentRepository(db)
+    shipment = _load_shipment(repo, shipment_id)
+    if not shipment.get("archived_at"):
+        updated = shipment
+    else:
+        try:
+            updated = repo.update_shipment(str(shipment_id), {"archived_at": None}) or shipment
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _shipment_mutation_response(db, repo, current_user, updated)
 
 
 @router.patch("/shipments/{shipment_id}/checklist", response_model=ShipmentResponse)
