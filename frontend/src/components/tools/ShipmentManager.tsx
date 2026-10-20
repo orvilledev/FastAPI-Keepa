@@ -70,6 +70,57 @@ function suggestFolderName(names: string[]): string {
   return prefix || stripped[0]
 }
 
+/** Next shipment name in a folder: bump the shared trailing number, otherwise "{folder} N". */
+function suggestNextShipmentName(folderName: string, memberNames: string[]): string {
+  const parsed = memberNames
+    .map((name) => {
+      const match = name.trim().match(/^(.*?)(\d+)\s*$/)
+      if (!match) return null
+      const number = Number(match[2])
+      if (!Number.isFinite(number)) return null
+      return { prefix: match[1], number }
+    })
+    .filter((item): item is { prefix: string; number: number } => item !== null)
+
+  if (parsed.length > 0) {
+    const groups = new Map<string, { prefix: string; count: number; max: number }>()
+    for (const item of parsed) {
+      const key = item.prefix.toLowerCase()
+      const existing = groups.get(key)
+      if (!existing) {
+        groups.set(key, { prefix: item.prefix, count: 1, max: item.number })
+        continue
+      }
+      existing.count += 1
+      if (item.number >= existing.max) {
+        existing.max = item.number
+        existing.prefix = item.prefix
+      }
+    }
+    const best = Array.from(groups.values()).sort(
+      (a, b) => b.count - a.count || b.max - a.max,
+    )[0]
+    return `${best.prefix}${best.max + 1}`
+  }
+
+  const base = folderName.trim()
+  const next = memberNames.length + 1
+  return base ? `${base} ${next}` : String(next)
+}
+
+function vendorDraftFromMembers(members: ShipmentRecord[]): { preset: string; custom: string } {
+  const ordered = bySortOrder(members)
+  const code = (
+    ordered.find((item) => (item.vendor || '').trim())?.vendor || SHIPMENT_VENDORS[0].code
+  )
+    .trim()
+    .toUpperCase()
+  if (SHIPMENT_VENDORS.some((item) => item.code === code)) {
+    return { preset: code, custom: '' }
+  }
+  return { preset: SHIPMENT_VENDOR_OTHER, custom: code }
+}
+
 function bySortOrder<T extends { sort_order?: number; name?: string; created_at?: string; id: string }>(
   items: T[],
 ): T[] {
@@ -118,6 +169,12 @@ export default function ShipmentManager() {
   const [ledgerFolderId, setLedgerFolderId] = useState<string | null>(null)
   const [ledgerDraft, setLedgerDraft] = useState('')
   const [ledgerSaving, setLedgerSaving] = useState(false)
+  const [addingPlacement, setAddingPlacement] = useState<string | null>(null)
+  const [addName, setAddName] = useState('')
+  const [addVendorPreset, setAddVendorPreset] = useState<string>(SHIPMENT_VENDORS[0].code)
+  const [addVendorCustom, setAddVendorCustom] = useState('')
+  const [addNotes, setAddNotes] = useState('')
+  const [addSaving, setAddSaving] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -234,6 +291,84 @@ export default function ShipmentManager() {
     () => shipments.filter((item) => selectedIds.has(item.id)),
     [shipments, selectedIds],
   )
+
+  const openAddShipment = (folder: ShipmentFolder, placement: string) => {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev)
+      next.add(placement)
+      if (placement.startsWith('starred-folder-')) next.add(STARRED_SECTION_ID)
+      return next
+    })
+    if (addingPlacement === placement) return
+    const members = shipments.filter((item) => item.folder_id === folder.id)
+    const draft = vendorDraftFromMembers(members)
+    setAddingPlacement(placement)
+    setAddName(suggestNextShipmentName(folder.name, members.map((item) => item.name)))
+    setAddVendorPreset(draft.preset)
+    setAddVendorCustom(draft.custom)
+    setAddNotes('')
+    setError(null)
+  }
+
+  const handleAddShipmentToFolder = async (event: FormEvent, folder: ShipmentFolder) => {
+    event.preventDefault()
+    const vendorCode = resolveVendorCode(addVendorPreset, addVendorCustom)
+    if (!addName.trim() || !vendorCode || addSaving) return
+    setAddSaving(true)
+    setError(null)
+    setMessage(null)
+    let created: ShipmentRecord | null = null
+    try {
+      created = await shipmentsApi.create({
+        name: addName.trim(),
+        vendor: vendorCode,
+        notes: addNotes.trim() || undefined,
+      })
+      const updatedFolder = await shipmentsApi.addToFolder(folder.id, [created.id])
+      const placed = created
+      setShipments((prev) => {
+        const siblings = prev.filter((item) => item.folder_id === folder.id)
+        const sortOrder =
+          siblings.reduce((max, item) => Math.max(max, item.sort_order ?? 0), -1) + 1
+        return [
+          ...prev,
+          {
+            ...placed,
+            folder_id: folder.id,
+            folder_name: updatedFolder.name || folder.name,
+            sort_order: sortOrder,
+          },
+        ]
+      })
+      setFolders((prev) =>
+        prev.map((item) =>
+          item.id === folder.id
+            ? { ...item, shipment_count: updatedFolder.shipment_count }
+            : item,
+        ),
+      )
+      setAddingPlacement(null)
+      setAddName('')
+      setAddNotes('')
+      setAddVendorCustom('')
+      setMessage(`Added “${placed.name}” to “${folder.name}”.`)
+    } catch (err) {
+      if (created) {
+        const placed = created
+        setShipments((prev) => (prev.some((item) => item.id === placed.id) ? prev : [placed, ...prev]))
+        setError(
+          errorDetail(
+            err,
+            `Registered “${placed.name}”, but could not add it to “${folder.name}”.`,
+          ),
+        )
+      } else {
+        setError(errorDetail(err, 'Could not add this shipment.'))
+      }
+    } finally {
+      setAddSaving(false)
+    }
+  }
 
   const openFolderForm = () => {
     setFolderName(suggestFolderName(selectedShipments.map((item) => item.name)))
@@ -889,6 +1024,87 @@ export default function ShipmentManager() {
     )
   }
 
+  const renderAddShipmentForm = (folder: ShipmentFolder) => {
+    const vendorCode = resolveVendorCode(addVendorPreset, addVendorCustom)
+    return (
+      <form
+        onSubmit={(event) => void handleAddShipmentToFolder(event, folder)}
+        className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end"
+      >
+        <div className="min-w-[16rem] flex-1">
+          <label htmlFor={`add-shipment-name-${folder.id}`} className="block text-xs font-medium text-gray-700">
+            Shipment name
+          </label>
+          <input
+            id={`add-shipment-name-${folder.id}`}
+            type="text"
+            value={addName}
+            maxLength={200}
+            onChange={(e) => setAddName(e.target.value)}
+            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+            autoFocus
+          />
+        </div>
+        <div className="w-full sm:w-48">
+          <label htmlFor={`add-shipment-vendor-${folder.id}`} className="block text-xs font-medium text-gray-700">
+            Vendor
+          </label>
+          <select
+            id={`add-shipment-vendor-${folder.id}`}
+            value={addVendorPreset}
+            onChange={(e) => setAddVendorPreset(e.target.value)}
+            className={`mt-1 w-full ${selectClass}`}
+          >
+            {SHIPMENT_VENDORS.map((item) => (
+              <option key={item.code} value={item.code}>
+                {item.label}
+              </option>
+            ))}
+            <option value={SHIPMENT_VENDOR_OTHER}>Other…</option>
+          </select>
+          {addVendorPreset === SHIPMENT_VENDOR_OTHER && (
+            <input
+              type="text"
+              value={addVendorCustom}
+              maxLength={8}
+              onChange={(e) => setAddVendorCustom(e.target.value.toUpperCase())}
+              placeholder="Vendor code"
+              className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+              aria-label="Custom vendor code"
+            />
+          )}
+        </div>
+        <div className="min-w-[12rem] flex-1">
+          <label htmlFor={`add-shipment-notes-${folder.id}`} className="block text-xs font-medium text-gray-700">
+            Notes <span className="font-normal text-gray-500">(optional)</span>
+          </label>
+          <input
+            id={`add-shipment-notes-${folder.id}`}
+            type="text"
+            value={addNotes}
+            onChange={(e) => setAddNotes(e.target.value)}
+            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={!addName.trim() || !vendorCode || addSaving}
+          className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+        >
+          {addSaving ? 'Adding…' : 'Add'}
+        </button>
+        <button
+          type="button"
+          disabled={addSaving}
+          onClick={() => setAddingPlacement(null)}
+          className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        >
+          Cancel
+        </button>
+      </form>
+    )
+  }
+
   const ledgerFolder = folders.find((item) => item.id === ledgerFolderId) ?? null
 
   return (
@@ -1241,7 +1457,7 @@ export default function ShipmentManager() {
                             collapsed={collapsed}
                             isRenaming={false}
                             renameValue=""
-                            folderBusy={folderBusy}
+                            folderBusy={folderBusy || addSaving}
                             canMoveUp={false}
                             canMoveDown={false}
                             starredSection
@@ -1263,6 +1479,14 @@ export default function ShipmentManager() {
                             onOpenLedger={() => openFolderLedger(folder)}
                             onGenerateClustered={() => void handleGenerateClustered(folder)}
                             onArchive={() => void handleArchiveFolder(folder)}
+                            onAddShipment={() =>
+                              openAddShipment(folder, `starred-folder-${folder.id}`)
+                            }
+                            addForm={
+                              addingPlacement === `starred-folder-${folder.id}`
+                                ? renderAddShipmentForm(folder)
+                                : undefined
+                            }
                             renderMember={(shipment) =>
                               renderShipmentRow(shipment, true, false, false, 'starred-')
                             }
@@ -1303,7 +1527,7 @@ export default function ShipmentManager() {
                       collapsed={collapsed}
                       isRenaming={isRenaming}
                       renameValue={renameValue}
-                      folderBusy={folderBusy}
+                      folderBusy={folderBusy || addSaving}
                       canMoveUp={folderIndex > 0}
                       canMoveDown={folderIndex >= 0 && folderIndex < folderRows.length - 1}
                       generatingClustered={clusterGenerateId === folder.id}
@@ -1325,6 +1549,10 @@ export default function ShipmentManager() {
                       onOpenLedger={() => openFolderLedger(folder)}
                       onGenerateClustered={() => void handleGenerateClustered(folder)}
                       onArchive={() => void handleArchiveFolder(folder)}
+                      onAddShipment={() => openAddShipment(folder, folder.id)}
+                      addForm={
+                        addingPlacement === folder.id ? renderAddShipmentForm(folder) : undefined
+                      }
                       renderMember={(shipment, index, total) =>
                         renderShipmentRow(shipment, true, index > 0, index < total - 1)
                       }
@@ -1555,6 +1783,8 @@ function FragmentFolder({
   onArchive,
   onOpen,
   onRestore,
+  onAddShipment,
+  addForm,
   renderMember,
 }: {
   folder: ShipmentFolder
@@ -1583,6 +1813,8 @@ function FragmentFolder({
   onArchive?: () => void
   onOpen?: () => void
   onRestore?: () => void
+  onAddShipment?: () => void
+  addForm?: ReactNode
   renderMember: (shipment: ShipmentRecord, index: number, total: number) => ReactNode
 }) {
   const canGenerate = hasUploads ?? members.some((item) => item.upload_count > 0)
@@ -1641,6 +1873,16 @@ function FragmentFolder({
         <td className="px-4 py-2 text-gray-400">—</td>
         <td className="px-4 py-2 text-right">
           <div className="flex flex-wrap items-center justify-end gap-2">
+            {onAddShipment && (
+              <button
+                type="button"
+                disabled={folderBusy}
+                onClick={onAddShipment}
+                className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                Add shipment
+              </button>
+            )}
             {onToggleStar && (
               <button
                 type="button"
@@ -1779,6 +2021,27 @@ function FragmentFolder({
       </tr>
       {!collapsed &&
         members.map((shipment, index) => renderMember(shipment, index, members.length))}
+      {!collapsed && addForm && (
+        <tr className="bg-emerald-50/70">
+          <td className="px-4 py-3 pl-14" colSpan={10}>
+            {addForm}
+          </td>
+        </tr>
+      )}
+      {!collapsed && onAddShipment && !addForm && (
+        <tr className="bg-emerald-50/40">
+          <td className="px-4 py-2 pl-14" colSpan={10}>
+            <button
+              type="button"
+              disabled={folderBusy}
+              onClick={onAddShipment}
+              className="text-sm font-medium text-emerald-700 hover:underline disabled:opacity-50"
+            >
+              + Add shipment
+            </button>
+          </td>
+        </tr>
+      )}
     </>
   )
 }
