@@ -352,13 +352,18 @@ export default function ShipmentManager() {
   }
 
   const openFolderForm = () => {
-    setFolderName(suggestFolderName(selectedShipments.map((item) => item.name)))
+    setShowForm(false)
+    setFolderName(
+      selectedIds.size > 0
+        ? suggestFolderName(selectedShipments.map((item) => item.name))
+        : '',
+    )
     setShowFolderForm(true)
   }
 
   const handleCreateFolder = async (event: FormEvent) => {
     event.preventDefault()
-    if (!folderName.trim() || selectedIds.size === 0 || folderBusy) return
+    if (!folderName.trim() || folderBusy) return
     setFolderBusy(true)
     setError(null)
     setMessage(null)
@@ -376,12 +381,21 @@ export default function ShipmentManager() {
             : item,
         ),
       )
+      setExpandedFolders((prev) => {
+        const next = new Set(prev)
+        next.add(created.id)
+        return next
+      })
       setSelectedIds(new Set())
       setShowFolderForm(false)
       setFolderName('')
-      setMessage(`Grouped ${ids.length} shipment${ids.length === 1 ? '' : 's'} into “${created.name}”.`)
+      setMessage(
+        ids.length > 0
+          ? `Grouped ${ids.length} shipment${ids.length === 1 ? '' : 's'} into “${created.name}”.`
+          : `Created group “${created.name}”. Add shipments to it from the group row.`,
+      )
     } catch (err) {
-      setError(errorDetail(err, 'Could not create this folder.'))
+      setError(errorDetail(err, 'Could not create this group.'))
     } finally {
       setFolderBusy(false)
     }
@@ -493,8 +507,11 @@ export default function ShipmentManager() {
   }
 
   const handleDeleteFolder = async (folder: ShipmentFolder) => {
+    const memberCount = shipments.filter((item) => item.folder_id === folder.id).length
     const confirmed = window.confirm(
-      `Remove folder “${folder.name}”? Shipments inside stay registered — they are only ungrouped.`,
+      memberCount > 0
+        ? `Ungroup “${folder.name}”? Its ${memberCount} shipment${memberCount === 1 ? '' : 's'} stay registered and move to Individual shipments.`
+        : `Ungroup “${folder.name}”? This empty group will be removed.`,
     )
     if (!confirmed) return
     setFolderBusy(true)
@@ -510,9 +527,19 @@ export default function ShipmentManager() {
             : item,
         ),
       )
-      setMessage(`Ungrouped shipments from “${folder.name}”.`)
+      setExpandedFolders((prev) => {
+        const next = new Set(prev)
+        next.delete(folder.id)
+        next.delete(`starred-folder-${folder.id}`)
+        return next
+      })
+      setMessage(
+        memberCount > 0
+          ? `Moved ${memberCount} shipment${memberCount === 1 ? '' : 's'} from “${folder.name}” to Individual shipments.`
+          : `Removed group “${folder.name}”.`,
+      )
     } catch (err) {
-      setError(errorDetail(err, 'Could not remove this folder.'))
+      setError(errorDetail(err, 'Could not ungroup these shipments.'))
     } finally {
       setFolderBusy(false)
     }
@@ -1166,19 +1193,38 @@ export default function ShipmentManager() {
           <h1 className="text-2xl font-bold text-gray-900">Shipment Manager</h1>
           <p className="mt-1 text-sm text-gray-600">
             Register a shipment, let everyone upload their FBA exports into it, then compile one
-            WR SKU Update sheet with duplicates removed. Shipments stay here until deleted. Select
-            related groups to cluster them into an editable folder. Star a shipment or folder to
+            WR SKU Update sheet with duplicates removed. Shipments stay here until deleted. Use
+            Create group to cluster related shipments. Star a shipment or group to
             keep it in your personal Starred section at the top. Archive a group to move it into
             Archive, where you can open it or restore it.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowForm((open) => !open)}
-          className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-        >
-          {showForm ? 'Cancel' : 'Register shipment'}
-        </button>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setShowFolderForm(false)
+              setShowForm((open) => !open)
+            }}
+            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+          >
+            {showForm ? 'Cancel' : 'Register shipment'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (showFolderForm) {
+                setShowFolderForm(false)
+                setFolderName('')
+                return
+              }
+              openFolderForm()
+            }}
+            className="rounded-md border border-emerald-600 bg-white px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
+          >
+            {showFolderForm ? 'Cancel' : 'Create group'}
+          </button>
+        </div>
       </header>
 
       {error && (
@@ -1262,9 +1308,44 @@ export default function ShipmentManager() {
         </form>
       )}
 
+      {showFolderForm && (
+        <form
+          onSubmit={handleCreateFolder}
+          className="space-y-3 rounded-xl border border-gray-200 bg-white p-4"
+        >
+          <div>
+            <label htmlFor="folder-name" className="block text-sm font-medium text-gray-700">
+              Group name
+            </label>
+            <input
+              id="folder-name"
+              type="text"
+              value={folderName}
+              maxLength={200}
+              onChange={(e) => setFolderName(e.target.value)}
+              placeholder="WR FBASMW SOCK Q3"
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+              autoFocus
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              {selectedIds.size > 0
+                ? `${selectedIds.size} selected shipment${selectedIds.size === 1 ? '' : 's'} will be added to this group.`
+                : 'Creates an empty group. Add shipments from the group row, or select shipments first and they will be included.'}
+            </p>
+          </div>
+          <button
+            type="submit"
+            disabled={!folderName.trim() || folderBusy}
+            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {folderBusy ? 'Creating…' : 'Create group'}
+          </button>
+        </form>
+      )}
+
       {loading ? (
         <p className="text-sm text-gray-600">Loading shipments…</p>
-      ) : shipments.length === 0 ? (
+      ) : shipments.length === 0 && folders.length === 0 ? (
         <div className="rounded-xl border-2 border-dashed border-gray-300 bg-white p-8 text-center">
           <p className="text-sm text-gray-600">
             No shipments registered yet. Register one to start collecting FBA exports.
@@ -1357,7 +1438,7 @@ export default function ShipmentManager() {
                 onClick={openFolderForm}
                 className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
               >
-                Create folder…
+                Create group…
               </button>
               {folders.some((folder) => !isArchivedFolder(folder)) && (
                 <>
@@ -1394,46 +1475,6 @@ export default function ShipmentManager() {
                 Clear selection
               </button>
             </div>
-          )}
-
-          {showFolderForm && (
-            <form
-              onSubmit={handleCreateFolder}
-              className="flex flex-col gap-2 border-b border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:items-end"
-            >
-              <div className="min-w-0 flex-1">
-                <label htmlFor="folder-name" className="block text-xs font-medium text-gray-700">
-                  Folder name
-                </label>
-                <input
-                  id="folder-name"
-                  type="text"
-                  value={folderName}
-                  maxLength={200}
-                  onChange={(e) => setFolderName(e.target.value)}
-                  placeholder="NFA WHRP 8.25.26"
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
-                  autoFocus
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={!folderName.trim() || folderBusy || selectedIds.size === 0}
-                className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {folderBusy ? 'Saving…' : 'Save folder'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowFolderForm(false)
-                  setFolderName('')
-                }}
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-white"
-              >
-                Cancel
-              </button>
-            </form>
           )}
 
         </div>
@@ -2127,7 +2168,7 @@ function FragmentFolder({
                       onClick={onDelete}
                       className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
                     >
-                      Remove folder
+                      Ungroup
                     </button>
                   </>
                 )}
