@@ -832,6 +832,12 @@ export default function ShipmentManager() {
   }, [filtered, starredFolders])
 
   const hasStarred = starredFolders.length > 0 || starredShipments.length > 0
+  const groupedRows = listRows.filter(
+    (row): row is Extract<ListRow, { kind: 'folder' }> => row.kind === 'folder',
+  )
+  const individualRows = listRows.filter(
+    (row): row is Extract<ListRow, { kind: 'shipment' }> => row.kind === 'shipment',
+  )
 
   const filtersActive =
     search.trim() !== '' ||
@@ -1219,7 +1225,7 @@ export default function ShipmentManager() {
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-24">
+        <div className="flex flex-col gap-6">
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
           <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 lg:flex-row lg:items-center">
             <input
@@ -1279,6 +1285,18 @@ export default function ShipmentManager() {
               >
                 Clear filters
               </button>
+            )}
+            {liveFiltered.length > 0 && (
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700 lg:ml-auto">
+                <input
+                  type="checkbox"
+                  checked={allFilteredSelected}
+                  onChange={toggleSelectAll}
+                  aria-label="Select all filtered shipments"
+                  className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                Select all
+              </label>
             )}
           </div>
 
@@ -1372,79 +1390,55 @@ export default function ShipmentManager() {
             </form>
           )}
 
-          {listRows.length === 0 && !hasStarred ? (
-            <p className="px-4 py-8 text-center text-sm text-gray-600">
-              No shipments match these filters.
-            </p>
-          ) : (
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-                <tr>
-                  <th className="px-4 py-2">
-                    <input
-                      type="checkbox"
-                      checked={allFilteredSelected}
-                      onChange={toggleSelectAll}
-                      aria-label="Select all filtered shipments"
-                      className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                    />
-                  </th>
-                  <th className="px-4 py-2">Shipment</th>
-                  <th className="px-4 py-2">Vendor</th>
-                  <th className="px-4 py-2">Status</th>
-                  <th className="px-4 py-2">Uploads</th>
-                  <th className="px-4 py-2">Contributors</th>
-                  <th className="px-4 py-2">Unique UPCs</th>
-                  <th className="px-4 py-2">Units</th>
-                  <th className="px-4 py-2">Registered</th>
-                  <th className="px-4 py-2 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {hasStarred && (
-                  <>
-                    <tr className="bg-amber-50/90">
-                      <td className="px-4 py-2" colSpan={2}>
-                        <div className="flex min-w-0 items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleFolderExpanded(STARRED_SECTION_ID)}
-                            aria-label={
-                              expandedFolders.has(STARRED_SECTION_ID)
-                                ? 'Collapse Starred'
-                                : 'Expand Starred'
-                            }
-                            className="rounded p-0.5 text-amber-700 hover:bg-amber-100"
-                          >
-                            <span className="inline-block w-4 text-center text-xs">
-                              {expandedFolders.has(STARRED_SECTION_ID) ? '▼' : '▶'}
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleFolderExpanded(STARRED_SECTION_ID)}
-                            className="truncate text-left text-sm font-semibold text-amber-900 hover:underline"
-                          >
-                            ★ Starred
-                          </button>
-                          <span className="shrink-0 text-xs text-amber-800/80">
-                            {starredFolders.length + starredShipments.length} follow
-                            {starredFolders.length + starredShipments.length === 1 ? '' : 's'}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-2 text-amber-800/60">—</td>
-                      <td className="px-4 py-2 text-amber-800/60">—</td>
-                      <td className="px-4 py-2 text-amber-800/60">—</td>
-                      <td className="px-4 py-2 text-amber-800/60">—</td>
-                      <td className="px-4 py-2 text-amber-800/60">—</td>
-                      <td className="px-4 py-2 text-amber-800/60">—</td>
-                      <td className="px-4 py-2 text-right text-xs text-amber-800/70">
-                        Your follows
-                      </td>
-                    </tr>
-                    {expandedFolders.has(STARRED_SECTION_ID) &&
-                      starredFolders.map((folder) => {
+        </div>
+
+        {listRows.length === 0 && !hasStarred ? (
+          <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-8 text-center">
+            <p className="text-sm text-gray-600">No shipments match these filters.</p>
+          </div>
+        ) : (
+          <>
+            {hasStarred && (
+              <section className="overflow-hidden rounded-xl border border-amber-200 bg-white">
+                <div
+                  className={`flex items-center justify-between gap-3 bg-amber-50 px-4 py-3 ${
+                    expandedFolders.has(STARRED_SECTION_ID) ? 'border-b border-amber-200' : ''
+                  }`}
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleFolderExpanded(STARRED_SECTION_ID)}
+                      aria-label={
+                        expandedFolders.has(STARRED_SECTION_ID)
+                          ? 'Collapse Starred'
+                          : 'Expand Starred'
+                      }
+                      className="rounded p-0.5 text-amber-700 hover:bg-amber-100"
+                    >
+                      <span className="inline-block w-4 text-center text-xs">
+                        {expandedFolders.has(STARRED_SECTION_ID) ? '▼' : '▶'}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleFolderExpanded(STARRED_SECTION_ID)}
+                      className="truncate text-left text-sm font-semibold text-amber-900 hover:underline"
+                    >
+                      ★ Starred
+                    </button>
+                    <span className="shrink-0 text-xs text-amber-800/80">
+                      {starredFolders.length + starredShipments.length} follow
+                      {starredFolders.length + starredShipments.length === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  <span className="shrink-0 text-xs text-amber-800/70">Your follows</span>
+                </div>
+                {expandedFolders.has(STARRED_SECTION_ID) && (
+                  <table className="min-w-full divide-y divide-amber-100 text-sm">
+                    <ShipmentTableHead />
+                    <tbody className="divide-y divide-amber-100">
+                      {starredFolders.map((folder) => {
                         const members = bySortOrder(
                           filtered.filter((item) => item.folder_id === folder.id),
                         )
@@ -1493,76 +1487,108 @@ export default function ShipmentManager() {
                           />
                         )
                       })}
-                    {expandedFolders.has(STARRED_SECTION_ID) &&
-                      starredShipments.map((shipment) =>
+                      {starredShipments.map((shipment) =>
                         renderShipmentRow(shipment, true, false, false, 'starred-'),
                       )}
-                  </>
+                    </tbody>
+                  </table>
                 )}
-                {listRows.map((row) => {
-                  if (row.kind === 'shipment') {
-                    const ungrouped = listRows.filter((item) => item.kind === 'shipment')
-                    const index = ungrouped.findIndex(
-                      (item) => item.kind === 'shipment' && item.shipment.id === row.shipment.id,
+              </section>
+            )}
+
+            {groupedRows.length > 0 && (
+              <section className="space-y-3">
+                <div className="flex items-baseline justify-between px-1">
+                  <h2 className="text-sm font-semibold text-emerald-900">Groups</h2>
+                  <span className="text-xs text-gray-500">
+                    {groupedRows.length} group{groupedRows.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                <div className="space-y-4">
+                  {groupedRows.map((row, folderIndex) => {
+                    const { folder, members } = row
+                    const collapsed = !expandedFolders.has(folder.id)
+                    const isRenaming = renamingFolderId === folder.id
+                    return (
+                      <div
+                        key={`folder-${folder.id}`}
+                        className="overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-sm"
+                      >
+                        <table className="min-w-full text-sm">
+                          <tbody className="divide-y divide-emerald-100">
+                            <FragmentFolder
+                              folder={folder}
+                              members={members}
+                              collapsed={collapsed}
+                              isRenaming={isRenaming}
+                              renameValue={renameValue}
+                              folderBusy={folderBusy || addSaving}
+                              canMoveUp={folderIndex > 0}
+                              canMoveDown={folderIndex < groupedRows.length - 1}
+                              contained
+                              generatingClustered={clusterGenerateId === folder.id}
+                              hasUploads={shipments.some(
+                                (item) => item.folder_id === folder.id && item.upload_count > 0,
+                              )}
+                              onToggle={() => toggleFolderExpanded(folder.id)}
+                              onMoveUp={() => void handleMoveFolder(folder, 'up')}
+                              onMoveDown={() => void handleMoveFolder(folder, 'down')}
+                              onStartRename={() => {
+                                setRenamingFolderId(folder.id)
+                                setRenameValue(folder.name)
+                              }}
+                              onRenameValue={setRenameValue}
+                              onSaveRename={() => void handleRenameFolder(folder)}
+                              onCancelRename={() => setRenamingFolderId(null)}
+                              onDelete={() => void handleDeleteFolder(folder)}
+                              onToggleStar={() => void handleToggleFolderStar(folder)}
+                              onOpenLedger={() => openFolderLedger(folder)}
+                              onGenerateClustered={() => void handleGenerateClustered(folder)}
+                              onArchive={() => void handleArchiveFolder(folder)}
+                              onAddShipment={() => openAddShipment(folder, folder.id)}
+                              addForm={
+                                addingPlacement === folder.id
+                                  ? renderAddShipmentForm(folder)
+                                  : undefined
+                              }
+                              renderMember={(shipment, index, total) =>
+                                renderShipmentRow(shipment, false, index > 0, index < total - 1)
+                              }
+                            />
+                          </tbody>
+                        </table>
+                      </div>
                     )
-                    return renderShipmentRow(
-                      row.shipment,
-                      false,
-                      index > 0,
-                      index >= 0 && index < ungrouped.length - 1,
-                    )
-                  }
-                  const { folder, members } = row
-                  const folderRows = listRows.filter((item) => item.kind === 'folder')
-                  const folderIndex = folderRows.findIndex(
-                    (item) => item.kind === 'folder' && item.folder.id === folder.id,
-                  )
-                  const collapsed = !expandedFolders.has(folder.id)
-                  const isRenaming = renamingFolderId === folder.id
-                  return (
-                    <FragmentFolder
-                      key={`folder-${folder.id}`}
-                      folder={folder}
-                      members={members}
-                      collapsed={collapsed}
-                      isRenaming={isRenaming}
-                      renameValue={renameValue}
-                      folderBusy={folderBusy || addSaving}
-                      canMoveUp={folderIndex > 0}
-                      canMoveDown={folderIndex >= 0 && folderIndex < folderRows.length - 1}
-                      generatingClustered={clusterGenerateId === folder.id}
-                      hasUploads={shipments.some(
-                        (item) => item.folder_id === folder.id && item.upload_count > 0,
-                      )}
-                      onToggle={() => toggleFolderExpanded(folder.id)}
-                      onMoveUp={() => void handleMoveFolder(folder, 'up')}
-                      onMoveDown={() => void handleMoveFolder(folder, 'down')}
-                      onStartRename={() => {
-                        setRenamingFolderId(folder.id)
-                        setRenameValue(folder.name)
-                      }}
-                      onRenameValue={setRenameValue}
-                      onSaveRename={() => void handleRenameFolder(folder)}
-                      onCancelRename={() => setRenamingFolderId(null)}
-                      onDelete={() => void handleDeleteFolder(folder)}
-                      onToggleStar={() => void handleToggleFolderStar(folder)}
-                      onOpenLedger={() => openFolderLedger(folder)}
-                      onGenerateClustered={() => void handleGenerateClustered(folder)}
-                      onArchive={() => void handleArchiveFolder(folder)}
-                      onAddShipment={() => openAddShipment(folder, folder.id)}
-                      addForm={
-                        addingPlacement === folder.id ? renderAddShipmentForm(folder) : undefined
-                      }
-                      renderMember={(shipment, index, total) =>
-                        renderShipmentRow(shipment, true, index > 0, index < total - 1)
-                      }
-                    />
-                  )
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
+                  })}
+                </div>
+              </section>
+            )}
+
+            {individualRows.length > 0 && (
+              <section className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                <div className="flex items-center justify-between gap-3 border-b border-gray-200 bg-slate-50 px-4 py-3">
+                  <h2 className="text-sm font-semibold text-slate-900">Individual shipments</h2>
+                  <span className="shrink-0 text-xs text-slate-500">
+                    {individualRows.length} shipment{individualRows.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <ShipmentTableHead />
+                  <tbody className="divide-y divide-gray-100">
+                    {individualRows.map((row, index) =>
+                      renderShipmentRow(
+                        row.shipment,
+                        false,
+                        index > 0,
+                        index < individualRows.length - 1,
+                      ),
+                    )}
+                  </tbody>
+                </table>
+              </section>
+            )}
+          </>
+        )}
         {visibleArchived.length > 0 && (
           <section className="overflow-hidden rounded-xl border border-gray-200 bg-white">
             <div
@@ -1743,6 +1769,42 @@ function filtersActiveLike(
   )
 }
 
+function ShipmentTableHead() {
+  return (
+    <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+      <tr>
+        <th className="w-10 px-4 py-2" />
+        <th className="px-4 py-2">Shipment</th>
+        <th className="px-4 py-2">Vendor</th>
+        <th className="px-4 py-2">Status</th>
+        <th className="px-4 py-2">Uploads</th>
+        <th className="px-4 py-2">Contributors</th>
+        <th className="px-4 py-2">Unique UPCs</th>
+        <th className="px-4 py-2">Units</th>
+        <th className="px-4 py-2">Registered</th>
+        <th className="px-4 py-2 text-right">Actions</th>
+      </tr>
+    </thead>
+  )
+}
+
+function ShipmentColumnLabels() {
+  return (
+    <tr className="bg-white text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">
+      <th className="w-10 px-4 py-2 font-medium" />
+      <th className="px-4 py-2 font-medium">Shipment</th>
+      <th className="px-4 py-2 font-medium">Vendor</th>
+      <th className="px-4 py-2 font-medium">Status</th>
+      <th className="px-4 py-2 font-medium">Uploads</th>
+      <th className="px-4 py-2 font-medium">Contributors</th>
+      <th className="px-4 py-2 font-medium">Unique UPCs</th>
+      <th className="px-4 py-2 font-medium">Units</th>
+      <th className="px-4 py-2 font-medium">Registered</th>
+      <th className="px-4 py-2 text-right font-medium">Actions</th>
+    </tr>
+  )
+}
+
 function folderVendorLabel(members: ShipmentRecord[]): string {
   const codes = Array.from(
     new Set(
@@ -1785,6 +1847,7 @@ function FragmentFolder({
   onRestore,
   onAddShipment,
   addForm,
+  contained = false,
   renderMember,
 }: {
   folder: ShipmentFolder
@@ -1815,6 +1878,8 @@ function FragmentFolder({
   onRestore?: () => void
   onAddShipment?: () => void
   addForm?: ReactNode
+  /** Render this folder as its own card contents, separate from individual shipments. */
+  contained?: boolean
   renderMember: (shipment: ShipmentRecord, index: number, total: number) => ReactNode
 }) {
   const canGenerate = hasUploads ?? members.some((item) => item.upload_count > 0)
@@ -1822,10 +1887,16 @@ function FragmentFolder({
     <>
       <tr
         className={
-          archivedSection ? 'bg-slate-50' : starredSection ? 'bg-amber-50/70' : 'bg-slate-50/90'
+          contained
+            ? 'bg-emerald-50'
+            : archivedSection
+              ? 'bg-slate-50'
+              : starredSection
+                ? 'bg-amber-50/70'
+                : 'bg-slate-50/90'
         }
       >
-        <td className="px-4 py-2" colSpan={2}>
+        <td className={contained ? 'px-4 py-3' : 'px-4 py-2'} colSpan={contained ? 6 : 2}>
           <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
@@ -1863,15 +1934,25 @@ function FragmentFolder({
             <span className="shrink-0 text-xs text-gray-500">
               {members.length} shipment{members.length === 1 ? '' : 's'}
             </span>
+            {contained && folderVendorLabel(members) !== '—' && (
+              <span className="shrink-0 rounded-md bg-white px-1.5 py-0.5 text-xs font-medium text-emerald-800 ring-1 ring-emerald-200">
+                {folderVendorLabel(members)}
+              </span>
+            )}
           </div>
         </td>
-        <td className="px-4 py-2 font-medium text-gray-900">{folderVendorLabel(members)}</td>
-        <td className="px-4 py-2 text-gray-400">—</td>
-        <td className="px-4 py-2 text-gray-400">—</td>
-        <td className="px-4 py-2 text-gray-400">—</td>
-        <td className="px-4 py-2 text-gray-400">—</td>
-        <td className="px-4 py-2 text-gray-400">—</td>
-        <td className="px-4 py-2 text-right">
+        {!contained && (
+          <>
+            <td className="px-4 py-2 font-medium text-gray-900">{folderVendorLabel(members)}</td>
+            <td className="px-4 py-2 text-gray-400">—</td>
+            <td className="px-4 py-2 text-gray-400">—</td>
+            <td className="px-4 py-2 text-gray-400">—</td>
+            <td className="px-4 py-2 text-gray-400">—</td>
+            <td className="px-4 py-2 text-gray-400">—</td>
+            <td className="px-4 py-2 text-gray-400">—</td>
+          </>
+        )}
+        <td className={contained ? 'px-4 py-3 text-right' : 'px-4 py-2 text-right'} colSpan={contained ? 4 : 1}>
           <div className="flex flex-wrap items-center justify-end gap-2">
             {onAddShipment && (
               <button
@@ -2019,18 +2100,19 @@ function FragmentFolder({
           </div>
         </td>
       </tr>
+      {!collapsed && contained && <ShipmentColumnLabels />}
       {!collapsed &&
         members.map((shipment, index) => renderMember(shipment, index, members.length))}
       {!collapsed && addForm && (
-        <tr className="bg-emerald-50/70">
-          <td className="px-4 py-3 pl-14" colSpan={10}>
+        <tr className={contained ? 'bg-white' : 'bg-emerald-50/70'}>
+          <td className={contained ? 'px-4 py-3' : 'px-4 py-3 pl-14'} colSpan={10}>
             {addForm}
           </td>
         </tr>
       )}
       {!collapsed && onAddShipment && !addForm && (
-        <tr className="bg-emerald-50/40">
-          <td className="px-4 py-2 pl-14" colSpan={10}>
+        <tr className={contained ? 'bg-white' : 'bg-emerald-50/40'}>
+          <td className={contained ? 'px-4 py-2' : 'px-4 py-2 pl-14'} colSpan={10}>
             <button
               type="button"
               disabled={folderBusy}
