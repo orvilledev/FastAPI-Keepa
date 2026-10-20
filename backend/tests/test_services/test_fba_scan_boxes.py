@@ -80,6 +80,18 @@ def _scan(barcode, box):
     return api.scan_fba_shipment.__wrapped__("upload-1", FbaShipmentScanRequest(barcode=barcode, box_number=box), USER, None)
 
 
+def test_a_scan_without_a_box_number_is_rejected(wire):
+    repo = FakeRepo()
+    wire(repo)
+    with pytest.raises(HTTPException) as caught:
+        _scan("111", None)
+    assert caught.value.status_code == 400
+    assert "box number" in caught.value.detail.lower()
+    assert repo.counts == {}
+    assert repo.box_rows == {}
+    assert repo.unknowns == {}
+
+
 def test_known_and_unknown_scans_store_their_box(wire):
     repo = FakeRepo()
     wire(repo)

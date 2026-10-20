@@ -190,6 +190,25 @@ def accounting_totals_by_external_id(lines: list[dict], unknown_lines: list[dict
     return totals
 
 
+def units_for_count(counted: int, scans: list[dict]) -> list[dict]:
+    """One slot per counted unit. Saved scans fill the slots in scan order; the rest have no box."""
+    counted = max(0, int(counted or 0))
+    kept = list(scans)[:counted]
+    units: list[dict] = []
+    for index, scan in enumerate(kept, start=1):
+        box_number = scan.get("box_number")
+        units.append(
+            {
+                "unit_number": index,
+                "scan_id": str(scan.get("id") or "") or None,
+                "box_number": int(box_number) if box_number is not None else None,
+            }
+        )
+    for index in range(len(kept) + 1, counted + 1):
+        units.append({"unit_number": index, "scan_id": None, "box_number": None})
+    return units
+
+
 def build_boxed_rows(
     *,
     lines: list[dict],

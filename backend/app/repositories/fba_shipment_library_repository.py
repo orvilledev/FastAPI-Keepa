@@ -486,6 +486,75 @@ class FbaShipmentLibraryRepository:
             raise ValueError("The box number for that scan was not saved. Scan it again.")
         return str(rows[0]["id"])
 
+    def get_line(self, upload_id: str, line_id: str) -> Optional[dict]:
+        response = (
+            self.db.table(_LINES)
+            .select("id, external_id, shipped")
+            .eq("upload_id", upload_id)
+            .eq("id", line_id)
+            .limit(1)
+            .execute()
+        )
+        rows = response.data or []
+        return rows[0] if rows else None
+
+    def list_line_box_scans(self, upload_id: str, line_id: str) -> List[dict]:
+        """Box rows saved for one shipment line, oldest first."""
+        return self._list_box_scan_rows(upload_id, line_id=line_id)
+
+    def list_unknown_box_scans(self, upload_id: str, external_id: str) -> List[dict]:
+        """Box rows for a barcode that is not on the shipment, oldest first."""
+        return self._list_box_scan_rows(upload_id, external_id=external_id, line_id=None)
+
+    def update_box_number(self, upload_id: str, scan_id: str, box_number: int) -> dict:
+        try:
+            response = (
+                self.db.table(_BOX_SCANS)
+                .update({"box_number": int(box_number)})
+                .eq("upload_id", upload_id)
+                .eq("id", scan_id)
+                .execute()
+            )
+        except Exception as exc:
+            _raise_persist_error(exc)
+        rows = response.data or []
+        if not rows:
+            raise ValueError("That unit was not found.")
+        return rows[0]
+
+    def _list_box_scan_rows(
+        self,
+        upload_id: str,
+        *,
+        line_id: Optional[str] = None,
+        external_id: Optional[str] = None,
+    ) -> List[dict]:
+        rows: List[dict] = []
+        offset = 0
+        while True:
+            try:
+                query = (
+                    self.db.table(_BOX_SCANS)
+                    .select("id, external_id, line_id, box_number, created_at")
+                    .eq("upload_id", upload_id)
+                )
+                if external_id is not None:
+                    query = query.eq("external_id", external_id)
+                if line_id is None and external_id is not None:
+                    query = query.is_("line_id", "null")
+                elif line_id is not None:
+                    query = query.eq("line_id", line_id)
+                response = query.order("created_at").order("id").range(offset, offset + 999).execute()
+            except Exception as exc:
+                if _is_missing_table(exc):
+                    return []
+                _raise_persist_error(exc)
+            chunk = list(response.data or [])
+            rows.extend(chunk)
+            if len(chunk) < 1000:
+                return rows
+            offset += 1000
+
     def delete_box_scan(self, box_scan_id: str) -> None:
         """Undo a box record when the matching count could not be saved."""
         if not box_scan_id:

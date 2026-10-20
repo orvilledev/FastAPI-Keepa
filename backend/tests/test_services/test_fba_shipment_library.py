@@ -209,6 +209,21 @@ def test_boxed_totals_match_accounting_for_many_items_boxes_and_unknown_scans():
     assert [c.value for c in boxed[2]][7:] == [2, 10, 11, "Grand Total"]
 
 
+def test_units_for_count_keeps_one_slot_per_counted_unit():
+    from app.services.fba_shipment_library import units_for_count
+
+    units = units_for_count(
+        3,
+        [{"id": "scan-1", "box_number": 4}, {"id": "scan-2", "box_number": 9}],
+    )
+    assert units == [
+        {"unit_number": 1, "scan_id": "scan-1", "box_number": 4},
+        {"unit_number": 2, "scan_id": "scan-2", "box_number": 9},
+        {"unit_number": 3, "scan_id": None, "box_number": None},
+    ]
+    assert units_for_count(0, [{"id": "scan-1", "box_number": 1}]) == []
+
+
 def test_units_counted_without_a_box_still_add_up_to_accounting():
     lines = [{"merchant_sku": "A", "external_id": "111", "shipped": 4, "counted": 4}]
     scans = [{"external_id": "111", "box_number": 1}, {"external_id": "111", "box_number": 1}]

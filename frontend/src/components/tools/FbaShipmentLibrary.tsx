@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react'
 import {
   fbaShipmentLibraryApi,
   type FbaShipmentLine,
+  type FbaShipmentUnit,
   type FbaShipmentUpload,
 } from '../../services/api'
 
@@ -70,6 +71,11 @@ export default function FbaShipmentLibrary() {
   >(null)
   const [barcode, setBarcode] = useState('')
   const [boxNumber, setBoxNumber] = useState('')
+  const [boxLineId, setBoxLineId] = useState<string | null>(null)
+  const [boxUnits, setBoxUnits] = useState<FbaShipmentUnit[]>([])
+  const [boxDrafts, setBoxDrafts] = useState<Record<string, string>>({})
+  const [boxesLoading, setBoxesLoading] = useState(false)
+  const [savingUnit, setSavingUnit] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
   const [activeLineId, setActiveLineId] = useState<string | null>(null)
   const scanRef = useRef<HTMLInputElement>(null)
@@ -157,6 +163,8 @@ export default function FbaShipmentLibrary() {
 
   useEffect(() => {
     setScanAlert(null)
+    setBoxLineId(null)
+    setBoxUnits([])
     // A box number from another shipment must never carry over.
     setBoxNumber('')
     if (selectedId) boxRef.current?.focus()
@@ -202,6 +210,9 @@ export default function FbaShipmentLibrary() {
       setSelected((current) =>
         current ? { ...current, fully_accounted: result.fully_accounted } : current,
       )
+      if (boxLineId === result.line.id) {
+        applyUnits(await fbaShipmentLibraryApi.units(selectedId, result.line.id, Boolean(result.line.not_in_list)))
+      }
       window.setTimeout(() => {
         document.getElementById(`fba-line-${result.line.id}`)?.scrollIntoView({ block: 'nearest' })
       }, 0)
@@ -210,6 +221,55 @@ export default function FbaShipmentLibrary() {
     } finally {
       setScanning(false)
       scanRef.current?.focus()
+    }
+  }
+
+  const applyUnits = (units: FbaShipmentUnit[]) => {
+    setBoxUnits(units)
+    setBoxDrafts(
+      Object.fromEntries(units.map((unit) => [String(unit.unit_number), unit.box_number ? String(unit.box_number) : ''])),
+    )
+  }
+
+  const loadUnits = async (line: FbaShipmentLine) => {
+    if (!selectedId) return
+    if (boxLineId === line.id) {
+      setBoxLineId(null)
+      return
+    }
+    setBoxesLoading(true)
+    setError(null)
+    try {
+      const units = await fbaShipmentLibraryApi.units(selectedId, line.id, Boolean(line.not_in_list))
+      setBoxLineId(line.id)
+      applyUnits(units)
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to load the boxes for this item.'))
+    } finally {
+      setBoxesLoading(false)
+    }
+  }
+
+  const saveUnit = async (line: FbaShipmentLine, unit: FbaShipmentUnit) => {
+    if (!selectedId) return
+    const draft = (boxDrafts[String(unit.unit_number)] || '').trim()
+    const nextBox = /^\d{1,5}$/.test(draft) ? Number(draft) : 0
+    if (nextBox < 1 || nextBox > 99999) {
+      setError('Enter a box number from 1 to 99999.')
+      return
+    }
+    setSavingUnit(String(unit.unit_number))
+    setError(null)
+    try {
+      const units = unit.scan_id
+        ? await fbaShipmentLibraryApi.updateBox(selectedId, unit.scan_id, line.id, nextBox, Boolean(line.not_in_list))
+        : await fbaShipmentLibraryApi.assignBox(selectedId, line.id, nextBox, Boolean(line.not_in_list))
+      applyUnits(units)
+      setNotice(`${externalId(line.external_id) || 'Unit'} ${unit.unit_number} is in Box ${nextBox}.`)
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to save that box number.'))
+    } finally {
+      setSavingUnit(null)
     }
   }
 
@@ -829,25 +889,26 @@ export default function FbaShipmentLibrary() {
                   <th className="bg-amber-100 px-2 py-2">Counted</th>
                   <th className="bg-amber-100 px-2 py-2">Missing</th>
                   <th className="bg-amber-100 px-2 py-2">Status</th>
+                  <th className="bg-amber-100 px-2 py-2">Boxes</th>
                 </tr>
               </thead>
               <tbody>
                 {linesLoading ? (
                   <tr>
-                    <td colSpan={6} className="px-2 py-6 text-gray-500">
+                    <td colSpan={7} className="px-2 py-6 text-gray-500">
                       Loading lines…
                     </td>
                   </tr>
                 ) : lines.length === 0 && unknownLines.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-2 py-6 text-gray-500">
+                    <td colSpan={7} className="px-2 py-6 text-gray-500">
                       No matching lines.
                     </td>
                   </tr>
                 ) : (
                   [...unknownLines, ...lines].map((line) => (
+                    <Fragment key={line.id}>
                     <tr
-                      key={line.id}
                       id={`fba-line-${line.id}`}
                       className={`${rowClass(line)} ${activeLineId === line.id ? 'outline outline-2 outline-offset-[-2px] outline-gray-700' : ''}`}
                     >
@@ -863,7 +924,63 @@ export default function FbaShipmentLibrary() {
                           {line.status || 'Missing Items'}
                         </span>
                       </td>
+                      <td className="px-2 py-2">
+                        {(line.counted ?? 0) > 0 && !selected?.trashed_at ? (
+                          <button
+                            type="button"
+                            className="text-sm font-medium text-indigo-700 hover:text-indigo-900"
+                            onClick={() => void loadUnits(line)}
+                          >
+                            {boxLineId === line.id ? 'Hide' : 'Edit'}
+                          </button>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                     </tr>
+                    {boxLineId === line.id && (
+                      <tr key={`${line.id}-boxes`} className="border-b border-gray-200 bg-white">
+                        <td colSpan={7} className="px-3 py-3">
+                          {boxesLoading ? (
+                            <p className="text-sm text-gray-500">Loading units…</p>
+                          ) : (
+                            <div className="max-h-64 space-y-2 overflow-y-auto">
+                              <p className="text-xs text-gray-500">
+                                One row per counted unit. Changing a box does not change the count. A blank box is a unit
+                                that was counted before a box number was saved.
+                              </p>
+                              {boxUnits.map((unit) => (
+                                <div key={unit.unit_number} className="flex items-center gap-2">
+                                  <span className="w-16 text-sm text-gray-700">Unit {unit.unit_number}</span>
+                                  <input
+                                    value={boxDrafts[String(unit.unit_number)] ?? ''}
+                                    onChange={(event) =>
+                                      setBoxDrafts((current) => ({
+                                        ...current,
+                                        [String(unit.unit_number)]: event.target.value.replace(/\D/g, '').slice(0, 5),
+                                      }))
+                                    }
+                                    inputMode="numeric"
+                                    placeholder="Box"
+                                    aria-label={`Box for unit ${unit.unit_number}`}
+                                    className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-sm"
+                                  />
+                                  <button
+                                    type="button"
+                                    disabled={savingUnit === String(unit.unit_number)}
+                                    className="rounded-lg bg-white px-2 py-1 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                                    onClick={() => void saveUnit(line, unit)}
+                                  >
+                                    {savingUnit === String(unit.unit_number) ? 'Saving…' : 'Save'}
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   ))
                 )}
               </tbody>

@@ -3058,6 +3058,12 @@ export type FbaShipmentUpload = {
   fully_accounted: boolean
 }
 
+export type FbaShipmentUnit = {
+  unit_number: number
+  scan_id: string | null
+  box_number: number | null
+}
+
 export type FbaShipmentLine = {
   id: string
   line_number: number
@@ -3140,6 +3146,39 @@ export const fbaShipmentLibraryApi = {
       params: { mine },
     })
     return response.data
+  },
+  units: async (uploadId: string, lineId: string, notInList = false): Promise<FbaShipmentUnit[]> => {
+    const response = await api.get(`/api/v1/fba-shipment-library/${uploadId}/lines/${lineId}/units`, {
+      params: { not_in_list: notInList },
+    })
+    return response.data.units as FbaShipmentUnit[]
+  },
+  assignBox: async (
+    uploadId: string,
+    lineId: string,
+    boxNumber: number,
+    notInList = false,
+  ): Promise<FbaShipmentUnit[]> => {
+    const response = await api.post(
+      `/api/v1/fba-shipment-library/${uploadId}/lines/${lineId}/units`,
+      { box_number: boxNumber },
+      { params: { not_in_list: notInList } },
+    )
+    return response.data.units as FbaShipmentUnit[]
+  },
+  updateBox: async (
+    uploadId: string,
+    scanId: string,
+    lineId: string,
+    boxNumber: number,
+    notInList = false,
+  ): Promise<FbaShipmentUnit[]> => {
+    const response = await api.patch(
+      `/api/v1/fba-shipment-library/${uploadId}/box-scans/${scanId}`,
+      { box_number: boxNumber },
+      { params: { line_id: lineId, not_in_list: notInList } },
+    )
+    return response.data.units as FbaShipmentUnit[]
   },
   scan: async (
     uploadId: string,

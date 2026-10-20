@@ -94,3 +94,17 @@ class FbaShipmentScanResult(BaseModel):
 
 class FbaShipmentAccessRequest(BaseModel):
     locked: bool
+
+
+class FbaBoxNumberRequest(BaseModel):
+    box_number: int = Field(ge=1, le=MAX_BOX_NUMBER)
+
+
+class FbaShipmentUnit(BaseModel):
+    unit_number: int
+    scan_id: Optional[str] = None
+    box_number: Optional[int] = None
+
+
+class FbaShipmentUnitsResponse(BaseModel):
+    units: List[FbaShipmentUnit]
