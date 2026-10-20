@@ -50,6 +50,27 @@ function lineForBox(line: FbaShipmentLine, counted: number): FbaShipmentLine {
   return { ...line, counted, missing, status }
 }
 
+function boxScanNotice(barcode: string, box: number, inBox: number, shipment: FbaShipmentLine): string {
+  const shipped = shipment.shipped
+  const missing = Math.max(0, shipped - inBox)
+  const here =
+    inBox > shipped
+      ? `${inBox} in this box of ${shipped} shipped. ${inBox - shipped} over.`
+      : missing === 0
+        ? `${inBox} in this box of ${shipped} shipped. All Accounted.`
+        : `${inBox} in this box of ${shipped} shipped. Missing ${missing}.`
+  let message = `${barcode} → Box ${box}: ${here}`
+  const shipmentCounted = shipment.counted ?? 0
+  if (shipmentCounted !== inBox) {
+    const over = shipmentCounted - shipped
+    message +=
+      over > 0
+        ? ` ${shipmentCounted} counted on the shipment, ${over} over.`
+        : ` ${shipmentCounted} counted on the shipment, ${Math.max(0, shipped - shipmentCounted)} still to scan.`
+  }
+  return message
+}
+
 export default function FbaShipmentLibrary() {
   const [uploads, setUploads] = useState<FbaShipmentUpload[]>([])
   const [total, setTotal] = useState(0)
@@ -236,16 +257,17 @@ export default function FbaShipmentLibrary() {
         })
       } else {
         setScanAlert(null)
+        const previous = boxForList ? lines.find((line) => line.id === result.line.id) : undefined
+        const inBox = boxForList ? (previous?.counted ?? 0) + 1 : result.line.counted
         setLines((current) => {
-          const previous = current.find((line) => line.id === result.line.id)
-          const line = boxForList ? lineForBox(result.line, (previous?.counted ?? 0) + 1) : result.line
-          if (previous) return current.map((item) => (item.id === line.id ? line : item))
+          const line = boxForList ? lineForBox(result.line, inBox) : result.line
+          if (current.some((item) => item.id === line.id)) {
+            return current.map((item) => (item.id === line.id ? line : item))
+          }
           if (!boxForList) return current
           return [...current, line].sort((a, b) => a.line_number - b.line_number)
         })
-        setNotice(
-          `${result.barcode} → Box ${boxValue}: counted ${result.line.counted} of ${result.line.shipped}. Missing ${result.line.missing}. ${result.line.status}.`,
-        )
+        setNotice(boxScanNotice(result.barcode, boxValue, inBox, result.line))
       }
       setSelected((current) =>
         current ? { ...current, fully_accounted: result.fully_accounted } : current,
@@ -531,7 +553,7 @@ export default function FbaShipmentLibrary() {
   const linePage = Math.floor(lineOffset / LINE_PAGE_SIZE) + 1
   const linePageCount = Math.max(1, Math.ceil(lineTotal / LINE_PAGE_SIZE))
   const scanCountNotice =
-    notice && notice.includes(' → Box ') && notice.includes(': counted ') ? notice : null
+    notice && notice.includes(' → Box ') && notice.includes(' in this box of ') ? notice : null
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
