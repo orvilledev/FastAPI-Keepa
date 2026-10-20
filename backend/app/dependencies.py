@@ -398,6 +398,32 @@ def is_shipment_analyzer_allowed_user(current_user: dict, db: Client) -> bool:
     return bool(email)
 
 
+_SHIPMENT_MANAGER_BLOCKED = frozenset(
+    {
+        "hello@warehouserepublic.com",
+        "warehouse1@metroshoewarehouse.com",
+    }
+)
+
+
+def is_shipment_manager_allowed_user(current_user: dict) -> bool:
+    """True for every signed-in account except the Hello and Warehouse1 stations."""
+    email = (current_user.get("email") or "").strip().lower()
+    return bool(email) and email not in _SHIPMENT_MANAGER_BLOCKED
+
+
+def get_shipment_manager_user(
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """Verify user may open Shipment Manager."""
+    if not is_shipment_manager_allowed_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Shipment Manager is not available for this account",
+        )
+    return current_user
+
+
 def get_shipment_analyzer_user(
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),

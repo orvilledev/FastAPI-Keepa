@@ -213,7 +213,7 @@ export default function About() {
           <li>
             <span className="font-semibold">Shipment Manager:</span> Register a shipment, let teammates upload FBA exports
             into it, then compile one WR SKU Update sheet with duplicates removed. Shipments stay listed until deleted.
-            Listed under BC Tools for allowlisted accounts.
+            Available to every signed-in user except the Warehouse1 and Hello station accounts.
           </li>
           <li>
             <span className="font-semibold">Freight Class Calculator:</span> Estimate NMFC freight class from density
@@ -241,9 +241,10 @@ export default function About() {
           hello@warehouserepublic.com. FNSKU Labels is also available to warehouse1@metroshoewarehouse.com,
           cameron@pmshoesinc.com, corp1997@pmshoesinc.com, ap@pmshoesinc.com, and
           brittany@metroshoewarehouse.com. Micro Tools, Tracking Extractor, FNSKU Labels, Manifest Generator, and DNK
-          AllInventory are available to all signed-in non-warehouse users. Product Catalog Formatter and Shipment Manager
-          appear under BC Tools for Superadmin and allowlisted BC Tools accounts; Freight Class and SMW Shipment Analyzer
-          appear there for signed-in users who are allowed those tools.
+          AllInventory are available to all signed-in non-warehouse users. Product Catalog Formatter
+          appears under BC Tools for Superadmin and allowlisted BC Tools accounts. Shipment Manager is available to
+          every signed-in user except the Warehouse1 and Hello station accounts. Freight Class and SMW Shipment Analyzer
+          appear for signed-in users who are allowed those tools.
         </p>
       </div>
 

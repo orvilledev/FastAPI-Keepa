@@ -485,8 +485,22 @@ function AppRoutes() {
           <Route path="manifest-generator" element={<ManifestGenerator />} />
           <Route path="product-catalog-formatter" element={<ProductCatalogFormatter />} />
           <Route path="dnk-all-inventory" element={<DnkAllInventory />} />
-          <Route path="shipment-manager" element={<ShipmentManager />} />
-          <Route path="shipment-manager/:shipmentId" element={<ShipmentDetail />} />
+          <Route
+            path="shipment-manager"
+            element={
+              <ProtectedRoute requireShipmentManagerAccess={true}>
+                <ShipmentManager />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="shipment-manager/:shipmentId"
+            element={
+              <ProtectedRoute requireShipmentManagerAccess={true}>
+                <ShipmentDetail />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="freight-class-calculator"
             element={

@@ -14,7 +14,7 @@ from app.scheduler import (
     shutdown_scheduler,
     run_completed_jobs_retention_cleanup,
 )
-from app.dependencies import require_app_access
+from app.dependencies import get_shipment_manager_user, require_app_access
 from app.maintenance import get_maintenance_state
 from app.force_logout import get_force_logout_state
 from app.middleware.audit_logger import AuditLogMiddleware
@@ -371,7 +371,12 @@ app.include_router(fba_shipment_library.router, prefix=settings.api_v1_str, tags
 app.include_router(smw_shipment_analyzer.router, prefix=settings.api_v1_str, tags=["smw-shipment-analyzer"], dependencies=[Depends(require_app_access)])
 app.include_router(dnk_all_inventory.router, prefix=settings.api_v1_str, tags=["dnk-all-inventory"], dependencies=[Depends(require_app_access)])
 app.include_router(freight_class_calculator.router, prefix=settings.api_v1_str, tags=["freight-class-calculator"], dependencies=[Depends(require_app_access)])
-app.include_router(shipments.router, prefix=settings.api_v1_str, tags=["shipments"], dependencies=[Depends(require_app_access)])
+app.include_router(
+    shipments.router,
+    prefix=settings.api_v1_str,
+    tags=["shipments"],
+    dependencies=[Depends(require_app_access), Depends(get_shipment_manager_user)],
+)
 # Off-price analytics (web). Electron hides the UI; API remains auth-gated.
 app.include_router(analytics.router, prefix=settings.api_v1_str, tags=["analytics"], dependencies=[Depends(require_app_access)])
 # Superadmin audit log (web-app actions). Record endpoints need auth; list is superadmin-gated in-router.

@@ -9,6 +9,7 @@ import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 import { canAccessBcTools } from '../../lib/bcToolsAccess'
 import { canAccessShipmentAnalyzer } from '../../lib/shipmentAnalyzerAccess'
+import { canAccessShipmentManager } from '../../lib/shipmentManagerAccess'
 import { canAccessFbaOrderChecker } from '../../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { canWarehouseAccessFnskuLabels } from '../../constants/warehouseAccess'
@@ -228,6 +229,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     accountEmail,
     isSuperadmin,
   )
+  const canUseShipmentManager = canAccessShipmentManager(accountEmail)
   const canUseFbaOrderChecker = canAccessFbaOrderChecker(
     accountEmail,
     isSuperadmin,
@@ -447,6 +449,21 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                 >
                   <span className="shrink-0">{Icons.freightClassCalculator}</span>
                   <span className="sidebar-link-label">Freight Class</span>
+                </Link>
+              )}
+
+              {canUseShipmentManager && (
+                <Link
+                  to="/shipment-manager"
+                  onMouseEnter={() => setHoveredNav('shipment-manager')}
+                  className={`sidebar-link ${
+                    navHighlighted('shipment-manager', isActive('/shipment-manager'))
+                      ? 'sidebar-link-active'
+                      : 'sidebar-link-inactive'
+                  }`}
+                >
+                  <span className="shrink-0">{Icons.shipmentManager}</span>
+                  <span className="sidebar-link-label">Shipment Manager</span>
                 </Link>
               )}
 
@@ -771,7 +788,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
             )}
         </div>
 
-        {(canUseBcTools || canUseShipmentAnalyzer) && (
+        {(canUseBcTools || canUseShipmentAnalyzer || canUseShipmentManager) && (
           <>
             <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 
@@ -820,7 +837,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                   <span className="sidebar-link-label">Product Catalog Formatter</span>
                 </Link>
               )}
-              {canUseBcTools && (
+              {canUseShipmentManager && (
                 <Link
                   to="/shipment-manager"
                   onMouseEnter={() => setHoveredNav('shipment-manager')}
