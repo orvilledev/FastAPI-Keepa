@@ -104,6 +104,21 @@ def _given_names_by_user(db: Client, user_ids: list[str]) -> dict[str, str]:
     return names
 
 
+def _search_term(search: Optional[str]) -> str:
+    return " ".join((search or "").strip().replace(",", " ").split()).casefold()
+
+
+def _matches_sku_search(row: dict, search: Optional[str]) -> bool:
+    """True when this line or unknown scan is the merchant SKU / external-id being searched."""
+    term = _search_term(search)
+    if not term:
+        return True
+    merchant = str(row.get("merchant_sku") or "").casefold()
+    external = str(row.get("external_id") or "")
+    bare = strip_upc_label(external).casefold()
+    return term in merchant or term in bare or term in external.casefold()
+
+
 def _unknown_line(row: dict) -> FbaShipmentLineResponse:
     return FbaShipmentLineResponse(
         id=row["id"],
@@ -255,6 +270,8 @@ def get_fba_shipment(
                 for row in unknown_rows
                 if strip_upc_label(str(row.get("external_id") or "")) in unknown_codes
             ]
+        if _search_term(search):
+            unknown_rows = [row for row in unknown_rows if _matches_sku_search(row, search)]
         for row in lines:
             row["counted"] = counts.get(str(row.get("id") or ""), 0)
         if box is not None:

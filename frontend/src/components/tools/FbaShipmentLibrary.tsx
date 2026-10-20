@@ -50,6 +50,14 @@ function withCounted(line: FbaShipmentLine, counted: number): FbaShipmentLine {
   return { ...line, counted, missing, status }
 }
 
+function matchesSkuSearch(line: FbaShipmentLine, term: string): boolean {
+  const needle = term.trim().toLowerCase()
+  if (!needle) return true
+  const sku = (line.merchant_sku || '').toLowerCase()
+  const code = externalId(line.external_id || '').toLowerCase()
+  return sku.includes(needle) || code.includes(needle)
+}
+
 function boxScanNotice(barcode: string, box: number, inBox: number, shipment: FbaShipmentLine): string {
   const shipped = shipment.shipped
   const total = shipment.counted ?? 0
@@ -101,6 +109,7 @@ export default function FbaShipmentLibrary() {
   const [savingUnit, setSavingUnit] = useState<string | null>(null)
   const boxCache = useRef<Record<string, FbaShipmentUnit[]>>({})
   const openBoxLine = useRef<string | null>(null)
+  const loadedSkuSearch = useRef<string | null>(null)
   const [scanning, setScanning] = useState(false)
   const [activeLineId, setActiveLineId] = useState<string | null>(null)
   const scanRef = useRef<HTMLInputElement>(null)
@@ -129,9 +138,17 @@ export default function FbaShipmentLibrary() {
   const filterBox = listedBoxNumber(boxFilter)
   const boxForList = filterBox ?? (shipmentClosed ? undefined : listedBoxNumber(boxNumber))
   const tableColumns = boxForList != null ? 4 : 7
+  const skuQuery = lineSearchInput.trim()
+  const visibleUnknownLines = unknownLines.filter((line) => matchesSkuSearch(line, skuQuery))
+  const visibleLines = lines.filter((line) => matchesSkuSearch(line, skuQuery))
+  const matchingRowCount =
+    skuQuery && loadedSkuSearch.current !== skuQuery
+      ? visibleLines.length + visibleUnknownLines.length
+      : lineTotal + visibleUnknownLines.length
 
   const loadLines = useCallback(async () => {
     if (!selectedId) {
+      loadedSkuSearch.current = null
       setSelected(null)
       setLines([])
       setUnknownLines([])
@@ -149,6 +166,7 @@ export default function FbaShipmentLibrary() {
         lineSearch,
         boxForList,
       )
+      loadedSkuSearch.current = lineSearch.trim()
       setSelected(result.upload)
       setLines(result.lines)
       setUnknownLines(result.unknown_lines || [])
@@ -164,6 +182,16 @@ export default function FbaShipmentLibrary() {
   useEffect(() => {
     void loadLines()
   }, [loadLines])
+
+  useEffect(() => {
+    const term = lineSearchInput.trim()
+    if (term === lineSearch) return
+    const timer = window.setTimeout(() => {
+      setLineOffset(0)
+      setLineSearch(term)
+    }, 200)
+    return () => window.clearTimeout(timer)
+  }, [lineSearch, lineSearchInput])
 
   const scanningRef = useRef(false)
   scanningRef.current = scanning
@@ -183,6 +211,7 @@ export default function FbaShipmentLibrary() {
           boxForList,
         )
         if (cancelled || scanningRef.current) return
+        loadedSkuSearch.current = lineSearch.trim()
         setSelected(result.upload)
         setLines(result.lines)
         setUnknownLines(result.unknown_lines || [])
@@ -926,8 +955,8 @@ export default function FbaShipmentLibrary() {
               <h2 className="text-sm font-semibold text-gray-900">{selected.shipment_id}</h2>
               <p className="text-xs text-gray-500">
                 {selected.created_by_name || selected.created_by_email || 'Unknown'} ·{' '}
-                {formatWhen(selected.created_at)} · {lineTotal + unknownLines.length} matching row
-                {lineTotal + unknownLines.length === 1 ? '' : 's'}
+                {formatWhen(selected.created_at)} · {matchingRowCount} matching row
+                {matchingRowCount === 1 ? '' : 's'}
                 {selected.is_locked ? ' · Locked' : ' · Shared'}
                 {selected.archived_at ? ' · Archived' : ''}
               </p>
@@ -987,27 +1016,13 @@ export default function FbaShipmentLibrary() {
                 </span>
               )}
             </div>
-            <form
-              className="flex gap-2 self-start"
-              onSubmit={(event) => {
-                event.preventDefault()
-                setLineOffset(0)
-                setLineSearch(lineSearchInput.trim())
-              }}
-            >
-              <input
-                value={lineSearchInput}
-                onChange={(event) => setLineSearchInput(event.target.value)}
-                placeholder="Merchant SKU or external-id"
-                className="w-64 rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
-              />
-              <button
-                type="submit"
-                className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50"
-              >
-                Filter
-              </button>
-            </form>
+            <input
+              value={lineSearchInput}
+              onChange={(event) => setLineSearchInput(event.target.value)}
+              placeholder="Merchant SKU or external-id"
+              aria-label="Merchant SKU or external-id"
+              className="w-64 self-start rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+            />
           </div>
           {!selected.archived_at && !selected.trashed_at && (
           <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={(event) => void handleScan(event)}>
@@ -1100,14 +1115,14 @@ export default function FbaShipmentLibrary() {
                       Loading lines…
                     </td>
                   </tr>
-                ) : lines.length === 0 && unknownLines.length === 0 ? (
+                ) : visibleLines.length === 0 && visibleUnknownLines.length === 0 ? (
                   <tr>
                     <td colSpan={tableColumns} className="px-2 py-6 text-gray-500">
                       {boxForList ? `No items scanned into Box ${boxForList}.` : 'No matching lines.'}
                     </td>
                   </tr>
                 ) : (
-                  [...unknownLines, ...lines].map((line) => (
+                  [...visibleUnknownLines, ...visibleLines].map((line) => (
                     <Fragment key={line.id}>
                     <tr
                       id={`fba-line-${line.id}`}

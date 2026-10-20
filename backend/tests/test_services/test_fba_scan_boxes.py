@@ -1,4 +1,6 @@
 """Scan endpoint: every scan with a box number is stored, and never half-saved."""
+import uuid
+
 import pytest
 from fastapi import HTTPException
 
@@ -36,9 +38,20 @@ class FakeRepo:
 
     def list_unknown_scans(self, upload_id, user_id=None):
         return [
-            {"id": UNKNOWN_ID, "external_id": key, "counted": value}
+            {"id": str(uuid.uuid5(uuid.NAMESPACE_URL, key)), "external_id": key, "counted": value}
             for key, value in self.unknowns.items()
         ]
+
+    def list_lines(self, upload_id, *, limit=100, offset=0, search=None, line_ids=None):
+        term = " ".join((search or "").strip().split()).casefold()
+        rows = [
+            dict(row)
+            for row in self.lines
+            if not term
+            or term in str(row.get("merchant_sku") or "").casefold()
+            or term in str(row.get("external_id") or "").casefold()
+        ]
+        return rows[offset : offset + limit], len(rows)
 
     def list_line_quantities(self, upload_id):
         return [dict(row) for row in self.lines]
@@ -180,3 +193,50 @@ def test_stored_scans_produce_a_workbook_that_matches(wire):
         ("111", 1, 2),
         ("999", 1, 2),
     ]
+
+
+def _open(repo: FakeRepo, search=None):
+    upload_id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    repo.get_upload = lambda _upload_id: {
+        "id": upload_id,
+        "created_by": "00000000-0000-0000-0000-000000000001",
+        "created_at": "2026-10-19T12:45:40+00:00",
+        "shipment_id": "FBA19T3YGF07",
+        "is_locked": False,
+    }
+    return api.get_fba_shipment.__wrapped__(upload_id, 100, 0, search, None, USER, None)
+
+
+def test_sku_search_hides_unknown_scans_that_are_not_the_searched_id(wire):
+    repo = FakeRepo()
+    repo.lines = [
+        {
+            "id": LINE_ID,
+            "line_number": 1,
+            "merchant_sku": "845028000027",
+            "external_id": "845028000027",
+            "shipped": 3,
+        },
+        {
+            "id": "33333333-3333-3333-3333-333333333333",
+            "line_number": 2,
+            "merchant_sku": "OTHER-SKU",
+            "external_id": "111",
+            "shipped": 1,
+        },
+    ]
+    repo.unknowns = {"810173985413": 1}
+    wire(repo)
+
+    detail = _open(repo, "845028000027")
+    assert [line.external_id for line in detail.lines] == ["845028000027"]
+    assert detail.unknown_lines == []
+    assert detail.total == 1
+
+    unknown_only = _open(repo, "810173985413")
+    assert unknown_only.lines == []
+    assert [line.external_id for line in unknown_only.unknown_lines] == ["810173985413"]
+
+    everything = _open(repo, None)
+    assert len(everything.lines) == 2
+    assert [line.external_id for line in everything.unknown_lines] == ["810173985413"]
