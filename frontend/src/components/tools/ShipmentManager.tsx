@@ -164,6 +164,8 @@ export default function ShipmentManager() {
   const [folderBusy, setFolderBusy] = useState(false)
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [renamingShipmentId, setRenamingShipmentId] = useState<string | null>(null)
+  const [shipmentRenameValue, setShipmentRenameValue] = useState('')
   const [moveToFolderId, setMoveToFolderId] = useState('')
   const [ledgerFolderId, setLedgerFolderId] = useState<string | null>(null)
   const [ledgerDraft, setLedgerDraft] = useState('')
@@ -411,6 +413,33 @@ export default function ShipmentManager() {
       setError(errorDetail(err, 'Could not rename this folder.'))
     } finally {
       setFolderBusy(false)
+    }
+  }
+
+  const handleRenameShipment = async (shipment: ShipmentRecord) => {
+    const nextName = shipmentRenameValue.trim()
+    if (!nextName || nextName === shipment.name || busyId === shipment.id) {
+      setRenamingShipmentId(null)
+      return
+    }
+    setBusyId(shipment.id)
+    setError(null)
+    setMessage(null)
+    try {
+      const updated = await shipmentsApi.update(shipment.id, { name: nextName })
+      setShipments((prev) =>
+        prev.map((item) =>
+          item.id === shipment.id
+            ? { ...item, name: updated.name, updated_at: updated.updated_at }
+            : item,
+        ),
+      )
+      setRenamingShipmentId(null)
+      setMessage(`Renamed shipment to “${updated.name}”.`)
+    } catch (err) {
+      setError(errorDetail(err, 'Could not rename this shipment.'))
+    } finally {
+      setBusyId(null)
     }
   }
 
@@ -890,12 +919,31 @@ export default function ShipmentManager() {
           />
         </td>
         <td className={`px-4 py-2 ${indent ? 'pl-14' : ''}`}>
-          <Link
-            to={`/shipment-manager/${shipment.id}`}
-            className="font-semibold text-[#404040] hover:underline"
-          >
-            {shipment.name}
-          </Link>
+          {renamingShipmentId === shipment.id ? (
+            <input
+              type="text"
+              value={shipmentRenameValue}
+              maxLength={200}
+              onChange={(e) => setShipmentRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  void handleRenameShipment(shipment)
+                }
+                if (e.key === 'Escape') setRenamingShipmentId(null)
+              }}
+              aria-label={`New name for ${shipment.name}`}
+              className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm font-semibold focus:border-emerald-500 focus:outline-none"
+              autoFocus
+            />
+          ) : (
+            <Link
+              to={`/shipment-manager/${shipment.id}`}
+              className="font-semibold text-[#404040] hover:underline"
+            >
+              {shipment.name}
+            </Link>
+          )}
           <div className="text-xs text-gray-500">
             {shipment.created_by_name || shipment.created_by_email}
           </div>
@@ -975,6 +1023,39 @@ export default function ShipmentManager() {
             >
               Open
             </Link>
+            {shipment.can_delete &&
+              (renamingShipmentId === shipment.id ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={busyId === shipment.id || !shipmentRenameValue.trim()}
+                    onClick={() => void handleRenameShipment(shipment)}
+                    className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {busyId === shipment.id ? 'Saving…' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busyId === shipment.id}
+                    onClick={() => setRenamingShipmentId(null)}
+                    className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  disabled={busyId === shipment.id}
+                  onClick={() => {
+                    setRenamingShipmentId(shipment.id)
+                    setShipmentRenameValue(shipment.name)
+                  }}
+                  className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Rename
+                </button>
+              ))}
             {shipment.folder_id && (
               <button
                 type="button"
