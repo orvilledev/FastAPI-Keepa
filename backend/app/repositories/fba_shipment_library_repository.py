@@ -111,7 +111,7 @@ class FbaShipmentLibraryRepository:
         elif search_or:
             query.params = query.params.add("or", f"({search_or})")
         order_column = "trashed_at" if trashed else "created_at"
-        response = query.order(order_column, desc=True).range(offset, offset + limit - 1).execute()
+        response = query.order(order_column, desc=True).range(offset, offset + limit).execute()
         return list(response.data or []), int(response.count or 0)
 
     def get_upload(self, upload_id: str) -> Optional[dict]:
@@ -128,7 +128,7 @@ class FbaShipmentLibraryRepository:
                 .select("id,line_number,merchant_sku,external_id,shipped")
                 .eq("upload_id", upload_id)
                 .order("line_number")
-                .range(offset, offset + 499)
+                .range(offset, offset + 500)
                 .execute()
             )
             chunk = list(response.data or [])
@@ -189,7 +189,7 @@ class FbaShipmentLibraryRepository:
         query = self._apply_line_search(query, search)
         response = (
             query.order("line_number")
-            .range(offset, offset + limit - 1)
+            .range(offset, offset + limit)
             .execute()
         )
         return list(response.data or []), int(response.count or 0)
@@ -208,7 +208,7 @@ class FbaShipmentLibraryRepository:
                     .eq("upload_id", upload_id)
                     .eq("box_number", int(box_number))
                     .order("id")
-                    .range(offset, offset + 999)
+                    .range(offset, offset + 1000)
                     .execute()
                 )
             except Exception as exc:
@@ -271,7 +271,7 @@ class FbaShipmentLibraryRepository:
                         .in_(column, chunk)
                         .order("created_at")
                         .order("id")
-                        .range(offset, offset + 999)
+                        .range(offset, offset + 1000)
                         .execute()
                     )
                 except Exception as exc:
@@ -366,7 +366,7 @@ class FbaShipmentLibraryRepository:
                     query = self.db.table(_COUNTS).select("line_id, counted").in_("line_id", chunk)
                     if user_id:
                         query = query.eq("user_id", user_id)
-                    response = query.order("id").range(offset, offset + 999).execute()
+                    response = query.order("id").range(offset, offset + 1000).execute()
                 except Exception as exc:
                     if _is_missing_table(exc):
                         return {}
@@ -394,7 +394,7 @@ class FbaShipmentLibraryRepository:
                         .select("user_id")
                         .eq("upload_id", upload_id)
                         .order("id")
-                        .range(offset, offset + 999)
+                        .range(offset, offset + 1000)
                         .execute()
                     )
                 except Exception as exc:
@@ -520,7 +520,7 @@ class FbaShipmentLibraryRepository:
                 response = (
                     query.order("updated_at", desc=True)
                     .order("id")
-                    .range(offset, offset + 999)
+                    .range(offset, offset + 1000)
                     .execute()
                 )
             except Exception as exc:
@@ -772,7 +772,7 @@ class FbaShipmentLibraryRepository:
                     query = query.is_("line_id", "null")
                 elif line_id is not None:
                     query = query.eq("line_id", line_id)
-                response = query.order("created_at").order("id").range(offset, offset + 999).execute()
+                response = query.order("created_at").order("id").range(offset, offset + 1000).execute()
             except Exception as exc:
                 if _is_missing_table(exc):
                     return []
@@ -813,7 +813,7 @@ class FbaShipmentLibraryRepository:
                 response = (
                     query.order("created_at")
                     .order("id")
-                    .range(offset, offset + 999)
+                    .range(offset, offset + 1000)
                     .execute()
                 )
             except Exception as exc:

@@ -39,7 +39,8 @@ class _Query:
         return self
 
     def execute(self):
-        rows = self._rows[self._start : None if self._end is None else self._end + 1]
+        # supabase-py treats the range end as exclusive.
+        rows = self._rows[self._start : self._end]
         return _Response([dict(row) for row in rows])
 
 
@@ -129,6 +130,21 @@ def test_a_typed_box_keeps_only_items_scanned_into_that_box():
     empty_rows, empty_total = repo.list_lines(UPLOAD, line_ids=[])
     assert empty_rows == []
     assert empty_total == 0
+
+
+def test_box_scans_after_the_first_thousand_are_included():
+    rows = [
+        {
+            "id": f"{index:04d}",
+            "upload_id": UPLOAD,
+            "external_id": "111",
+            "box_number": 1,
+            "created_at": f"{index:04d}",
+        }
+        for index in range(1001)
+    ]
+    repo = FbaShipmentLibraryRepository(_Db({"fba_shipment_box_scans": rows}))
+    assert len(repo.list_box_scans(UPLOAD)) == 1001
 
 
 def test_the_report_includes_everyones_box_scans():
