@@ -112,6 +112,7 @@ def _unknown_line(row: dict) -> FbaShipmentLineResponse:
         external_id=row.get("external_id") or "",
         shipped=0,
         counted=int(row.get("counted") or 0),
+        box_counted=row.get("box_counted"),
         not_in_list=True,
     )
 
@@ -271,7 +272,7 @@ def get_fba_shipment(
                 counted = in_box_lines.get(str(row.get("id") or ""), 0)
                 if counted <= 0:
                     continue
-                row["counted"] = counted
+                row["box_counted"] = counted
                 kept_lines.append(row)
             total -= len(lines) - len(kept_lines)
             lines = kept_lines
@@ -281,7 +282,7 @@ def get_fba_shipment(
                 counted = in_box_unknown.get(code, 0)
                 if counted <= 0:
                     continue
-                row["counted"] = counted
+                row["box_counted"] = counted
                 kept_unknown.append(row)
             unknown_rows = kept_unknown
             box_units = sum(in_box_lines.values()) + sum(in_box_unknown.values())
@@ -348,9 +349,11 @@ def scan_fba_shipment(
                 if str(shared.get("external_id") or "") == barcode:
                     saved = {**saved, "counted": int(shared.get("counted") or 0)}
                     break
+            _, in_box = repo.counted_in_box(upload_id, box_number, {}, {barcode: int(saved.get("counted") or 0)})
             return FbaShipmentScanResult(
                 barcode=barcode,
                 box_number=box_number,
+                box_counted=in_box.get(barcode, 0),
                 line=_unknown_line(saved),
                 fully_accounted=_is_accounted(repo, upload_id),
             )
@@ -373,12 +376,14 @@ def scan_fba_shipment(
             raise
         # Show the shipment-wide total, not only this person's scans of the line.
         counted = repo.counts_for_lines([str(target["id"])]).get(str(target["id"]), counted)
+        in_box, _ = repo.counted_in_box(upload_id, box_number, {str(target["id"]): counted}, {})
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     target["counted"] = counted
     return FbaShipmentScanResult(
         barcode=barcode,
         box_number=box_number,
+        box_counted=in_box.get(str(target["id"]), 0),
         line=FbaShipmentLineResponse(**target),
         fully_accounted=_is_accounted(repo, upload_id),
     )

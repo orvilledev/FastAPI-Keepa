@@ -43,7 +43,7 @@ function listedBoxNumber(value: string): number | undefined {
   return box >= 1 && box <= 99999 ? box : undefined
 }
 
-function lineForBox(line: FbaShipmentLine, counted: number): FbaShipmentLine {
+function withCounted(line: FbaShipmentLine, counted: number): FbaShipmentLine {
   if (line.not_in_list) return { ...line, counted }
   const missing = Math.max(0, line.shipped - counted)
   const status = counted > line.shipped ? 'Overage' : counted === line.shipped ? 'All Accounted' : 'Missing Items'
@@ -93,6 +93,7 @@ export default function FbaShipmentLibrary() {
   >(null)
   const [barcode, setBarcode] = useState('')
   const [boxNumber, setBoxNumber] = useState('')
+  const [boxFilter, setBoxFilter] = useState('')
   const [boxLineId, setBoxLineId] = useState<string | null>(null)
   const [boxUnits, setBoxUnits] = useState<FbaShipmentUnit[]>([])
   const [boxDrafts, setBoxDrafts] = useState<Record<string, string>>({})
@@ -125,7 +126,9 @@ export default function FbaShipmentLibrary() {
   }, [loadUploads])
 
   const shipmentClosed = Boolean(selected?.archived_at || selected?.trashed_at)
-  const boxForList = shipmentClosed ? undefined : listedBoxNumber(boxNumber)
+  const filterBox = listedBoxNumber(boxFilter)
+  const boxForList = filterBox ?? (shipmentClosed ? undefined : listedBoxNumber(boxNumber))
+  const tableColumns = boxForList != null ? 8 : 7
 
   const loadLines = useCallback(async () => {
     if (!selectedId) {
@@ -206,6 +209,7 @@ export default function FbaShipmentLibrary() {
     openBoxLine.current = null
     // A box number from another shipment must never carry over.
     setBoxNumber('')
+    setBoxFilter('')
     if (selectedId) boxRef.current?.focus()
   }, [selectedId])
 
@@ -228,6 +232,11 @@ export default function FbaShipmentLibrary() {
       const result = await fbaShipmentLibraryApi.scan(selectedId, code, boxValue)
       setActiveLineId(result.line.id)
       setBarcode('')
+      const inListedBox = boxForList === boxValue
+      const listed = (previous: FbaShipmentLine | undefined): FbaShipmentLine =>
+        boxForList
+          ? { ...result.line, box_counted: inListedBox ? result.box_counted : previous?.box_counted }
+          : result.line
       if (result.line.not_in_list) {
         setNotice(null)
         setScanAlert(`${result.barcode} is not in the list. Placed in Box ${boxValue}.`)
@@ -235,9 +244,9 @@ export default function FbaShipmentLibrary() {
           const previous = current.find(
             (line) => line.id === result.line.id || externalId(line.external_id) === result.barcode,
           )
-          const line = boxForList ? { ...result.line, counted: (previous?.counted ?? 0) + 1 } : result.line
+          if (boxForList && !inListedBox && !previous) return current
           return [
-            line,
+            listed(previous),
             ...current.filter(
               (item) => item.id !== result.line.id && externalId(item.external_id) !== result.barcode,
             ),
@@ -245,22 +254,18 @@ export default function FbaShipmentLibrary() {
         })
       } else {
         setScanAlert(null)
-        const previous = boxForList ? lines.find((line) => line.id === result.line.id) : undefined
-        const inBox = boxForList ? (previous?.counted ?? 0) + 1 : result.line.counted
         setLines((current) => {
-          const line = boxForList ? lineForBox(result.line, inBox) : result.line
-          if (current.some((item) => item.id === line.id)) {
-            return current.map((item) => (item.id === line.id ? line : item))
-          }
-          if (!boxForList) return current
-          return [...current, line].sort((a, b) => a.line_number - b.line_number)
+          const previous = current.find((item) => item.id === result.line.id)
+          if (previous) return current.map((item) => (item.id === result.line.id ? listed(previous) : item))
+          if (!boxForList || !inListedBox) return current
+          return [...current, listed(undefined)].sort((a, b) => a.line_number - b.line_number)
         })
-        setNotice(boxScanNotice(result.barcode, boxValue, inBox, result.line))
+        setNotice(boxScanNotice(result.barcode, boxValue, result.box_counted, result.line))
       }
       setSelected((current) =>
         current ? { ...current, fully_accounted: result.fully_accounted } : current,
       )
-      if (boxForList) setBoxStored((current) => (current ?? 0) + 1)
+      if (boxForList && inListedBox) setBoxStored((current) => (current ?? 0) + 1)
       if (openBoxLine.current === result.line.id) {
         applyUnits(
           result.line.id,
@@ -355,19 +360,22 @@ export default function FbaShipmentLibrary() {
       if (boxForList && unit.box_number !== nextBox) {
         const delta = (nextBox === boxForList ? 1 : 0) - (unit.box_number === boxForList ? 1 : 0)
         if (delta !== 0) {
+          const emptied = (line.box_counted ?? 0) + delta <= 0
           const update = (current: FbaShipmentLine[]) =>
             current.flatMap((item) => {
               if (item.id !== line.id) return [item]
-              const counted = Math.max(0, (item.counted ?? 0) + delta)
-              if (counted === 0) return []
-              return [line.not_in_list ? { ...item, counted } : lineForBox(item, counted)]
+              const boxCounted = Math.max(0, (item.box_counted ?? 0) + delta)
+              return boxCounted === 0 ? [] : [{ ...item, box_counted: boxCounted }]
             })
           if (line.not_in_list) setUnknownLines(update)
           else {
             setLines(update)
-            if ((line.counted ?? 0) + delta <= 0) setLineTotal((total) => Math.max(0, total - 1))
+            if (emptied) setLineTotal((total) => Math.max(0, total - 1))
           }
-          if ((line.counted ?? 0) + delta <= 0) setBoxLineId(null)
+          if (emptied) {
+            openBoxLine.current = null
+            setBoxLineId(null)
+          }
           setBoxStored((current) => Math.max(0, (current ?? 0) + delta))
         }
       }
@@ -398,25 +406,22 @@ export default function FbaShipmentLibrary() {
       }
       applyUnits(line.id, units)
       const inFilteredBox = Boolean(boxForList && unit.box_number === boxForList)
-      if (!boxForList || inFilteredBox) {
-        const update = (current: FbaShipmentLine[]) =>
-          current.flatMap((item) => {
-            if (item.id !== line.id) return [item]
-            const counted = Math.max(0, (item.counted ?? 0) - 1)
-            if (line.not_in_list) return counted === 0 ? [] : [{ ...item, counted }]
-            if (boxForList && counted === 0) return []
-            return [lineForBox(item, counted)]
-          })
-        if (line.not_in_list) setUnknownLines(update)
-        else {
-          setLines(update)
-          if (boxForList && (line.counted ?? 0) - 1 <= 0) setLineTotal((total) => Math.max(0, total - 1))
-        }
-        if ((line.counted ?? 0) - 1 <= 0) {
-          openBoxLine.current = null
-          setBoxLineId(null)
-        }
-      } else if (units.length === 0) {
+      const counted = Math.max(0, (line.counted ?? 0) - 1)
+      const boxCounted = Math.max(0, (line.box_counted ?? 0) - (inFilteredBox ? 1 : 0))
+      const removed = line.not_in_list ? counted === 0 : Boolean(boxForList) && boxCounted === 0
+      const update = (current: FbaShipmentLine[]) =>
+        current.flatMap((item) => {
+          if (item.id !== line.id) return [item]
+          if (removed) return []
+          const next = withCounted(item, counted)
+          return [boxForList ? { ...next, box_counted: boxCounted } : next]
+        })
+      if (line.not_in_list) setUnknownLines(update)
+      else {
+        setLines(update)
+        if (removed) setLineTotal((total) => Math.max(0, total - 1))
+      }
+      if (removed || units.length === 0) {
         openBoxLine.current = null
         setBoxLineId(null)
       }
@@ -962,8 +967,27 @@ export default function FbaShipmentLibrary() {
                 {scanCountNotice}
               </div>
             )}
+            <div className="ml-auto flex flex-col items-center">
+              <input
+                value={boxFilter}
+                onChange={(event) => {
+                  setBoxFilter(event.target.value.replace(/\D/g, '').slice(0, 5))
+                  setLineOffset(0)
+                }}
+                inputMode="numeric"
+                placeholder="Box number"
+                autoComplete="off"
+                aria-label="Show one box number"
+                className="w-28 rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+              />
+              {filterBox != null && boxStored != null && (
+                <span className="mt-1 text-xs font-semibold text-emerald-800">
+                  {boxStored} {boxStored === 1 ? 'item' : 'items'} in Box {filterBox}
+                </span>
+              )}
+            </div>
             <form
-              className="ml-auto flex gap-2"
+              className="flex gap-2 self-start"
               onSubmit={(event) => {
                 event.preventDefault()
                 setLineOffset(0)
@@ -1011,7 +1035,7 @@ export default function FbaShipmentLibrary() {
                   boxReady ? 'border-emerald-400 bg-emerald-50 text-emerald-900' : 'border-amber-400 bg-amber-50'
                 }`}
               />
-              {boxForList != null && boxStored != null && (
+              {filterBox == null && boxForList != null && boxStored != null && (
                 <span className="mt-1 block text-center text-xs font-semibold text-emerald-800">
                   {boxStored} {boxStored === 1 ? 'item' : 'items'} in Box {boxForList}
                 </span>
@@ -1056,7 +1080,8 @@ export default function FbaShipmentLibrary() {
                   <th className="bg-amber-100 px-2 py-2">Merchant SKU</th>
                   <th className="bg-amber-100 px-2 py-2">{boxForList ? 'UPC' : 'external-id'}</th>
                   <th className="bg-amber-100 px-2 py-2">Shipped</th>
-                  <th className="bg-amber-100 px-2 py-2">{boxForList ? `In Box ${boxForList}` : 'Counted'}</th>
+                  {boxForList != null && <th className="bg-amber-100 px-2 py-2">In Box {boxForList}</th>}
+                  <th className="bg-amber-100 px-2 py-2">Counted</th>
                   <th className="bg-amber-100 px-2 py-2">Missing</th>
                   <th className="bg-amber-100 px-2 py-2">Status</th>
                   <th className="bg-amber-100 px-2 py-2">Boxes</th>
@@ -1065,13 +1090,13 @@ export default function FbaShipmentLibrary() {
               <tbody>
                 {linesLoading ? (
                   <tr>
-                    <td colSpan={7} className="px-2 py-6 text-gray-500">
+                    <td colSpan={tableColumns} className="px-2 py-6 text-gray-500">
                       Loading lines…
                     </td>
                   </tr>
                 ) : lines.length === 0 && unknownLines.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-2 py-6 text-gray-500">
+                    <td colSpan={tableColumns} className="px-2 py-6 text-gray-500">
                       {boxForList ? `No items scanned into Box ${boxForList}.` : 'No matching lines.'}
                     </td>
                   </tr>
@@ -1085,6 +1110,7 @@ export default function FbaShipmentLibrary() {
                       <td className="px-2 py-2 font-medium">{line.merchant_sku || '—'}</td>
                       <td className="px-2 py-2">{externalId(line.external_id) || '—'}</td>
                       <td className="px-2 py-2">{line.not_in_list ? '—' : line.shipped}</td>
+                      {boxForList != null && <td className="px-2 py-2 font-semibold">{line.box_counted ?? 0}</td>}
                       <td className="px-2 py-2">{line.counted ?? 0}</td>
                       <td className="px-2 py-2">
                         {line.not_in_list ? '—' : (line.missing ?? Math.max(0, line.shipped - (line.counted ?? 0)))}
@@ -1110,7 +1136,7 @@ export default function FbaShipmentLibrary() {
                     </tr>
                     {boxLineId === line.id && (
                       <tr key={`${line.id}-boxes`} className="border-b border-gray-200 bg-white">
-                        <td colSpan={7} className="px-3 py-3">
+                        <td colSpan={tableColumns} className="px-3 py-3">
                           {boxesLoading ? (
                             <p className="text-sm text-gray-500">Loading units…</p>
                           ) : (

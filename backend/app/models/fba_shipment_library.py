@@ -39,6 +39,7 @@ class FbaShipmentLineResponse(BaseModel):
     external_id: str = ""
     shipped: int = 0
     counted: int = 0
+    box_counted: Optional[int] = None
     missing: int = 0
     status: str = "Missing Items"
     not_in_list: bool = False
@@ -90,6 +91,7 @@ class FbaShipmentScanResult(BaseModel):
     line: FbaShipmentLineResponse
     barcode: str
     box_number: Optional[int] = None
+    box_counted: int = 0
     fully_accounted: bool = False
 
 

@@ -48,8 +48,23 @@ class FakeRepo:
             raise ValueError("The FBA Order Checker tables are missing.")
         self._next += 1
         row_id = f"box-{self._next}"
-        self.box_rows[row_id] = {"external_id": external_id, "box_number": box_number}
+        self.box_rows[row_id] = {"external_id": external_id, "box_number": box_number, "line_id": line_id}
         return row_id
+
+    def counted_in_box(self, upload_id, box_number, line_counts, unknown_counts):
+        lines = {
+            key: sum(1 for row in self.box_rows.values() if row["line_id"] == key and row["box_number"] == box_number)
+            for key in line_counts
+        }
+        unknown = {
+            key: sum(
+                1
+                for row in self.box_rows.values()
+                if not row["line_id"] and row["external_id"] == key and row["box_number"] == box_number
+            )
+            for key in unknown_counts
+        }
+        return lines, unknown
 
     def delete_box_scan(self, box_scan_id):
         self.box_rows.pop(box_scan_id, None)
@@ -108,6 +123,19 @@ def test_known_and_unknown_scans_store_their_box(wire):
     ]
     assert repo.counts == {LINE_ID: 2}
     assert repo.unknowns == {"999": 1}
+
+
+def test_a_scan_reports_the_count_in_its_own_box_and_the_shipment_total(wire):
+    repo = FakeRepo()
+    wire(repo)
+    _scan("111", 4)
+    in_four = _scan("111", 4)
+    in_six = _scan("111", 6)
+    unknown = _scan("999", 9)
+    assert (in_four.box_counted, in_four.line.counted) == (2, 2)
+    assert (in_six.box_counted, in_six.line.counted) == (1, 3)
+    assert in_six.line.status == "Overage"
+    assert unknown.box_counted == 1
 
 
 def test_a_failed_count_removes_the_box_record(wire):

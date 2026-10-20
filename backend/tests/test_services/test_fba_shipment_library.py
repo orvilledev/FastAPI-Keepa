@@ -146,10 +146,10 @@ def test_boxed_tab_matches_the_users_example_workbook():
     assert workbook.sheetnames == ["Accounting", "Boxed"]
     accounting, boxed = workbook["Accounting"], workbook["Boxed"]
     assert [c.value for c in accounting[5]] == [
-        "Merchant SKU", "external-id", "Shipped", "Counted", "Missing", "Status",
+        "Merchant SKU", "external-id", "Shipped", "Counted", "Missing", "Status", "Boxes",
     ]
     assert [c.value for c in accounting[6]] == [
-        "845028000003", "845028000003", 3, 3, 0, "All Accounted",
+        "845028000003", "845028000003", 3, 3, 0, "All Accounted", "Box 1: 2, Box 2: 1",
     ]
     assert [c.value for c in boxed[1]][:3] == ["external-id", "Counted", "Box Number"]
     assert _boxed_log(boxed) == [
@@ -259,6 +259,21 @@ def test_box_scans_beyond_the_counted_total_are_never_exported():
     ]
     rows = build_boxed_rows(lines=lines, unknown_lines=[], box_scans=scans)
     assert rows == [("111", 1)]
+
+
+def test_boxed_rows_are_listed_box_by_box():
+    lines = [
+        {"merchant_sku": "A", "external_id": "222", "shipped": 2, "counted": 2},
+        {"merchant_sku": "B", "external_id": "111", "shipped": 3, "counted": 3},
+    ]
+    scans = [
+        {"external_id": "111", "box_number": 5},
+        {"external_id": "222", "box_number": 3},
+        {"external_id": "111", "box_number": 3},
+        {"external_id": "222", "box_number": 5},
+    ]
+    rows = build_boxed_rows(lines=lines, unknown_lines=[], box_scans=scans)
+    assert rows == [("111", 3), ("222", 3), ("111", 5), ("222", 5), ("111", None)]
 
 
 def test_boxed_tab_without_any_scans_has_only_headers():

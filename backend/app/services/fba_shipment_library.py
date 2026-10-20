@@ -278,7 +278,23 @@ def build_boxed_rows(
     for external_id in sorted(expected):
         for _ in range(expected[external_id] - placed.get(external_id, 0)):
             rows.append((external_id, None))
+    rows.sort(key=lambda row: (row[1] is None, row[1] or 0, row[0]))
     return rows
+
+
+def box_summary(rows: list[BoxedRow]) -> dict[str, str]:
+    """Per external-id, the boxes its counted units are in, e.g. ``Box 1: 2, Box 4: 2``."""
+    per_item: dict[str, dict["int | None", int]] = {}
+    for external_id, box in rows:
+        boxes = per_item.setdefault(external_id, {})
+        boxes[box] = boxes.get(box, 0) + 1
+    summary: dict[str, str] = {}
+    for external_id, boxes in per_item.items():
+        parts = [f"Box {box}: {boxes[box]}" for box in sorted(b for b in boxes if b is not None)]
+        if None in boxes:
+            parts.append(f"No box: {boxes[None]}")
+        summary[external_id] = ", ".join(parts)
+    return summary
 
 
 def _verify_boxed_matches_accounting(
@@ -548,6 +564,10 @@ def build_accounting_workbook(
         STATUS_OVERAGE: PatternFill("solid", fgColor="FDBA74"),
         STATUS_NOT_IN_LIST: PatternFill("solid", fgColor="FECACA"),
     }
+    boxed_rows = build_boxed_rows(lines=lines, unknown_lines=unknown_lines, box_scans=box_scans or [])
+    _verify_boxed_matches_accounting(boxed_rows, lines, unknown_lines)
+    boxes_for = box_summary(boxed_rows)
+
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Accounting"
@@ -555,7 +575,7 @@ def build_accounting_workbook(
     sheet.append(["Counted by", counted_by])
     sheet.append(["Generated", datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")])
     sheet.append([])
-    header = ["Merchant SKU", "external-id", "Shipped", "Counted", "Missing", "Status"]
+    header = ["Merchant SKU", "external-id", "Shipped", "Counted", "Missing", "Status", "Boxes"]
     sheet.append(header)
     for cell in sheet[5]:
         cell.font = Font(bold=True)
@@ -570,6 +590,7 @@ def build_accounting_workbook(
             counted,
             missing,
             status,
+            boxes_for.get(strip_upc_label(str(line.get("external_id") or "")), "") if counted > 0 else "",
         ])
         fill = fills.get(status)
         if fill:
@@ -578,17 +599,17 @@ def build_accounting_workbook(
     if unknown_lines:
         sheet.append([])
         sheet.append(["Not in the list"])
-        sheet.append(["external-id", "Counted", "Status"])
+        sheet.append(["external-id", "Counted", "Status", "Boxes"])
         for row in unknown_lines:
             sheet.append([
                 row.get("external_id") or "",
                 int(row.get("counted") or 0),
                 STATUS_NOT_IN_LIST,
+                boxes_for.get(strip_upc_label(str(row.get("external_id") or "")), ""),
             ])
             for cell in sheet[sheet.max_row]:
                 cell.fill = fills[STATUS_NOT_IN_LIST]
-    boxed_rows = build_boxed_rows(lines=lines, unknown_lines=unknown_lines, box_scans=box_scans or [])
-    _verify_boxed_matches_accounting(boxed_rows, lines, unknown_lines)
+    sheet.column_dimensions["G"].width = 32
     _add_boxed_sheet(workbook, boxed_rows)
     buffer = BytesIO()
     workbook.save(buffer)

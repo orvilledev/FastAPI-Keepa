@@ -3071,6 +3071,7 @@ export type FbaShipmentLine = {
   external_id: string
   shipped: number
   counted: number
+  box_counted?: number | null
   missing: number
   status: string
   not_in_list?: boolean
@@ -3193,6 +3194,7 @@ export const fbaShipmentLibraryApi = {
   ): Promise<{
     barcode: string
     box_number: number | null
+    box_counted: number
     line: FbaShipmentLine
     fully_accounted: boolean
   }> => {
