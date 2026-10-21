@@ -193,14 +193,14 @@ def _filename_stem(value: str) -> str:
 
 
 def accounting_report_filename(shipment_name: str, shipment_id: str = "") -> str:
-    """Name the download after the upload's Name field, not the Shipment ID.
+    """Use the upload's Name as the download filename, not the Shipment ID.
 
     Shipments stored before that field was saved keep the previous
     ``{Shipment ID} Accounting.xlsx`` name.
     """
     stem = _filename_stem(shipment_name)
     if stem:
-        return f"{stem} Accounting.xlsx"
+        return f"{stem}.xlsx"
     fallback = _filename_stem(shipment_id) or "shipment"
     return f"{fallback} Accounting.xlsx"
 

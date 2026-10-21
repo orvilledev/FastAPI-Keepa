@@ -318,9 +318,9 @@ def test_scan_request_validates_box_number():
 
 
 def test_report_filename_uses_the_upload_name_not_the_shipment_id():
-    assert accounting_report_filename("TO192902", "FBA19T3YGF07") == "TO192902 Accounting.xlsx"
-    assert accounting_report_filename("  TO192902  ", "FBA19T3YGF07") == "TO192902 Accounting.xlsx"
-    assert accounting_report_filename('TO/1:2*?"<>|', "FBA1") == "TO 1 2 Accounting.xlsx"
+    assert accounting_report_filename("TO192902", "FBA19T3YGF07") == "TO192902.xlsx"
+    assert accounting_report_filename("  TO192902  ", "FBA19T3YGF07") == "TO192902.xlsx"
+    assert accounting_report_filename('TO/1:2*?"<>|', "FBA1") == "TO 1 2.xlsx"
     assert accounting_report_filename("", "FBA19T3YGF07") == "FBA19T3YGF07 Accounting.xlsx"
     assert accounting_report_filename("", "") == "shipment Accounting.xlsx"
 
