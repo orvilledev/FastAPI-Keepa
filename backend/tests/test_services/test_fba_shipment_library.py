@@ -15,6 +15,7 @@ from app.services.fba_shipment_library import (
     accounting_report_filename,
     build_accounting_workbook,
     build_boxed_rows,
+    labels_by_box,
     choose_line_for_scan,
     count_progress,
     counts_kept_in_box,
@@ -315,6 +316,32 @@ def test_scan_request_validates_box_number():
     for bad in (0, -1, 100000):
         with pytest.raises(ValidationError):
             FbaShipmentScanRequest(barcode="1", box_number=bad)
+
+
+def test_fnsku_labels_are_grouped_by_box_in_box_order():
+    lines = [
+        {"merchant_sku": "A", "external_id": "111", "shipped": 3, "counted": 3},
+        {"merchant_sku": "B", "external_id": "222", "shipped": 2, "counted": 2},
+    ]
+    scans = [
+        {"external_id": "222", "box_number": 10},
+        {"external_id": "111", "box_number": 2},
+        {"external_id": "111", "box_number": 2},
+        {"external_id": "222", "box_number": 10},
+        {"external_id": "111", "box_number": 2},
+        {"external_id": "999", "box_number": 1},
+    ]
+    assert labels_by_box(lines=lines, box_scans=scans) == [
+        (2, [("111", 3)]),
+        (10, [("222", 2)]),
+    ]
+
+
+def test_fnsku_labels_require_a_box_for_every_counted_unit():
+    lines = [{"merchant_sku": "A", "external_id": "111", "shipped": 2, "counted": 2}]
+    scans = [{"external_id": "111", "box_number": 1}]
+    with pytest.raises(ValueError, match="box number"):
+        labels_by_box(lines=lines, box_scans=scans)
 
 
 def test_report_filename_uses_the_upload_name_not_the_shipment_id():

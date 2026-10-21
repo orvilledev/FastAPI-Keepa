@@ -104,6 +104,26 @@ class FbaShipmentNameRequest(BaseModel):
     shipment_name: str = Field(default="", max_length=200)
 
 
+class FbaFnskuLabelItem(BaseModel):
+    external_id: str
+    quantity: int
+    upc: str
+    sku: str = ""
+    fnsku: str
+    style_name: str = ""
+    condition: str = "New"
+
+
+class FbaFnskuLabelBox(BaseModel):
+    box_number: int
+    items: List[FbaFnskuLabelItem]
+
+
+class FbaFnskuLabelsResponse(BaseModel):
+    boxes: List[FbaFnskuLabelBox]
+    label_count: int
+
+
 class FbaBoxNumberRequest(BaseModel):
     box_number: int = Field(ge=1, le=MAX_BOX_NUMBER)
 

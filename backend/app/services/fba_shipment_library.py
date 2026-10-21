@@ -316,6 +316,31 @@ def build_boxed_rows(
     return rows
 
 
+def labels_by_box(
+    *,
+    lines: list[dict],
+    box_scans: list[dict],
+) -> list[tuple[int, list[tuple[str, int]]]]:
+    """Counted shipment units grouped for printing: box 1, then box 2, and so on.
+
+    Within a box, identical external-ids are one quantity. Units with no box
+    cannot be sorted, so the print is refused. Scans that are not on the
+    shipment are left out.
+    """
+    rows = build_boxed_rows(lines=lines, unknown_lines=[], box_scans=box_scans)
+    if not rows:
+        raise ValueError("There are no counted units to print.")
+    if any(box is None for _, box in rows):
+        raise ValueError(
+            "Every counted unit needs a box number before FNSKU labels can be printed."
+        )
+    grouped: dict[int, dict[str, int]] = {}
+    for external_id, box in rows:
+        items = grouped.setdefault(int(box), {})
+        items[external_id] = items.get(external_id, 0) + 1
+    return [(box, list(items.items())) for box, items in grouped.items()]
+
+
 def box_summary(rows: list[BoxedRow]) -> dict[str, str]:
     """Per external-id, the boxes its counted units are in, e.g. ``Box 1: 2, Box 4: 2``."""
     per_item: dict[str, dict["int | None", int]] = {}

@@ -12,6 +12,9 @@ from app.middleware.rate_limiter import RateLimits, limiter
 from app.models.fba_shipment_library import (
     FbaBoxNumberRequest,
     FbaBoxUnitUpdate,
+    FbaFnskuLabelBox,
+    FbaFnskuLabelItem,
+    FbaFnskuLabelsResponse,
     FbaShipmentAccessRequest,
     FbaShipmentDetailResponse,
     FbaShipmentNameRequest,
@@ -24,11 +27,13 @@ from app.models.fba_shipment_library import (
     FbaShipmentUploadResponse,
 )
 from app.repositories.fba_shipment_library_repository import FbaShipmentLibraryRepository
+from app.repositories.warehouse_product_repository import WarehouseProductRepository
 from app.services.fba_shipment_library import (
     MAX_BOX_NUMBER,
     FbaShipmentParseError,
     accounting_report_filename,
     build_accounting_workbook,
+    labels_by_box,
     choose_line_for_scan,
     is_fully_accounted,
     parse_fba_shipment_tsv,
@@ -657,6 +662,87 @@ def set_fba_shipment_name(
         can_manage_any=can_manage_any,
         uploader_names=_given_names_by_user(db, [str(saved.get("created_by") or "")]),
     )
+
+
+def _catalog_row_for(external_id: str, matches: list[dict]) -> dict | None:
+    """Prefer the catalog row whose UPC, SKU, or FNSKU is the scanned code."""
+    if not matches:
+        return None
+    for field in ("upc", "sku", "fnsku"):
+        for row in matches:
+            if str(row.get(field) or "").strip() == external_id:
+                return row
+    return matches[0]
+
+
+@router.get("/fba-shipment-library/{upload_id}/fnsku-labels", response_model=FbaFnskuLabelsResponse)
+@handle_api_errors("build FBA FNSKU labels")
+def fba_fnsku_labels(
+    upload_id: str,
+    current_user: dict = Depends(get_fba_order_checker_user),
+    db: Client = Depends(get_supabase),
+):
+    """Label Station products for this shipment, one group per box, in box order."""
+    repo = FbaShipmentLibraryRepository(db)
+    can_manage_any = is_superadmin_user(current_user, db)
+    try:
+        upload = repo.get_upload(upload_id)
+        if not upload:
+            raise HTTPException(status_code=404, detail="That shipment upload was not found.")
+        _require_visible(upload, current_user, can_manage_any)
+        if upload.get("trashed_at"):
+            raise HTTPException(status_code=400, detail="Restore this shipment from Trash before printing labels.")
+        rows = repo.list_line_quantities(upload_id)
+        counts = repo.counts_for_lines([str(row.get("id") or "") for row in rows])
+        for row in rows:
+            row["counted"] = counts.get(str(row.get("id") or ""), 0)
+        if not is_fully_accounted(
+            [(int(row.get("shipped") or 0), int(row.get("counted") or 0)) for row in rows]
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="FNSKU labels are available after every line is All Accounted.",
+            )
+        grouped = labels_by_box(lines=rows, box_scans=repo.list_box_scans(upload_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    external_ids = [external_id for _, items in grouped for external_id, _ in items]
+    catalog = WarehouseProductRepository(db).lookup_by_identifiers(external_ids)
+    missing = [external_id for external_id in dict.fromkeys(external_ids) if not catalog.get(external_id)]
+    if missing:
+        shown = ", ".join(missing[:8])
+        extra = f" and {len(missing) - 8} more" if len(missing) > 8 else ""
+        raise HTTPException(
+            status_code=400,
+            detail=f"These items are not in the Label Station catalog: {shown}{extra}.",
+        )
+
+    boxes: list[FbaFnskuLabelBox] = []
+    label_count = 0
+    for box_number, items in grouped:
+        printed: list[FbaFnskuLabelItem] = []
+        for external_id, quantity in items:
+            row = _catalog_row_for(external_id, catalog.get(external_id) or [])
+            if not row or not str(row.get("fnsku") or "").strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{external_id} is in the Label Station catalog without an FNSKU.",
+                )
+            printed.append(
+                FbaFnskuLabelItem(
+                    external_id=external_id,
+                    quantity=quantity,
+                    upc=str(row.get("upc") or external_id),
+                    sku=str(row.get("sku") or ""),
+                    fnsku=str(row.get("fnsku") or "").strip(),
+                    style_name=str(row.get("style_name") or ""),
+                    condition=str(row.get("condition") or "New"),
+                )
+            )
+            label_count += quantity
+        boxes.append(FbaFnskuLabelBox(box_number=box_number, items=printed))
+    return FbaFnskuLabelsResponse(boxes=boxes, label_count=label_count)
 
 
 @router.get("/fba-shipment-library/{upload_id}/report")

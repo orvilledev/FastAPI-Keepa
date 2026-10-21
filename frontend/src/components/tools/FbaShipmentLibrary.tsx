@@ -1,10 +1,23 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react'
+import { auditAction } from '../../lib/auditEvents'
 import {
   fbaShipmentLibraryApi,
+  type FbaFnskuLabels,
   type FbaShipmentLine,
   type FbaShipmentUnit,
   type FbaShipmentUpload,
 } from '../../services/api'
+import {
+  buildWarehouseLabelBatchPdfBlob,
+  buildWarehouseLabelBatchZpl,
+  getSelectedDpi,
+  getSelectedLabelIdMode,
+  getSelectedLabelSize,
+  getSelectedPrinter,
+  getStoredCustomLabelText,
+  saveSelectedPrinter,
+  type WarehouseLabelPrintItem,
+} from '../../utils/warehouseLabel'
 
 const PAGE_SIZE = 50
 const LINE_PAGE_SIZE = 100
@@ -58,6 +71,52 @@ function matchesSkuSearch(line: FbaShipmentLine, term: string): boolean {
   return sku.includes(needle) || code.includes(needle)
 }
 
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+function labelPrintItems(plan: FbaFnskuLabels): WarehouseLabelPrintItem[] {
+  const items: WarehouseLabelPrintItem[] = []
+  for (const box of plan.boxes) {
+    for (const item of box.items) {
+      let left = item.quantity
+      while (left > 0) {
+        const copies = Math.min(99, left)
+        items.push({
+          product: {
+            upc: item.upc,
+            sku: item.sku,
+            fnsku: item.fnsku,
+            style_name: item.style_name,
+            condition: item.condition,
+          },
+          copies,
+        })
+        left -= copies
+      }
+    }
+  }
+  return items
+}
+
+async function printerForLabels(): Promise<string> {
+  const saved = getSelectedPrinter()
+  if (!window.desktop?.listPrinters) return saved
+  const result = await window.desktop.listPrinters()
+  const found = result.printers || []
+  if (saved && found.some((printer) => printer.name === saved)) return saved
+  const chosen = found.find((printer) => printer.isDefault)?.name || found[0]?.name || ''
+  if (chosen) saveSelectedPrinter(chosen)
+  return chosen
+}
+
 function boxScanNotice(barcode: string, box: number, inBox: number, shipment: FbaShipmentLine): string {
   const shipped = shipment.shipped
   const total = shipment.counted ?? 0
@@ -89,6 +148,7 @@ export default function FbaShipmentLibrary() {
   const [nameDraft, setNameDraft] = useState('')
   const [nameDirty, setNameDirty] = useState(false)
   const [savingName, setSavingName] = useState(false)
+  const [printingLabels, setPrintingLabels] = useState(false)
   const [lines, setLines] = useState<FbaShipmentLine[]>([])
   const [unknownLines, setUnknownLines] = useState<FbaShipmentLine[]>([])
   const [scanAlert, setScanAlert] = useState<string | null>(null)
@@ -631,6 +691,64 @@ export default function FbaShipmentLibrary() {
     }
   }
 
+  const handlePrintLabels = async (upload: FbaShipmentUpload) => {
+    if (printingLabels) return
+    setPrintingLabels(true)
+    setError(null)
+    try {
+      const plan = await fbaShipmentLibraryApi.fnskuLabels(upload.id)
+      const items = labelPrintItems(plan)
+      if (items.length === 0) {
+        setError('There are no counted units to print.')
+        return
+      }
+      const dpi = getSelectedDpi()
+      const size = getSelectedLabelSize()
+      const idMode = getSelectedLabelIdMode()
+      const customText = getStoredCustomLabelText()
+      const boxCount = plan.boxes.length
+      const isElectron = Boolean(window.desktop?.isElectron && window.desktop?.printZpl)
+      if (isElectron) {
+        const printerName = await printerForLabels()
+        if (!printerName) {
+          setError('No printer selected. Choose a printer in Label Station, then print again.')
+          return
+        }
+        const zpl = buildWarehouseLabelBatchZpl(items, dpi, size, idMode, customText)
+        const result = await window.desktop!.printZpl({ printerName, zpl })
+        if (!result.ok) throw new Error(result.message || 'Print failed')
+        auditAction(
+          'label_station.print_queue',
+          `Printed ${plan.label_count} FNSKU label(s) for ${upload.shipment_id} by box on ${printerName}`,
+          { quantity: plan.label_count, printer: printerName, idMode, boxCount },
+        )
+        setNotice(
+          `Sent ${plan.label_count} FNSKU label${plan.label_count === 1 ? '' : 's'} in box order to ${printerName}.`,
+        )
+      } else {
+        const blob = buildWarehouseLabelBatchPdfBlob(items, dpi, size, idMode, customText)
+        const stem = (upload.shipment_name || upload.shipment_id || 'FNSKU')
+          .replace(/[\\/:*?"<>|]+/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim() || 'FNSKU'
+        const filename = `${stem} FNSKU labels.pdf`
+        downloadBlob(blob, filename)
+        auditAction(
+          'label_station.download_pdf_queue',
+          `Downloaded ${plan.label_count} FNSKU label(s) for ${upload.shipment_id} by box as ${filename}`,
+          { quantity: plan.label_count, filename, idMode, boxCount },
+        )
+        setNotice(
+          `Downloaded ${filename} (${plan.label_count} label${plan.label_count === 1 ? '' : 's'}, sorted by box).`,
+        )
+      }
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to print the FNSKU labels.'))
+    } finally {
+      setPrintingLabels(false)
+    }
+  }
+
   const handleReport = async (upload: FbaShipmentUpload) => {
     setError(null)
     try {
@@ -1048,6 +1166,16 @@ export default function FbaShipmentLibrary() {
               >
                 Download report
               </button>
+              {selected.fully_accounted && !selected.trashed_at && (
+                <button
+                  type="button"
+                  disabled={printingLabels}
+                  className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                  onClick={() => void handlePrintLabels(selected)}
+                >
+                  {printingLabels ? 'Printing…' : 'Print FNSKU labels'}
+                </button>
+              )}
               {selected.owned_by_me && selected.fully_accounted && !selected.archived_at && !selected.trashed_at && (
                 <button
                   type="button"

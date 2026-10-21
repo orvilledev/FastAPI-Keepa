@@ -3020,6 +3020,26 @@ export const catalogOldSkusApi = {
   },
 }
 
+export type FbaFnskuLabelItem = {
+  external_id: string
+  quantity: number
+  upc: string
+  sku: string
+  fnsku: string
+  style_name: string
+  condition: string
+}
+
+export type FbaFnskuLabelBox = {
+  box_number: number
+  items: FbaFnskuLabelItem[]
+}
+
+export type FbaFnskuLabels = {
+  boxes: FbaFnskuLabelBox[]
+  label_count: number
+}
+
 export type FbaShipmentUpload = {
   id: string
   shipment_id: string
@@ -3196,6 +3216,10 @@ export const fbaShipmentLibraryApi = {
   },
   archive: async (uploadId: string): Promise<FbaShipmentUpload> => {
     const response = await api.post(`/api/v1/fba-shipment-library/${uploadId}/archive`)
+    return response.data
+  },
+  fnskuLabels: async (uploadId: string): Promise<FbaFnskuLabels> => {
+    const response = await api.get(`/api/v1/fba-shipment-library/${uploadId}/fnsku-labels`)
     return response.data
   },
   downloadReport: async (uploadId: string): Promise<{ blob: Blob; filename: string }> => {
