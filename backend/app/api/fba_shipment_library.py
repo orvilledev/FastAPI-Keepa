@@ -696,13 +696,6 @@ def fba_fnsku_labels(
         counts = repo.counts_for_lines([str(row.get("id") or "") for row in rows])
         for row in rows:
             row["counted"] = counts.get(str(row.get("id") or ""), 0)
-        if not is_fully_accounted(
-            [(int(row.get("shipped") or 0), int(row.get("counted") or 0)) for row in rows]
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail="FNSKU labels are available after every line is All Accounted.",
-            )
         grouped = labels_by_box(lines=rows, box_scans=repo.list_box_scans(upload_id))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

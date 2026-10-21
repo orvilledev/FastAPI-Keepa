@@ -1166,7 +1166,7 @@ export default function FbaShipmentLibrary() {
               >
                 Download report
               </button>
-              {selected.fully_accounted && !selected.trashed_at && (
+              {!selected.trashed_at && (
                 <button
                   type="button"
                   disabled={printingLabels}
