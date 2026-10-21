@@ -148,6 +148,21 @@ class FbaShipmentLibraryRepository:
                 return rows
             offset += 500
 
+    def set_shipment_name(self, upload_id: str, shipment_name: str) -> dict:
+        try:
+            response = (
+                self.db.table(_UPLOADS)
+                .update({"shipment_name": shipment_name})
+                .eq("id", upload_id)
+                .execute()
+            )
+        except Exception as exc:
+            _raise_persist_error(exc)
+        rows = response.data or []
+        if not rows:
+            raise ValueError("The shipment name was not saved.")
+        return rows[0]
+
     def set_locked(self, upload_id: str, locked: bool) -> dict:
         try:
             response = (

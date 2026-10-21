@@ -3188,6 +3188,12 @@ export const fbaShipmentLibraryApi = {
     const response = await api.post(`/api/v1/fba-shipment-library/${uploadId}/access`, { locked })
     return response.data
   },
+  setName: async (uploadId: string, shipmentName: string): Promise<FbaShipmentUpload> => {
+    const response = await api.patch(`/api/v1/fba-shipment-library/${uploadId}/name`, {
+      shipment_name: shipmentName,
+    })
+    return response.data
+  },
   archive: async (uploadId: string): Promise<FbaShipmentUpload> => {
     const response = await api.post(`/api/v1/fba-shipment-library/${uploadId}/archive`)
     return response.data

@@ -86,6 +86,9 @@ export default function FbaShipmentLibrary() {
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selected, setSelected] = useState<FbaShipmentUpload | null>(null)
+  const [nameDraft, setNameDraft] = useState('')
+  const [nameDirty, setNameDirty] = useState(false)
+  const [savingName, setSavingName] = useState(false)
   const [lines, setLines] = useState<FbaShipmentLine[]>([])
   const [unknownLines, setUnknownLines] = useState<FbaShipmentLine[]>([])
   const [scanAlert, setScanAlert] = useState<string | null>(null)
@@ -240,7 +243,13 @@ export default function FbaShipmentLibrary() {
     setBoxNumber('')
     setBoxFilter('')
     if (selectedId) boxRef.current?.focus()
+    setNameDirty(false)
   }, [selectedId])
+
+  useEffect(() => {
+    if (nameDirty) return
+    setNameDraft(selected?.shipment_name || '')
+  }, [nameDirty, selected?.id, selected?.shipment_name])
 
   const boxValue = /^\d{1,5}$/.test(boxNumber.trim()) ? Number(boxNumber.trim()) : 0
   const boxReady = boxValue >= 1 && boxValue <= 99999
@@ -592,6 +601,36 @@ export default function FbaShipmentLibrary() {
     }
   }
 
+  const handleSaveName = async () => {
+    if (!selected || savingName || selected.trashed_at) return
+    const next = nameDraft.trim()
+    if (next === (selected.shipment_name || '')) {
+      setNameDraft(next)
+      setNameDirty(false)
+      return
+    }
+    setSavingName(true)
+    setError(null)
+    try {
+      const saved = await fbaShipmentLibraryApi.setName(selected.id, next)
+      setNameDirty(false)
+      setNameDraft(saved.shipment_name || '')
+      setSelected((current) =>
+        current?.id === saved.id ? { ...current, shipment_name: saved.shipment_name || '' } : current,
+      )
+      setUploads((current) =>
+        current.map((item) =>
+          item.id === saved.id ? { ...item, shipment_name: saved.shipment_name || '' } : item,
+        ),
+      )
+      setNotice(saved.shipment_name ? `Saved name ${saved.shipment_name}.` : `Cleared the name for ${saved.shipment_id}.`)
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to save the shipment name.'))
+    } finally {
+      setSavingName(false)
+    }
+  }
+
   const handleReport = async (upload: FbaShipmentUpload) => {
     setError(null)
     try {
@@ -633,7 +672,8 @@ export default function FbaShipmentLibrary() {
         <p className="mt-2 max-w-3xl text-sm text-gray-600">
           Upload the official FBA shipment <strong>.tsv</strong>. The tool stores the yellow fields only:{' '}
           <strong>Shipment ID</strong>, <strong>Merchant SKU</strong>, <strong>external-id</strong>, and{' '}
-          <strong>Shipped</strong>. The owner can lock a shipment or share it when other workers need to count it.
+          <strong>Shipped</strong>, plus the <strong>Name</strong> from the top of the file. Open a shipment to
+          fill in a Name that was not saved. The owner can lock a shipment or share it when other workers need to count it.
           Counts are shared: everyone who opens a shipment sees the same scans. Download report is on each shipment. Archive moves it into
           Completed shipments once every line is All Accounted. Remove sends a shipment to Trash, where it
           stays until it is removed for good or Trash is emptied.
@@ -807,6 +847,7 @@ export default function FbaShipmentLibrary() {
             <thead className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-2 py-2">Shipment ID</th>
+                <th className="px-2 py-2">Name</th>
                 <th className="px-2 py-2">SKUs</th>
                 <th className="px-2 py-2">Shipped</th>
                 <th className="px-2 py-2">Uploaded by</th>
@@ -819,13 +860,13 @@ export default function FbaShipmentLibrary() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-2 py-6 text-gray-500">
+                  <td colSpan={9} className="px-2 py-6 text-gray-500">
                     Loading stored shipments…
                   </td>
                 </tr>
               ) : uploads.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-2 py-6 text-gray-500">
+                  <td colSpan={9} className="px-2 py-6 text-gray-500">
                     {listView === 'trash'
                       ? 'Trash is empty.'
                       : listView === 'archive'
@@ -840,6 +881,9 @@ export default function FbaShipmentLibrary() {
                     className={`border-b border-gray-100 ${selectedId === upload.id ? 'bg-amber-50' : ''}`}
                   >
                     <td className="px-2 py-2 font-medium text-gray-900">{upload.shipment_id}</td>
+                    <td className="max-w-[10rem] truncate px-2 py-2 text-gray-700" title={upload.shipment_name || undefined}>
+                      {upload.shipment_name || '—'}
+                    </td>
                     <td className="px-2 py-2">{upload.line_count}</td>
                     <td className="px-2 py-2">{upload.total_shipped.toLocaleString()}</td>
                     <td className="px-2 py-2">{upload.created_by_name || upload.created_by_email || '—'}</td>
@@ -953,6 +997,41 @@ export default function FbaShipmentLibrary() {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-gray-900">{selected.shipment_id}</h2>
+              <form
+                className="mt-2 flex flex-wrap items-center gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void handleSaveName()
+                }}
+              >
+                <label className="text-xs font-medium text-gray-600" htmlFor="fba-shipment-name">
+                  Name
+                </label>
+                <input
+                  id="fba-shipment-name"
+                  value={nameDraft}
+                  maxLength={200}
+                  disabled={Boolean(selected.trashed_at) || savingName}
+                  placeholder="From the upload file"
+                  onChange={(event) => {
+                    setNameDraft(event.target.value)
+                    setNameDirty(true)
+                  }}
+                  className="w-56 rounded-lg border border-gray-300 px-2 py-1.5 text-sm disabled:bg-gray-50"
+                />
+                <button
+                  type="submit"
+                  disabled={
+                    savingName ||
+                    Boolean(selected.trashed_at) ||
+                    nameDraft.trim() === (selected.shipment_name || '')
+                  }
+                  className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50 disabled:opacity-40"
+                >
+                  {savingName ? 'Saving…' : 'Save name'}
+                </button>
+              </form>
+              <p className="mt-1 text-xs text-gray-500">The download file uses this name.</p>
               <p className="text-xs text-gray-500">
                 {selected.created_by_name || selected.created_by_email || 'Unknown'} ·{' '}
                 {formatWhen(selected.created_at)} · {matchingRowCount} matching row

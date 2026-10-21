@@ -100,6 +100,10 @@ class FbaShipmentAccessRequest(BaseModel):
     locked: bool
 
 
+class FbaShipmentNameRequest(BaseModel):
+    shipment_name: str = Field(default="", max_length=200)
+
+
 class FbaBoxNumberRequest(BaseModel):
     box_number: int = Field(ge=1, le=MAX_BOX_NUMBER)
 

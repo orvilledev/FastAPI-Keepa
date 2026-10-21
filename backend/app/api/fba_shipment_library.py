@@ -14,6 +14,7 @@ from app.models.fba_shipment_library import (
     FbaBoxUnitUpdate,
     FbaShipmentAccessRequest,
     FbaShipmentDetailResponse,
+    FbaShipmentNameRequest,
     FbaShipmentUnitsResponse,
     FbaShipmentImportResult,
     FbaShipmentLineResponse,
@@ -620,6 +621,36 @@ def archive_fba_shipment(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     saved["fully_accounted"] = True
+    return _upload_response(
+        saved,
+        current_user,
+        can_manage_any=can_manage_any,
+        uploader_names=_given_names_by_user(db, [str(saved.get("created_by") or "")]),
+    )
+
+
+@router.patch("/fba-shipment-library/{upload_id}/name", response_model=FbaShipmentUploadResponse)
+@handle_api_errors("rename FBA shipment")
+def set_fba_shipment_name(
+    upload_id: str,
+    body: FbaShipmentNameRequest,
+    current_user: dict = Depends(get_fba_order_checker_user),
+    db: Client = Depends(get_supabase),
+):
+    """Set the Name shown on the accounting report and used as its filename."""
+    repo = FbaShipmentLibraryRepository(db)
+    can_manage_any = is_superadmin_user(current_user, db)
+    try:
+        upload = repo.get_upload(upload_id)
+        if not upload:
+            raise HTTPException(status_code=404, detail="That shipment upload was not found.")
+        _require_visible(upload, current_user, can_manage_any)
+        if upload.get("trashed_at"):
+            raise HTTPException(status_code=400, detail="Restore this shipment from Trash before changing its name.")
+        saved = repo.set_shipment_name(upload_id, body.shipment_name.strip())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    saved["fully_accounted"] = bool(upload.get("fully_accounted"))
     return _upload_response(
         saved,
         current_user,
