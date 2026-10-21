@@ -335,6 +335,14 @@ def test_fnsku_labels_are_grouped_by_box_in_box_order():
         (2, [("111", 3)]),
         (10, [("222", 2)]),
     ]
+    assert labels_by_box(
+        lines=lines,
+        box_scans=scans,
+        unknown_lines=[{"external_id": "999", "counted": 1}],
+    ) == [
+        (2, [("111", 3)]),
+        (10, [("222", 2)]),
+    ]
 
 
 def test_fnsku_labels_require_a_box_for_every_counted_unit():
@@ -342,6 +350,53 @@ def test_fnsku_labels_require_a_box_for_every_counted_unit():
     scans = [{"external_id": "111", "box_number": 1}]
     with pytest.raises(ValueError, match="box number"):
         labels_by_box(lines=lines, box_scans=scans)
+
+
+def test_fnsku_labels_for_one_box_ignore_units_outside_that_box():
+    lines = [
+        {"merchant_sku": "A", "external_id": "111", "shipped": 2, "counted": 2},
+        {"merchant_sku": "B", "external_id": "222", "shipped": 1, "counted": 1},
+    ]
+    scans = [
+        {"external_id": "111", "box_number": 1},
+        {"external_id": "111", "box_number": 2},
+    ]
+    unknown = [{"merchant_sku": "", "external_id": "810173985413", "counted": 1}]
+    scans.append({"external_id": "810173985413", "box_number": 1})
+    assert labels_by_box(
+        lines=lines,
+        box_scans=scans,
+        box_number=1,
+        unknown_lines=unknown,
+    ) == [
+        (1, [("111", 1), ("810173985413", 1)]),
+    ]
+    with pytest.raises(ValueError, match="filter"):
+        labels_by_box(lines=lines, box_scans=scans, box_number=9)
+
+
+def test_fnsku_labels_for_a_sku_search_skip_other_items():
+    lines = [
+        {"merchant_sku": "845028000003", "external_id": "845028000003", "shipped": 2, "counted": 2},
+        {"merchant_sku": "999", "external_id": "111", "shipped": 1, "counted": 1},
+    ]
+    scans = [
+        {"external_id": "845028000003", "box_number": 1},
+        {"external_id": "845028000003", "box_number": 4},
+        {"external_id": "111", "box_number": 1},
+    ]
+    assert labels_by_box(lines=lines, box_scans=scans, search="845028") == [
+        (1, [("845028000003", 1)]),
+        (4, [("845028000003", 1)]),
+    ]
+    assert labels_by_box(
+        lines=lines,
+        box_scans=scans,
+        box_number=1,
+        search="845028",
+    ) == [
+        (1, [("845028000003", 1)]),
+    ]
 
 
 def test_report_filename_uses_the_upload_name_not_the_shipment_id():

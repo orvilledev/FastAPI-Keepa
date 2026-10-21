@@ -316,19 +316,49 @@ def build_boxed_rows(
     return rows
 
 
+def _matches_label_search(line: dict, needle: str) -> bool:
+    """Same match as the shipment table: merchant SKU or external-id contains the term."""
+    sku = str(line.get("merchant_sku") or "").lower()
+    code = strip_upc_label(str(line.get("external_id") or "")).lower()
+    return needle in sku or needle in code
+
+
 def labels_by_box(
     *,
     lines: list[dict],
     box_scans: list[dict],
+    box_number: int | None = None,
+    search: str | None = None,
+    unknown_lines: list[dict] | None = None,
 ) -> list[tuple[int, list[tuple[str, int]]]]:
-    """Counted shipment units grouped for printing: box 1, then box 2, and so on.
+    """Counted units grouped for printing: box 1, then box 2, and so on.
 
-    Within a box, identical external-ids are one quantity. Units with no box
-    cannot be sorted, so the print is refused. Scans that are not on the
-    shipment are left out.
+    Within a box, identical external-ids are one quantity. ``box_number`` and
+    ``search`` keep only the rows the shipment table is showing. A box filter
+    does not require units outside that box to be boxed. With no filter, units
+    that have no box still stop the print, and scans that are not on the
+    shipment are left out. A filter includes those scans when they match.
     """
-    rows = build_boxed_rows(lines=lines, unknown_lines=[], box_scans=box_scans)
+    needle = (search or "").strip().lower()
+    selected_lines = lines
+    selected_unknown: list[dict] = []
+    if needle:
+        selected_lines = [line for line in lines if _matches_label_search(line, needle)]
+        selected_unknown = [
+            line for line in (unknown_lines or []) if _matches_label_search(line, needle)
+        ]
+    elif box_number is not None:
+        selected_unknown = list(unknown_lines or [])
+    rows = build_boxed_rows(
+        lines=selected_lines,
+        unknown_lines=selected_unknown,
+        box_scans=box_scans,
+    )
+    if box_number is not None:
+        rows = [row for row in rows if row[1] == box_number]
     if not rows:
+        if needle or box_number is not None:
+            raise ValueError("Nothing in this filter has a counted unit to print.")
         raise ValueError("There are no counted units to print.")
     if any(box is None for _, box in rows):
         raise ValueError(

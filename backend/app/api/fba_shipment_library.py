@@ -679,10 +679,16 @@ def _catalog_row_for(external_id: str, matches: list[dict]) -> dict | None:
 @handle_api_errors("build FBA FNSKU labels")
 def fba_fnsku_labels(
     upload_id: str,
+    box: Optional[int] = Query(None, ge=1, le=MAX_BOX_NUMBER),
+    search: Optional[str] = Query(None),
     current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
-    """Label Station products for this shipment, one group per box, in box order."""
+    """Label Station products for this shipment, one group per box, in box order.
+
+    ``box`` and ``search`` match the shipment table. With either set, only those
+    units are returned.
+    """
     repo = FbaShipmentLibraryRepository(db)
     can_manage_any = is_superadmin_user(current_user, db)
     try:
@@ -696,7 +702,15 @@ def fba_fnsku_labels(
         counts = repo.counts_for_lines([str(row.get("id") or "") for row in rows])
         for row in rows:
             row["counted"] = counts.get(str(row.get("id") or ""), 0)
-        grouped = labels_by_box(lines=rows, box_scans=repo.list_box_scans(upload_id))
+        needle = (search or "").strip()
+        unknown_rows = repo.list_unknown_scans(upload_id) if box is not None or needle else []
+        grouped = labels_by_box(
+            lines=rows,
+            box_scans=repo.list_box_scans(upload_id),
+            box_number=box,
+            search=needle,
+            unknown_lines=unknown_rows,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

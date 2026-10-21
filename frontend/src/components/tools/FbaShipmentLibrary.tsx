@@ -696,7 +696,10 @@ export default function FbaShipmentLibrary() {
     setPrintingLabels(true)
     setError(null)
     try {
-      const plan = await fbaShipmentLibraryApi.fnskuLabels(upload.id)
+      const plan = await fbaShipmentLibraryApi.fnskuLabels(upload.id, {
+        box: boxForList,
+        search: skuQuery,
+      })
       const items = labelPrintItems(plan)
       if (items.length === 0) {
         setError('There are no counted units to print.')
@@ -707,6 +710,11 @@ export default function FbaShipmentLibrary() {
       const idMode = getSelectedLabelIdMode()
       const customText = getStoredCustomLabelText()
       const boxCount = plan.boxes.length
+      const scope = [
+        boxForList != null ? `Box ${boxForList}` : '',
+        skuQuery ? `"${skuQuery}"` : '',
+      ].filter(Boolean).join(', ')
+      const where = scope ? ` for ${scope}` : ' in box order'
       const isElectron = Boolean(window.desktop?.isElectron && window.desktop?.printZpl)
       if (isElectron) {
         const printerName = await printerForLabels()
@@ -719,11 +727,11 @@ export default function FbaShipmentLibrary() {
         if (!result.ok) throw new Error(result.message || 'Print failed')
         auditAction(
           'label_station.print_queue',
-          `Printed ${plan.label_count} FNSKU label(s) for ${upload.shipment_id} by box on ${printerName}`,
-          { quantity: plan.label_count, printer: printerName, idMode, boxCount },
+          `Printed ${plan.label_count} FNSKU label(s) for ${upload.shipment_id}${where} on ${printerName}`,
+          { quantity: plan.label_count, printer: printerName, idMode, boxCount, box: boxForList, search: skuQuery },
         )
         setNotice(
-          `Sent ${plan.label_count} FNSKU label${plan.label_count === 1 ? '' : 's'} in box order to ${printerName}.`,
+          `Sent ${plan.label_count} FNSKU label${plan.label_count === 1 ? '' : 's'}${where} to ${printerName}.`,
         )
       } else {
         const blob = buildWarehouseLabelBatchPdfBlob(items, dpi, size, idMode, customText)
@@ -735,11 +743,11 @@ export default function FbaShipmentLibrary() {
         downloadBlob(blob, filename)
         auditAction(
           'label_station.download_pdf_queue',
-          `Downloaded ${plan.label_count} FNSKU label(s) for ${upload.shipment_id} by box as ${filename}`,
-          { quantity: plan.label_count, filename, idMode, boxCount },
+          `Downloaded ${plan.label_count} FNSKU label(s) for ${upload.shipment_id}${where} as ${filename}`,
+          { quantity: plan.label_count, filename, idMode, boxCount, box: boxForList, search: skuQuery },
         )
         setNotice(
-          `Downloaded ${filename} (${plan.label_count} label${plan.label_count === 1 ? '' : 's'}, sorted by box).`,
+          `Downloaded ${filename} (${plan.label_count} label${plan.label_count === 1 ? '' : 's'}${where}).`,
         )
       }
     } catch (err) {

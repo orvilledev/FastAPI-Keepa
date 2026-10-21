@@ -3218,8 +3218,15 @@ export const fbaShipmentLibraryApi = {
     const response = await api.post(`/api/v1/fba-shipment-library/${uploadId}/archive`)
     return response.data
   },
-  fnskuLabels: async (uploadId: string): Promise<FbaFnskuLabels> => {
-    const response = await api.get(`/api/v1/fba-shipment-library/${uploadId}/fnsku-labels`)
+  fnskuLabels: async (
+    uploadId: string,
+    filters?: { box?: number; search?: string },
+  ): Promise<FbaFnskuLabels> => {
+    const params: { box?: number; search?: string } = {}
+    if (filters?.box != null) params.box = filters.box
+    const search = filters?.search?.trim()
+    if (search) params.search = search
+    const response = await api.get(`/api/v1/fba-shipment-library/${uploadId}/fnsku-labels`, { params })
     return response.data
   },
   downloadReport: async (uploadId: string): Promise<{ blob: Blob; filename: string }> => {
