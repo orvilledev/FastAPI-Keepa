@@ -28,6 +28,25 @@ function toolMark(label: string): { initials: string; tile: string } {
 const fieldClass =
   'w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none ring-[#81B81D]/30 placeholder:text-gray-400 focus:ring-2 dark:border-border dark:bg-surface dark:text-slate-100'
 
+const LINK_VIEW_KEY = 'myspace-custom-links-view'
+type LinkView = 'cards' | 'list' | 'compact'
+
+const LINK_VIEWS: { id: LinkView; label: string }[] = [
+  { id: 'cards', label: 'Cards' },
+  { id: 'list', label: 'List' },
+  { id: 'compact', label: 'Compact' },
+]
+
+function readLinkView(): LinkView {
+  try {
+    const stored = window.localStorage.getItem(LINK_VIEW_KEY)
+    if (stored === 'cards' || stored === 'list' || stored === 'compact') return stored
+  } catch {
+    /* private browsing can block storage */
+  }
+  return 'cards'
+}
+
 type Props = {
   personalLinks: QuickAccessLink[]
   onPersonalLinksChange: (links: QuickAccessLink[]) => void
@@ -61,6 +80,16 @@ export default function CustomLinksPanel({
   const [shareResults, setShareResults] = useState<QuickAccessPerson[]>([])
   const [selectedEmails, setSelectedEmails] = useState<string[]>([])
   const [shareError, setShareError] = useState('')
+  const [linkView, setLinkView] = useState<LinkView>(readLinkView)
+
+  const chooseLinkView = (next: LinkView) => {
+    setLinkView(next)
+    try {
+      window.localStorage.setItem(LINK_VIEW_KEY, next)
+    } catch {
+      /* keep the choice for this visit */
+    }
+  }
 
   const refreshPersonal = async () => {
     const rows = await quickAccessApi.getLinks()
@@ -250,7 +279,32 @@ export default function CustomLinksPanel({
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div
+          role="group"
+          aria-label="Link view"
+          className="inline-flex rounded-full bg-white p-1 shadow-sm ring-1 ring-gray-200 dark:bg-surface dark:ring-border"
+        >
+          {LINK_VIEWS.map((option) => {
+            const selected = linkView === option.id
+            return (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => chooseLinkView(option.id)}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                  selected
+                    ? 'bg-[#404040] text-white'
+                    : 'text-gray-500 hover:text-[#404040] dark:hover:text-slate-100'
+                }`}
+              >
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => {
@@ -271,6 +325,7 @@ export default function CustomLinksPanel({
         >
           Add link
         </button>
+        </div>
       </div>
 
       {groupsError && (
@@ -342,7 +397,7 @@ export default function CustomLinksPanel({
         <div className="space-y-6">
           {personalLinks.length > 0 && (
             <CategoryBlock title="Personal" subtitle="Only you can see these">
-              <LinkGrid links={personalLinks} busyKey={busyKey} onEdit={startEdit} onRemove={removeLink} />
+              <LinkGrid links={personalLinks} busyKey={busyKey} onEdit={startEdit} onRemove={removeLink} view={linkView} />
             </CategoryBlock>
           )}
 
@@ -484,7 +539,7 @@ export default function CustomLinksPanel({
               {group.links.length === 0 ? (
                 <p className="text-sm text-gray-400">No links in this category yet.</p>
               ) : (
-                <LinkGrid links={group.links} busyKey={busyKey} onEdit={startEdit} onRemove={removeLink} showAuthor />
+                <LinkGrid links={group.links} busyKey={busyKey} onEdit={startEdit} onRemove={removeLink} showAuthor view={linkView} />
               )}
             </CategoryBlock>
           ))}
@@ -519,28 +574,89 @@ function CategoryBlock({
   )
 }
 
+function LinkActions({
+  link,
+  busyKey,
+  onEdit,
+  onRemove,
+}: {
+  link: QuickAccessLink
+  busyKey: string | null
+  onEdit: (link: QuickAccessLink) => void
+  onRemove: (link: QuickAccessLink) => void
+}) {
+  if (link.can_edit === false) return null
+  return (
+    <div className="flex gap-2 text-xs">
+      <button type="button" onClick={() => onEdit(link)} className="rounded-full bg-white px-2.5 py-1 font-medium text-gray-600 ring-1 ring-gray-200 dark:bg-surface dark:text-slate-200 dark:ring-border">
+        Edit
+      </button>
+      <button
+        type="button"
+        disabled={busyKey === `link:${link.id}`}
+        onClick={() => onRemove(link)}
+        className="rounded-full px-2.5 py-1 font-medium text-gray-400 hover:text-red-600"
+      >
+        Remove
+      </button>
+    </div>
+  )
+}
+
 function LinkGrid({
   links,
   busyKey,
   onEdit,
   onRemove,
   showAuthor = false,
+  view,
 }: {
   links: QuickAccessLink[]
   busyKey: string | null
   onEdit: (link: QuickAccessLink) => void
   onRemove: (link: QuickAccessLink) => void
   showAuthor?: boolean
+  view: LinkView
 }) {
+  if (view === 'list') {
+    return (
+      <ul className="divide-y divide-gray-100 overflow-hidden rounded-2xl bg-gray-50 ring-1 ring-gray-100 dark:divide-border dark:bg-surface-muted dark:ring-border">
+        {links.map((link) => {
+          const mark = toolMark(link.title)
+          return (
+            <li key={link.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
+              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold ${mark.tile}`}>
+                {mark.initials}
+              </span>
+              <a
+                href={normalizeExternalUrl(link.url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="min-w-[8rem] flex-1 truncate text-sm font-semibold text-[#404040] hover:text-[#5a8a12] dark:text-slate-100"
+              >
+                {link.title}
+              </a>
+              <p className="min-w-0 max-w-full flex-[2] truncate font-mono text-[11px] text-gray-400 sm:max-w-md">{link.url}</p>
+              {showAuthor && (link.added_by_name || link.added_by_email) && (
+                <p className="shrink-0 text-[11px] text-gray-400">{link.added_by_name || link.added_by_email}</p>
+              )}
+              <LinkActions link={link} busyKey={busyKey} onEdit={onEdit} onRemove={onRemove} />
+            </li>
+          )
+        })}
+      </ul>
+    )
+  }
+
+  const compact = view === 'compact'
   return (
-    <ul className="grid gap-3 sm:grid-cols-2">
+    <ul className={compact ? 'grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid gap-3 sm:grid-cols-2'}>
       {links.map((link) => {
         const mark = toolMark(link.title)
-        const canEdit = link.can_edit !== false
         return (
-          <li key={link.id} className="rounded-2xl bg-gray-50 p-4 ring-1 ring-gray-100 dark:bg-surface-muted dark:ring-border">
+          <li key={link.id} className={`rounded-2xl bg-gray-50 ring-1 ring-gray-100 dark:bg-surface-muted dark:ring-border ${compact ? 'p-3' : 'p-4'}`}>
             <div className="flex items-start gap-3">
-              <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${mark.tile}`}>
+              <span className={`flex shrink-0 items-center justify-center rounded-xl font-bold ${mark.tile} ${compact ? 'h-8 w-8 text-[11px]' : 'h-11 w-11 text-sm'}`}>
                 {mark.initials}
               </span>
               <div className="min-w-0 flex-1">
@@ -556,23 +672,18 @@ function LinkGrid({
                 {showAuthor && (link.added_by_name || link.added_by_email) && (
                   <p className="mt-1 text-[11px] text-gray-400">Added by {link.added_by_name || link.added_by_email}</p>
                 )}
-                {canEdit && (
-                  <div className="mt-3 flex gap-2 text-xs">
-                    <button type="button" onClick={() => onEdit(link)} className="rounded-full bg-white px-2.5 py-1 font-medium text-gray-600 ring-1 ring-gray-200">
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busyKey === `link:${link.id}`}
-                      onClick={() => onRemove(link)}
-                      className="rounded-full px-2.5 py-1 font-medium text-gray-400 hover:text-red-600"
-                    >
-                      Remove
-                    </button>
+                {!compact && (
+                  <div className="mt-3">
+                    <LinkActions link={link} busyKey={busyKey} onEdit={onEdit} onRemove={onRemove} />
                   </div>
                 )}
               </div>
             </div>
+            {compact && (
+              <div className="mt-2">
+                <LinkActions link={link} busyKey={busyKey} onEdit={onEdit} onRemove={onRemove} />
+              </div>
+            )}
           </li>
         )
       })}
