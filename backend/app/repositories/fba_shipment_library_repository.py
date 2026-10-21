@@ -21,7 +21,8 @@ _MIGRATION_HINT = (
     "Run backend/database/migrations/create_fba_shipment_library.sql, "
     "create_fba_shipment_counts.sql, create_fba_shipment_unknown_scans.sql, "
     "create_fba_shipment_box_scans.sql, "
-    "add_fba_shipment_library_access.sql, and add_fba_shipment_library_trash.sql "
+    "add_fba_shipment_library_access.sql, add_fba_shipment_library_trash.sql, "
+    "and add_fba_shipment_name.sql "
     "in the Supabase SQL Editor."
 )
 _INSERT_CHUNK = 500
@@ -49,6 +50,16 @@ def _escape_like(term: str) -> str:
 
 def _raise_persist_error(exc: Exception) -> None:
     message = str(exc).lower()
+    if "shipment_name" in message and (
+        "schema cache" in message
+        or "does not exist" in message
+        or "column" in message
+        or "pgrst204" in message
+    ):
+        raise ValueError(
+            "The FBA Order Checker needs a database update before it can store the shipment name. "
+            "Run backend/database/migrations/add_fba_shipment_name.sql in the Supabase SQL Editor."
+        ) from exc
     missing_table = (
         "does not exist" in message
         or "schema cache" in message
@@ -318,9 +329,11 @@ class FbaShipmentLibraryRepository:
         created_by_email: str,
         created_by_name: str,
         lines: List[Dict[str, Any]],
+        shipment_name: str = "",
     ) -> dict:
         payload = {
             "shipment_id": shipment_id,
+            "shipment_name": shipment_name,
             "source_filename": source_filename,
             "line_count": line_count,
             "total_shipped": total_shipped,

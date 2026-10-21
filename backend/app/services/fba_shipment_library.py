@@ -1,7 +1,7 @@
 """Parse the official Amazon FBA shipment TSV.
 
-Only the yellow template fields are kept:
-Shipment ID, Merchant SKU, external-id, and Shipped.
+The preamble Name and Shipment ID are kept, plus the yellow item fields:
+Merchant SKU, external-id, and Shipped.
 """
 from __future__ import annotations
 
@@ -66,6 +66,7 @@ class FbaShipmentLine:
 class ParsedFbaShipment:
     shipment_id: str
     lines: list[FbaShipmentLine]
+    shipment_name: str = ""
 
     @property
     def total_shipped(self) -> int:
@@ -132,12 +133,16 @@ def parse_fba_shipment_tsv(content: bytes) -> ParsedFbaShipment:
         )
 
     shipment_id = ""
+    shipment_name = ""
     for row in rows[:header_index]:
         if len(row) < 2:
             continue
-        if _norm_header(row[0]) == "shipment id":
-            shipment_id = (row[1] or "").strip()
-            break
+        label = _norm_header(row[0])
+        value = (row[1] or "").strip()
+        if label == "shipment id" and not shipment_id:
+            shipment_id = value
+        elif label in {"name", "shipment name"} and not shipment_name:
+            shipment_name = value
     if not shipment_id:
         raise FbaShipmentParseError("Shipment ID is missing from the top of the file.")
 
@@ -168,7 +173,36 @@ def parse_fba_shipment_tsv(content: bytes) -> ParsedFbaShipment:
     if not lines:
         raise FbaShipmentParseError("The file has a Shipment ID but no item rows to store.")
 
-    return ParsedFbaShipment(shipment_id=shipment_id, lines=lines)
+    return ParsedFbaShipment(shipment_id=shipment_id, lines=lines, shipment_name=shipment_name)
+
+
+_UNSAFE_FILENAME = re.compile(r'[\\/:*?"<>|\x00-\x1f]+')
+
+
+def _filename_stem(value: str) -> str:
+    """A single path segment that is safe to put in a download header."""
+    cleaned = _UNSAFE_FILENAME.sub(" ", value or "")
+    cleaned = " ".join(cleaned.split()).strip(" .")
+    try:
+        cleaned.encode("latin-1")
+    except UnicodeEncodeError:
+        cleaned = cleaned.encode("latin-1", "replace").decode("latin-1")
+        cleaned = cleaned.replace("?", " ")
+        cleaned = " ".join(cleaned.split()).strip(" .")
+    return cleaned[:180]
+
+
+def accounting_report_filename(shipment_name: str, shipment_id: str = "") -> str:
+    """Name the download after the upload's Name field, not the Shipment ID.
+
+    Shipments stored before that field was saved keep the previous
+    ``{Shipment ID} Accounting.xlsx`` name.
+    """
+    stem = _filename_stem(shipment_name)
+    if stem:
+        return f"{stem} Accounting.xlsx"
+    fallback = _filename_stem(shipment_id) or "shipment"
+    return f"{fallback} Accounting.xlsx"
 
 
 BOXED_SHEET = "Boxed"
@@ -546,6 +580,7 @@ def build_accounting_workbook(
     lines: list[dict],
     unknown_lines: list[dict],
     box_scans: list[dict] | None = None,
+    shipment_name: str = "",
 ) -> bytes:
     """Excel report of one user's count against the shipment.
 
@@ -571,13 +606,14 @@ def build_accounting_workbook(
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Accounting"
+    sheet.append(["Name", shipment_name])
     sheet.append(["Shipment ID", shipment_id])
     sheet.append(["Counted by", counted_by])
     sheet.append(["Generated", datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")])
     sheet.append([])
     header = ["Merchant SKU", "external-id", "Shipped", "Counted", "Missing", "Status", "Boxes"]
     sheet.append(header)
-    for cell in sheet[5]:
+    for cell in sheet[sheet.max_row]:
         cell.font = Font(bold=True)
     for line in lines:
         shipped = int(line.get("shipped") or 0)

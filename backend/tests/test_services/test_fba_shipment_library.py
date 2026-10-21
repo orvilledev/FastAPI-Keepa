@@ -12,6 +12,7 @@ from app.services.fba_shipment_library import (
     STATUS_MISSING,
     STATUS_NOT_IN_LIST,
     STATUS_OVERAGE,
+    accounting_report_filename,
     build_accounting_workbook,
     build_boxed_rows,
     choose_line_for_scan,
@@ -41,6 +42,7 @@ def test_parser_keeps_only_yellow_fields():
     parsed = parse_fba_shipment_tsv(OFFICIAL.encode("utf-8"))
 
     assert parsed.shipment_id == "FBA19T3YGF07"
+    assert parsed.shipment_name == "TO192902"
     assert parsed.total_shipped == 7
     assert [(line.merchant_sku, line.external_id, line.shipped) for line in parsed.lines] == [
         ("845028000003", "845028000003", 3),
@@ -96,7 +98,12 @@ def _accounting_counts(sheet) -> dict[str, int]:
     """Counted per external-id from the Accounting rows, including the Not in the list block."""
     totals: dict[str, int] = {}
     in_unknown_block = False
-    for row in sheet.iter_rows(min_row=6, values_only=True):
+    started = False
+    for row in sheet.iter_rows(values_only=True):
+        if not started:
+            if row[0] == "Merchant SKU":
+                started = True
+            continue
         if row[0] == "Not in the list":
             in_unknown_block = True
             continue
@@ -140,15 +147,25 @@ def test_boxed_tab_matches_the_users_example_workbook():
     ]
     workbook = _read_workbook(
         build_accounting_workbook(
-            shipment_id="FBA19T3YGF07", counted_by="Test", lines=lines, unknown_lines=[], box_scans=scans
+            shipment_id="FBA19T3YGF07",
+            shipment_name="TO192902",
+            counted_by="Test",
+            lines=lines,
+            unknown_lines=[],
+            box_scans=scans,
         )
     )
     assert workbook.sheetnames == ["Accounting", "Boxed"]
     accounting, boxed = workbook["Accounting"], workbook["Boxed"]
-    assert [c.value for c in accounting[5]] == [
+    assert [c.value for c in accounting[1]][:2] == ["Name", "TO192902"]
+    assert [c.value for c in accounting[2]][:2] == ["Shipment ID", "FBA19T3YGF07"]
+    assert [c.value for c in accounting[3]][:2] == ["Counted by", "Test"]
+    assert accounting[4][0].value == "Generated"
+    assert str(accounting[4][1].value).endswith(" UTC")
+    assert [c.value for c in accounting[6]] == [
         "Merchant SKU", "external-id", "Shipped", "Counted", "Missing", "Status", "Boxes",
     ]
-    assert [c.value for c in accounting[6]] == [
+    assert [c.value for c in accounting[7]] == [
         "845028000003", "845028000003", 3, 3, 0, "All Accounted", "Box 1: 2, Box 2: 1",
     ]
     assert [c.value for c in boxed[1]][:3] == ["external-id", "Counted", "Box Number"]
@@ -300,6 +317,22 @@ def test_scan_request_validates_box_number():
             FbaShipmentScanRequest(barcode="1", box_number=bad)
 
 
+def test_report_filename_uses_the_upload_name_not_the_shipment_id():
+    assert accounting_report_filename("TO192902", "FBA19T3YGF07") == "TO192902 Accounting.xlsx"
+    assert accounting_report_filename("  TO192902  ", "FBA19T3YGF07") == "TO192902 Accounting.xlsx"
+    assert accounting_report_filename('TO/1:2*?"<>|', "FBA1") == "TO 1 2 Accounting.xlsx"
+    assert accounting_report_filename("", "FBA19T3YGF07") == "FBA19T3YGF07 Accounting.xlsx"
+    assert accounting_report_filename("", "") == "shipment Accounting.xlsx"
+
+
+def test_parser_reads_a_missing_name_as_blank():
+    text = OFFICIAL.replace("Name\tTO192902\n", "")
+    parsed = parse_fba_shipment_tsv(text.encode("utf-8"))
+    assert parsed.shipment_id == "FBA19T3YGF07"
+    assert parsed.shipment_name == ""
+    assert len(parsed.lines) == 2
+
+
 def test_parser_rejects_a_file_without_the_item_header():
     with pytest.raises(FbaShipmentParseError, match="Merchant SKU"):
         parse_fba_shipment_tsv(b"Shipment ID\tFBA1\nName\tTO1\n")
@@ -310,6 +343,7 @@ def test_official_sample_file():
     parsed = parse_fba_shipment_tsv(SAMPLE.read_bytes())
 
     assert parsed.shipment_id == "FBA19T3YGF07"
+    assert parsed.shipment_name == "TO192902"
     assert parsed.lines[0].merchant_sku == "845028000003"
     assert parsed.lines[0].external_id == "845028000003"
     assert parsed.lines[0].shipped == 3

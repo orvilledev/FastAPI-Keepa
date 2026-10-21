@@ -3023,6 +3023,7 @@ export const catalogOldSkusApi = {
 export type FbaShipmentUpload = {
   id: string
   shipment_id: string
+  shipment_name: string
   source_filename: string
   line_count: number
   total_shipped: number

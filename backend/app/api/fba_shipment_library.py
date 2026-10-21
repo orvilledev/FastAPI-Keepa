@@ -26,6 +26,7 @@ from app.repositories.fba_shipment_library_repository import FbaShipmentLibraryR
 from app.services.fba_shipment_library import (
     MAX_BOX_NUMBER,
     FbaShipmentParseError,
+    accounting_report_filename,
     build_accounting_workbook,
     choose_line_for_scan,
     is_fully_accounted,
@@ -146,6 +147,7 @@ def _upload_response(
     return FbaShipmentUploadResponse(
         id=row["id"],
         shipment_id=row.get("shipment_id") or "",
+        shipment_name=row.get("shipment_name") or "",
         source_filename=row.get("source_filename") or "",
         line_count=int(row.get("line_count") or 0),
         total_shipped=int(row.get("total_shipped") or 0),
@@ -656,8 +658,10 @@ def download_fba_accounting_report(
         dict.fromkeys(counter_names[user] for user in counter_ids if counter_names.get(user))
     )
     try:
+        shipment_name = upload.get("shipment_name") or ""
         content = build_accounting_workbook(
             shipment_id=upload.get("shipment_id") or "shipment",
+            shipment_name=shipment_name,
             counted_by=counted_by or name or (current_user.get("email") or ""),
             lines=rows,
             unknown_lines=unknown_rows,
@@ -665,7 +669,7 @@ def download_fba_accounting_report(
         )
     except ValueError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    filename = f"{upload.get('shipment_id') or 'shipment'} Accounting.xlsx"
+    filename = accounting_report_filename(shipment_name, upload.get("shipment_id") or "")
     return StreamingResponse(
         iter([content]),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -682,7 +686,7 @@ async def import_fba_shipment(
     current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
-    """Store Shipment ID, Merchant SKU, external-id, and Shipped. Does not replace earlier uploads."""
+    """Store Name, Shipment ID, Merchant SKU, external-id, and Shipped. Does not replace earlier uploads."""
     _validate_name(file)
     raw = await _read_upload(file)
     try:
@@ -695,6 +699,7 @@ async def import_fba_shipment(
     try:
         saved = repo.create_upload(
             shipment_id=parsed.shipment_id,
+            shipment_name=parsed.shipment_name,
             source_filename=(file.filename or "").strip(),
             line_count=len(parsed.lines),
             total_shipped=parsed.total_shipped,

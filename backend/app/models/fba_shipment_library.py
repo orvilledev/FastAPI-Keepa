@@ -16,6 +16,7 @@ from app.services.fba_shipment_library import (
 class FbaShipmentUploadResponse(BaseModel):
     id: UUID
     shipment_id: str
+    shipment_name: str = ""
     source_filename: str = ""
     line_count: int = 0
     total_shipped: int = 0
