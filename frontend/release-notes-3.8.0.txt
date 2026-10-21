@@ -1,0 +1,27 @@
+MSW Overwatch 3.8.0 — desktop and web release
+
+Feature release since 3.7.5. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Shipment Manager
+- Available to every signed-in account except the Warehouse1 and Hello stations
+- Groups sit apart from individual shipments, with **Create group** next to **Register shipment**
+- Ungrouped shipments return to the individual list; the dropdown is **Move to Group**
+- The person who registered a shipment can rename it, and a folder can register the next shipment in place
+- The shipment name opens the record; per-shipment **Download Ledger** is removed
+- Individual shipments can be archived and restored from Archive
+
+## FBA Order Checker
+- Every scan needs a box number, and each counted unit's box can be edited without reloading the list
+- The open shipment shows the scan count above the box and scan fields
+- A box view counts only the units in that box; an empty box shows the full shipment
+- A scan states the box count, the UPC total, and any missing or overage, and lists that UPC in other boxes
+- One counted unit can be deleted so that UPC count drops by 1
+- The report lists units by box and reads every box scan
+- A box search no longer marks a fully counted UPC as missing
+- Scans that are not the merchant SKU or external ID being searched stay hidden
+
+## My Space
+- Category links count toward the Custom links total, so shared ledgers are included
+
+## Upgrade from 3.7.5
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.8.0, download it, then prompt to install now or later. Web/PWA users get 3.8.0 on the next deploy/refresh.
