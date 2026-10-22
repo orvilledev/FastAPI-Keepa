@@ -41,6 +41,52 @@ def count_progress(shipped: int, counted: int) -> tuple[int, str]:
     return missing, STATUS_MISSING
 
 
+def share_audience(upload: dict) -> list[str] | None:
+    """None means every worker. A list means only those user ids, plus the owner.
+
+    A missing value or database NULL stays open to everyone, which is how
+    shipments shared before custom sharing was added are stored.
+    """
+    if "shared_with" not in upload or upload.get("shared_with") is None:
+        return None
+    raw = upload.get("shared_with")
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text or text.lower() == "null":
+            return None
+        text = text.strip("{}")
+        if not text:
+            return []
+        return [part.strip().strip('"') for part in text.split(",") if part.strip()]
+    if not isinstance(raw, list):
+        return None
+    return [str(item) for item in raw if item]
+
+
+def shipment_open_to(upload: dict, user_id: str, *, can_manage_any: bool = False) -> bool:
+    """True when this person may open the shipment."""
+    if can_manage_any:
+        return True
+    if str(upload.get("created_by") or "") == str(user_id or ""):
+        return True
+    if upload.get("trashed_at"):
+        return False
+    if upload.get("is_locked"):
+        return False
+    audience = share_audience(upload)
+    if audience is None:
+        return True
+    return str(user_id or "") in audience
+
+
+def upload_visibility_filter(viewer_id: str) -> str:
+    """PostgREST filter: owner, or an unlocked shipment shared with everyone or this person."""
+    return (
+        f"created_by.eq.{viewer_id},"
+        f"and(is_locked.eq.false,or(shared_with.is.null,shared_with.cs.{{{viewer_id}}}))"
+    )
+
+
 def choose_line_for_scan(matches: list[dict]) -> dict:
     """Add the scan to the first matching line that still has units left."""
     ordered = sorted(matches, key=lambda row: int(row.get("line_number") or 0))

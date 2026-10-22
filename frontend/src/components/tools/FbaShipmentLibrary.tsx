@@ -13,6 +13,7 @@ import { auditAction } from '../../lib/auditEvents'
 import {
   fbaShipmentLibraryApi,
   type FbaFnskuLabels,
+  type FbaShareUser,
   type FbaShipmentDetail,
   type FbaShipmentLine,
   type FbaShipmentUnit,
@@ -190,6 +191,12 @@ function DebouncedField({
   )
 }
 
+function accessLabel(upload: Pick<FbaShipmentUpload, 'is_locked' | 'shared_with_everyone'>): string {
+  if (upload.is_locked) return 'Locked'
+  if (upload.shared_with_everyone === false) return 'Custom'
+  return 'Shared'
+}
+
 function ScanEntryForm({
   resetKey,
   scanning,
@@ -321,6 +328,14 @@ export default function FbaShipmentLibrary() {
   const [unknownLines, setUnknownLines] = useState<FbaShipmentLine[]>([])
   const [scanAlert, setScanAlert] = useState<string | null>(null)
   const [boxScanError, setBoxScanError] = useState<string | null>(null)
+  const [shareTarget, setShareTarget] = useState<FbaShipmentUpload | null>(null)
+  const [shareUsers, setShareUsers] = useState<FbaShareUser[]>([])
+  const [shareEveryone, setShareEveryone] = useState(false)
+  const [shareSelected, setShareSelected] = useState<string[]>([])
+  const [shareQuery, setShareQuery] = useState('')
+  const [shareLoading, setShareLoading] = useState(false)
+  const [shareSaving, setShareSaving] = useState(false)
+  const [shareFormError, setShareFormError] = useState<string | null>(null)
   const [lineTotal, setLineTotal] = useState(0)
   const [boxStored, setBoxStored] = useState<number | null>(null)
   const [lineOffset, setLineOffset] = useState(0)
@@ -841,15 +856,20 @@ export default function FbaShipmentLibrary() {
     }
   }
 
+  const applyAccess = (saved: FbaShipmentUpload, noticeText: string) => {
+    setUploads((current) => current.map((item) => (item.id === saved.id ? { ...item, ...saved } : item)))
+    setSelected((current) =>
+      current?.id === saved.id ? { ...current, ...saved, fully_accounted: current.fully_accounted } : current,
+    )
+    setNotice(noticeText)
+  }
+
   const handleAccess = async (upload: FbaShipmentUpload, locked: boolean) => {
     setError(null)
     try {
-      const saved = await fbaShipmentLibraryApi.setAccess(upload.id, locked)
-      setUploads((current) => current.map((item) => (item.id === saved.id ? { ...item, ...saved } : item)))
-      setSelected((current) =>
-        current?.id === saved.id ? { ...current, ...saved, fully_accounted: current.fully_accounted } : current,
-      )
-      setNotice(
+      const saved = await fbaShipmentLibraryApi.setAccess(upload.id, { locked })
+      applyAccess(
+        saved,
         locked
           ? `${saved.shipment_id} is locked. Only you can open it.`
           : `${saved.shipment_id} is shared. Other workers can open it and count on their own.`,
@@ -857,6 +877,59 @@ export default function FbaShipmentLibrary() {
       if (locked && !saved.owned_by_me) setRefreshKey((value) => value + 1)
     } catch (err) {
       setError(errorMessage(err, 'Failed to change who can open this shipment.'))
+    }
+  }
+
+  const openShare = async (upload: FbaShipmentUpload) => {
+    setShareTarget(upload)
+    setShareEveryone(upload.shared_with_everyone !== false)
+    setShareSelected(upload.shared_with_everyone === false ? upload.shared_with || [] : [])
+    setShareQuery('')
+    setShareUsers([])
+    setShareFormError(null)
+    setShareLoading(true)
+    setError(null)
+    try {
+      const people = await fbaShipmentLibraryApi.shareUsers()
+      setShareUsers(people)
+      setShareSelected((current) => current.filter((id) => people.some((person) => person.id === id)))
+    } catch (err) {
+      setShareTarget(null)
+      setError(errorMessage(err, 'Failed to load people to share with.'))
+    } finally {
+      setShareLoading(false)
+    }
+  }
+
+  const saveShare = async () => {
+    if (!shareTarget || shareSaving) return
+    if (!shareEveryone && shareSelected.length === 0) {
+      setShareFormError('Choose at least one person, or share with everyone.')
+      return
+    }
+    setShareSaving(true)
+    setShareFormError(null)
+    setError(null)
+    try {
+      const saved = await fbaShipmentLibraryApi.setAccess(shareTarget.id, {
+        locked: false,
+        everyone: shareEveryone,
+        userIds: shareEveryone ? [] : shareSelected,
+      })
+      const names = shareUsers
+        .filter((person) => shareSelected.includes(person.id))
+        .map((person) => person.name)
+      applyAccess(
+        saved,
+        saved.shared_with_everyone
+          ? `${saved.shipment_id} is shared. Other workers can open it and count on their own.`
+          : `${saved.shipment_id} is shared with ${names.join(', ') || `${shareSelected.length} people`}.`,
+      )
+      setShareTarget(null)
+    } catch (err) {
+      setShareFormError(errorMessage(err, 'Failed to share this shipment.'))
+    } finally {
+      setShareSaving(false)
     }
   }
 
@@ -1005,6 +1078,13 @@ export default function FbaShipmentLibrary() {
   const linePageCount = Math.max(1, Math.ceil(lineTotal / LINE_PAGE_SIZE))
   const scanCountNotice =
     notice && notice.includes(' → Box ') && notice.includes(' in this box. ') ? notice : null
+  const shareNeedle = shareQuery.trim().toLowerCase()
+  const visibleShareUsers = shareUsers.filter(
+    (person) =>
+      !shareNeedle ||
+      person.name.toLowerCase().includes(shareNeedle) ||
+      person.email.toLowerCase().includes(shareNeedle),
+  )
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
@@ -1014,7 +1094,8 @@ export default function FbaShipmentLibrary() {
           Upload the official FBA shipment <strong>.tsv</strong>. The tool stores the yellow fields only:{' '}
           <strong>Shipment ID</strong>, <strong>Merchant SKU</strong>, <strong>external-id</strong>, and{' '}
           <strong>Shipped</strong>, plus the <strong>Name</strong> from the top of the file. Open a shipment to
-          fill in a Name that was not saved. The owner can lock a shipment or share it when other workers need to count it.
+          fill in a Name that was not saved. The owner can lock a shipment or share it with everyone or with chosen people.
+          Shipments that are already shared stay open to everyone until the owner changes that.
           Counts are shared: everyone who opens a shipment sees the same scans. Download report is on each shipment. Archive moves it into
           Completed shipments once every line is All Accounted. Remove sends a shipment to Trash, where it
           stays until it is removed for good or Trash is emptied.
@@ -1245,6 +1326,10 @@ export default function FbaShipmentLibrary() {
                         <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
                           Locked
                         </span>
+                      ) : upload.shared_with_everyone === false ? (
+                        <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800">
+                          Custom
+                        </span>
                       ) : (
                         <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
                           Shared
@@ -1286,13 +1371,24 @@ export default function FbaShipmentLibrary() {
                         </button>
                       )}
                       {upload.owned_by_me && !upload.archived_at && listView !== 'trash' && (
-                        <button
-                          type="button"
-                          className="ml-3 text-sm font-medium text-gray-800 hover:text-gray-950"
-                          onClick={() => void handleAccess(upload, !upload.is_locked)}
-                        >
-                          {upload.is_locked ? 'Share' : 'Lock'}
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            className="ml-3 text-sm font-medium text-gray-800 hover:text-gray-950"
+                            onClick={() => void openShare(upload)}
+                          >
+                            Share
+                          </button>
+                          {!upload.is_locked && (
+                            <button
+                              type="button"
+                              className="ml-3 text-sm font-medium text-gray-800 hover:text-gray-950"
+                              onClick={() => void handleAccess(upload, true)}
+                            >
+                              Lock
+                            </button>
+                          )}
+                        </>
                       )}
                       {upload.owned_by_me && (
                         <button
@@ -1381,7 +1477,7 @@ export default function FbaShipmentLibrary() {
                 {selected.created_by_name || selected.created_by_email || 'Unknown'} ·{' '}
                 {formatWhen(selected.created_at)} · {matchingRowCount} matching row
                 {matchingRowCount === 1 ? '' : 's'}
-                {selected.is_locked ? ' · Locked' : ' · Shared'}
+                {` · ${accessLabel(selected)}`}
                 {selected.archived_at ? ' · Archived' : ''}
               </p>
             </div>
@@ -1638,6 +1734,103 @@ export default function FbaShipmentLibrary() {
             </div>
           )}
         </section>
+      )}
+      {shareTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="presentation"
+          onClick={() => {
+            if (!shareSaving) setShareTarget(null)
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="share-shipment-title"
+            className="flex max-h-[85vh] w-full max-w-md flex-col rounded-xl bg-white p-5 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="share-shipment-title" className="text-lg font-semibold text-gray-900">
+              Share {shareTarget.shipment_id}
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Choose who can open this shipment. You always keep access. Shipments already shared with
+              everyone stay that way until you save a different choice.
+            </p>
+            <label className="mt-4 flex items-start gap-2 text-sm text-gray-800">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={shareEveryone}
+                onChange={(event) => {
+                  setShareEveryone(event.target.checked)
+                  setShareFormError(null)
+                }}
+              />
+              <span>
+                <span className="font-medium">Everyone</span>
+                <span className="mt-0.5 block text-xs text-gray-500">
+                  Anyone who can use FBA Order Checker can open it.
+                </span>
+              </span>
+            </label>
+            <input
+              value={shareQuery}
+              onChange={(event) => setShareQuery(event.target.value)}
+              placeholder="Search people"
+              disabled={shareEveryone || shareLoading}
+              className="mt-3 rounded-lg border border-gray-300 px-3 py-1.5 text-sm disabled:bg-gray-50"
+            />
+            <div className="mt-2 min-h-24 flex-1 space-y-1 overflow-y-auto rounded-lg border border-gray-200 p-2">
+              {shareLoading ? (
+                <p className="px-1 py-2 text-sm text-gray-500">Loading people…</p>
+              ) : visibleShareUsers.length === 0 ? (
+                <p className="px-1 py-2 text-sm text-gray-500">No matching people.</p>
+              ) : (
+                visibleShareUsers.map((person) => (
+                  <label key={person.id} className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-gray-50">
+                    <input
+                      type="checkbox"
+                      disabled={shareEveryone}
+                      checked={!shareEveryone && shareSelected.includes(person.id)}
+                      onChange={() => {
+                        setShareSelected((current) =>
+                          current.includes(person.id)
+                            ? current.filter((id) => id !== person.id)
+                            : [...current, person.id],
+                        )
+                        setShareFormError(null)
+                      }}
+                    />
+                    <span className={shareEveryone ? 'text-gray-400' : 'text-gray-800'}>
+                      {person.name}
+                      <span className="ml-2 text-xs text-gray-500">{person.email}</span>
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
+            {shareFormError && <p className="mt-2 text-sm text-red-700">{shareFormError}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={shareSaving}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                onClick={() => setShareTarget(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={shareSaving || shareLoading || (!shareEveryone && shareSelected.length === 0)}
+                className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                onClick={() => void saveShare()}
+              >
+                {shareSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {pendingRemove && (
         <div

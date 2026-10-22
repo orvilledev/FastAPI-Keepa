@@ -26,6 +26,8 @@ class FbaShipmentUploadResponse(BaseModel):
     created_at: datetime
     owned_by_me: bool = False
     is_locked: bool = False
+    shared_with: List[UUID] = Field(default_factory=list)
+    shared_with_everyone: bool = True
     archived_at: Optional[datetime] = None
     trashed_at: Optional[datetime] = None
     fully_accounted: bool = False
@@ -96,8 +98,16 @@ class FbaShipmentScanResult(BaseModel):
     fully_accounted: bool = False
 
 
+class FbaShareUser(BaseModel):
+    id: UUID
+    name: str
+    email: str = ""
+
+
 class FbaShipmentAccessRequest(BaseModel):
-    locked: bool
+    locked: bool = False
+    everyone: Optional[bool] = None
+    user_ids: List[UUID] = Field(default_factory=list)
 
 
 class FbaShipmentNameRequest(BaseModel):

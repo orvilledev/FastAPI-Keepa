@@ -3053,6 +3053,8 @@ export type FbaShipmentUpload = {
   created_at: string
   owned_by_me: boolean
   is_locked: boolean
+  shared_with: string[]
+  shared_with_everyone: boolean
   archived_at: string | null
   trashed_at: string | null
   fully_accounted: boolean
@@ -3075,6 +3077,12 @@ export type FbaShipmentLine = {
   missing: number
   status: string
   not_in_list?: boolean
+}
+
+export type FbaShareUser = {
+  id: string
+  name: string
+  email: string
 }
 
 export type FbaShipmentUploadList = {
@@ -3204,8 +3212,19 @@ export const fbaShipmentLibraryApi = {
     })
     return response.data
   },
-  setAccess: async (uploadId: string, locked: boolean): Promise<FbaShipmentUpload> => {
-    const response = await api.post(`/api/v1/fba-shipment-library/${uploadId}/access`, { locked })
+  shareUsers: async (): Promise<FbaShareUser[]> => {
+    const response = await api.get('/api/v1/fba-shipment-library/share-users')
+    return response.data
+  },
+  setAccess: async (
+    uploadId: string,
+    access: { locked: boolean; everyone?: boolean; userIds?: string[] },
+  ): Promise<FbaShipmentUpload> => {
+    const response = await api.post(`/api/v1/fba-shipment-library/${uploadId}/access`, {
+      locked: access.locked,
+      everyone: access.everyone,
+      user_ids: access.userIds ?? [],
+    })
     return response.data
   },
   setName: async (uploadId: string, shipmentName: string): Promise<FbaShipmentUpload> => {

@@ -7,7 +7,11 @@ from fastapi.responses import StreamingResponse
 from supabase import Client
 
 from app.database import get_supabase
-from app.dependencies import get_fba_order_checker_user, is_superadmin_user
+from app.dependencies import (
+    _DEFAULT_FBA_ORDER_CHECKER_BLOCKED,
+    get_fba_order_checker_user,
+    is_superadmin_user,
+)
 from app.middleware.rate_limiter import RateLimits, limiter
 from app.models.fba_shipment_library import (
     FbaBoxNumberRequest,
@@ -15,6 +19,7 @@ from app.models.fba_shipment_library import (
     FbaFnskuLabelBox,
     FbaFnskuLabelItem,
     FbaFnskuLabelsResponse,
+    FbaShareUser,
     FbaShipmentAccessRequest,
     FbaShipmentDetailResponse,
     FbaShipmentNameRequest,
@@ -38,6 +43,8 @@ from app.services.fba_shipment_library import (
     choose_line_for_scan,
     is_fully_accounted,
     parse_fba_shipment_tsv,
+    share_audience,
+    shipment_open_to,
     strip_upc_label,
     units_for_count,
 )
@@ -164,6 +171,8 @@ def _upload_response(
         created_at=row["created_at"],
         owned_by_me=owned,
         is_locked=bool(row.get("is_locked")),
+        shared_with=share_audience(row) or [],
+        shared_with_everyone=not bool(row.get("is_locked")) and share_audience(row) is None,
         archived_at=row.get("archived_at"),
         trashed_at=row.get("trashed_at"),
         fully_accounted=bool(row.get("fully_accounted")),
@@ -175,13 +184,16 @@ def _owns_upload(upload: dict, current_user: dict, can_manage_any: bool) -> bool
 
 
 def _require_visible(upload: dict, current_user: dict, can_manage_any: bool) -> None:
-    if upload.get("trashed_at") and not _owns_upload(upload, current_user, can_manage_any):
+    if shipment_open_to(upload, str(current_user.get("id") or ""), can_manage_any=can_manage_any):
+        return
+    if upload.get("trashed_at"):
         raise HTTPException(status_code=404, detail="That shipment upload was not found.")
-    if upload.get("is_locked") and not _owns_upload(upload, current_user, can_manage_any):
+    if upload.get("is_locked"):
         raise HTTPException(
             status_code=403,
             detail="This shipment is locked. Only the owner can open it.",
         )
+    raise HTTPException(status_code=403, detail="This shipment is not shared with you.")
 
 
 def _is_accounted(repo: FbaShipmentLibraryRepository, upload_id: str) -> bool:
@@ -237,6 +249,38 @@ def list_fba_shipments(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get("/fba-shipment-library/share-users", response_model=list[FbaShareUser])
+@handle_api_errors("list FBA share users")
+def list_fba_share_users(
+    current_user: dict = Depends(get_fba_order_checker_user),
+    db: Client = Depends(get_supabase),
+):
+    """People the owner can share a shipment with. The owner always keeps access."""
+    try:
+        response = (
+            db.table("profiles")
+            .select("id, display_name, email, is_active")
+            .eq("is_active", True)
+            .execute()
+        )
+    except Exception as exc:
+        logger.debug("FBA share user lookup failed", exc_info=True)
+        raise HTTPException(status_code=400, detail="The people list could not be loaded.") from exc
+    owner_id = str(current_user.get("id") or "")
+    people: list[FbaShareUser] = []
+    for row in response.data or []:
+        user_id = str(row.get("id") or "")
+        email = (row.get("email") or "").strip().lower()
+        if not user_id or user_id == owner_id or not email:
+            continue
+        if email in _DEFAULT_FBA_ORDER_CHECKER_BLOCKED:
+            continue
+        name = given_name(profile_display_name(row, {})) or email.split("@", 1)[0]
+        people.append(FbaShareUser(id=user_id, name=name, email=email))
+    people.sort(key=lambda person: (person.name.casefold(), person.email))
+    return people
 
 
 @router.get("/fba-shipment-library/{upload_id}", response_model=FbaShipmentDetailResponse)
@@ -578,6 +622,35 @@ def delete_fba_unit(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def _chosen_share_ids(db: Client, user_ids: list, owner_id: str) -> list[str]:
+    """Active FBA Order Checker users, without the owner, in the order they were chosen."""
+    wanted = list(dict.fromkeys(str(item) for item in user_ids if str(item) and str(item) != owner_id))
+    if not wanted:
+        raise HTTPException(
+            status_code=400,
+            detail="Choose at least one person, or share with everyone.",
+        )
+    try:
+        response = (
+            db.table("profiles")
+            .select("id, email, is_active")
+            .in_("id", wanted)
+            .execute()
+        )
+    except Exception as exc:
+        logger.debug("FBA share user check failed", exc_info=True)
+        raise HTTPException(status_code=400, detail="Those people could not be checked.") from exc
+    allowed: set[str] = set()
+    for row in response.data or []:
+        email = (row.get("email") or "").strip().lower()
+        if row.get("is_active") is False or not email or email in _DEFAULT_FBA_ORDER_CHECKER_BLOCKED:
+            continue
+        allowed.add(str(row.get("id") or ""))
+    if any(item not in allowed for item in wanted):
+        raise HTTPException(status_code=400, detail="Choose people who can use FBA Order Checker.")
+    return wanted
+
+
 @router.post("/fba-shipment-library/{upload_id}/access", response_model=FbaShipmentUploadResponse)
 @handle_api_errors("change FBA shipment access")
 def set_fba_shipment_access(
@@ -597,7 +670,18 @@ def set_fba_shipment_access(
             raise HTTPException(status_code=403, detail="Only the owner can lock or share this shipment.")
         if upload.get("trashed_at"):
             raise HTTPException(status_code=400, detail="Restore this shipment from Trash before changing access.")
-        saved = repo.set_locked(upload_id, body.locked)
+        if body.locked:
+            saved = repo.set_access(upload_id, locked=True)
+        elif body.everyone is False:
+            saved = repo.set_access(
+                upload_id,
+                locked=False,
+                shared_with=_chosen_share_ids(db, body.user_ids, str(upload.get("created_by") or "")),
+                replace_share=True,
+            )
+        else:
+            # everyone is true, or an older client shared without a person list.
+            saved = repo.set_access(upload_id, locked=False, shared_with=None, replace_share=True)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _upload_response(

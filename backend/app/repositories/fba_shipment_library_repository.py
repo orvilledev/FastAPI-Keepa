@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from postgrest.types import ReturnMethod
 from supabase import Client
 
-from app.services.fba_shipment_library import counts_kept_in_box, strip_upc_label
+from app.services.fba_shipment_library import counts_kept_in_box, strip_upc_label, upload_visibility_filter
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ _MIGRATION_HINT = (
     "create_fba_shipment_counts.sql, create_fba_shipment_unknown_scans.sql, "
     "create_fba_shipment_box_scans.sql, "
     "add_fba_shipment_library_access.sql, add_fba_shipment_library_trash.sql, "
-    "and add_fba_shipment_name.sql "
+    "add_fba_shipment_name.sql, and add_fba_shipment_custom_share.sql "
     "in the Supabase SQL Editor."
 )
 _INSERT_CHUNK = 500
@@ -50,6 +50,17 @@ def _escape_like(term: str) -> str:
 
 def _raise_persist_error(exc: Exception) -> None:
     message = str(exc).lower()
+    if "shared_with" in message and (
+        "schema cache" in message
+        or "does not exist" in message
+        or "column" in message
+        or "pgrst204" in message
+    ):
+        raise ValueError(
+            "The FBA Order Checker needs a database update before a shipment can be shared "
+            "with chosen people. Run backend/database/migrations/add_fba_shipment_custom_share.sql "
+            "in the Supabase SQL Editor."
+        ) from exc
     if "shipment_name" in message and (
         "schema cache" in message
         or "does not exist" in message
@@ -101,6 +112,50 @@ class FbaShipmentLibraryRepository:
     ) -> Tuple[List[dict], int]:
         limit = max(1, min(limit, 100))
         offset = max(0, offset)
+        upload_ids = self._upload_ids_for_line_search(search)
+        search_or = self._upload_search_or(search, upload_ids)
+        visibility = upload_visibility_filter(viewer_id) if viewer_id and not see_locked else None
+        order_column = "trashed_at" if trashed else "created_at"
+        try:
+            response = self._upload_page(
+                created_by=created_by,
+                archived=archived,
+                trashed=trashed,
+                search_or=search_or,
+                visibility=visibility,
+                order_column=order_column,
+                limit=limit,
+                offset=offset,
+            )
+        except Exception as exc:
+            legacy = f"is_locked.eq.false,created_by.eq.{viewer_id}" if viewer_id else None
+            if visibility and legacy and "shared_with" in str(exc).lower():
+                response = self._upload_page(
+                    created_by=created_by,
+                    archived=archived,
+                    trashed=trashed,
+                    search_or=search_or,
+                    visibility=legacy,
+                    order_column=order_column,
+                    limit=limit,
+                    offset=offset,
+                )
+            else:
+                raise
+        return list(response.data or []), int(response.count or 0)
+
+    def _upload_page(
+        self,
+        *,
+        created_by: Optional[str],
+        archived: bool,
+        trashed: bool,
+        search_or: Optional[str],
+        visibility: Optional[str],
+        order_column: str,
+        limit: int,
+        offset: int,
+    ):
         query = self.db.table(_UPLOADS).select("*", count="exact")
         if created_by:
             query = query.eq("created_by", created_by)
@@ -110,20 +165,13 @@ class FbaShipmentLibraryRepository:
             query = query.is_("trashed_at", "null").not_.is_("archived_at", "null")
         else:
             query = query.is_("trashed_at", "null").is_("archived_at", "null")
-        upload_ids = self._upload_ids_for_line_search(search)
-        search_or = self._upload_search_or(search, upload_ids)
-        visibility = None
-        if viewer_id and not see_locked:
-            visibility = f"is_locked.eq.false,created_by.eq.{viewer_id}"
         if visibility and search_or:
             query.params = query.params.add("and", f"(or({visibility}),or({search_or}))")
         elif visibility:
             query.params = query.params.add("or", f"({visibility})")
         elif search_or:
             query.params = query.params.add("or", f"({search_or})")
-        order_column = "trashed_at" if trashed else "created_at"
-        response = query.order(order_column, desc=True).range(offset, offset + limit).execute()
-        return list(response.data or []), int(response.count or 0)
+        return query.order(order_column, desc=True).range(offset, offset + limit).execute()
 
     def get_upload(self, upload_id: str) -> Optional[dict]:
         response = self.db.table(_UPLOADS).select("*").eq("id", upload_id).limit(1).execute()
@@ -164,10 +212,28 @@ class FbaShipmentLibraryRepository:
         return rows[0]
 
     def set_locked(self, upload_id: str, locked: bool) -> dict:
+        return self.set_access(upload_id, locked=locked)
+
+    def set_access(
+        self,
+        upload_id: str,
+        *,
+        locked: bool,
+        shared_with: Optional[List[str]] = None,
+        replace_share: bool = False,
+    ) -> dict:
+        """Lock a shipment, share it with everyone, or share it with chosen people.
+
+        Locking leaves an existing custom list in place so the owner can reopen it.
+        ``replace_share`` writes ``shared_with``: None means everyone.
+        """
+        payload: Dict[str, Any] = {"is_locked": locked}
+        if replace_share:
+            payload["shared_with"] = shared_with
         try:
             response = (
                 self.db.table(_UPLOADS)
-                .update({"is_locked": locked})
+                .update(payload)
                 .eq("id", upload_id)
                 .execute()
             )

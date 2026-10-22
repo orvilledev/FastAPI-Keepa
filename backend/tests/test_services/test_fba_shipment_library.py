@@ -18,6 +18,9 @@ from app.services.fba_shipment_library import (
     build_accounting_workbook,
     build_boxed_rows,
     labels_by_box,
+    share_audience,
+    shipment_open_to,
+    upload_visibility_filter,
     choose_line_for_scan,
     count_progress,
     counts_kept_in_box,
@@ -259,6 +262,29 @@ def test_missing_box_count_is_the_gap_under_the_highest_box():
     assert box_count_and_missing(used) == (40, 1)
     assert box_count_and_missing([("111", 1), ("111", 2)]) == (2, 0)
     assert box_count_and_missing([("111", None), ("111", None)]) == (0, 0)
+
+
+def test_existing_shared_shipments_stay_open_to_everyone_until_the_owner_chooses_people():
+    owner = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    worker = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    other = "cccccccc-cccc-cccc-cccc-cccccccccccc"
+    already_shared = {"created_by": owner, "is_locked": False}
+    legacy_null = {"created_by": owner, "is_locked": False, "shared_with": None}
+    locked = {"created_by": owner, "is_locked": True, "shared_with": None}
+    custom = {"created_by": owner, "is_locked": False, "shared_with": [worker]}
+
+    assert share_audience(already_shared) is None
+    assert share_audience(legacy_null) is None
+    assert shipment_open_to(already_shared, other) is True
+    assert shipment_open_to(legacy_null, other) is True
+    assert shipment_open_to(locked, other) is False
+    assert shipment_open_to(locked, owner) is True
+    assert shipment_open_to(custom, worker) is True
+    assert shipment_open_to(custom, other) is False
+    assert shipment_open_to(custom, owner) is True
+    assert shipment_open_to({"created_by": owner, "is_locked": False, "shared_with": []}, other) is False
+    assert "shared_with.is.null" in upload_visibility_filter(worker)
+    assert f"shared_with.cs.{{{worker}}}" in upload_visibility_filter(worker)
 
 
 def test_accounting_header_puts_one_missing_box_in_red():
