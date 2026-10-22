@@ -65,6 +65,29 @@ function statusClass(status: string): string {
   return 'bg-amber-500 text-white'
 }
 
+type FilterTone = 'emerald' | 'sky' | 'rose' | 'slate' | 'violet'
+
+function filterChipClass(selected: boolean, tone: FilterTone): string {
+  const tones: Record<FilterTone, string> = {
+    emerald: selected
+      ? 'bg-emerald-600 text-white ring-emerald-700'
+      : 'bg-emerald-100 text-emerald-900 ring-emerald-300 hover:bg-emerald-200',
+    sky: selected
+      ? 'bg-sky-600 text-white ring-sky-700'
+      : 'bg-sky-100 text-sky-900 ring-sky-300 hover:bg-sky-200',
+    rose: selected
+      ? 'bg-rose-600 text-white ring-rose-700'
+      : 'bg-rose-100 text-rose-900 ring-rose-300 hover:bg-rose-200',
+    slate: selected
+      ? 'bg-slate-800 text-white ring-slate-900'
+      : 'bg-slate-200 text-slate-900 ring-slate-400 hover:bg-slate-300',
+    violet: selected
+      ? 'bg-violet-600 text-white ring-violet-700'
+      : 'bg-violet-100 text-violet-900 ring-violet-300 hover:bg-violet-200',
+  }
+  return `rounded-md px-3 py-1.5 text-sm font-semibold ring-1 shadow-sm ${tones[tone]}`
+}
+
 function rowClass(line: FbaShipmentLine): string {
   if (line.not_in_list || line.status === 'Not in the list') return 'border-b border-red-200 bg-red-100 text-red-950'
   if (line.status === 'All Accounted') return 'border-b border-emerald-200 bg-emerald-100 text-emerald-950'
@@ -1183,10 +1206,11 @@ export default function FbaShipmentLibrary() {
                 Empty trash
               </button>
             )}
-            <div className="inline-flex rounded-lg bg-gray-100 p-0.5 text-sm">
+            <div className="inline-flex items-center gap-1" role="group" aria-label="Shipment list">
               <button
                 type="button"
-                className={`rounded-md px-3 py-1 ${listView === 'active' ? 'bg-white font-medium text-gray-900 shadow-sm' : 'text-gray-600'}`}
+                aria-pressed={listView === 'active'}
+                className={filterChipClass(listView === 'active', 'emerald')}
                 onClick={() => {
                   setListView('active')
                   setOffset(0)
@@ -1197,7 +1221,8 @@ export default function FbaShipmentLibrary() {
               </button>
               <button
                 type="button"
-                className={`rounded-md px-3 py-1 ${listView === 'archive' ? 'bg-white font-medium text-gray-900 shadow-sm' : 'text-gray-600'}`}
+                aria-pressed={listView === 'archive'}
+                className={filterChipClass(listView === 'archive', 'sky')}
                 onClick={() => {
                   setListView('archive')
                   setOffset(0)
@@ -1208,7 +1233,8 @@ export default function FbaShipmentLibrary() {
               </button>
               <button
                 type="button"
-                className={`rounded-md px-3 py-1 ${listView === 'trash' ? 'bg-white font-medium text-gray-900 shadow-sm' : 'text-gray-600'}`}
+                aria-pressed={listView === 'trash'}
+                className={filterChipClass(listView === 'trash', 'rose')}
                 onClick={() => {
                   setListView('trash')
                   setOffset(0)
@@ -1218,10 +1244,11 @@ export default function FbaShipmentLibrary() {
                 Trash
               </button>
             </div>
-            <div className="inline-flex rounded-lg bg-gray-100 p-0.5 text-sm">
+            <div className="inline-flex items-center gap-1" role="group" aria-label="Whose shipments">
               <button
                 type="button"
-                className={`rounded-md px-3 py-1 ${!mine ? 'bg-white font-medium text-gray-900 shadow-sm' : 'text-gray-600'}`}
+                aria-pressed={!mine}
+                className={filterChipClass(!mine, 'slate')}
                 onClick={() => {
                   setMine(false)
                   setOffset(0)
@@ -1231,7 +1258,8 @@ export default function FbaShipmentLibrary() {
               </button>
               <button
                 type="button"
-                className={`rounded-md px-3 py-1 ${mine ? 'bg-white font-medium text-gray-900 shadow-sm' : 'text-gray-600'}`}
+                aria-pressed={mine}
+                className={filterChipClass(mine, 'violet')}
                 onClick={() => {
                   setMine(true)
                   setOffset(0)
