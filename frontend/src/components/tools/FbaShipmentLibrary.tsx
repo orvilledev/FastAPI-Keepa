@@ -1244,7 +1244,7 @@ export default function FbaShipmentLibrary() {
                 Trash
               </button>
             </div>
-            <div className="inline-flex items-center gap-1" role="group" aria-label="Whose shipments">
+            <div className="ml-3 inline-flex items-center gap-1" role="group" aria-label="Whose shipments">
               <button
                 type="button"
                 aria-pressed={!mine}
