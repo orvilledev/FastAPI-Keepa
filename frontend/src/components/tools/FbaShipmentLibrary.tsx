@@ -1,8 +1,19 @@
-import { Fragment, useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type FormEvent,
+  type InputHTMLAttributes,
+} from 'react'
 import { auditAction } from '../../lib/auditEvents'
 import {
   fbaShipmentLibraryApi,
   type FbaFnskuLabels,
+  type FbaShipmentDetail,
   type FbaShipmentLine,
   type FbaShipmentUnit,
   type FbaShipmentUpload,
@@ -21,6 +32,21 @@ import {
 
 const PAGE_SIZE = 50
 const LINE_PAGE_SIZE = 100
+const FILTER_DELAY_MS = 300
+
+function digitsOnly(value: string): string {
+  return value.replace(/\D/g, '').slice(0, 5)
+}
+
+let lastShipmentEditAt = 0
+
+function noteShipmentEdit() {
+  lastShipmentEditAt = Date.now()
+}
+
+function shipmentEditInProgress(): boolean {
+  return Date.now() - lastShipmentEditAt < 1_000
+}
 
 function errorMessage(err: unknown, fallback: string): string {
   const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
@@ -126,6 +152,137 @@ function boxScanNotice(barcode: string, box: number, inBox: number, shipment: Fb
   return message
 }
 
+function DebouncedField({
+  resetKey,
+  sanitize,
+  onCommit,
+  ...rest
+}: {
+  resetKey: string
+  sanitize?: (value: string) => string
+  onCommit: (value: string) => void
+} & Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>) {
+  const [value, setValue] = useState('')
+  const onCommitRef = useRef(onCommit)
+  onCommitRef.current = onCommit
+  useEffect(() => {
+    setValue('')
+  }, [resetKey])
+  useEffect(() => {
+    const timer = window.setTimeout(() => onCommitRef.current(value), FILTER_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [value])
+  return (
+    <input
+      {...rest}
+      value={value}
+      autoComplete="off"
+      onBlur={(event) => {
+        if (!event.currentTarget.isConnected) return
+        onCommitRef.current(value)
+      }}
+      onChange={(event) => {
+        noteShipmentEdit()
+        const next = sanitize ? sanitize(event.target.value) : event.target.value
+        setValue(next)
+      }}
+    />
+  )
+}
+
+function ScanEntryForm({
+  resetKey,
+  scanning,
+  onScan,
+}: {
+  resetKey: string | null
+  scanning: boolean
+  onScan: (boxValue: number, code: string) => Promise<boolean>
+}) {
+  const [boxNumber, setBoxNumber] = useState('')
+  const [barcode, setBarcode] = useState('')
+  const boxRef = useRef<HTMLInputElement>(null)
+  const scanRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    setBoxNumber('')
+    setBarcode('')
+    if (resetKey) boxRef.current?.focus()
+  }, [resetKey])
+  const boxValue = /^\d{1,5}$/.test(boxNumber.trim()) ? Number(boxNumber.trim()) : 0
+  const boxReady = boxValue >= 1 && boxValue <= 99999
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    const code = barcode.trim()
+    if (!boxReady) {
+      if (code) await onScan(0, code)
+      boxRef.current?.focus()
+      return
+    }
+    if (!code || scanning) return
+    const counted = await onScan(boxValue, code)
+    if (counted) setBarcode('')
+    scanRef.current?.focus()
+  }
+  return (
+    <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={(event) => void submit(event)}>
+      <label className="block">
+        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600">
+          Box number
+        </span>
+        <input
+          ref={boxRef}
+          value={boxNumber}
+          onChange={(event) => {
+            noteShipmentEdit()
+            setBoxNumber(digitsOnly(event.target.value))
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              if (boxReady) scanRef.current?.focus()
+            }
+          }}
+          inputMode="numeric"
+          placeholder="e.g. 1"
+          autoComplete="off"
+          aria-label="Box number"
+          className={`w-28 rounded-lg border px-3 py-2 text-center text-lg font-bold ${
+            boxReady ? 'border-emerald-400 bg-emerald-50 text-emerald-900' : 'border-amber-400 bg-amber-50'
+          }`}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600">
+          Scan item
+        </span>
+        <input
+          ref={scanRef}
+          value={barcode}
+          onChange={(event) => {
+            noteShipmentEdit()
+            setBarcode(event.target.value)
+          }}
+          placeholder="Scan external-id / UPC"
+          autoComplete="off"
+          className="w-72 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+        />
+      </label>
+      <button
+        type="submit"
+        disabled={!barcode.trim() || !boxReady || scanning}
+        className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {scanning ? 'Counting…' : boxReady ? `Count 1 into Box ${boxValue}` : 'Count 1'}
+      </button>
+      <p className="basis-full text-xs text-gray-500">
+        Type the box number first. Every scan is placed in that box and listed on the Boxed tab of the
+        report. One scan counts as 1. Shipped stays the file quantity. Counts are shared, so scans by anyone
+        on this shipment show for everyone.
+      </p>
+    </form>
+  )
+}
+
 export default function FbaShipmentLibrary() {
   const [uploads, setUploads] = useState<FbaShipmentUpload[]>([])
   const [total, setTotal] = useState(0)
@@ -155,29 +312,43 @@ export default function FbaShipmentLibrary() {
   const [lineTotal, setLineTotal] = useState(0)
   const [boxStored, setBoxStored] = useState<number | null>(null)
   const [lineOffset, setLineOffset] = useState(0)
-  const [lineSearchInput, setLineSearchInput] = useState('')
   const [lineSearch, setLineSearch] = useState('')
+  const [queryBox, setQueryBox] = useState<number | undefined>(undefined)
+  const [shownBox, setShownBox] = useState<number | undefined>(undefined)
+  const [lineOwnerId, setLineOwnerId] = useState<string | null>(null)
+  const [fieldReset, setFieldReset] = useState(0)
   const [linesLoading, setLinesLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [pendingRemove, setPendingRemove] = useState<
     { mode: 'trash' | 'purge'; upload: FbaShipmentUpload } | { mode: 'empty' } | null
   >(null)
-  const [barcode, setBarcode] = useState('')
-  const [boxNumber, setBoxNumber] = useState('')
-  const [boxFilter, setBoxFilter] = useState('')
   const [boxLineId, setBoxLineId] = useState<string | null>(null)
   const [boxUnits, setBoxUnits] = useState<FbaShipmentUnit[]>([])
-  const [boxDrafts, setBoxDrafts] = useState<Record<string, string>>({})
   const [boxesLoading, setBoxesLoading] = useState(false)
   const [savingUnit, setSavingUnit] = useState<string | null>(null)
   const boxCache = useRef<Record<string, FbaShipmentUnit[]>>({})
   const openBoxLine = useRef<string | null>(null)
   const loadedSkuSearch = useRef<string | null>(null)
+  const linesRequest = useRef(0)
+  const queryBoxRef = useRef<number | undefined>(undefined)
+  const lineSearchRef = useRef('')
+  const linesLoadingRef = useRef(false)
+  const unitBoxRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const [scanning, setScanning] = useState(false)
   const [activeLineId, setActiveLineId] = useState<string | null>(null)
-  const scanRef = useRef<HTMLInputElement>(null)
-  const boxRef = useRef<HTMLInputElement>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+
+  if (selectedId !== lineOwnerId) {
+    setLineOwnerId(selectedId)
+    linesRequest.current += 1
+    queryBoxRef.current = undefined
+    lineSearchRef.current = ''
+    setQueryBox(undefined)
+    setLineSearch('')
+    setLineOffset(0)
+    setLinesLoading(Boolean(selectedId))
+  }
+  linesLoadingRef.current = linesLoading
 
   const loadUploads = useCallback(async () => {
     setLoading(true)
@@ -197,26 +368,61 @@ export default function FbaShipmentLibrary() {
     void loadUploads()
   }, [loadUploads])
 
-  const shipmentClosed = Boolean(selected?.archived_at || selected?.trashed_at)
-  const filterBox = listedBoxNumber(boxFilter)
-  const boxForList = filterBox ?? (shipmentClosed ? undefined : listedBoxNumber(boxNumber))
+  // The scan box is where the next unit goes. The list narrows only from the box filter above the table.
+  const boxForList = shownBox
   const tableColumns = boxForList != null ? 4 : 7
-  const skuQuery = lineSearchInput.trim()
-  const visibleUnknownLines = unknownLines.filter((line) => matchesSkuSearch(line, skuQuery))
-  const visibleLines = lines.filter((line) => matchesSkuSearch(line, skuQuery))
+  const visibleUnknownLines = useMemo(
+    () => unknownLines.filter((line) => matchesSkuSearch(line, lineSearch)),
+    [lineSearch, unknownLines],
+  )
+  const visibleLines = useMemo(
+    () => lines.filter((line) => matchesSkuSearch(line, lineSearch)),
+    [lineSearch, lines],
+  )
   const matchingRowCount =
-    skuQuery && loadedSkuSearch.current !== skuQuery
+    lineSearch && loadedSkuSearch.current !== lineSearch
       ? visibleLines.length + visibleUnknownLines.length
       : lineTotal + visibleUnknownLines.length
+  const showLinePlaceholder = linesLoading && lines.length === 0 && unknownLines.length === 0
+
+  const commitLineSearch = useCallback((value: string) => {
+    const term = value.trim()
+    if (lineSearchRef.current === term) return
+    lineSearchRef.current = term
+    setLineSearch(term)
+    setLineOffset(0)
+  }, [])
+
+  const commitBoxFilter = useCallback((value: string) => {
+    const box = listedBoxNumber(value)
+    if (queryBoxRef.current === box) return
+    queryBoxRef.current = box
+    setQueryBox(box)
+    setLineOffset(0)
+  }, [])
+
+  const applyDetail = useCallback((requestId: number, box: number | undefined, search: string, result: FbaShipmentDetail) => {
+    if (linesRequest.current !== requestId) return
+    loadedSkuSearch.current = search.trim()
+    setSelected(result.upload)
+    setLines(result.lines)
+    setUnknownLines(result.unknown_lines || [])
+    setLineTotal(result.total)
+    setShownBox(box)
+    setBoxStored(box == null ? null : result.box_units ?? null)
+  }, [])
 
   const loadLines = useCallback(async () => {
+    const requestId = ++linesRequest.current
     if (!selectedId) {
       loadedSkuSearch.current = null
       setSelected(null)
       setLines([])
       setUnknownLines([])
       setLineTotal(0)
+      setShownBox(undefined)
       setBoxStored(null)
+      setLinesLoading(false)
       return
     }
     setLinesLoading(true)
@@ -227,59 +433,63 @@ export default function FbaShipmentLibrary() {
         LINE_PAGE_SIZE,
         lineOffset,
         lineSearch,
-        boxForList,
+        queryBox,
       )
-      loadedSkuSearch.current = lineSearch.trim()
-      setSelected(result.upload)
-      setLines(result.lines)
-      setUnknownLines(result.unknown_lines || [])
-      setLineTotal(result.total)
-      setBoxStored(boxForList == null ? null : result.box_units ?? null)
+      applyDetail(requestId, queryBox, lineSearch, result)
     } catch (err) {
+      if (linesRequest.current !== requestId) return
       setError(errorMessage(err, 'Failed to open that shipment.'))
     } finally {
-      setLinesLoading(false)
+      if (linesRequest.current === requestId) setLinesLoading(false)
     }
-  }, [boxForList, lineOffset, lineSearch, selectedId])
+  }, [applyDetail, lineOffset, lineSearch, queryBox, selectedId])
 
   useEffect(() => {
     void loadLines()
   }, [loadLines])
 
-  useEffect(() => {
-    const term = lineSearchInput.trim()
-    if (term === lineSearch) return
-    const timer = window.setTimeout(() => {
-      setLineOffset(0)
-      setLineSearch(term)
-    }, 200)
-    return () => window.clearTimeout(timer)
-  }, [lineSearch, lineSearchInput])
-
   const scanningRef = useRef(false)
   scanningRef.current = scanning
 
   // Counts are shared, so pick up scans made by other people on this shipment without reopening it.
+  // A reload that lands while someone is typing is dropped so it cannot rebuild the table under the cursor.
   useEffect(() => {
     if (!selectedId) return
     let cancelled = false
     const refresh = async () => {
-      if (cancelled || scanningRef.current || document.visibilityState === 'hidden') return
+      if (
+        cancelled ||
+        scanningRef.current ||
+        linesLoadingRef.current ||
+        shipmentEditInProgress() ||
+        document.visibilityState === 'hidden'
+      ) {
+        return
+      }
+      const seen = linesRequest.current
       try {
         const result = await fbaShipmentLibraryApi.get(
           selectedId,
           LINE_PAGE_SIZE,
           lineOffset,
           lineSearch,
-          boxForList,
+          queryBox,
         )
-        if (cancelled || scanningRef.current) return
+        if (
+          cancelled ||
+          scanningRef.current ||
+          shipmentEditInProgress() ||
+          linesRequest.current !== seen
+        ) {
+          return
+        }
         loadedSkuSearch.current = lineSearch.trim()
         setSelected(result.upload)
         setLines(result.lines)
         setUnknownLines(result.unknown_lines || [])
         setLineTotal(result.total)
-        setBoxStored(boxForList == null ? null : result.box_units ?? null)
+        setShownBox(queryBox)
+        setBoxStored(queryBox == null ? null : result.box_units ?? null)
       } catch {
         // The next refresh or a manual action reports a real problem.
       }
@@ -291,7 +501,7 @@ export default function FbaShipmentLibrary() {
       window.clearInterval(interval)
       document.removeEventListener('visibilitychange', refresh)
     }
-  }, [boxForList, lineOffset, lineSearch, selectedId])
+  }, [lineOffset, lineSearch, queryBox, selectedId])
 
   useEffect(() => {
     setScanAlert(null)
@@ -299,10 +509,7 @@ export default function FbaShipmentLibrary() {
     setBoxUnits([])
     boxCache.current = {}
     openBoxLine.current = null
-    // A box number from another shipment must never carry over.
-    setBoxNumber('')
-    setBoxFilter('')
-    if (selectedId) boxRef.current?.focus()
+    unitBoxRefs.current = {}
     setNameDirty(false)
   }, [selectedId])
 
@@ -311,25 +518,21 @@ export default function FbaShipmentLibrary() {
     setNameDraft(selected?.shipment_name || '')
   }, [nameDirty, selected?.id, selected?.shipment_name])
 
-  const boxValue = /^\d{1,5}$/.test(boxNumber.trim()) ? Number(boxNumber.trim()) : 0
-  const boxReady = boxValue >= 1 && boxValue <= 99999
-
-  const handleScan = async (event: FormEvent) => {
-    event.preventDefault()
-    const code = barcode.trim()
-    if (!selectedId || !code || scanning) return
-    if (!boxReady) {
+  const handleScan = async (boxValue: number, code: string): Promise<boolean> => {
+    if (!selectedId || !code || scanning) return false
+    if (boxValue < 1 || boxValue > 99999) {
       setScanAlert(null)
       setError('Enter the box number first (1 to 99999), then scan.')
-      boxRef.current?.focus()
-      return
+      return false
     }
+    // Drop a list reload that started before this scan so it cannot wipe the count just added.
+    linesRequest.current += 1
+    setLinesLoading(false)
     setScanning(true)
     setError(null)
     try {
       const result = await fbaShipmentLibraryApi.scan(selectedId, code, boxValue)
       setActiveLineId(result.line.id)
-      setBarcode('')
       const inListedBox = boxForList === boxValue
       const listed = (previous: FbaShipmentLine | undefined): FbaShipmentLine =>
         boxForList
@@ -373,11 +576,12 @@ export default function FbaShipmentLibrary() {
       window.setTimeout(() => {
         document.getElementById(`fba-line-${result.line.id}`)?.scrollIntoView({ block: 'nearest' })
       }, 0)
+      return true
     } catch (err) {
       setError(errorMessage(err, 'That scan was not counted.'))
+      return false
     } finally {
       setScanning(false)
-      scanRef.current?.focus()
     }
   }
 
@@ -385,9 +589,6 @@ export default function FbaShipmentLibrary() {
     boxCache.current[lineId] = units
     if (openBoxLine.current !== lineId) return
     setBoxUnits(units)
-    setBoxDrafts(
-      Object.fromEntries(units.map((unit) => [String(unit.unit_number), unit.box_number ? String(unit.box_number) : ''])),
-    )
   }
 
   const loadUnits = async (line: FbaShipmentLine) => {
@@ -402,9 +603,6 @@ export default function FbaShipmentLibrary() {
     const cached = boxCache.current[line.id]
     if (cached) {
       setBoxUnits(cached)
-      setBoxDrafts(
-        Object.fromEntries(cached.map((unit) => [String(unit.unit_number), unit.box_number ? String(unit.box_number) : ''])),
-      )
       setBoxesLoading(false)
     } else {
       setBoxUnits([])
@@ -425,7 +623,7 @@ export default function FbaShipmentLibrary() {
 
   const saveUnit = async (line: FbaShipmentLine, unit: FbaShipmentUnit) => {
     if (!selectedId) return
-    const draft = (boxDrafts[String(unit.unit_number)] || '').trim()
+    const draft = (unitBoxRefs.current[String(unit.unit_number)]?.value || '').trim()
     const nextBox = /^\d{1,5}$/.test(draft) ? Number(draft) : 0
     if (nextBox < 1 || nextBox > 99999) {
       setError('Enter a box number from 1 to 99999.')
@@ -567,8 +765,11 @@ export default function FbaShipmentLibrary() {
       setSearchInput('')
       setSelectedId(result.upload.id)
       setLineOffset(0)
+      lineSearchRef.current = ''
       setLineSearch('')
-      setLineSearchInput('')
+      queryBoxRef.current = undefined
+      setQueryBox(undefined)
+      setFieldReset((value) => value + 1)
       setRefreshKey((value) => value + 1)
     } catch (err) {
       setError(errorMessage(err, 'Failed to store this shipment.'))
@@ -698,7 +899,7 @@ export default function FbaShipmentLibrary() {
     try {
       const plan = await fbaShipmentLibraryApi.fnskuLabels(upload.id, {
         box: boxForList,
-        search: skuQuery,
+        search: lineSearch,
       })
       const items = labelPrintItems(plan)
       if (items.length === 0) {
@@ -712,7 +913,7 @@ export default function FbaShipmentLibrary() {
       const boxCount = plan.boxes.length
       const scope = [
         boxForList != null ? `Box ${boxForList}` : '',
-        skuQuery ? `"${skuQuery}"` : '',
+        lineSearch ? `"${lineSearch}"` : '',
       ].filter(Boolean).join(', ')
       const where = scope ? ` for ${scope}` : ' in box order'
       const isElectron = Boolean(window.desktop?.isElectron && window.desktop?.printZpl)
@@ -728,7 +929,7 @@ export default function FbaShipmentLibrary() {
         auditAction(
           'label_station.print_queue',
           `Printed ${plan.label_count} FNSKU label(s) for ${upload.shipment_id}${where} on ${printerName}`,
-          { quantity: plan.label_count, printer: printerName, idMode, boxCount, box: boxForList, search: skuQuery },
+          { quantity: plan.label_count, printer: printerName, idMode, boxCount, box: boxForList, search: lineSearch },
         )
         setNotice(
           `Sent ${plan.label_count} FNSKU label${plan.label_count === 1 ? '' : 's'}${where} to ${printerName}.`,
@@ -744,7 +945,7 @@ export default function FbaShipmentLibrary() {
         auditAction(
           'label_station.download_pdf_queue',
           `Downloaded ${plan.label_count} FNSKU label(s) for ${upload.shipment_id}${where} as ${filename}`,
-          { quantity: plan.label_count, filename, idMode, boxCount, box: boxForList, search: skuQuery },
+          { quantity: plan.label_count, filename, idMode, boxCount, box: boxForList, search: lineSearch },
         )
         setNotice(
           `Downloaded ${filename} (${plan.label_count} label${plan.label_count === 1 ? '' : 's'}${where}).`,
@@ -1052,8 +1253,11 @@ export default function FbaShipmentLibrary() {
                         onClick={() => {
                           setSelectedId(upload.id)
                           setLineOffset(0)
+                          lineSearchRef.current = ''
                           setLineSearch('')
-                          setLineSearchInput('')
+                          queryBoxRef.current = undefined
+                          setQueryBox(undefined)
+                          setFieldReset((value) => value + 1)
                         }}
                       >
                         View
@@ -1140,6 +1344,7 @@ export default function FbaShipmentLibrary() {
                   disabled={Boolean(selected.trashed_at) || savingName}
                   placeholder="From the upload file"
                   onChange={(event) => {
+                    noteShipmentEdit()
                     setNameDraft(event.target.value)
                     setNameDirty(true)
                   }}
@@ -1213,91 +1418,31 @@ export default function FbaShipmentLibrary() {
               </div>
             )}
             <div className="ml-auto flex flex-col items-center">
-              <input
-                value={boxFilter}
-                onChange={(event) => {
-                  setBoxFilter(event.target.value.replace(/\D/g, '').slice(0, 5))
-                  setLineOffset(0)
-                }}
+              <DebouncedField
+                resetKey={`${selectedId ?? ''}:${fieldReset}`}
+                sanitize={digitsOnly}
+                onCommit={commitBoxFilter}
                 inputMode="numeric"
                 placeholder="Box number"
-                autoComplete="off"
                 aria-label="Show one box number"
                 className="w-28 rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
               />
-              {filterBox != null && boxStored != null && (
+              {queryBox != null && queryBox === shownBox && boxStored != null && (
                 <span className="mt-1 text-xs font-semibold text-emerald-800">
-                  {boxStored} {boxStored === 1 ? 'item' : 'items'} in Box {filterBox}
+                  {boxStored} {boxStored === 1 ? 'item' : 'items'} in Box {queryBox}
                 </span>
               )}
             </div>
-            <input
-              value={lineSearchInput}
-              onChange={(event) => setLineSearchInput(event.target.value)}
+            <DebouncedField
+              resetKey={`${selectedId ?? ''}:${fieldReset}`}
+              onCommit={commitLineSearch}
               placeholder="Merchant SKU or external-id"
               aria-label="Merchant SKU or external-id"
               className="w-64 self-start rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
             />
           </div>
           {!selected.archived_at && !selected.trashed_at && (
-          <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={(event) => void handleScan(event)}>
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600">
-                Box number
-              </span>
-              <input
-                ref={boxRef}
-                value={boxNumber}
-                onChange={(event) => {
-                  setBoxNumber(event.target.value.replace(/\D/g, '').slice(0, 5))
-                  setLineOffset(0)
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    if (boxReady) scanRef.current?.focus()
-                  }
-                }}
-                inputMode="numeric"
-                placeholder="e.g. 1"
-                autoComplete="off"
-                aria-label="Box number"
-                className={`w-28 rounded-lg border px-3 py-2 text-center text-lg font-bold ${
-                  boxReady ? 'border-emerald-400 bg-emerald-50 text-emerald-900' : 'border-amber-400 bg-amber-50'
-                }`}
-              />
-              {filterBox == null && boxForList != null && boxStored != null && (
-                <span className="mt-1 block text-center text-xs font-semibold text-emerald-800">
-                  {boxStored} {boxStored === 1 ? 'item' : 'items'} in Box {boxForList}
-                </span>
-              )}
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600">
-                Scan item
-              </span>
-              <input
-                ref={scanRef}
-                value={barcode}
-                onChange={(event) => setBarcode(event.target.value)}
-                placeholder="Scan external-id / UPC"
-                autoComplete="off"
-                className="w-72 rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              />
-            </label>
-            <button
-              type="submit"
-              disabled={!barcode.trim() || !boxReady || scanning}
-              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {scanning ? 'Counting…' : boxReady ? `Count 1 into Box ${boxValue}` : 'Count 1'}
-            </button>
-            <p className="basis-full text-xs text-gray-500">
-              Type the box number first. Every scan is placed in that box and listed on the Boxed tab of the
-              report. One scan counts as 1. Shipped stays the file quantity. Counts are shared, so scans by anyone
-              on this shipment show for everyone.
-            </p>
-          </form>
+            <ScanEntryForm resetKey={selectedId} scanning={scanning} onScan={handleScan} />
           )}
           {scanAlert && (
             <div className="mt-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
@@ -1324,7 +1469,7 @@ export default function FbaShipmentLibrary() {
                 </tr>
               </thead>
               <tbody>
-                {linesLoading ? (
+                {showLinePlaceholder ? (
                   <tr>
                     <td colSpan={tableColumns} className="px-2 py-6 text-gray-500">
                       Loading lines…
@@ -1399,13 +1544,18 @@ export default function FbaShipmentLibrary() {
                                 <div key={unit.unit_number} className="flex items-center gap-2">
                                   <span className="w-28 text-sm text-gray-700">Unit {unit.unit_number}</span>
                                   <input
-                                    value={boxDrafts[String(unit.unit_number)] ?? ''}
-                                    onChange={(event) =>
-                                      setBoxDrafts((current) => ({
-                                        ...current,
-                                        [String(unit.unit_number)]: event.target.value.replace(/\D/g, '').slice(0, 5),
-                                      }))
-                                    }
+                                    key={`${unit.box_number ?? ''}:${unit.scan_id ?? ''}`}
+                                    defaultValue={unit.box_number ? String(unit.box_number) : ''}
+                                    ref={(node) => {
+                                      const key = String(unit.unit_number)
+                                      if (node) unitBoxRefs.current[key] = node
+                                      else delete unitBoxRefs.current[key]
+                                    }}
+                                    onChange={(event) => {
+                                      noteShipmentEdit()
+                                      const next = digitsOnly(event.target.value)
+                                      if (event.target.value !== next) event.target.value = next
+                                    }}
                                     inputMode="numeric"
                                     placeholder="Box"
                                     aria-label={`Box for unit ${unit.unit_number}`}
