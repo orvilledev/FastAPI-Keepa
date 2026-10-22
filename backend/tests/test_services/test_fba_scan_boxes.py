@@ -82,6 +82,25 @@ class FakeRepo:
     def delete_box_scan(self, box_scan_id):
         self.box_rows.pop(box_scan_id, None)
 
+    def box_number_counts(self, upload_id):
+        counts: dict[int, int] = {}
+        for row in self.box_rows.values():
+            number = int(row["box_number"])
+            counts[number] = counts.get(number, 0) + 1
+        return counts
+
+    def get_box_scan(self, upload_id, scan_id):
+        row = self.box_rows.get(scan_id)
+        if not row:
+            return None
+        return {"id": scan_id, **row}
+
+    def update_box_number(self, upload_id, scan_id, box_number):
+        if scan_id not in self.box_rows:
+            raise ValueError("That unit was not found.")
+        self.box_rows[scan_id]["box_number"] = int(box_number)
+        return self.box_rows[scan_id]
+
     def increment_count(self, upload_id, line_id, user_id):
         if self.fail_count:
             raise ValueError("Could not record that scan. Scan it again.")
@@ -123,16 +142,16 @@ def test_a_scan_without_a_box_number_is_rejected(wire):
 def test_known_and_unknown_scans_store_their_box(wire):
     repo = FakeRepo()
     wire(repo)
-    first = _scan("111", 4)
-    _scan("111", 4)
-    unknown = _scan("999", 9)
-    assert first.box_number == 4
+    first = _scan("111", 1)
+    _scan("111", 1)
+    unknown = _scan("999", 2)
+    assert first.box_number == 1
     assert first.line.counted == 1
     assert unknown.line.not_in_list is True
     assert sorted((row["external_id"], row["box_number"]) for row in repo.box_rows.values()) == [
-        ("111", 4),
-        ("111", 4),
-        ("999", 9),
+        ("111", 1),
+        ("111", 1),
+        ("999", 2),
     ]
     assert repo.counts == {LINE_ID: 2}
     assert repo.unknowns == {"999": 1}
@@ -141,14 +160,64 @@ def test_known_and_unknown_scans_store_their_box(wire):
 def test_a_scan_reports_the_count_in_its_own_box_and_the_shipment_total(wire):
     repo = FakeRepo()
     wire(repo)
-    _scan("111", 4)
-    in_four = _scan("111", 4)
-    in_six = _scan("111", 6)
-    unknown = _scan("999", 9)
-    assert (in_four.box_counted, in_four.line.counted) == (2, 2)
-    assert (in_six.box_counted, in_six.line.counted) == (1, 3)
-    assert in_six.line.status == "Overage"
+    _scan("111", 1)
+    in_one = _scan("111", 1)
+    in_two = _scan("111", 2)
+    unknown = _scan("999", 3)
+    assert (in_one.box_counted, in_one.line.counted) == (2, 2)
+    assert (in_two.box_counted, in_two.line.counted) == (1, 3)
+    assert in_two.line.status == "Overage"
     assert unknown.box_counted == 1
+
+
+def test_a_skipped_box_number_is_rejected_and_nothing_is_stored(wire):
+    repo = FakeRepo()
+    wire(repo)
+    with pytest.raises(HTTPException) as first:
+        _scan("111", 3)
+    assert first.value.status_code == 400
+    assert "next box is 1" in first.value.detail
+    assert repo.box_rows == {}
+    assert repo.counts == {}
+
+    _scan("111", 1)
+    with pytest.raises(HTTPException) as skipped:
+        _scan("111", 3)
+    assert skipped.value.status_code == 400
+    assert "next box is 2" in skipped.value.detail
+    assert [row["box_number"] for row in repo.box_rows.values()] == [1]
+    assert repo.counts == {LINE_ID: 1}
+
+
+def test_editing_a_box_cannot_skip_or_empty_a_lower_box(wire):
+    from app.models.fba_shipment_library import FbaBoxNumberRequest
+
+    repo = FakeRepo()
+    wire(repo)
+    _scan("111", 1)
+    _scan("111", 2)
+    _scan("111", 3)
+    with pytest.raises(HTTPException) as caught:
+        api.update_fba_box_unit.__wrapped__(
+            "upload-1",
+            "box-2",
+            FbaBoxNumberRequest(box_number=1),
+            USER,
+            None,
+        )
+    assert caught.value.status_code == 400
+    assert "Box 2 cannot be left empty" in caught.value.detail
+    assert repo.box_rows["box-2"]["box_number"] == 2
+
+    updated = api.update_fba_box_unit.__wrapped__(
+        "upload-1",
+        "box-3",
+        FbaBoxNumberRequest(box_number=1),
+        USER,
+        None,
+    )
+    assert updated.box_number == 1
+    assert repo.box_rows["box-3"]["box_number"] == 1
 
 
 def test_a_failed_count_removes_the_box_record(wire):

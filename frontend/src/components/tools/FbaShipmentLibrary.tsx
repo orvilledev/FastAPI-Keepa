@@ -275,9 +275,10 @@ function ScanEntryForm({
         {scanning ? 'Counting…' : boxReady ? `Count 1 into Box ${boxValue}` : 'Count 1'}
       </button>
       <p className="basis-full text-xs text-gray-500">
-        Type the box number first. Every scan is placed in that box and listed on the Boxed tab of the
-        report. One scan counts as 1. Shipped stays the file quantity. Counts are shared, so scans by anyone
-        on this shipment show for everyone.
+        Type the box number first. Box numbers start at 1 and cannot skip, so box 3 is only allowed once
+        box 2 exists. Every scan is placed in that box and listed on the Boxed tab of the report. One scan
+        counts as 1. Shipped stays the file quantity. Counts are shared, so scans by anyone on this shipment
+        show for everyone.
       </p>
     </form>
   )
@@ -1535,9 +1536,9 @@ export default function FbaShipmentLibrary() {
                                 </p>
                               ) : (
                                 <p className="text-xs text-gray-500">
-                                  One row per counted unit. Changing a box does not change the count. Delete removes that
-                                  unit and lowers the count by 1. A blank box is a unit that was counted before a box
-                                  number was saved.
+                                  One row per counted unit. Changing a box does not change the count, and the new number
+                                  cannot skip a box that is not in use yet. Delete removes that unit and lowers the
+                                  count by 1. A blank box is a unit that was counted before a box number was saved.
                                 </p>
                               )}
                               {(boxForList ? boxUnits.filter((unit) => unit.box_number === boxForList) : boxUnits).map((unit) => (

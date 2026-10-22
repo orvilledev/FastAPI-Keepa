@@ -208,8 +208,76 @@ def accounting_report_filename(shipment_name: str, shipment_id: str = "") -> str
 BOXED_SHEET = "Boxed"
 BOXED_HEADER = ["external-id", "Counted", "Box Number"]
 MAX_BOX_NUMBER = 99999
+MISSING_BOX_FILL = "FF0000"
 
 BoxedRow = tuple[str, "int | None"]
+
+
+def _occupied_boxes(counts: dict[int, int]) -> set[int]:
+    return {int(box) for box, count in counts.items() if int(count) > 0}
+
+
+def _missing_box_numbers(boxes: set[int]) -> set[int]:
+    if not boxes:
+        return set()
+    highest = max(boxes)
+    return {number for number in range(1, highest + 1) if number not in boxes}
+
+
+def _next_box_number(boxes: set[int]) -> int:
+    """Lowest box number that is not already in use, starting at 1."""
+    number = 1
+    while number in boxes:
+        number += 1
+    return number
+
+
+def assert_box_number_follows(
+    box_number: int,
+    counts: dict[int, int],
+    *,
+    previous_box: int | None = None,
+) -> None:
+    """Refuse a box number that would skip 1, 2, 3, and so on.
+
+    A number that already has units can be used again. A new number has to be
+    the lowest one that is still open. Moving the last unit out of a box cannot
+    leave a gap under a higher box.
+    """
+    box_number = int(box_number)
+    if previous_box is not None and int(previous_box) == box_number:
+        return
+
+    before = _occupied_boxes(counts)
+    without_this_unit = set(before)
+    if previous_box is not None and int(counts.get(int(previous_box), 0)) <= 1:
+        without_this_unit.discard(int(previous_box))
+
+    if box_number not in without_this_unit:
+        expected = _next_box_number(without_this_unit)
+        if box_number != expected:
+            raise ValueError(
+                f"Box {box_number} skips a box number. The next box is {expected}."
+            )
+
+    after = set(without_this_unit)
+    after.add(box_number)
+    created = _missing_box_numbers(after) - _missing_box_numbers(before)
+    if created:
+        skipped = min(created)
+        raise ValueError(
+            f"Box {skipped} cannot be left empty while a higher box still has units."
+        )
+
+
+def box_count_and_missing(rows: list[BoxedRow]) -> tuple[int, int]:
+    """Highest box number, and how many of 1 through that number have no units."""
+    used = {box for _, box in rows if box is not None}
+    if not used:
+        return 0, 0
+    highest = max(used)
+    missing = sum(1 for number in range(1, highest + 1) if number not in used)
+    return highest, missing
 
 
 def accounting_totals_by_external_id(lines: list[dict], unknown_lines: list[dict]) -> dict[str, int]:
@@ -665,6 +733,16 @@ def build_accounting_workbook(
     sheet.append(["Shipment ID", shipment_id])
     sheet.append(["Counted by", counted_by])
     sheet.append(["Generated", datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")])
+    box_count, missing_boxes = box_count_and_missing(boxed_rows)
+    sheet["D1"] = "Box count"
+    sheet["E1"] = box_count
+    sheet["D2"] = "Missing box"
+    if missing_boxes:
+        missing_cell = sheet["E2"]
+        missing_cell.value = missing_boxes
+        missing_cell.fill = PatternFill("solid", fgColor=MISSING_BOX_FILL)
+    sheet.column_dimensions["D"].width = 16
+    sheet.column_dimensions["E"].width = 12
     sheet.append([])
     header = ["Merchant SKU", "external-id", "Shipped", "Counted", "Missing", "Status", "Boxes"]
     sheet.append(header)

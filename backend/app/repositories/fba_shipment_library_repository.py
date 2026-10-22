@@ -854,6 +854,17 @@ class FbaShipmentLibraryRepository:
                 return rows
             offset += 1000
 
+    def box_number_counts(self, upload_id: str) -> dict[int, int]:
+        """How many saved units sit in each box number."""
+        counts: dict[int, int] = {}
+        for scan in self.list_box_scans(upload_id):
+            raw = scan.get("box_number")
+            if raw is None:
+                continue
+            number = int(raw)
+            counts[number] = counts.get(number, 0) + 1
+        return counts
+
     def trash_upload(self, upload_id: str, user_id: str) -> dict:
         try:
             response = (

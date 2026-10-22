@@ -13,6 +13,8 @@ from app.services.fba_shipment_library import (
     STATUS_NOT_IN_LIST,
     STATUS_OVERAGE,
     accounting_report_filename,
+    assert_box_number_follows,
+    box_count_and_missing,
     build_accounting_workbook,
     build_boxed_rows,
     labels_by_box,
@@ -163,6 +165,11 @@ def test_boxed_tab_matches_the_users_example_workbook():
     assert [c.value for c in accounting[3]][:2] == ["Counted by", "Test"]
     assert accounting[4][0].value == "Generated"
     assert str(accounting[4][1].value).endswith(" UTC")
+    assert accounting["D1"].value == "Box count"
+    assert accounting["E1"].value == 2
+    assert accounting["D2"].value == "Missing box"
+    assert accounting["E2"].value is None
+    assert accounting["E2"].fill.patternType is None
     assert [c.value for c in accounting[6]] == [
         "Merchant SKU", "external-id", "Shipped", "Counted", "Missing", "Status", "Boxes",
     ]
@@ -226,6 +233,53 @@ def test_boxed_totals_match_accounting_for_many_items_boxes_and_unknown_scans():
     assert boxed.cell(row=grand_row, column=7).value == "Grand Total"
     assert boxed.cell(row=grand_row, column=7 + 1 + 3 + 0).value == sum(per_item.values())
     assert [c.value for c in boxed[2]][7:] == [2, 10, 11, "Grand Total"]
+
+
+def test_box_numbers_have_to_follow_without_skipping():
+    assert_box_number_follows(1, {})
+    with pytest.raises(ValueError, match="next box is 1"):
+        assert_box_number_follows(3, {})
+    assert_box_number_follows(2, {1: 4})
+    with pytest.raises(ValueError, match="next box is 2"):
+        assert_box_number_follows(3, {1: 2})
+    assert_box_number_follows(1, {1: 1, 2: 1})
+    assert_box_number_follows(3, {1: 1, 2: 1})
+    assert_box_number_follows(2, {1: 1, 3: 1})
+    with pytest.raises(ValueError, match="next box is 2"):
+        assert_box_number_follows(4, {1: 1, 3: 1})
+    assert_box_number_follows(3, {1: 1, 3: 1}, previous_box=3)
+    with pytest.raises(ValueError, match="Box 2 cannot be left empty"):
+        assert_box_number_follows(1, {1: 1, 2: 1, 3: 1}, previous_box=2)
+    assert_box_number_follows(1, {1: 1, 2: 1, 3: 1}, previous_box=3)
+    assert_box_number_follows(4, {1: 1, 2: 2, 3: 1}, previous_box=2)
+
+
+def test_missing_box_count_is_the_gap_under_the_highest_box():
+    used = [("111", number) for number in range(1, 41) if number != 15]
+    assert box_count_and_missing(used) == (40, 1)
+    assert box_count_and_missing([("111", 1), ("111", 2)]) == (2, 0)
+    assert box_count_and_missing([("111", None), ("111", None)]) == (0, 0)
+
+
+def test_accounting_header_puts_one_missing_box_in_red():
+    lines = [{"merchant_sku": "A", "external_id": "111", "shipped": 3, "counted": 3}]
+    scans = [
+        {"external_id": "111", "box_number": 1},
+        {"external_id": "111", "box_number": 2},
+        {"external_id": "111", "box_number": 4},
+    ]
+    accounting = _read_workbook(
+        build_accounting_workbook(
+            shipment_id="FBA1", counted_by="Test", lines=lines, unknown_lines=[], box_scans=scans
+        )
+    )["Accounting"]
+    assert accounting["D1"].value == "Box count"
+    assert accounting["E1"].value == 4
+    assert accounting["D2"].value == "Missing box"
+    assert accounting["E2"].value == 1
+    assert accounting["E2"].fill.patternType == "solid"
+    assert str(accounting["E2"].fill.fgColor.rgb).upper().endswith("FF0000")
+    assert accounting["D2"].fill.patternType is None
 
 
 def test_units_for_count_keeps_one_slot_per_counted_unit():

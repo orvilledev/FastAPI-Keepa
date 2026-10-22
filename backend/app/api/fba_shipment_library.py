@@ -32,6 +32,7 @@ from app.services.fba_shipment_library import (
     MAX_BOX_NUMBER,
     FbaShipmentParseError,
     accounting_report_filename,
+    assert_box_number_follows,
     build_accounting_workbook,
     labels_by_box,
     choose_line_for_scan,
@@ -358,6 +359,7 @@ def scan_fba_shipment(
             raise HTTPException(status_code=400, detail="This shipment is in Trash. Restore it before scanning.")
         if upload.get("archived_at"):
             raise HTTPException(status_code=400, detail="This shipment is archived and can no longer be scanned.")
+        assert_box_number_follows(box_number, repo.box_number_counts(upload_id))
         user_id = str(current_user["id"])
         matches = repo.lines_for_barcode(upload_id, barcode)
         if not matches:
@@ -482,6 +484,7 @@ def assign_fba_box_unit(
         )
         if len(scans) >= counted:
             raise HTTPException(status_code=400, detail="Every counted unit on this item already has a box.")
+        assert_box_number_follows(body.box_number, repo.box_number_counts(upload_id))
         scan_id = repo.record_box_scan(
             upload_id, str(current_user["id"]), external_id, body.box_number, stored_line_id
         )
@@ -508,6 +511,14 @@ def update_fba_box_unit(
         _require_visible(upload, current_user, is_superadmin_user(current_user, db))
         if upload.get("trashed_at"):
             raise HTTPException(status_code=400, detail="Restore this shipment from Trash before changing a box.")
+        current = repo.get_box_scan(upload_id, scan_id)
+        if current is not None:
+            previous = current.get("box_number")
+            assert_box_number_follows(
+                body.box_number,
+                repo.box_number_counts(upload_id),
+                previous_box=int(previous) if previous is not None else None,
+            )
         repo.update_box_number(upload_id, scan_id, body.box_number)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
