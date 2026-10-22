@@ -17,10 +17,14 @@ from app.services.daily_run_completion import (
     API_KEEPA_RUN_BLOCKED_MESSAGE,
     acquire_category_daily_run_lock,
     api_keepa_exclusive_start,
+    fail_abandoned_uploaded_daily_jobs,
+    fail_pending_uploaded_job,
     release_category_daily_run_lock,
+    release_scheduled_uploaded_run_claim,
     scheduled_uploaded_run_completed_today,
     send_daily_run_completion_email_for_job,
     try_acquire_category_daily_run_lock,
+    try_claim_scheduled_uploaded_run,
     uploaded_daily_run_in_progress,
 )
 from app.utils.notifications import create_notification, create_completion_notifications_for_all_profiles
@@ -398,8 +402,16 @@ async def run_daily_job_for_category(category: str = 'dnk', forced_input_mode: O
 
 async def _run_daily_job_for_category_impl(category: str = 'dnk', forced_input_mode: Optional[str] = None):
     """Inner daily run implementation (caller holds the per-category lock)."""
+    from datetime import datetime
+    db = None
+    input_mode = "api"
+    created_job_id = None
+    # (category, run_date) once this process owns the scheduled Import Mode day.
+    scheduled_claim: Optional[tuple] = None
+    # Keep the claim after a real finish or a user cancel so a second server
+    # cannot start a twin. Failures release it.
+    keep_scheduled_claim = False
     try:
-        from datetime import datetime
         config = _scheduler_configs.get(category, _scheduler_configs['dnk'])
         current_time = datetime.now(config.timezone)
         tz_name = str(config.timezone).split('/')[-1] if '/' in str(config.timezone) else str(config.timezone)
@@ -411,7 +423,6 @@ async def _run_daily_job_for_category_impl(category: str = 'dnk', forced_input_m
         custom_bcc_recipients = None
         email_subject_template = None
         email_body_template = None
-        input_mode = "api"
         normalized_forced_mode = (forced_input_mode or "").strip().lower()
         if normalized_forced_mode and normalized_forced_mode not in {"api", "uploaded"}:
             logger.warning(
@@ -487,6 +498,9 @@ async def _run_daily_job_for_category_impl(category: str = 'dnk', forced_input_m
 
         run_date = current_time.strftime("%Y-%m-%d")
         if input_mode == "uploaded" and not normalized_forced_mode:
+            # Clear dead 0/5 rows first so yesterday's stuck attempt cannot
+            # block today's run. Trigger Import does not take this claim.
+            await _run_sync(lambda: fail_abandoned_uploaded_daily_jobs(db))
             if await _run_sync(
                 lambda: scheduled_uploaded_run_completed_today(db, category, run_date)
             ):
@@ -502,6 +516,17 @@ async def _run_daily_job_for_category_impl(category: str = 'dnk', forced_input_m
                     category.upper(),
                 )
                 return
+            claimed = await _run_sync(
+                lambda: try_claim_scheduled_uploaded_run(db, category, run_date)
+            )
+            if not claimed:
+                logger.info(
+                    "Skipping scheduled %s import run — another worker already claimed %s",
+                    category.upper(),
+                    run_date,
+                )
+                return
+            scheduled_claim = (category, run_date)
 
         # Get admin user ID (or system user)
         profiles_response = await _run_sync(
@@ -699,6 +724,7 @@ async def _run_daily_job_for_category_impl(category: str = 'dnk', forced_input_m
                     map_vendor_type=category,
                     off_price_scope=run_off_price_scope,
                 )
+            created_job_id = job_id
             logger.info(f"Created {category.upper()} batch job {job_id} with {len(upcs)} UPCs. Processing...")
             if input_mode == "uploaded":
                 map_repo = MAPRepository(db)
@@ -849,6 +875,8 @@ async def _run_daily_job_for_category_impl(category: str = 'dnk', forced_input_m
                     else None
                 )
                 if latest_job_status in {None, "cancelled"}:
+                    if latest_job_status == "cancelled":
+                        keep_scheduled_claim = True
                     logger.info(
                         "Uploaded run for %s was %s before completion finalization; skipping completion/email",
                         category.upper(),
@@ -861,20 +889,31 @@ async def _run_daily_job_for_category_impl(category: str = 'dnk', forced_input_m
                     "completed_batches": tb,
                     "completed_at": datetime.utcnow().isoformat(),
                 }).eq("id", str(job_id)).execute())
-                await _run_sync(lambda: create_completion_notifications_for_all_profiles(
-                    db,
-                    notification_type="run_completed_clean",
-                    title=f"Run completed: {job_name}",
-                    message=f"Daily import run finished for {category.upper()} ({len(upcs)} UPCs). Visible to the whole team.",
-                    priority="info",
-                    related_id=UUID(str(job_id)),
-                    related_type="job",
-                    metadata={"job_name": job_name, "vendor": category, "total_upcs": len(upcs), "input_mode": "uploaded"},
-                    action_label="View Express Jobs",
-                    action_url="/jobs",
-                ))
+                keep_scheduled_claim = True
+                try:
+                    await _run_sync(lambda: create_completion_notifications_for_all_profiles(
+                        db,
+                        notification_type="run_completed_clean",
+                        title=f"Run completed: {job_name}",
+                        message=f"Daily import run finished for {category.upper()} ({len(upcs)} UPCs). Visible to the whole team.",
+                        priority="info",
+                        related_id=UUID(str(job_id)),
+                        related_type="job",
+                        metadata={"job_name": job_name, "vendor": category, "total_upcs": len(upcs), "input_mode": "uploaded"},
+                        action_label="View Express Jobs",
+                        action_url="/jobs",
+                    ))
+                except Exception as notify_err:
+                    logger.warning(
+                        "Import completion notification failed for %s job %s: %s",
+                        category.upper(),
+                        job_id,
+                        notify_err,
+                    )
 
                 # Generate the off-price CSV (one row per flagged UPC) and email it once.
+                # A notification failure must not skip this. The email helper sends
+                # once per job id, so Trigger Import (a new job) still emails.
                 try:
                     latest_job_resp = await _run_sync(
                         lambda: db.table("batch_jobs").select("status").eq("id", str(job_id)).limit(1).execute()
@@ -920,6 +959,41 @@ async def _run_daily_job_for_category_impl(category: str = 'dnk', forced_input_m
             logger.info(f"No {category.upper()} UPCs found to process")
     except Exception as e:
         logger.error(f"Error executing {category.upper()} daily batch job: {e}", exc_info=True)
+        if (
+            db is not None
+            and input_mode == "uploaded"
+            and created_job_id is not None
+            and not keep_scheduled_claim
+        ):
+            failure_message = f"Import run stopped before it finished: {e}"
+            job_to_fail = str(created_job_id)
+            try:
+                await _run_sync(
+                    lambda: fail_pending_uploaded_job(db, job_to_fail, failure_message)
+                )
+            except Exception as fail_err:
+                logger.warning(
+                    "Could not mark import job %s failed after %s error: %s",
+                    job_to_fail,
+                    category.upper(),
+                    fail_err,
+                )
+    finally:
+        if scheduled_claim and not keep_scheduled_claim and db is not None:
+            claim_category, claim_run_date = scheduled_claim
+            try:
+                await _run_sync(
+                    lambda: release_scheduled_uploaded_run_claim(
+                        db, claim_category, claim_run_date
+                    )
+                )
+            except Exception as release_err:
+                logger.warning(
+                    "Could not release scheduled import claim for %s %s: %s",
+                    claim_category,
+                    claim_run_date,
+                    release_err,
+                )
 
 
 def setup_scheduler(
@@ -1206,6 +1280,15 @@ COMPLETED_JOBS_RETENTION_JOB_ID = "completed_jobs_retention_cleanup"
 async def run_completed_jobs_retention_cleanup() -> int:
     """Delete completed Express / Daily jobs older than the configured retention window."""
     from app.repositories.job_repository import JobRepository
+
+    try:
+        abandoned = await _run_sync(
+            lambda: fail_abandoned_uploaded_daily_jobs(get_supabase())
+        )
+        if abandoned:
+            logger.info("Marked %s abandoned import run(s) failed during retention", abandoned)
+    except Exception as exc:
+        logger.warning("Abandoned import cleanup failed: %s", exc)
 
     days = int(getattr(settings, "completed_jobs_retention_days", 7) or 0)
     if days <= 0:

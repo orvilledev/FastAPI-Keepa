@@ -39,6 +39,12 @@ class _FakeQuery:
     def in_(self, *_args, **_kwargs):
         return self
 
+    def ilike(self, *_args, **_kwargs):
+        return self
+
+    def delete(self):
+        return self
+
     def execute(self):
         self.db.tables_hit.append(self.table_name)
         if self.table_name == "scheduler_settings":
@@ -350,3 +356,48 @@ async def test_api_mode_daily_run_skips_when_express_job_active():
     processor.create_batch_job.assert_not_called()
     processor.process_job.assert_not_called()
     upc_repo.get_all_upc_codes.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_scheduled_import_skips_job_when_another_worker_claimed_the_day():
+    """The loser must not insert the stuck pending twin."""
+    uploaded_db = _FakeDB(input_mode="uploaded")
+    email = MagicMock()
+
+    with patch("app.scheduler.create_notification", return_value=None), patch(
+        "app.scheduler.BatchProcessor", return_value=SimpleNamespace()
+    ), patch(
+        "app.scheduler.get_supabase", return_value=uploaded_db
+    ), patch(
+        "app.scheduler.try_claim_scheduled_uploaded_run", return_value=False
+    ), patch(
+        "app.scheduler.send_daily_run_completion_email_for_job", email
+    ):
+        await run_daily_job_for_category("tev")
+
+    assert [payload for table, payload in uploaded_db.inserts if table == "batch_jobs"] == []
+    email.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_forced_import_still_runs_when_scheduled_claim_would_block():
+    """Trigger Import ignores the day claim and still records a run that can email."""
+    api_db = _FakeDB(input_mode="api")
+    claim = MagicMock(return_value=False)
+
+    with patch("app.scheduler.create_notification", return_value=None), patch(
+        "app.scheduler.BatchProcessor", return_value=SimpleNamespace()
+    ), patch(
+        "app.scheduler.get_supabase", return_value=api_db
+    ), patch(
+        "app.scheduler.try_claim_scheduled_uploaded_run", claim
+    ):
+        await run_daily_job_for_category("tev", forced_input_mode="uploaded")
+
+    claim.assert_not_called()
+    uploaded_batch_inserts = [
+        payload for table, payload in api_db.inserts if table == "batch_jobs"
+    ]
+    assert uploaded_batch_inserts
+    assert "Daily TEV Uploaded Report" in uploaded_batch_inserts[0]["job_name"]
+    assert uploaded_batch_inserts[0]["status"] == "failed"

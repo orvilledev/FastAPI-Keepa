@@ -17,6 +17,7 @@ from app.services.audit_log_service import record_audit_event
 from app.services.daily_run_completion import (
     API_KEEPA_RUN_BLOCKED_MESSAGE,
     api_keepa_job_conflict,
+    fail_abandoned_uploaded_daily_jobs,
     uploaded_daily_run_in_progress,
 )
 from app.utils.error_handler import handle_api_errors
@@ -1136,6 +1137,7 @@ async def rerun_uploaded_report(
     if parse_status != "completed":
         raise HTTPException(status_code=409, detail=f"Uploaded report is not ready yet (status: {parse_status or 'pending'}).")
 
+    await asyncio.to_thread(fail_abandoned_uploaded_daily_jobs, db)
     if await asyncio.to_thread(uploaded_daily_run_in_progress, db, category):
         raise HTTPException(
             status_code=409,
@@ -1191,6 +1193,7 @@ async def create_same_day_run(
     Uses the vendor's current input_mode (API or uploaded) when it fires.
     """
     db = get_supabase()
+    await asyncio.to_thread(fail_abandoned_uploaded_daily_jobs, db)
     if await asyncio.to_thread(uploaded_daily_run_in_progress, db, category):
         raise HTTPException(
             status_code=409,

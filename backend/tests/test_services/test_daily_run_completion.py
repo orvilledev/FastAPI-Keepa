@@ -6,17 +6,23 @@ from uuid import uuid4
 
 import pytest
 
+from datetime import datetime, timedelta
+
 from app.services.daily_run_completion import (
     acquire_category_daily_run_lock,
     claim_completion_email_send,
     claim_daily_run_email_for_vendor_day,
     daily_run_kind_from_job_name,
+    fail_abandoned_uploaded_daily_jobs,
+    fail_pending_uploaded_job,
     find_active_api_keepa_job,
     release_category_daily_run_lock,
+    release_scheduled_uploaded_run_claim,
     resolve_daily_run_date,
     scheduled_uploaded_run_completed_today,
     send_daily_run_completion_email_for_job,
     try_acquire_category_daily_run_lock,
+    try_claim_scheduled_uploaded_run,
     uploaded_daily_run_in_progress,
 )
 
@@ -250,6 +256,149 @@ def test_retry_send_success_keeps_claim(
     assert sent is True
     assert email_cls.return_value.send_csv_report.call_count == 2
     release_claim.assert_not_called()
+
+
+def test_start_claim_lost_only_on_unique_violation():
+    db = MagicMock()
+    db.table.return_value.insert.return_value.execute.side_effect = [
+        SimpleNamespace(data=[{"vendor_code": "tev"}]),
+        Exception("duplicate key value violates unique constraint 23505"),
+        RuntimeError("relation daily_run_start_claims does not exist"),
+    ]
+
+    assert try_claim_scheduled_uploaded_run(db, "tev", "2026-10-21") is True
+    assert try_claim_scheduled_uploaded_run(db, "tev", "2026-10-21") is False
+    # Missing table must not block the run or its completion email.
+    assert try_claim_scheduled_uploaded_run(db, "tev", "2026-10-21") is True
+
+
+def test_release_start_claim_swallows_errors():
+    db = MagicMock()
+    db.table.return_value.delete.return_value.eq.return_value.eq.return_value.eq.return_value.execute.side_effect = RuntimeError(
+        "gone"
+    )
+    release_scheduled_uploaded_run_claim(db, "tev", "2026-10-21")
+
+
+def test_fail_pending_uploaded_job_only_updates_pending_row():
+    db = MagicMock()
+    db.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value = SimpleNamespace(
+        data=[{"id": "job-1", "status": "failed"}]
+    )
+    assert fail_pending_uploaded_job(db, "job-1", "stopped") is True
+    update_payload = db.table.return_value.update.call_args.args[0]
+    assert update_payload["status"] == "failed"
+    assert "email" not in update_payload
+
+
+class _AbandonQuery:
+    def __init__(self, db, table_name: str):
+        self.db = db
+        self.table_name = table_name
+        self.op = None
+        self.payload = None
+        self.filters = []
+
+    def select(self, *_args, **_kwargs):
+        self.op = "select"
+        return self
+
+    def update(self, payload):
+        self.op = "update"
+        self.payload = payload
+        return self
+
+    def delete(self):
+        self.op = "delete"
+        return self
+
+    def eq(self, column, value):
+        self.filters.append((column, value))
+        return self
+
+    def ilike(self, *_args, **_kwargs):
+        return self
+
+    def limit(self, *_args, **_kwargs):
+        return self
+
+    def execute(self):
+        if self.table_name == "batch_jobs" and self.op == "select":
+            return SimpleNamespace(data=self.db.rows)
+        if self.table_name == "batch_jobs" and self.op == "update":
+            wanted = dict(self.filters)
+            matched = []
+            for row in self.db.rows:
+                if str(row.get("id")) == str(wanted.get("id")) and row.get("status") == wanted.get("status"):
+                    row.update(self.payload)
+                    matched.append(dict(row))
+            return SimpleNamespace(data=matched)
+        if self.table_name == "daily_run_start_claims" and self.op == "delete":
+            self.db.claim_deletes.append(dict(self.filters))
+            return SimpleNamespace(data=[])
+        return SimpleNamespace(data=[])
+
+
+class _AbandonDB:
+    def __init__(self, rows):
+        self.rows = [dict(row) for row in rows]
+        self.claim_deletes = []
+
+    def table(self, table_name: str):
+        return _AbandonQuery(self, table_name)
+
+
+def test_fail_abandoned_import_leaves_live_and_api_jobs_and_does_not_email():
+    now = datetime.utcnow()
+    old = (now - timedelta(hours=2)).isoformat() + "Z"
+    recent = (now - timedelta(minutes=5)).isoformat() + "Z"
+    db = _AbandonDB([
+        {
+            "id": "stuck",
+            "job_name": "Daily TEV Uploaded Report - 2026-10-21",
+            "status": "pending",
+            "created_at": old,
+            "completed_batches": 0,
+            "map_vendor_type": "tev",
+        },
+        {
+            "id": "live",
+            "job_name": "Daily TEV Uploaded Report - 2026-10-22",
+            "status": "pending",
+            "created_at": recent,
+            "completed_batches": 0,
+            "map_vendor_type": "tev",
+        },
+        {
+            "id": "api",
+            "job_name": "Daily CLK Off Price Report - 2026-10-21",
+            "status": "pending",
+            "created_at": old,
+            "completed_batches": 0,
+            "map_vendor_type": "clk",
+        },
+        {
+            "id": "progress",
+            "job_name": "Daily SFF Uploaded Report - 2026-10-21",
+            "status": "pending",
+            "created_at": old,
+            "completed_batches": 2,
+            "map_vendor_type": "sff",
+        },
+    ])
+
+    failed = fail_abandoned_uploaded_daily_jobs(db, older_than_minutes=30)
+
+    by_id = {row["id"]: row for row in db.rows}
+    assert failed == 1
+    assert by_id["stuck"]["status"] == "failed"
+    assert by_id["live"]["status"] == "pending"
+    assert by_id["api"]["status"] == "pending"
+    assert by_id["progress"]["status"] == "pending"
+    assert db.claim_deletes == [
+        {"vendor_code": "tev", "run_date": "2026-10-21", "run_kind": "uploaded"}
+    ]
+    assert "completion_email_sent_at" not in by_id["stuck"]
 
 
 @pytest.mark.asyncio

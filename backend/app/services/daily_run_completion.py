@@ -5,7 +5,7 @@ import asyncio
 import logging
 import re
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import AsyncIterator, Optional
 from uuid import UUID
 
@@ -26,6 +26,10 @@ API_KEEPA_RUN_BLOCKED_MESSAGE = (
 _category_daily_run_locks: dict[str, asyncio.Lock] = {}
 _api_keepa_start_lock = asyncio.Lock()
 _JOB_DATE_RE = re.compile(r"(20\d{2}-\d{2}-\d{2})\s*$")
+_START_CLAIM_TABLE = "daily_run_start_claims"
+# Import Mode waits up to 15 minutes for a file, then finishes in about a minute.
+# Anything still pending with zero batches after this is a dead row, not a live run.
+ABANDONED_UPLOADED_RUN_MINUTES = 30
 
 
 def _uploaded_daily_job_name_prefix(category: str) -> str:
@@ -190,6 +194,165 @@ def uploaded_daily_run_in_progress(db: Client, category: str) -> bool:
     except Exception as exc:
         logger.warning("Could not check in-progress uploaded daily run for %s: %s", category, exc)
         return False
+
+
+def _is_unique_violation(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return "duplicate" in msg or "unique" in msg or "23505" in msg
+
+
+def _parse_utc_naive(value) -> Optional[datetime]:
+    if not value:
+        return None
+    text = str(value).strip().replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed
+
+
+def try_claim_scheduled_uploaded_run(db: Client, category: str, run_date: str) -> bool:
+    """Claim a scheduled Import Mode day. False only when another worker owns it.
+
+    A missing table or other unexpected error fails open so a daily run and its
+    completion email still happen. Unique violations are the lost race.
+    """
+    vendor = _normalize_vendor(category)
+    if not vendor or not run_date:
+        return True
+    payload = {
+        "vendor_code": vendor,
+        "run_date": run_date,
+        "run_kind": "uploaded",
+        "claimed_at": datetime.utcnow().isoformat(),
+    }
+    try:
+        resp = db.table(_START_CLAIM_TABLE).insert(payload).execute()
+    except Exception as exc:
+        if _is_unique_violation(exc):
+            logger.info(
+                "Scheduled %s import run for %s already claimed by another worker",
+                vendor.upper(),
+                run_date,
+            )
+            return False
+        logger.warning(
+            "Could not claim scheduled %s import run for %s (%s); continuing without the lock",
+            vendor.upper(),
+            run_date,
+            exc,
+        )
+        return True
+    if not getattr(resp, "data", None):
+        # Insert did not raise. Treat that as ownership so a client that omits
+        # the returned row cannot skip the run and its completion email.
+        return True
+    return True
+
+
+def release_scheduled_uploaded_run_claim(db: Client, category: str, run_date: str) -> None:
+    """Drop a scheduled Import Mode claim after a failed or abandoned attempt."""
+    vendor = _normalize_vendor(category)
+    if not vendor or not run_date:
+        return
+    try:
+        (
+            db.table(_START_CLAIM_TABLE)
+            .delete()
+            .eq("vendor_code", vendor)
+            .eq("run_date", run_date)
+            .eq("run_kind", "uploaded")
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning(
+            "Could not release scheduled import claim for %s %s: %s",
+            vendor,
+            run_date,
+            exc,
+        )
+
+
+def fail_pending_uploaded_job(db: Client, job_id: str, error_message: str) -> bool:
+    """Mark one still-pending import job failed. Does not send email."""
+    message = (error_message or "Import run stopped before it finished.").strip()
+    if len(message) > 500:
+        message = message[:497] + "..."
+    try:
+        resp = (
+            db.table("batch_jobs")
+            .update({
+                "status": "failed",
+                "completed_at": datetime.utcnow().isoformat(),
+                "error_message": message,
+            })
+            .eq("id", str(job_id))
+            .eq("status", "pending")
+            .execute()
+        )
+        return bool(getattr(resp, "data", None))
+    except Exception as exc:
+        logger.warning("Could not fail pending import job %s: %s", job_id, exc)
+        return False
+
+
+def fail_abandoned_uploaded_daily_jobs(
+    db: Client,
+    *,
+    older_than_minutes: int = ABANDONED_UPLOADED_RUN_MINUTES,
+) -> int:
+    """Fail Import Mode daily jobs left pending with no finished batches.
+
+    API Mode jobs and any import job that already completed a batch are left
+    alone. Releasing the start claim lets the next scheduled run or Trigger
+    Import proceed. No completion email is sent for these rows.
+    """
+    cutoff = datetime.utcnow() - timedelta(minutes=max(1, int(older_than_minutes)))
+    try:
+        resp = (
+            db.table("batch_jobs")
+            .select("id, job_name, status, created_at, completed_batches, map_vendor_type")
+            .eq("status", "pending")
+            .ilike("job_name", "Daily %Uploaded Report%")
+            .limit(200)
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning("Could not list abandoned import runs: %s", exc)
+        return 0
+
+    failed = 0
+    for row in resp.data or []:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get("job_name") or "")
+        if "uploaded report" not in name.lower():
+            continue
+        if int(row.get("completed_batches") or 0) > 0:
+            continue
+        created = _parse_utc_naive(row.get("created_at"))
+        if created is None or created > cutoff:
+            continue
+        job_id = str(row.get("id") or "").strip()
+        if not job_id:
+            continue
+        if not fail_pending_uploaded_job(
+            db,
+            job_id,
+            "Import run was abandoned before it finished (no batches completed).",
+        ):
+            continue
+        failed += 1
+        run_date = resolve_daily_run_date(row)
+        vendor = (row.get("map_vendor_type") or "").strip().lower() or _vendor_from_daily_job_name(name)
+        if vendor and run_date:
+            release_scheduled_uploaded_run_claim(db, vendor, run_date)
+    if failed:
+        logger.info("Marked %s abandoned import run(s) as failed", failed)
+    return failed
 
 
 def daily_run_email_already_claimed(
