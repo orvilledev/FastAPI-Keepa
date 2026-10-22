@@ -193,10 +193,14 @@ function DebouncedField({
 function ScanEntryForm({
   resetKey,
   scanning,
+  boxError,
+  onBoxNumberChange,
   onScan,
 }: {
   resetKey: string | null
   scanning: boolean
+  boxError: string | null
+  onBoxNumberChange: () => void
   onScan: (boxValue: number, code: string) => Promise<boolean>
 }) {
   const [boxNumber, setBoxNumber] = useState('')
@@ -225,6 +229,11 @@ function ScanEntryForm({
   }
   return (
     <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={(event) => void submit(event)}>
+      {boxError && (
+        <div className="basis-full rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {boxError}
+        </div>
+      )}
       <label className="block">
         <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600">
           Box number
@@ -234,6 +243,7 @@ function ScanEntryForm({
           value={boxNumber}
           onChange={(event) => {
             noteShipmentEdit()
+            onBoxNumberChange()
             setBoxNumber(digitsOnly(event.target.value))
           }}
           onKeyDown={(event) => {
@@ -310,6 +320,7 @@ export default function FbaShipmentLibrary() {
   const [lines, setLines] = useState<FbaShipmentLine[]>([])
   const [unknownLines, setUnknownLines] = useState<FbaShipmentLine[]>([])
   const [scanAlert, setScanAlert] = useState<string | null>(null)
+  const [boxScanError, setBoxScanError] = useState<string | null>(null)
   const [lineTotal, setLineTotal] = useState(0)
   const [boxStored, setBoxStored] = useState<number | null>(null)
   const [lineOffset, setLineOffset] = useState(0)
@@ -506,6 +517,7 @@ export default function FbaShipmentLibrary() {
 
   useEffect(() => {
     setScanAlert(null)
+    setBoxScanError(null)
     setBoxLineId(null)
     setBoxUnits([])
     boxCache.current = {}
@@ -523,7 +535,7 @@ export default function FbaShipmentLibrary() {
     if (!selectedId || !code || scanning) return false
     if (boxValue < 1 || boxValue > 99999) {
       setScanAlert(null)
-      setError('Enter the box number first (1 to 99999), then scan.')
+      setBoxScanError('Enter the box number first (1 to 99999), then scan.')
       return false
     }
     // Drop a list reload that started before this scan so it cannot wipe the count just added.
@@ -531,6 +543,7 @@ export default function FbaShipmentLibrary() {
     setLinesLoading(false)
     setScanning(true)
     setError(null)
+    setBoxScanError(null)
     try {
       const result = await fbaShipmentLibraryApi.scan(selectedId, code, boxValue)
       setActiveLineId(result.line.id)
@@ -579,7 +592,7 @@ export default function FbaShipmentLibrary() {
       }, 0)
       return true
     } catch (err) {
-      setError(errorMessage(err, 'That scan was not counted.'))
+      setBoxScanError(errorMessage(err, 'That scan was not counted.'))
       return false
     } finally {
       setScanning(false)
@@ -1443,7 +1456,13 @@ export default function FbaShipmentLibrary() {
             />
           </div>
           {!selected.archived_at && !selected.trashed_at && (
-            <ScanEntryForm resetKey={selectedId} scanning={scanning} onScan={handleScan} />
+            <ScanEntryForm
+              resetKey={selectedId}
+              scanning={scanning}
+              boxError={boxScanError}
+              onBoxNumberChange={() => setBoxScanError(null)}
+              onScan={handleScan}
+            />
           )}
           {scanAlert && (
             <div className="mt-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
