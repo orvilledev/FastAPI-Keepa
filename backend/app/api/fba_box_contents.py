@@ -144,7 +144,10 @@ async def generate_fba_box_contents_tool2_file(
     return Response(
         content=result.file_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers=_response_headers(safe_name, result),
+        headers={
+            **_response_headers(safe_name, result),
+            "X-Fba-Zero-Corrected-Count": str(result.zero_corrected_count),
+        },
     )
 
 
@@ -280,6 +283,7 @@ async def compare_tool2_output_to_manifest(
             "X-Fba-Removed-Count": str(result.removed_count),
             "X-Fba-Removed-Qty": str(result.removed_qty),
             "X-Fba-Last-Box": str(result.last_box),
+            "X-Fba-Zero-Corrected-Count": str(result.zero_corrected_count),
         },
     )
 

@@ -11,7 +11,9 @@ Input (Amazon carton export with blank spacer columns, .xls or .xlsx):
 Output (differs from Tool #1):
   - ``Box Contents``: UPC, Box Number, QTY + Sum-of-QTY pivot at column G
     (no Total QTY footer; no mauve header fill)
-  - ``Dimensions``: Weight (text), Length, Width, Height — no Box # column
+  - ``Dimensions``: Box Number, Weight (text), Length, Width, Height. Cartons with
+    a zero value get a suggested value (highlighted yellow) plus a trailing
+    ``Zero Correction`` column explaining why — see ``fba_nfa_smw_dimensions``.
 """
 from __future__ import annotations
 
@@ -26,6 +28,13 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
+
+from app.services.fba_nfa_smw_dimensions import (
+    DimensionLine,
+    apply_zero_corrections,
+    build_items_by_box,
+    write_dimension_lines,
+)
 
 _MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 _CALIBRI = Font(name="Calibri", size=11)
@@ -76,6 +85,7 @@ class FbaBoxContentsTool2Result:
     upc_count: int
     total_qty: int | float
     shipment_id: str
+    zero_corrected_count: int = 0
 
 
 def sanitize_download_filename(name: str | None, fallback: str = DEFAULT_OUTPUT_FILENAME) -> str:
@@ -466,36 +476,46 @@ def _write_box_contents(sheet: Worksheet, rows: Sequence[ContentRow]) -> int | f
     return total_qty
 
 
-def _write_dimensions(sheet: Worksheet, cartons: Sequence[Carton]) -> None:
-    sheet.sheet_view.showGridLines = True
-    for column, header in enumerate(("Weight", "Length", "Width", "Height"), start=1):
-        _set_text_cell(sheet, 1, column, header)
+def build_dimension_lines(parsed: ParsedCartonDetail) -> tuple[list[DimensionLine], int]:
+    """Dimensions rows (with Box Number) and zero-value suggestions.
 
-    for carton in cartons:
-        row = carton.box_number + 1
-        _set_text_cell(sheet, row, 1, carton.weight_text or None)
-        _set_number_cell(sheet, row, 2, carton.length)
-        _set_number_cell(sheet, row, 3, carton.width)
-        _set_number_cell(sheet, row, 4, carton.height)
+    Returns ``(lines, zero_corrected_count)``.
+    """
+    lines = [
+        DimensionLine(
+            box_number=carton.box_number,
+            weight=carton.weight_text or "",
+            length=carton.length,
+            width=carton.width,
+            height=carton.height,
+        )
+        for carton in parsed.cartons
+    ]
+    items = build_items_by_box((row.upc, row.box_number, row.qty) for row in parsed.rows)
+    return apply_zero_corrections(lines, items)
 
-    sheet.column_dimensions["A"].width = 10.0
-    sheet.column_dimensions["B"].width = 10.0
-    sheet.column_dimensions["C"].width = 10.0
-    sheet.column_dimensions["D"].width = 10.0
+
+def _write_dimensions(sheet: Worksheet, lines: Sequence[DimensionLine]) -> None:
+    write_dimension_lines(sheet, lines)
 
 
-def build_output_workbook(parsed: ParsedCartonDetail) -> bytes:
+def _build_workbook(parsed: ParsedCartonDetail) -> tuple[bytes, int]:
     workbook = Workbook()
     contents = workbook.active
     contents.title = BOX_CONTENTS_SHEET
     dimensions = workbook.create_sheet(DIMENSIONS_SHEET)
+    lines, zero_corrected = build_dimension_lines(parsed)
     _write_box_contents(contents, parsed.rows)
-    _write_dimensions(dimensions, parsed.cartons)
+    _write_dimensions(dimensions, lines)
     dimensions.sheet_view.tabSelected = False
     contents.sheet_view.tabSelected = True
     output = io.BytesIO()
     workbook.save(output)
-    return output.getvalue()
+    return output.getvalue(), zero_corrected
+
+
+def build_output_workbook(parsed: ParsedCartonDetail) -> bytes:
+    return _build_workbook(parsed)[0]
 
 
 def generate_fba_box_contents_tool2(
@@ -503,7 +523,7 @@ def generate_fba_box_contents_tool2(
     filename: str | None = None,
 ) -> FbaBoxContentsTool2Result:
     parsed = parse_carton_detail_tool2(content)
-    file_bytes = build_output_workbook(parsed)
+    file_bytes, zero_corrected = _build_workbook(parsed)
     total_qty: int | float = 0
     for row in parsed.rows:
         total_qty += row.qty
@@ -517,4 +537,5 @@ def generate_fba_box_contents_tool2(
         upc_count=upc_count,
         total_qty=total_qty,
         shipment_id=parsed.shipment_id,
+        zero_corrected_count=zero_corrected,
     )

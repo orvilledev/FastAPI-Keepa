@@ -144,9 +144,78 @@ def test_dimensions_copied_unchanged():
     result = generate_tool2_manifest_compare(output, manifest, [])
 
     dim = openpyxl.load_workbook(BytesIO(result.file_bytes))[DIMENSIONS_SHEET]
-    assert [dim.cell(1, c).value for c in range(1, 5)] == ["Weight", "Length", "Width", "Height"]
-    assert [dim.cell(2, c).value for c in range(1, 5)] == [" 14.85", 23.37, 16.37, 12.75]
-    assert dim["A2"].data_type == "s"
+    # Old-layout Output in (no Box Number) -> Box Number layout out.
+    assert [dim.cell(1, c).value for c in range(1, 6)] == [
+        "Box Number", "Weight", "Length", "Width", "Height",
+    ]
+    assert [dim.cell(2, c).value for c in range(1, 6)] == [1, " 14.85", 23.37, 16.37, 12.75]
+    assert dim["B2"].data_type == "s"
+    assert dim.max_column == 5
+    assert result.zero_corrected_count == 0
+
+
+def _output_with_box_numbers(rows, dims) -> bytes:
+    """Output in the new layout: Box Number first, optional Zero Correction last."""
+    wb = openpyxl.Workbook()
+    sheet = wb.active
+    sheet.title = BOX_CONTENTS_SHEET
+    sheet.append(["UPC", "Box Number", "QTY"])
+    for upc, box, qty in rows:
+        sheet.append([upc, box, qty])
+    dim = wb.create_sheet(DIMENSIONS_SHEET)
+    dim.append(["Box Number", "Weight", "Length", "Width", "Height", "Zero Correction"])
+    for row in dims:
+        dim.append(list(row))
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def test_zero_weight_is_suggested_with_reason_and_highlight():
+    output = _output_bytes(
+        [("111", 1, 60), ("111", 2, 60), ("111", 3, 60)],
+        dims=(
+            (" 14.00", 20, 16, 12),
+            (" 0.00", 20.1, 16, 12.1),
+            (" 15.00", 25, 18, 14),
+        ),
+    )
+    manifest = _manifest_bytes([("111", 180)], boxes=3)
+
+    result = generate_tool2_manifest_compare(output, manifest, [])
+
+    assert result.zero_corrected_count == 1
+    dim = openpyxl.load_workbook(BytesIO(result.file_bytes))[DIMENSIONS_SHEET]
+    assert [dim.cell(1, c).value for c in range(1, 7)] == [
+        "Box Number", "Weight", "Length", "Width", "Height", "Zero Correction",
+    ]
+    assert dim["A3"].value == 2
+    assert dim["B3"].value == " 14.00"  # closest identical carton is Box 1
+    assert "Box 1" in dim["F3"].value
+    assert all(dim.cell(3, c).fill.fgColor.rgb == YELLOW for c in range(2, 7))
+    for r in (2, 4):
+        assert dim.cell(r, 6).value is None
+        assert dim.cell(r, 2).fill.fill_type is None
+
+
+def test_existing_zero_correction_is_carried_over_unchanged():
+    output = _output_with_box_numbers(
+        [("111", 1, 60), ("111", 2, 60)],
+        dims=(
+            (1, " 14.00", 20, 16, 12, None),
+            (2, " 15.00", 20.1, 16, 12.1, "Similar to Box 1"),
+        ),
+    )
+    manifest = _manifest_bytes([("111", 120)], boxes=2)
+
+    result = generate_tool2_manifest_compare(output, manifest, [])
+
+    assert result.zero_corrected_count == 0  # nothing new to suggest
+    dim = openpyxl.load_workbook(BytesIO(result.file_bytes))[DIMENSIONS_SHEET]
+    assert [dim.cell(3, c).value for c in range(1, 7)] == [
+        2, " 15.00", 20.1, 16, 12.1, "Similar to Box 1",
+    ]
+    assert dim["B3"].fill.fgColor.rgb == YELLOW
 
 
 @pytest.mark.skipif(
@@ -182,6 +251,7 @@ def test_matches_hand_corrected_sample():
             assert got_fill == exp_fill, gc.coordinate
 
     gd, ed = got[DIMENSIONS_SHEET], expected[DIMENSIONS_SHEET]
+    # The hand-corrected sample has no Box Number column; ours leads with one.
     for r in range(1, ed.max_row + 1):
         for c in range(1, 5):
-            assert gd.cell(r, c).value == ed.cell(r, c).value
+            assert gd.cell(r, c + 1).value == ed.cell(r, c).value

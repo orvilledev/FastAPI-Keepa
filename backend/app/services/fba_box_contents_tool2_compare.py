@@ -11,7 +11,9 @@ The output mirrors the manual ``… - Corrected.xlsx`` layout:
     order; remapped and appended rows highlighted yellow
   - an E–G summary of the appended units (shipment id, Box #, Qty)
   - a Sum-of-QTY pivot at column I (column G when nothing was appended)
-  - Dimensions copied unchanged from the Output
+  - Dimensions in the Box Number layout (Box Number, Weight, Length, Width,
+    Height). Zero values are given a suggestion + a ``Zero Correction`` reason
+    (suggestions already made in the Output are carried over unchanged)
 """
 from __future__ import annotations
 
@@ -21,19 +23,24 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
+from app.services.fba_nfa_smw_dimensions import (
+    DimensionLine,
+    apply_zero_corrections,
+    build_items_by_box,
+    parse_dimension_lines,
+    write_dimension_lines,
+)
 from app.services.fba_upload_compare import (
     AdjustmentRow,
     ContentRow,
-    DimensionRow,
     FbaUploadCompareError,
     ParsedAmz,
     ParsedOutput,
-    _write_dimensions,
     apply_old_sku_remaps,
     build_upc_to_old_sku_map,
     parse_amz_upload,
@@ -75,6 +82,7 @@ class FbaBoxContentsTool2CompareResult:
     removed_qty: int | float
     last_box: int
     shipment_id: str
+    zero_corrected_count: int = 0
 
 
 def sanitize_download_filename(shipment_id: str | None) -> str:
@@ -261,9 +269,23 @@ def _write_box_contents(
     return total_qty
 
 
+def read_dimension_lines(content: bytes) -> list[DimensionLine]:
+    """Dimensions rows of an NFA and SMW Output (new Box Number layout or the old one)."""
+    try:
+        workbook = load_workbook(io.BytesIO(content), data_only=True)
+    except Exception as exc:
+        raise FbaBoxContentsTool2CompareError("Could not read the Output Excel file.") from exc
+    try:
+        if DIMENSIONS_SHEET not in workbook.sheetnames:
+            return []
+        return parse_dimension_lines(workbook[DIMENSIONS_SHEET])
+    finally:
+        workbook.close()
+
+
 def build_corrected_workbook(
     rows: Sequence[ContentRow],
-    dimensions: Sequence[DimensionRow],
+    dimensions: Sequence[DimensionLine],
     *,
     shipment_id: str,
     added: Sequence[AdjustmentRow],
@@ -280,7 +302,7 @@ def build_corrected_workbook(
         added=added,
         box_numbers=box_numbers,
     )
-    _write_dimensions(dimensions_sheet, dimensions)
+    write_dimension_lines(dimensions_sheet, dimensions)
     dimensions_sheet.sheet_view.tabSelected = False
     contents.sheet_view.tabSelected = True
     output = io.BytesIO()
@@ -310,9 +332,18 @@ def generate_tool2_manifest_compare(
     except FbaUploadCompareError as exc:
         raise FbaBoxContentsTool2CompareError(str(exc)) from exc
 
+    # Zero weights/dimensions are judged against the cartons as they were packed
+    # (the Output rows), not the manifest-adjusted rows.
+    dimension_lines, zero_corrected = apply_zero_corrections(
+        read_dimension_lines(output_content),
+        build_items_by_box(
+            (row.identifier, row.box_number, row.qty) for row in parsed_output.rows
+        ),
+    )
+
     file_bytes = build_corrected_workbook(
         reconciled.rows,
-        parsed_output.dimensions,
+        dimension_lines,
         shipment_id=shipment_id,
         added=reconciled.added,
         box_numbers=reconciled.box_numbers,
@@ -332,4 +363,5 @@ def generate_tool2_manifest_compare(
         removed_qty=sum(item.qty for item in reconciled.removed),
         last_box=reconciled.last_box,
         shipment_id=shipment_id,
+        zero_corrected_count=zero_corrected,
     )

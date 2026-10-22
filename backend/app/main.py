@@ -145,6 +145,7 @@ app.add_middleware(
         "X-Fba-Removed-Count",
         "X-Fba-Removed-Qty",
         "X-Fba-Last-Box",
+        "X-Fba-Zero-Corrected-Count",
         "X-Fba-Shipment-Count",
         "X-Fba-Skipped-Count",
         "X-Fba-Shipment-Summary",

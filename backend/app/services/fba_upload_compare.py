@@ -343,11 +343,13 @@ def parse_output_workbook(content: bytes) -> ParsedOutput:
     dimensions: list[DimensionRow] = []
     if DIMENSIONS_SHEET in workbook.sheetnames:
         dim = workbook[DIMENSIONS_SHEET]
+        # NFA and SMW Output: "Box Number" leads, then Weight/Length/Width/Height.
+        offset = 1 if _cell_text(dim.cell(1, 1).value).lower() == "box number" else 0
         for r in range(2, dim.max_row + 1):
-            weight = _weight_as_text(dim.cell(r, 1).value)
-            length = _as_number(dim.cell(r, 2).value)
-            width = _as_number(dim.cell(r, 3).value)
-            height = _as_number(dim.cell(r, 4).value)
+            weight = _weight_as_text(dim.cell(r, 1 + offset).value)
+            length = _as_number(dim.cell(r, 2 + offset).value)
+            width = _as_number(dim.cell(r, 3 + offset).value)
+            height = _as_number(dim.cell(r, 4 + offset).value)
             if not weight.strip() and length is None and width is None and height is None:
                 continue
             dimensions.append(

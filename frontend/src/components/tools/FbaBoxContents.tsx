@@ -1366,8 +1366,10 @@ export default function FbaBoxContents() {
           <>
             Upload a spaced-column carton dump (starts with <code>PO#:</code>). Numbers each carton as
             Box Number 1, 2, 3… and downloads <strong>Box Contents</strong> (UPC, Box Number, QTY plus
-            pivot) and <strong>Dimensions</strong> (Weight from each carton Total row as text, Length,
-            Width, Height — no Box # column).
+            pivot) and <strong>Dimensions</strong> (Box Number, Weight from each carton Total row as
+            text, Length, Width, Height). Zero values are given a suggested value from the most similar
+            carton, highlighted in <span className="bg-yellow-200 px-1">yellow</span>, with the reason
+            in a <strong>Zero Correction</strong> column.
           </>
         }
         defaultFilename="FBA Box Contents Output.xlsx"
@@ -1386,8 +1388,10 @@ export default function FbaBoxContents() {
                 no Total QTY footer.
               </li>
               <li>
-                <code>Dimensions</code>: Weight (copied from the Total row, often with a leading
-                space), Length, Width, Height.
+                <code>Dimensions</code>: Box Number, Weight (copied from the Total row, often with a
+                leading space), Length, Width, Height. If a value is zero (e.g. <code>0.00</code>), a
+                suggestion is filled in, the row is highlighted yellow, and a{' '}
+                <code>Zero Correction</code> column after Height explains the reason.
               </li>
               <li>
                 Download named <code>{'{filename} Output.xlsx'}</code>, for example{' '}
