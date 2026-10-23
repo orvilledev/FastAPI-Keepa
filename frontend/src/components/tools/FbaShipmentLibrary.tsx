@@ -225,25 +225,36 @@ function ScanEntryForm({
   scanning,
   boxError,
   onBoxNumberChange,
+  onListedBoxChange,
   onScan,
 }: {
   resetKey: string | null
   scanning: boolean
   boxError: string | null
   onBoxNumberChange: () => void
+  onListedBoxChange: (box: number | undefined) => void
   onScan: (boxValue: number, code: string) => Promise<boolean>
 }) {
   const [boxNumber, setBoxNumber] = useState('')
   const [barcode, setBarcode] = useState('')
   const boxRef = useRef<HTMLInputElement>(null)
   const scanRef = useRef<HTMLInputElement>(null)
+  const onListedBoxChangeRef = useRef(onListedBoxChange)
+  onListedBoxChangeRef.current = onListedBoxChange
   useEffect(() => {
     setBoxNumber('')
     setBarcode('')
+    onListedBoxChangeRef.current(undefined)
     if (resetKey) boxRef.current?.focus()
   }, [resetKey])
+  useEffect(() => () => onListedBoxChangeRef.current(undefined), [])
   const boxValue = /^\d{1,5}$/.test(boxNumber.trim()) ? Number(boxNumber.trim()) : 0
   const boxReady = boxValue >= 1 && boxValue <= 99999
+  useEffect(() => {
+    const listed = boxReady ? boxValue : undefined
+    const timer = window.setTimeout(() => onListedBoxChangeRef.current(listed), listed == null ? 0 : FILTER_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [boxReady, boxValue, resetKey])
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     const code = barcode.trim()
@@ -319,6 +330,9 @@ function ScanEntryForm({
         box 2 exists. Every scan is placed in that box and listed on the Boxed tab of the report. One scan
         counts as 1. Shipped stays the file quantity. Counts are shared, so scans by anyone on this shipment
         show for everyone.
+        {boxReady
+          ? ` The list below shows only items already counted into Box ${boxValue}.`
+          : ''}
       </p>
     </form>
   )
@@ -364,6 +378,7 @@ export default function FbaShipmentLibrary() {
   const [lineOffset, setLineOffset] = useState(0)
   const [lineSearch, setLineSearch] = useState('')
   const [queryBox, setQueryBox] = useState<number | undefined>(undefined)
+  const [scanBox, setScanBox] = useState<number | undefined>(undefined)
   const [shownBox, setShownBox] = useState<number | undefined>(undefined)
   const [lineOwnerId, setLineOwnerId] = useState<string | null>(null)
   const [fieldReset, setFieldReset] = useState(0)
@@ -381,6 +396,8 @@ export default function FbaShipmentLibrary() {
   const loadedSkuSearch = useRef<string | null>(null)
   const linesRequest = useRef(0)
   const queryBoxRef = useRef<number | undefined>(undefined)
+  const scanBoxRef = useRef<number | undefined>(undefined)
+  const shownBoxRef = useRef<number | undefined>(undefined)
   const lineSearchRef = useRef('')
   const linesLoadingRef = useRef(false)
   const unitBoxRefs = useRef<Record<string, HTMLInputElement | null>>({})
@@ -392,13 +409,16 @@ export default function FbaShipmentLibrary() {
     setLineOwnerId(selectedId)
     linesRequest.current += 1
     queryBoxRef.current = undefined
+    scanBoxRef.current = undefined
     lineSearchRef.current = ''
     setQueryBox(undefined)
+    setScanBox(undefined)
     setLineSearch('')
     setLineOffset(0)
     setLinesLoading(Boolean(selectedId))
   }
   linesLoadingRef.current = linesLoading
+  shownBoxRef.current = shownBox
 
   const loadUploads = useCallback(async () => {
     setLoading(true)
@@ -418,22 +438,32 @@ export default function FbaShipmentLibrary() {
     void loadUploads()
   }, [loadUploads])
 
-  // The scan box is where the next unit goes. The list narrows only from the box filter above the table.
-  const boxForList = shownBox
+  // The scan box is where the next unit goes, and it also narrows the list to units packed in that box.
+  // The box filter above the table wins when it has a number.
+  const requestedBox = queryBox ?? scanBox
+  const rowsAreForBox = shownBox === requestedBox
+  const boxForList = requestedBox
   const tableColumns = boxForList != null ? 4 : 7
   const visibleUnknownLines = useMemo(
-    () => unknownLines.filter((line) => matchesSkuSearch(line, lineSearch)),
-    [lineSearch, unknownLines],
+    () =>
+      unknownLines.filter(
+        (line) => matchesSkuSearch(line, lineSearch) && (shownBox == null || (line.box_counted ?? 0) > 0),
+      ),
+    [lineSearch, shownBox, unknownLines],
   )
   const visibleLines = useMemo(
-    () => lines.filter((line) => matchesSkuSearch(line, lineSearch)),
-    [lineSearch, lines],
+    () =>
+      lines.filter(
+        (line) => matchesSkuSearch(line, lineSearch) && (shownBox == null || (line.box_counted ?? 0) > 0),
+      ),
+    [lineSearch, lines, shownBox],
   )
   const matchingRowCount =
     lineSearch && loadedSkuSearch.current !== lineSearch
       ? visibleLines.length + visibleUnknownLines.length
       : lineTotal + visibleUnknownLines.length
   const showLinePlaceholder = linesLoading && lines.length === 0 && unknownLines.length === 0
+  const showStaleBox = !rowsAreForBox
 
   const commitLineSearch = useCallback((value: string) => {
     const term = value.trim()
@@ -446,9 +476,23 @@ export default function FbaShipmentLibrary() {
   const commitBoxFilter = useCallback((value: string) => {
     const box = listedBoxNumber(value)
     if (queryBoxRef.current === box) return
+    const previous = queryBoxRef.current ?? scanBoxRef.current
+    const next = box ?? scanBoxRef.current
     queryBoxRef.current = box
     setQueryBox(box)
     setLineOffset(0)
+    if (previous !== next) setLinesLoading(true)
+  }, [])
+
+  const commitScanBox = useCallback((box: number | undefined) => {
+    if (scanBoxRef.current === box) return
+    const previous = queryBoxRef.current ?? scanBoxRef.current
+    const next = queryBoxRef.current ?? box
+    scanBoxRef.current = box
+    setScanBox(box)
+    if (previous === next) return
+    setLineOffset(0)
+    setLinesLoading(true)
   }, [])
 
   const applyDetail = useCallback((requestId: number, box: number | undefined, search: string, result: FbaShipmentDetail) => {
@@ -483,16 +527,16 @@ export default function FbaShipmentLibrary() {
         LINE_PAGE_SIZE,
         lineOffset,
         lineSearch,
-        queryBox,
+        requestedBox,
       )
-      applyDetail(requestId, queryBox, lineSearch, result)
+      applyDetail(requestId, requestedBox, lineSearch, result)
     } catch (err) {
       if (linesRequest.current !== requestId) return
       setError(errorMessage(err, 'Failed to open that shipment.'))
     } finally {
       if (linesRequest.current === requestId) setLinesLoading(false)
     }
-  }, [applyDetail, lineOffset, lineSearch, queryBox, selectedId])
+  }, [applyDetail, lineOffset, lineSearch, requestedBox, selectedId])
 
   useEffect(() => {
     void loadLines()
@@ -523,7 +567,7 @@ export default function FbaShipmentLibrary() {
           LINE_PAGE_SIZE,
           lineOffset,
           lineSearch,
-          queryBox,
+          requestedBox,
         )
         if (
           cancelled ||
@@ -538,8 +582,8 @@ export default function FbaShipmentLibrary() {
         setLines(result.lines)
         setUnknownLines(result.unknown_lines || [])
         setLineTotal(result.total)
-        setShownBox(queryBox)
-        setBoxStored(queryBox == null ? null : result.box_units ?? null)
+        setShownBox(requestedBox)
+        setBoxStored(requestedBox == null ? null : result.box_units ?? null)
       } catch {
         // The next refresh or a manual action reports a real problem.
       }
@@ -551,7 +595,7 @@ export default function FbaShipmentLibrary() {
       window.clearInterval(interval)
       document.removeEventListener('visibilitychange', refresh)
     }
-  }, [lineOffset, lineSearch, queryBox, selectedId])
+  }, [lineOffset, lineSearch, requestedBox, selectedId])
 
   useEffect(() => {
     setScanAlert(null)
@@ -577,7 +621,7 @@ export default function FbaShipmentLibrary() {
       return false
     }
     // Drop a list reload that started before this scan so it cannot wipe the count just added.
-    linesRequest.current += 1
+    const requestId = ++linesRequest.current
     setLinesLoading(false)
     setScanning(true)
     setError(null)
@@ -619,6 +663,24 @@ export default function FbaShipmentLibrary() {
         current ? { ...current, fully_accounted: result.fully_accounted } : current,
       )
       if (boxForList && inListedBox) setBoxStored((current) => (current ?? 0) + 1)
+      const listedBox = queryBoxRef.current ?? scanBoxRef.current
+      if (listedBox != null && shownBoxRef.current !== listedBox && linesRequest.current === requestId) {
+        setLinesLoading(true)
+        try {
+          const detail = await fbaShipmentLibraryApi.get(
+            selectedId,
+            LINE_PAGE_SIZE,
+            lineOffset,
+            lineSearchRef.current,
+            listedBox,
+          )
+          applyDetail(requestId, listedBox, lineSearchRef.current, detail)
+        } catch {
+          // The scan is stored. The next refresh loads this box.
+        } finally {
+          if (linesRequest.current === requestId) setLinesLoading(false)
+        }
+      }
       if (openBoxLine.current === result.line.id) {
         applyUnits(
           result.line.id,
@@ -1565,9 +1627,9 @@ export default function FbaShipmentLibrary() {
                 aria-label="Show one box number"
                 className="w-28 rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
               />
-              {queryBox != null && queryBox === shownBox && boxStored != null && (
+              {rowsAreForBox && requestedBox != null && boxStored != null && (
                 <span className="mt-1 text-xs font-semibold text-emerald-800">
-                  {boxStored} {boxStored === 1 ? 'item' : 'items'} in Box {queryBox}
+                  {boxStored} {boxStored === 1 ? 'item' : 'items'} in Box {requestedBox}
                 </span>
               )}
             </div>
@@ -1585,6 +1647,7 @@ export default function FbaShipmentLibrary() {
               scanning={scanning}
               boxError={boxScanError}
               onBoxNumberChange={() => setBoxScanError(null)}
+              onListedBoxChange={commitScanBox}
               onScan={handleScan}
             />
           )}
@@ -1613,7 +1676,13 @@ export default function FbaShipmentLibrary() {
                 </tr>
               </thead>
               <tbody>
-                {showLinePlaceholder ? (
+                {showStaleBox ? (
+                  <tr>
+                    <td colSpan={tableColumns} className="px-2 py-6 text-gray-500">
+                      {linesLoading || scanning ? 'Loading lines…' : 'The box list could not be loaded.'}
+                    </td>
+                  </tr>
+                ) : showLinePlaceholder ? (
                   <tr>
                     <td colSpan={tableColumns} className="px-2 py-6 text-gray-500">
                       Loading lines…
