@@ -11,6 +11,7 @@ import { canAccessShipmentAnalyzer } from '../../lib/shipmentAnalyzerAccess'
 import { canAccessShipmentManager } from '../../lib/shipmentManagerAccess'
 import { canAccessFbaOrderChecker } from '../../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
+import { canAccessDimensioner } from '../../lib/dimensionerAccess'
 import { canWarehouseAccessFnskuLabels } from '../../constants/warehouseAccess'
 import { isLabelCenterAvailable } from '../../lib/privatePath'
 
@@ -32,6 +33,7 @@ function buildSearchItems(
   showShipmentAnalyzer: boolean,
   showShipmentManager: boolean,
   showFreightClass: boolean,
+  showDimensioner: boolean,
   showFbaOrderChecker: boolean,
   showFnskuLabels: boolean,
   showLabelCenter: boolean,
@@ -62,6 +64,8 @@ function buildSearchItems(
         path: '/freight-class-calculator',
         section: 'Warehouse Tools',
       })
+    }
+    if (showDimensioner) {
       warehouseItems.push({
         label: 'Dimensioner',
         path: '/dimensioner',
@@ -143,6 +147,8 @@ function buildSearchItems(
       path: '/freight-class-calculator',
       section: 'Warehouse Tools',
     })
+  }
+  if (showDimensioner) {
     items.push({ label: 'Dimensioner', path: '/dimensioner', section: 'Warehouse Tools' })
   }
 
@@ -217,6 +223,10 @@ export default function NavbarSearch() {
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
+  const showDimensioner = canAccessDimensioner(
+    userInfo?.email || authUser?.email,
+    isSuperadmin,
+  )
   const showFbaOrderChecker = canAccessFbaOrderChecker(
     userInfo?.email || authUser?.email,
     isSuperadmin,
@@ -239,11 +249,12 @@ export default function NavbarSearch() {
         showShipmentAnalyzer,
         showShipmentManager,
         showFreightClass,
+        showDimensioner,
         showFbaOrderChecker,
         showFnskuLabels,
         showLabelCenter,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools, showShipmentAnalyzer, showShipmentManager, showFreightClass, showFbaOrderChecker, showFnskuLabels, showLabelCenter],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools, showShipmentAnalyzer, showShipmentManager, showFreightClass, showDimensioner, showFbaOrderChecker, showFnskuLabels, showLabelCenter],
   )
 
   const results = useMemo(() => {

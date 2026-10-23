@@ -1,3 +1,4 @@
+import { canAccessDimensioner } from '../lib/dimensionerAccess'
 import { canAccessFbaOrderChecker } from '../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../lib/freightClassAccess'
 
@@ -5,7 +6,7 @@ import { canAccessFreightClassCalculator } from '../lib/freightClassAccess'
 export const WAREHOUSE_HOME_PATH = '/label-station'
 
 const FREIGHT_CLASS_PATH = '/freight-class-calculator'
-/** QBOID M2 scans; hands off to Freight Class, so it follows the same access rule. */
+/** QBOID M2 scans. Limited to Orville, Stephanie, Sunshine, Paolo, and John Bernard. */
 const DIMENSIONER_PATH = '/dimensioner'
 const FBA_ORDER_CHECKER_PATH = '/fba-shipment-library'
 
@@ -35,8 +36,11 @@ export function canWarehouseAccessFnskuLabels(email?: string | null): boolean {
 }
 
 export function isWarehouseAllowedPath(pathname: string, email?: string | null): boolean {
-  if (pathname === FREIGHT_CLASS_PATH || pathname === DIMENSIONER_PATH) {
+  if (pathname === FREIGHT_CLASS_PATH) {
     return canAccessFreightClassCalculator(email)
+  }
+  if (pathname === DIMENSIONER_PATH) {
+    return canAccessDimensioner(email)
   }
   if (pathname === FBA_ORDER_CHECKER_PATH) {
     return canAccessFbaOrderChecker(email)

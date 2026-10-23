@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { dimensionerApi, getApiBaseUrl, type DimensionerScan } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
-import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
+import { canAccessDimensioner } from '../../lib/dimensionerAccess'
 import {
   buildHandoffState,
   canSendToFreightClass,
@@ -70,7 +70,7 @@ function RulerIcon({ className }: { className?: string }) {
 export default function DimensionerScans() {
   const navigate = useNavigate()
   const { isSuperadmin, userInfoLoading, userInfo, authUser } = useUser()
-  const canUse = canAccessFreightClassCalculator(userInfo?.email || authUser?.email, isSuperadmin)
+  const canUse = canAccessDimensioner(userInfo?.email || authUser?.email, isSuperadmin)
   const enabled = canUse && !userInfoLoading
 
   const [scans, setScans] = useState<DimensionerScan[]>([])

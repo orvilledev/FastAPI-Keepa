@@ -513,7 +513,7 @@ function AppRoutes() {
           <Route
             path="dimensioner"
             element={
-              <ProtectedRoute requireFreightClassAccess={true}>
+              <ProtectedRoute requireDimensionerAccess={true}>
                 <DimensionerScans />
               </ProtectedRoute>
             }

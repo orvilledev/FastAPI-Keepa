@@ -212,6 +212,17 @@ class Settings(BaseSettings):
         "hello@warehouserepublic.com"
     )
 
+    # Comma-separated emails allowed to use the Dimensioner page (plus superadmin).
+    # Empty falls back to Orville, Stephanie, Sunshine, Paolo, and John Bernard.
+    dimensioner_allowed_emails: str = (
+        "orvillebarba@gmail.com,"
+        "stephanie@metroshoewarehouse.com,"
+        "sunshine@metroshoewarehouse.com,"
+        "paolo@metroshoewarehouse.com,"
+        "paulo@metroshoewarehouse.com,"
+        "johnbernard@metroshoewarehouse.com"
+    )
+
     # Comma-separated emails allowed to use the Projects page (plus superadmin).
     projects_allowed_emails: str = (
         "sunshine@metroshoewarehouse.com,"
@@ -330,6 +341,14 @@ class Settings(BaseSettings):
     def freight_class_blocked_emails_list(self) -> List[str]:
         """Normalized emails blocked from the Freight Class Calculator."""
         raw = (self.freight_class_blocked_emails or "").strip()
+        if not raw:
+            return []
+        return [email.strip().lower() for email in raw.split(",") if email.strip()]
+
+    @property
+    def dimensioner_allowed_emails_list(self) -> List[str]:
+        """Normalized emails allowed to use the Dimensioner page."""
+        raw = (self.dimensioner_allowed_emails or "").strip()
         if not raw:
             return []
         return [email.strip().lower() for email in raw.split(",") if email.strip()]

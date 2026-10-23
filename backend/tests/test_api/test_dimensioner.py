@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from app.api import dimensioner
 from app.config import settings
 from app.database import get_supabase
-from app.dependencies import get_freight_class_user
+from app.dependencies import get_dimensioner_user, is_dimensioner_allowed_user
 from app.middleware.rate_limiter import limiter
 from app.repositories.dimensioner_scan_repository import DimensionerStorageError
 
@@ -95,7 +95,7 @@ def _app(signed_in: bool) -> FastAPI:
     app.include_router(dimensioner.router, prefix="/api/v1")
     app.dependency_overrides[get_supabase] = lambda: object()
     if signed_in:
-        app.dependency_overrides[get_freight_class_user] = lambda: {
+        app.dependency_overrides[get_dimensioner_user] = lambda: {
             "id": "user-1",
             "email": "staff@example.com",
         }
@@ -355,6 +355,25 @@ def test_camera_test_requires_a_signed_in_user(store):
 
     assert response.status_code in (401, 403)
     assert store.rows == []
+
+
+def test_dimensioner_allowlist_is_the_named_accounts(monkeypatch):
+    monkeypatch.setattr("app.dependencies.is_superadmin_user", lambda user, db: False)
+
+    assert is_dimensioner_allowed_user({"email": "orvillebarba@gmail.com"}, object())
+    assert is_dimensioner_allowed_user({"email": " Stephanie@MetroShoeWarehouse.com "}, object())
+    assert is_dimensioner_allowed_user({"email": "sunshine@metroshoewarehouse.com"}, object())
+    assert is_dimensioner_allowed_user({"email": "paolo@metroshoewarehouse.com"}, object())
+    assert is_dimensioner_allowed_user({"email": "paulo@metroshoewarehouse.com"}, object())
+    assert is_dimensioner_allowed_user({"email": "johnbernard@metroshoewarehouse.com"}, object())
+    assert not is_dimensioner_allowed_user({"email": "warehouse1@metroshoewarehouse.com"}, object())
+    assert not is_dimensioner_allowed_user({"email": ""}, object())
+
+
+def test_dimensioner_allowlist_includes_superadmin(monkeypatch):
+    monkeypatch.setattr("app.dependencies.is_superadmin_user", lambda user, db: True)
+
+    assert is_dimensioner_allowed_user({"email": "someone-else@example.com"}, object())
 
 
 def test_camera_test_storage_failure_is_a_503(user, store):

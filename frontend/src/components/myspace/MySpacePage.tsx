@@ -5,6 +5,7 @@ import type { MySpaceNote, QuickAccessLink } from '../../types'
 import { getApiErrorDetail } from '../../utils/apiErrorMessage'
 import { isLabelCenterAvailable } from '../../lib/privatePath'
 import { canAccessShipmentManager } from '../../lib/shipmentManagerAccess'
+import { canAccessDimensioner } from '../../lib/dimensionerAccess'
 import { useUser } from '../../contexts/UserContext'
 import CustomLinksPanel from './CustomLinksPanel'
 import NoteContent from './NoteContent'
@@ -69,10 +70,11 @@ function loadErrorMessage(err: unknown, kind: string): string {
 }
 
 export default function MySpacePage() {
-  const { userInfo, authUser } = useUser()
+  const { userInfo, authUser, isSuperadmin } = useUser()
   const accountEmail = userInfo?.email || authUser?.email
   const labelCenterAvailable = isLabelCenterAvailable(accountEmail)
   const shipmentManagerAvailable = canAccessShipmentManager(accountEmail)
+  const dimensionerAvailable = canAccessDimensioner(accountEmail, isSuperadmin)
   const [tab, setTab] = useState<TabId>('bookmarks')
   const [links, setLinks] = useState<QuickAccessLink[]>([])
   const [groupedLinkCount, setGroupedLinkCount] = useState(0)
@@ -121,10 +123,11 @@ export default function MySpacePage() {
       (t) =>
         (t.path !== '/label-center' || labelCenterAvailable) &&
         (t.path !== '/shipment-manager' || shipmentManagerAvailable) &&
+        (t.path !== '/dimensioner' || dimensionerAvailable) &&
         (t.label.toLowerCase().includes(toolSearchQuery) ||
           t.path.toLowerCase().includes(toolSearchQuery)),
     )
-  }, [toolSearchQuery, labelCenterAvailable, shipmentManagerAvailable])
+  }, [toolSearchQuery, labelCenterAvailable, shipmentManagerAvailable, dimensionerAvailable])
 
   const toolsByGroup = useMemo(() => {
     const map = new Map<string, BookmarkableTool[]>()

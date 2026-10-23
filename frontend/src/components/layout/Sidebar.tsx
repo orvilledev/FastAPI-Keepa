@@ -12,6 +12,7 @@ import { canAccessShipmentAnalyzer } from '../../lib/shipmentAnalyzerAccess'
 import { canAccessShipmentManager } from '../../lib/shipmentManagerAccess'
 import { canAccessFbaOrderChecker } from '../../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
+import { canAccessDimensioner } from '../../lib/dimensionerAccess'
 import { canWarehouseAccessFnskuLabels } from '../../constants/warehouseAccess'
 import { isLabelCenterAvailable } from '../../lib/privatePath'
 
@@ -243,6 +244,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     accountEmail,
     isSuperadmin,
   )
+  const canUseDimensioner = canAccessDimensioner(accountEmail, isSuperadmin)
   const isElectron = Boolean(window.desktop?.isElectron)
   const [desktopVersion, setDesktopVersion] = useState<string | null>(null)
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false)
@@ -457,7 +459,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                 </Link>
               )}
 
-              {canUseFreightClass && (
+              {canUseDimensioner && (
                 <Link
                   to="/dimensioner"
                   onMouseEnter={() => setHoveredNav('dimensioner')}
@@ -807,7 +809,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
               </Link>
             )}
 
-            {canUseFreightClass && (
+            {canUseDimensioner && (
               <Link
                 to="/dimensioner"
                 onMouseEnter={() => setHoveredNav('dimensioner')}

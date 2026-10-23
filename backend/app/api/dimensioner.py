@@ -5,9 +5,8 @@ Two routers live here because they are authenticated differently:
 * ``receiver_router`` is called by the M2 itself. The device cannot sign in, so it
   proves who it is with a shared secret in the ``Authorization`` header
   (``DIMENSIONER_API_KEY``). It only ever stores a scan.
-* ``router`` is called by the web app. It uses the same access rule as the Freight
-  Class Calculator (every signed-in user except the Hello station), because that is
-  where a scan is used.
+* ``router`` is called by the web app. Only Orville, Stephanie, Sunshine, Paolo,
+  John Bernard, and superadmin accounts may list, delete, or save a camera test scan.
 
 Nothing here touches any other table or tool.
 """
@@ -22,7 +21,7 @@ from supabase import Client
 
 from app.config import settings
 from app.database import get_supabase
-from app.dependencies import get_freight_class_user
+from app.dependencies import get_dimensioner_user
 from app.middleware.rate_limiter import limiter
 from app.repositories.dimensioner_scan_repository import (
     DimensionerScanRepository,
@@ -121,7 +120,7 @@ async def receive_scan(
 def list_scans(
     limit: int = Query(50, ge=1, le=200),
     search: str | None = Query(None, max_length=128),
-    current_user: dict = Depends(get_freight_class_user),
+    current_user: dict = Depends(get_dimensioner_user),
     db: Client = Depends(get_supabase),
 ):
     """Newest scans first, plus what the page needs to explain device setup."""
@@ -151,7 +150,7 @@ class CameraTestScanBody(BaseModel):
 @handle_api_errors("save a camera test scan")
 def create_camera_test_scan(
     body: CameraTestScanBody,
-    current_user: dict = Depends(get_freight_class_user),
+    current_user: dict = Depends(get_dimensioner_user),
     db: Client = Depends(get_supabase),
 ):
     """Store one scan typed in from the page's camera test. Does not use the M2 key."""
@@ -180,7 +179,7 @@ def create_camera_test_scan(
 @handle_api_errors("delete dimensioner scan")
 def delete_scan(
     scan_id: UUID,
-    current_user: dict = Depends(get_freight_class_user),
+    current_user: dict = Depends(get_dimensioner_user),
     db: Client = Depends(get_supabase),
 ):
     """Remove one scan, for example a mis-measured item."""
