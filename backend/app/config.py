@@ -139,6 +139,12 @@ class Settings(BaseSettings):
     # GET /api/v1/public/client-config so the navbar download link works without
     # rebuilding the frontend (set on Render/host env as DESKTOP_APP_DOWNLOAD_URL).
     desktop_app_download_url: str = ""
+
+    # Shared secret the QBOID M2 sends in its ``Authorization`` header when it
+    # uploads a scan to ``POST /api/v1/dimensioner/new-entry``. The device cannot
+    # sign in, so this is the only credential it has. Empty (the default) keeps
+    # the receiver switched off: it answers 503 and stores nothing.
+    dimensioner_api_key: str = ""
     
     # CORS Configuration
     # CORS_ORIGINS may be overridden on the host (Render env var). The canonical

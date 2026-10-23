@@ -1,4 +1,5 @@
-import { useCallback, useRef, useState, type DragEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   freightClassCalculatorApi,
   type FreightCalculationResult,
@@ -8,6 +9,7 @@ import { auditAction } from '../../lib/auditEvents'
 import { classBadgeStyle, copySummaryToClipboard } from '../../utils/freightClassExport'
 import { useUser } from '../../contexts/UserContext'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
+import { readDimensionerHandoff } from '../../lib/dimensionerHandoff'
 
 const ACCEPTED =
   '.xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,' +
@@ -347,6 +349,44 @@ export default function FreightClassCalculator() {
     setCopySuccess(false)
   }, [])
 
+  // Scans sent over from the Dimensioner page (QBOID M2) arrive in router state.
+  const location = useLocation()
+  const navigate = useNavigate()
+  const appliedHandoffRef = useRef<string | null>(null)
+  const [handoffNotice, setHandoffNotice] = useState<string | null>(null)
+
+  useEffect(() => {
+    const handoff = readDimensionerHandoff(location.state)
+    if (!handoff || appliedHandoffRef.current === handoff.nonce) return
+    appliedHandoffRef.current = handoff.nonce
+
+    const incoming: ManualRow[] = handoff.rows.map((row) => ({
+      id: crypto.randomUUID(),
+      pallets: '1',
+      weight: row.weight,
+      length: row.length,
+      width: row.width,
+      height: row.height,
+    }))
+    const missingWeight = incoming.filter((row) => row.weight === '').length
+
+    setActiveTab('manual')
+    resetResults()
+    // Replace the untouched starter row; otherwise add to what the user already typed.
+    setManualRows((current) => {
+      const untouched = current.length === 1 && current[0].weight === '' && current[0].height === ''
+      return untouched ? incoming : [...current, ...incoming]
+    })
+    setHandoffNotice(
+      `Added ${incoming.length} pallet${incoming.length === 1 ? '' : 's'} from the Dimensioner.` +
+        (missingWeight > 0
+          ? ` Weight was not captured for ${missingWeight}; enter it before calculating.`
+          : ''),
+    )
+    // Clear the state so a refresh or Back does not add the same pallets again.
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.state, location.pathname, navigate, resetResults])
+
   const acceptFile = useCallback(
     (incoming: File | null | undefined) => {
       resetResults()
@@ -524,6 +564,23 @@ export default function FreightClassCalculator() {
           className="mb-6 rounded-xl border border-red-200/80 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200"
         >
           {error}
+        </div>
+      )}
+
+      {handoffNotice && (
+        <div
+          role="status"
+          className="mb-6 flex items-start justify-between gap-3 rounded-xl border border-[#81B81D]/40 bg-[#81B81D]/10 px-4 py-3 text-sm text-gray-800 dark:text-gray-100"
+        >
+          <span>{handoffNotice}</span>
+          <button
+            type="button"
+            onClick={() => setHandoffNotice(null)}
+            className="shrink-0 text-xs font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+            aria-label="Dismiss"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 

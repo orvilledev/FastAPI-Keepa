@@ -62,6 +62,11 @@ function buildSearchItems(
         path: '/freight-class-calculator',
         section: 'Warehouse Tools',
       })
+      warehouseItems.push({
+        label: 'Dimensioner',
+        path: '/dimensioner',
+        section: 'Warehouse Tools',
+      })
     }
     if (showShipmentManager) {
       warehouseItems.push({
@@ -138,6 +143,7 @@ function buildSearchItems(
       path: '/freight-class-calculator',
       section: 'Warehouse Tools',
     })
+    items.push({ label: 'Dimensioner', path: '/dimensioner', section: 'Warehouse Tools' })
   }
 
   if (showBcTools) {

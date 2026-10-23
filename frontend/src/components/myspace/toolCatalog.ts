@@ -32,6 +32,7 @@ export const BOOKMARKABLE_TOOLS: BookmarkableTool[] = [
   { path: '/product-catalog-formatter', label: 'Product Catalog Formatter', group: 'BC Tools' },
   { path: '/shipment-manager', label: 'Shipment Manager', group: 'BC Tools' },
   { path: '/freight-class-calculator', label: 'Freight Class Calculator', group: 'BC Tools' },
+  { path: '/dimensioner', label: 'Dimensioner', group: 'BC Tools' },
   { path: '/smw-shipment-analyzer', label: 'SMW Shipment Analyzer', group: 'BC Tools' },
   { path: '/about', label: 'About', group: 'General' },
   { path: '/faq', label: 'FAQ', group: 'General' },

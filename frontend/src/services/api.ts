@@ -2861,6 +2861,44 @@ export const freightClassCalculatorApi = {
   },
 }
 
+/** One measurement uploaded by a QBOID M2. `*_mm` / `weight_g` are the device values. */
+export type DimensionerScan = {
+  id: string
+  device: string
+  barcode: string
+  length_mm: number | null
+  width_mm: number | null
+  height_mm: number | null
+  weight_g: number | null
+  length_in: number | null
+  width_in: number | null
+  height_in: number | null
+  weight_lb: number | null
+  shape: string
+  note: string
+  attributes: Record<string, string>
+  scanned_at: string | null
+  received_at: string | null
+}
+
+export type DimensionerScanList = {
+  scans: DimensionerScan[]
+  receiver_configured: boolean
+  /** Path (starting with `/api/v1`) the M2 posts to. */
+  receive_path: string
+}
+
+export const dimensionerApi = {
+  listScans: async (params?: { limit?: number; search?: string }): Promise<DimensionerScanList> => {
+    const response = await api.get<DimensionerScanList>('/api/v1/dimensioner/scans', { params })
+    return response.data
+  },
+
+  deleteScan: async (scanId: string): Promise<void> => {
+    await api.delete(`/api/v1/dimensioner/scans/${encodeURIComponent(scanId)}`)
+  },
+}
+
 export const trackingScannerApi = {
   listHistory: async (): Promise<TrackingHistorySummary[]> => {
     const response = await api.get<TrackingHistorySummary[]>('/api/v1/tracking-scanner/history')
