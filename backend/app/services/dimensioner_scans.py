@@ -50,6 +50,14 @@ class DimensionerPayloadError(ValueError):
     """The request body is not a dimensioning record at all."""
 
 
+class DimensionerTestInputError(ValueError):
+    """A camera test scan had a value that cannot be stored."""
+
+
+# Shown in the Device column so a webcam trial is obvious next to a real M2 scan.
+CAMERA_TEST_DEVICE = "camera-test"
+
+
 @dataclass(frozen=True)
 class ParsedScan:
     device: str
@@ -242,6 +250,71 @@ def present_scan(row: dict[str, Any]) -> dict[str, Any]:
         "scanned_at": row.get("scanned_at"),
         "received_at": row.get("received_at"),
     }
+
+
+def _stored_measure(value: Any, *, per_unit: float, maximum: int, label: str) -> int | None:
+    """Inches or pounds from the test form, as the millimetres or grams the table stores."""
+    if value is None:
+        return None
+    if isinstance(value, bool) or isinstance(value, (dict, list)):
+        raise DimensionerTestInputError(f"{label} must be a number.")
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            value = float(text)
+        except ValueError as exc:
+            raise DimensionerTestInputError(f"{label} must be a number.") from exc
+    if not isinstance(value, (int, float)):
+        raise DimensionerTestInputError(f"{label} must be a number.")
+    number = float(value)
+    if not math.isfinite(number) or number <= 0:
+        raise DimensionerTestInputError(f"{label} must be greater than zero.")
+    stored = int(round(number * per_unit))
+    if stored <= 0 or stored > maximum:
+        raise DimensionerTestInputError(f"{label} is outside the range this page can store.")
+    return stored
+
+
+def build_camera_test_scan(
+    *,
+    barcode: Any,
+    length_in: Any = None,
+    width_in: Any = None,
+    height_in: Any = None,
+    weight_lb: Any = None,
+) -> ParsedScan:
+    """One practice scan from the Dimensioner page's camera.
+
+    The laptop camera only supplies the barcode. Sizes and weight are whatever the
+    tester typed, converted into the same millimetres and grams an M2 would send.
+    Each call is its own row, so scanning the same product twice is kept twice.
+    """
+    cleaned = _clean_text(barcode, _MAX_BARCODE_LEN + 1)
+    if not cleaned:
+        raise DimensionerTestInputError("Scan or type a barcode first.")
+    if len(cleaned) > _MAX_BARCODE_LEN:
+        raise DimensionerTestInputError("That barcode is too long.")
+
+    length_mm = _stored_measure(length_in, per_unit=MM_PER_INCH, maximum=_MAX_DIMENSION_MM, label="Length")
+    width_mm = _stored_measure(width_in, per_unit=MM_PER_INCH, maximum=_MAX_DIMENSION_MM, label="Width")
+    height_mm = _stored_measure(height_in, per_unit=MM_PER_INCH, maximum=_MAX_DIMENSION_MM, label="Height")
+    weight_g = _stored_measure(weight_lb, per_unit=GRAMS_PER_POUND, maximum=_MAX_WEIGHT_G, label="Weight")
+
+    return ParsedScan(
+        device=CAMERA_TEST_DEVICE,
+        barcode=cleaned,
+        length_mm=length_mm,
+        width_mm=width_mm,
+        height_mm=height_mm,
+        weight_g=weight_g,
+        shape="",
+        note="Camera test",
+        attributes={},
+        scanned_at=datetime.now(timezone.utc),
+        dedupe_key=f"nots:{uuid.uuid4().hex}",
+    )
 
 
 def api_key_matches(authorization_header: str | None, configured_key: str | None) -> bool:

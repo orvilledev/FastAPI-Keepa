@@ -2897,6 +2897,17 @@ export const dimensionerApi = {
   deleteScan: async (scanId: string): Promise<void> => {
     await api.delete(`/api/v1/dimensioner/scans/${encodeURIComponent(scanId)}`)
   },
+
+  createTestScan: async (body: {
+    barcode: string
+    length_in?: number | null
+    width_in?: number | null
+    height_in?: number | null
+    weight_lb?: number | null
+  }): Promise<DimensionerScan> => {
+    const response = await api.post<DimensionerScan>('/api/v1/dimensioner/scans/test', body)
+    return response.data
+  },
 }
 
 export const trackingScannerApi = {

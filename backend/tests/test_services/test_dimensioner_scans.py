@@ -5,6 +5,9 @@ from datetime import datetime, timezone
 import pytest
 
 from app.services.dimensioner_scans import (
+    CAMERA_TEST_DEVICE,
+    DimensionerTestInputError,
+    build_camera_test_scan,
     DimensionerPayloadError,
     api_key_matches,
     grams_to_pounds,
@@ -324,3 +327,57 @@ def test_unset_key_never_matches_even_an_empty_header(configured):
 
 def test_non_ascii_header_does_not_raise():
     assert not api_key_matches("Bearer pässwörd", "s3cret-value")
+
+
+# ---------------------------------------------------------------------------
+# Camera test scans (practice rows from the Dimensioner page)
+# ---------------------------------------------------------------------------
+
+
+def test_camera_test_converts_inches_and_pounds_and_marks_the_device():
+    scan = build_camera_test_scan(
+        barcode="  845973030506 ",
+        length_in=10,
+        width_in=8,
+        height_in=6,
+        weight_lb=1,
+    )
+
+    assert scan.device == CAMERA_TEST_DEVICE
+    assert scan.barcode == "845973030506"
+    assert (scan.length_mm, scan.width_mm, scan.height_mm) == (254, 203, 152)
+    assert scan.weight_g == 454
+    assert scan.note == "Camera test"
+    assert scan.scanned_at is not None
+    assert present_scan({"id": "1", **scan.to_row()})["weight_lb"] == 1.0
+
+
+def test_camera_test_can_be_barcode_only():
+    scan = build_camera_test_scan(barcode="ONLY-BARCODE")
+
+    assert scan.barcode == "ONLY-BARCODE"
+    assert scan.length_mm is None and scan.weight_g is None
+
+
+def test_camera_test_scans_are_not_deduplicated():
+    first = build_camera_test_scan(barcode="SAME", length_in=1)
+    second = build_camera_test_scan(barcode="SAME", length_in=1)
+
+    assert first.dedupe_key != second.dedupe_key
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"barcode": ""},
+        {"barcode": "   "},
+        {"barcode": None},
+        {"barcode": "OK", "length_in": 0},
+        {"barcode": "OK", "width_in": -2},
+        {"barcode": "OK", "weight_lb": "heavy"},
+        {"barcode": "OK", "height_in": 100_000},
+    ],
+)
+def test_camera_test_rejects_unusable_input(kwargs):
+    with pytest.raises(DimensionerTestInputError):
+        build_camera_test_scan(**kwargs)

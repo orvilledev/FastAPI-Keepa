@@ -9,6 +9,7 @@ import {
   toHandoffRows,
 } from '../../lib/dimensionerHandoff'
 import { getApiErrorDetail } from '../../utils/apiErrorMessage'
+import DimensionerCameraTest from './DimensionerCameraTest'
 
 const REFRESH_MS = 10_000
 const PAGE_SIZE = 100
@@ -280,6 +281,8 @@ export default function DimensionerScans() {
           admin needs to set <span className="font-mono">DIMENSIONER_API_KEY</span> on the server.
         </div>
       )}
+
+      <DimensionerCameraTest onSaved={() => void load()} />
 
       <div className="rounded-2xl border border-gray-300 bg-white shadow-md dark:border-gray-600 dark:bg-surface">
         <div className="flex flex-wrap items-center gap-3 border-b border-gray-200 p-4 dark:border-gray-700">

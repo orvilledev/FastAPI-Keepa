@@ -17,6 +17,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from supabase import Client
 
 from app.config import settings
@@ -30,7 +31,9 @@ from app.repositories.dimensioner_scan_repository import (
 from app.services.dimensioner_scans import (
     MAX_BODY_BYTES,
     DimensionerPayloadError,
+    DimensionerTestInputError,
     api_key_matches,
+    build_camera_test_scan,
     parse_scan_payload,
     present_scan,
 )
@@ -132,6 +135,45 @@ def list_scans(
         "receiver_configured": _receiver_configured(),
         "receive_path": f"{settings.api_v1_str}{_RECEIVE_PATH}",
     }
+
+
+class CameraTestScanBody(BaseModel):
+    """A practice scan. Sizes and weight are optional and are inches and pounds."""
+
+    barcode: str
+    length_in: float | None = None
+    width_in: float | None = None
+    height_in: float | None = None
+    weight_lb: float | None = None
+
+
+@router.post("/dimensioner/scans/test")
+@handle_api_errors("save a camera test scan")
+def create_camera_test_scan(
+    body: CameraTestScanBody,
+    current_user: dict = Depends(get_freight_class_user),
+    db: Client = Depends(get_supabase),
+):
+    """Store one scan typed in from the page's camera test. Does not use the M2 key."""
+    _ = current_user
+    try:
+        parsed = build_camera_test_scan(
+            barcode=body.barcode,
+            length_in=body.length_in,
+            width_in=body.width_in,
+            height_in=body.height_in,
+            weight_lb=body.weight_lb,
+        )
+    except DimensionerTestInputError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        saved = DimensionerScanRepository(db).insert(parsed.to_row())
+    except DimensionerStorageError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not saved or not saved.get("id"):
+        raise HTTPException(status_code=503, detail="The test scan was not saved.")
+    return present_scan(saved)
 
 
 @router.delete("/dimensioner/scans/{scan_id}")

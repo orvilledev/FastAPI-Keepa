@@ -307,3 +307,59 @@ def test_delete_unknown_scan_is_a_404(user, store):
 
 def test_delete_with_a_malformed_id_is_a_422(user, store):
     assert user.delete("/api/v1/dimensioner/scans/not-a-uuid").status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Camera test (signed-in page, not the M2)
+# ---------------------------------------------------------------------------
+
+
+def test_camera_test_is_stored_without_the_device_key(user, store, monkeypatch):
+    monkeypatch.setattr(settings, "dimensioner_api_key", "")
+
+    response = user.post(
+        "/api/v1/dimensioner/scans/test",
+        json={"barcode": "845973030506", "length_in": 10, "width_in": 8, "height_in": 6, "weight_lb": 2},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["device"] == "camera-test"
+    assert body["barcode"] == "845973030506"
+    assert body["length_in"] == 10.0
+    assert body["weight_lb"] == 2.0
+    assert body["note"] == "Camera test"
+    assert store.rows[0]["length_mm"] == 254
+    assert store.rows[0]["dedupe_key"].startswith("nots:")
+
+
+def test_camera_test_blank_sizes_are_stored_as_missing(user, store):
+    response = user.post("/api/v1/dimensioner/scans/test", json={"barcode": "NO-SIZE"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["length_in"] is None and body["weight_lb"] is None
+
+
+def test_camera_test_without_a_barcode_is_refused(user, store):
+    response = user.post("/api/v1/dimensioner/scans/test", json={"barcode": "  "})
+
+    assert response.status_code == 400
+    assert store.rows == []
+
+
+def test_camera_test_requires_a_signed_in_user(store):
+    anonymous = TestClient(_app(signed_in=False))
+
+    response = anonymous.post("/api/v1/dimensioner/scans/test", json={"barcode": "X"})
+
+    assert response.status_code in (401, 403)
+    assert store.rows == []
+
+
+def test_camera_test_storage_failure_is_a_503(user, store):
+    store.fail_with = DimensionerStorageError("down")
+
+    response = user.post("/api/v1/dimensioner/scans/test", json={"barcode": "X"})
+
+    assert response.status_code == 503
