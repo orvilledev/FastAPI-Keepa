@@ -17,9 +17,11 @@ import { jsPDF } from 'jspdf'
  * only the barcode, text, and spacing grow. The assembled content block is
  * vertically centred inside the margins so nothing is ever clipped.
  *
- * Two more sizes use larger stock:
- *   - `custom` — 3" × 3" with editable notice ("SOLD AS SET / DO NOT SEPARATE"
- *     by default), FNSKU above the barcode, product title, and print ID / condition
+ * Two more families use larger stock:
+ *   - `custom` — 3" × 3" notice label, and `custom_3x2` — the same notice label
+ *     on 3" wide × 2" tall stock. Editable headline ("SOLD AS SET / DO NOT
+ *     SEPARATE" by default), FNSKU above the barcode, product title, and print
+ *     ID / condition
  *   - `apparel` — 3" × 2" with a fixed return-eligibility notice (for jackets,
  *     sweaters, and other single items — no sold-as-set wording)
  */
@@ -48,14 +50,25 @@ export const DEFAULT_LABEL_DPI: LabelDpi = 203
  */
 export const STANDARD_LABEL_SIZES = ['small', 'medium', 'large'] as const
 
-/** Every selectable size, including Custom (3×3) and Apparel (3×2). */
-export const LABEL_SIZES = [...STANDARD_LABEL_SIZES, 'custom', 'apparel'] as const
+/**
+ * Custom notice label stock. `custom` is 3" × 3"; `custom_3x2` is the same
+ * label on 3" wide × 2" tall stock.
+ */
+export const CUSTOM_LABEL_SIZES = ['custom', 'custom_3x2'] as const
+export type CustomLabelSize = (typeof CUSTOM_LABEL_SIZES)[number]
+
+/** Every selectable size, including Custom (3×3 and 3×2) and Apparel (3×2). */
+export const LABEL_SIZES = [...STANDARD_LABEL_SIZES, ...CUSTOM_LABEL_SIZES, 'apparel'] as const
 export type LabelSize = (typeof LABEL_SIZES)[number]
 export const DEFAULT_LABEL_SIZE: LabelSize = 'large'
 
-/** True for Custom (3×3) and Apparel (3×2) — not the standard 2.25×1.25 stock. */
+export function isCustomLabelSize(size: LabelSize): size is CustomLabelSize {
+  return (CUSTOM_LABEL_SIZES as readonly string[]).includes(size)
+}
+
+/** True for Custom (3×3 or 3×2) and Apparel (3×2) — not the standard 2.25×1.25 stock. */
 export function usesSpecialLabelStock(size: LabelSize): boolean {
-  return size === 'custom' || size === 'apparel'
+  return isCustomLabelSize(size) || size === 'apparel'
 }
 
 /**
@@ -70,6 +83,7 @@ export const LABEL_DIMENSIONS_IN: Record<
   medium: { widthIn: 2.25, heightIn: 1.25, baseW: 457, baseH: 254 },
   large: { widthIn: 2.25, heightIn: 1.25, baseW: 457, baseH: 254 },
   custom: { widthIn: 3, heightIn: 3, baseW: 609, baseH: 609 },
+  custom_3x2: { widthIn: 3, heightIn: 2, baseW: 609, baseH: 406 },
   apparel: { widthIn: 3, heightIn: 2, baseW: 609, baseH: 406 },
 }
 
@@ -88,7 +102,7 @@ export function getLabelPageSizePt(size: LabelSize): { width: number; height: nu
   }
 }
 
-/** Editable notice printed at the top of the 3" × 3" custom label. */
+/** Editable notice printed at the top of the custom label (3" × 3" or 3" × 2"). */
 export const DEFAULT_CUSTOM_LABEL_TEXT = 'SOLD AS SET\nDO NOT SEPARATE'
 export const CUSTOM_LABEL_TEXT_KEY = 'warehouse_custom_label_text'
 const MAX_CUSTOM_LABEL_LINES = 4
@@ -210,6 +224,33 @@ const CUSTOM_LAYOUT = {
   idFont: 25,
   idIndent: 104,
   idRise: 28,
+}
+
+/**
+ * Same custom notice label on 3" × 2" stock (base 203-dpi units, 609 × 406).
+ * Width is 3", height is 2". The notice still auto-shrinks per line; the stack
+ * is vertically centred so it stays inside the shorter label.
+ */
+const CUSTOM_3X2_LAYOUT = {
+  pad: 16,
+  noticeInset: 28,
+  noticeMaxFont: 58,
+  noticeMinFont: 14,
+  noticeLineGap: 6,
+  gapNoticeFnsku: 12,
+  fnskuFont: 22,
+  gapFnskuBarcode: 6,
+  barcodeHeight: 80,
+  barcodeMinHeight: 48,
+  gapBarcodeTitle: 10,
+  titleFont: 16,
+  titleLineHeight: 19,
+  maxTitleLines: 2,
+  gapTitleMeta: 12,
+  conditionFont: 18,
+  conditionInset: 32,
+  idFont: 18,
+  idIndent: 64,
 }
 
 /**
@@ -631,6 +672,139 @@ function drawCustomLabel(
 }
 
 /**
+ * 3" wide × 2" tall custom notice label. Same content as the 3" × 3" custom
+ * label, with the headline shrunk so the barcode, title, print ID, and
+ * condition still fit the shorter stock. The stack is vertically centred.
+ */
+function drawCustom3x2Label(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  scale: number,
+  product: WarehouseLabelProduct & { sku?: string },
+  idMode: LabelIdMode,
+  customText: string | undefined | null
+): void {
+  const layout = CUSTOM_3X2_LAYOUT
+  const d = (value: number) => Math.round(value * scale)
+
+  ctx.fillStyle = '#000000'
+  ctx.textBaseline = 'alphabetic'
+  ctx.textAlign = 'center'
+
+  const pad = d(layout.pad)
+  const innerWidth = W - pad * 2
+  const lines = customLabelLines(customText)
+  const noticeWidth = W - d(layout.noticeInset) * 2
+  const noticeGap = d(layout.noticeLineGap)
+  const minNotice = d(layout.noticeMinFont)
+  const preferredFonts = lines.map((line) =>
+    fitFontSize(ctx, line, noticeWidth, d(layout.noticeMaxFont), minNotice)
+  )
+
+  const fnsku = (product.fnsku || '').trim()
+  const fnskuFont = d(layout.fnskuFont)
+  const fnskuBlockH = fnsku ? fnskuFont + d(layout.gapFnskuBarcode) : 0
+
+  const titleFont = d(layout.titleFont)
+  ctx.font = `${titleFont}px ${FONT_FAMILY}`
+  const titleLines = wrapLines(ctx, product.style_name || '', innerWidth, layout.maxTitleLines)
+  const titleBlockH =
+    titleLines.length > 0
+      ? titleFont + (titleLines.length - 1) * d(layout.titleLineHeight)
+      : 0
+
+  const idLine = formatUpcFnskuLine(getLabelScanLine(product, idMode))
+  const metaFont = Math.max(d(layout.idFont), d(layout.conditionFont))
+  const metaBlockH = idLine || product.condition ? metaFont : 0
+
+  const gapNotice = lines.length > 0 ? d(layout.gapNoticeFnsku) : 0
+  const titleGap = titleBlockH > 0 ? d(layout.gapBarcodeTitle) : 0
+  const metaGap = metaBlockH > 0 ? d(layout.gapTitleMeta) : 0
+  const fixedWithoutBarcode = gapNotice + fnskuBlockH + titleGap + titleBlockH + metaGap + metaBlockH
+
+  const maxContentH = Math.max(1, H - pad * 2)
+  const minBarcodePx = d(layout.barcodeMinHeight)
+  const noticePreferredH = preferredFonts.reduce(
+    (sum, font, index) => sum + font + (index > 0 ? noticeGap : 0),
+    0
+  )
+  const maxNoticeH = Math.max(0, maxContentH - fixedWithoutBarcode - minBarcodePx)
+
+  let noticeFonts = preferredFonts
+  let noticeBlockH = noticePreferredH
+  if (lines.length > 0 && noticePreferredH > maxNoticeH && noticePreferredH > 0) {
+    const ratio = maxNoticeH / noticePreferredH
+    noticeFonts = preferredFonts.map((font) => Math.max(minNotice, Math.floor(font * ratio)))
+    noticeBlockH = noticeFonts.reduce(
+      (sum, font, index) => sum + font + (index > 0 ? noticeGap : 0),
+      0
+    )
+  }
+
+  const barcodeBudget = Math.min(
+    d(layout.barcodeHeight),
+    Math.max(minBarcodePx, maxContentH - noticeBlockH - fixedWithoutBarcode)
+  )
+  const barcode = renderBarcodeCanvas(
+    product.fnsku,
+    W,
+    scale,
+    layout.pad,
+    barcodeBudget / Math.max(scale, 0.01)
+  )
+  const barcodeHeight = barcode ? barcode.height : barcodeBudget
+
+  const contentH = noticeBlockH + fixedWithoutBarcode + barcodeHeight
+  let y = Math.max(pad, Math.round((H - contentH) / 2))
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const font = noticeFonts[i]
+    y += font
+    ctx.font = `${font}px ${FONT_FAMILY}`
+    ctx.fillText(lines[i], W / 2, y)
+    if (i < lines.length - 1) y += noticeGap
+  }
+  y += gapNotice
+
+  if (fnsku) {
+    y += fnskuFont
+    ctx.font = `${fnskuFont}px ${FONT_FAMILY}`
+    ctx.fillText(fnsku, W / 2, y)
+    y += d(layout.gapFnskuBarcode)
+  }
+
+  if (barcode) {
+    ctx.imageSmoothingEnabled = false
+    ctx.drawImage(barcode, Math.round((W - barcode.width) / 2), y)
+  }
+  y += barcodeHeight
+
+  if (titleLines.length > 0) {
+    y += titleGap + titleFont
+    ctx.font = `${titleFont}px ${FONT_FAMILY}`
+    for (let i = 0; i < titleLines.length; i += 1) {
+      if (i > 0) y += d(layout.titleLineHeight)
+      ctx.fillText(titleLines[i], W / 2, y)
+    }
+  }
+
+  if (metaBlockH > 0) {
+    y += metaGap + metaFont
+    if (idLine) {
+      ctx.textAlign = 'left'
+      ctx.font = `${d(layout.idFont)}px ${FONT_FAMILY}`
+      ctx.fillText(idLine, d(layout.idIndent), y)
+    }
+    if (product.condition) {
+      ctx.textAlign = 'right'
+      ctx.font = `${d(layout.conditionFont)}px ${FONT_FAMILY}`
+      ctx.fillText(product.condition, W - d(layout.conditionInset), y)
+    }
+  }
+}
+
+/**
  * 3" × 2" apparel label: fixed return-eligibility notice, FNSKU above barcode,
  * wrapped title, then print ID and condition. The whole stack is vertically
  * centred so gaps stay even (no large empty band above the bottom row).
@@ -762,6 +936,8 @@ export function renderWarehouseLabelCanvas(
 
   if (resolvedSize === 'custom') {
     drawCustomLabel(ctx, W, H, scale, product, idMode, customText)
+  } else if (resolvedSize === 'custom_3x2') {
+    drawCustom3x2Label(ctx, W, H, scale, product, idMode, customText)
   } else if (resolvedSize === 'apparel') {
     drawApparelLabel(ctx, W, H, scale, product, idMode)
   } else {
@@ -1004,7 +1180,7 @@ export function saveCustomLabelText(text: string): void {
   }
 }
 
-/** Last print size (small/medium/large/custom/apparel) the user selected. */
+/** Last print size (small/medium/large/custom/custom_3x2/apparel) the user selected. */
 export function getSelectedLabelSize(): LabelSize {
   try {
     return normalizeSize((localStorage.getItem(LABEL_SIZE_KEY) || '') as LabelSize)

@@ -230,7 +230,8 @@ export default function About() {
             catalog SKU (7 numeric digits or fewer) under the barcode when present;{' '}
             <span className="font-semibold">UPC (DNK)</span> always prints the retail UPC for carton match and is limited
             to emails on the allowlist in User Management. Barcode stays FNSKU in both modes. Choose label size (small,
-            medium, or large on 2.25&quot; × 1.25&quot; stock; Custom on 3&quot; × 3&quot; with sold-as-set notice;
+            medium, or large on 2.25&quot; × 1.25&quot; stock; Custom on 3&quot; × 3&quot; or 3&quot; × 2&quot; with
+            sold-as-set notice;
             Apparel on 3&quot; × 2&quot; with a return-eligibility notice) and printer resolution (203 or 300 dpi).
             On-screen preview matches the physical label.
           </li>

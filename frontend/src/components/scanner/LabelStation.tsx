@@ -8,6 +8,7 @@ import {
   buildWarehouseLabelPdfBlob,
   buildWarehouseLabelZpl,
   computeScanStatus,
+  CUSTOM_LABEL_SIZES,
   DEFAULT_CUSTOM_LABEL_TEXT,
   detectPrinterDpi,
   getSelectedDpi,
@@ -16,6 +17,7 @@ import {
   getSelectedLabelSize,
   getSelectedPrinter,
   getStoredCustomLabelText,
+  isCustomLabelSize,
   LABEL_DIMENSIONS_IN,
   labelSizeDimensionsLabel,
   renderWarehouseLabelCanvas,
@@ -32,6 +34,7 @@ import {
   suggestedWarehouseLabelPdfFilename,
   SUPPORTED_DPIS,
   usesSpecialLabelStock,
+  type CustomLabelSize,
   type LabelDpi,
   type LabelIdMode,
   type LabelPrintMode,
@@ -201,6 +204,9 @@ export default function LabelStation() {
   const [selectedPrinter, setSelectedPrinter] = useState('')
   const [selectedDpi, setSelectedDpi] = useState<LabelDpi>(getSelectedDpi())
   const [selectedSize, setSelectedSize] = useState<LabelSize>(getSelectedLabelSize())
+  const [customStock, setCustomStock] = useState<CustomLabelSize>(() =>
+    getSelectedLabelSize() === 'custom_3x2' ? 'custom_3x2' : 'custom'
+  )
   const [selectedIdMode, setSelectedIdMode] = useState<LabelIdMode>(getSelectedLabelIdMode())
   const [customText, setCustomText] = useState<string>(getStoredCustomLabelText)
   const [loadingPrinters, setLoadingPrinters] = useState(false)
@@ -707,6 +713,11 @@ export default function LabelStation() {
   const handleSelectSize = (size: LabelSize) => {
     setSelectedSize(size)
     saveSelectedLabelSize(size)
+    if (isCustomLabelSize(size)) setCustomStock(size)
+  }
+
+  const handleSelectCustom = (size: CustomLabelSize = customStock) => {
+    handleSelectSize(size)
   }
 
   const handleCustomTextChange = (text: string) => {
@@ -1206,20 +1217,21 @@ export default function LabelStation() {
           })}
         </div>
 
-        {/* Custom 3" × 3" notice label — whole card selects, like Small/Medium/Large */}
+        {/* Custom notice label — 3" × 3" or 3" wide × 2" tall. Whole card selects. */}
         <div
           role="button"
           tabIndex={0}
-          aria-pressed={selectedSize === 'custom'}
-          onClick={() => handleSelectSize('custom')}
+          aria-pressed={isCustomLabelSize(selectedSize)}
+          onClick={() => handleSelectCustom()}
           onKeyDown={(e) => {
+            if (e.target !== e.currentTarget) return
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault()
-              handleSelectSize('custom')
+              handleSelectCustom()
             }
           }}
           className={`rounded-lg border-2 p-3 text-left transition cursor-pointer ${
-            selectedSize === 'custom'
+            isCustomLabelSize(selectedSize)
               ? 'border-[#404040] ring-1 ring-[#404040] bg-gray-50'
               : 'border-gray-200 hover:border-gray-400'
           }`}
@@ -1227,16 +1239,47 @@ export default function LabelStation() {
           <div className="flex items-center justify-between mb-2">
             <div>
               <span className="text-sm font-medium text-gray-800">
-                Custom ({labelSizeDimensionsLabel('custom')})
+                Custom ({labelSizeDimensionsLabel(customStock)})
               </span>
               <p className="text-xs text-gray-500 mt-0.5">
-                Square notice label — headline, FNSKU above barcode, title, then print ID and
-                condition
+                Notice label — headline, FNSKU above barcode, title, then print ID and condition.
+                Choose 3&quot; × 3&quot; or 3&quot; × 2&quot; stock before printing.
               </p>
             </div>
-            {selectedSize === 'custom' && (
+            {isCustomLabelSize(selectedSize) && (
               <span className="text-xs font-semibold text-emerald-700 shrink-0">Selected</span>
             )}
+          </div>
+
+          <div
+            className="mb-3 space-y-1.5"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <p className="text-xs text-gray-600">Print size (width × height)</p>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Custom print size">
+              {CUSTOM_LABEL_SIZES.map((size) => {
+                const active = selectedSize === size
+                return (
+                  <button
+                    key={size}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => handleSelectCustom(size)}
+                    className={`rounded-lg border-2 px-3 py-1.5 text-sm font-medium transition ${
+                      active
+                        ? 'border-[#404040] ring-1 ring-[#404040] bg-white text-gray-900'
+                        : 'border-gray-200 bg-white text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    {labelSizeDimensionsLabel(size)}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-xs text-gray-500">
+              3&quot; × 2&quot; is 3 inches wide and 2 inches tall. 3&quot; × 3&quot; stays available.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1248,9 +1291,9 @@ export default function LabelStation() {
                 id="custom-label-text"
                 rows={3}
                 value={customText}
-                onFocus={() => handleSelectSize('custom')}
+                onFocus={() => handleSelectCustom()}
                 onChange={(e) => {
-                  handleSelectSize('custom')
+                  handleSelectCustom()
                   handleCustomTextChange(e.target.value)
                 }}
                 placeholder={DEFAULT_CUSTOM_LABEL_TEXT}
@@ -1261,7 +1304,7 @@ export default function LabelStation() {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    handleSelectSize('custom')
+                    handleSelectCustom()
                     handleCustomTextChange(DEFAULT_CUSTOM_LABEL_TEXT)
                   }}
                   className="text-xs text-gray-600 underline hover:text-gray-900"
@@ -1274,10 +1317,10 @@ export default function LabelStation() {
               </div>
             </div>
 
-            <div className="rounded border border-gray-300 overflow-hidden self-start max-w-[16rem] w-full mx-auto pointer-events-none">
+            <div className="rounded border border-gray-300 overflow-hidden self-start max-w-[18rem] w-full mx-auto pointer-events-none">
               <LabelPreview
                 product={product ?? SAMPLE_PRODUCT}
-                size="custom"
+                size={customStock}
                 idMode={effectiveIdMode}
                 customText={customText}
               />
