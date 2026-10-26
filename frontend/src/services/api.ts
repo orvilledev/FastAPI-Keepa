@@ -3107,6 +3107,19 @@ export type FbaShipmentUpload = {
   archived_at: string | null
   trashed_at: string | null
   fully_accounted: boolean
+  folder_id?: string | null
+}
+
+export type FbaShipmentFolder = {
+  id: string
+  name: string
+  shipment_count: number
+  created_at: string
+}
+
+export type FbaShipmentFolderList = {
+  folders: FbaShipmentFolder[]
+  ungrouped_count: number
 }
 
 export type FbaShipmentUnit = {
@@ -3158,6 +3171,7 @@ export const fbaShipmentLibraryApi = {
     search?: string,
     mine = false,
     view: 'active' | 'archive' | 'trash' = 'active',
+    folder?: { id?: string; ungrouped?: boolean },
   ): Promise<FbaShipmentUploadList> => {
     const response = await api.get('/api/v1/fba-shipment-library', {
       params: {
@@ -3167,9 +3181,44 @@ export const fbaShipmentLibraryApi = {
         mine,
         archived: view === 'archive',
         trashed: view === 'trash',
+        folder_id: folder?.ungrouped ? undefined : folder?.id || undefined,
+        ungrouped: Boolean(folder?.ungrouped),
       },
     })
     return response.data
+  },
+  listFolders: async (
+    mine = false,
+    view: 'active' | 'archive' | 'trash' = 'active',
+  ): Promise<FbaShipmentFolderList> => {
+    const response = await api.get('/api/v1/fba-shipment-library/folders', {
+      params: {
+        mine,
+        archived: view === 'archive',
+        trashed: view === 'trash',
+      },
+    })
+    return response.data
+  },
+  createFolder: async (name: string, uploadIds: string[] = []): Promise<FbaShipmentFolder> => {
+    const response = await api.post('/api/v1/fba-shipment-library/folders', {
+      name,
+      upload_ids: uploadIds,
+    })
+    return response.data
+  },
+  renameFolder: async (folderId: string, name: string): Promise<FbaShipmentFolder> => {
+    const response = await api.patch(`/api/v1/fba-shipment-library/folders/${folderId}`, { name })
+    return response.data
+  },
+  deleteFolder: async (folderId: string): Promise<void> => {
+    await api.delete(`/api/v1/fba-shipment-library/folders/${folderId}`)
+  },
+  assignFolder: async (folderId: string | null, uploadIds: string[]): Promise<void> => {
+    await api.put('/api/v1/fba-shipment-library/folders/members', {
+      folder_id: folderId,
+      upload_ids: uploadIds,
+    })
   },
   get: async (
     uploadId: string,

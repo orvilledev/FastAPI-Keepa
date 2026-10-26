@@ -31,6 +31,7 @@ class FbaShipmentUploadResponse(BaseModel):
     archived_at: Optional[datetime] = None
     trashed_at: Optional[datetime] = None
     fully_accounted: bool = False
+    folder_id: Optional[UUID] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -112,6 +113,57 @@ class FbaShipmentAccessRequest(BaseModel):
 
 class FbaShipmentNameRequest(BaseModel):
     shipment_name: str = Field(default="", max_length=200)
+
+
+def _clean_folder_name(value: str) -> str:
+    cleaned = " ".join(value.split())
+    if not cleaned:
+        raise ValueError("Enter a folder name.")
+    if len(cleaned) > 80:
+        raise ValueError("Folder names can be up to 80 characters.")
+    return cleaned
+
+
+class FbaShipmentFolderResponse(BaseModel):
+    id: UUID
+    name: str
+    shipment_count: int = 0
+    created_at: datetime
+
+
+class FbaShipmentFolderListResponse(BaseModel):
+    folders: List[FbaShipmentFolderResponse]
+    ungrouped_count: int = 0
+
+
+class FbaShipmentFolderCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    upload_ids: List[UUID] = Field(default_factory=list, max_length=100)
+
+    @field_validator("name")
+    @classmethod
+    def _clean_name(cls, value: str) -> str:
+        return _clean_folder_name(value)
+
+
+class FbaShipmentFolderRenameRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+    @field_validator("name")
+    @classmethod
+    def _clean_name(cls, value: str) -> str:
+        return _clean_folder_name(value)
+
+
+class FbaShipmentFolderAssignRequest(BaseModel):
+    folder_id: Optional[UUID] = None
+    upload_ids: List[UUID] = Field(min_length=1, max_length=100)
+
+
+class FbaShipmentFolderMoveResult(BaseModel):
+    folder_id: Optional[UUID] = None
+    name: str = ""
+    moved: int = 0
 
 
 class FbaFnskuLabelItem(BaseModel):

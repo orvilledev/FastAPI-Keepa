@@ -17,12 +17,14 @@ _LINES = "fba_shipment_lines"
 _COUNTS = "fba_shipment_counts"
 _UNKNOWNS = "fba_shipment_unknown_scans"
 _BOX_SCANS = "fba_shipment_box_scans"
+_FOLDERS = "fba_shipment_folders"
 _MIGRATION_HINT = (
     "Run backend/database/migrations/create_fba_shipment_library.sql, "
     "create_fba_shipment_counts.sql, create_fba_shipment_unknown_scans.sql, "
     "create_fba_shipment_box_scans.sql, "
     "add_fba_shipment_library_access.sql, add_fba_shipment_library_trash.sql, "
-    "add_fba_shipment_name.sql, and add_fba_shipment_custom_share.sql "
+    "add_fba_shipment_name.sql, add_fba_shipment_custom_share.sql, "
+    "and add_fba_shipment_folders.sql "
     "in the Supabase SQL Editor."
 )
 _INSERT_CHUNK = 500
@@ -71,6 +73,17 @@ def _raise_persist_error(exc: Exception) -> None:
             "The FBA Order Checker needs a database update before it can store the shipment name. "
             "Run backend/database/migrations/add_fba_shipment_name.sql in the Supabase SQL Editor."
         ) from exc
+    if ("folder_id" in message or _FOLDERS in message) and (
+        "schema cache" in message
+        or "does not exist" in message
+        or "column" in message
+        or "pgrst204" in message
+        or "pgrst205" in message
+    ):
+        raise ValueError(
+            "The FBA Order Checker needs a database update before shipments can be grouped into folders. "
+            "Run backend/database/migrations/add_fba_shipment_folders.sql in the Supabase SQL Editor."
+        ) from exc
     missing_table = (
         "does not exist" in message
         or "schema cache" in message
@@ -83,6 +96,7 @@ def _raise_persist_error(exc: Exception) -> None:
         or _COUNTS in message
         or _UNKNOWNS in message
         or _BOX_SCANS in message
+        or _FOLDERS in message
         or "relation" in message
     ):
         raise ValueError(f"The FBA Order Checker tables are missing. {_MIGRATION_HINT}") from exc
@@ -109,6 +123,8 @@ class FbaShipmentLibraryRepository:
         trashed: bool = False,
         viewer_id: Optional[str] = None,
         see_locked: bool = False,
+        folder_id: Optional[str] = None,
+        ungrouped: bool = False,
     ) -> Tuple[List[dict], int]:
         limit = max(1, min(limit, 100))
         offset = max(0, offset)
@@ -116,30 +132,28 @@ class FbaShipmentLibraryRepository:
         search_or = self._upload_search_or(search, upload_ids)
         visibility = upload_visibility_filter(viewer_id) if viewer_id and not see_locked else None
         order_column = "trashed_at" if trashed else "created_at"
+        page_kwargs = dict(
+            created_by=created_by,
+            archived=archived,
+            trashed=trashed,
+            search_or=search_or,
+            order_column=order_column,
+            limit=limit,
+            offset=offset,
+            folder_id=None if ungrouped else folder_id,
+            ungrouped=ungrouped,
+        )
         try:
-            response = self._upload_page(
-                created_by=created_by,
-                archived=archived,
-                trashed=trashed,
-                search_or=search_or,
-                visibility=visibility,
-                order_column=order_column,
-                limit=limit,
-                offset=offset,
-            )
+            response = self._upload_page(visibility=visibility, **page_kwargs)
         except Exception as exc:
             legacy = f"is_locked.eq.false,created_by.eq.{viewer_id}" if viewer_id else None
             if visibility and legacy and "shared_with" in str(exc).lower():
-                response = self._upload_page(
-                    created_by=created_by,
-                    archived=archived,
-                    trashed=trashed,
-                    search_or=search_or,
-                    visibility=legacy,
-                    order_column=order_column,
-                    limit=limit,
-                    offset=offset,
-                )
+                try:
+                    response = self._upload_page(visibility=legacy, **page_kwargs)
+                except Exception as retry_exc:
+                    _raise_persist_error(retry_exc)
+            elif folder_id or ungrouped:
+                _raise_persist_error(exc)
             else:
                 raise
         return list(response.data or []), int(response.count or 0)
@@ -155,6 +169,8 @@ class FbaShipmentLibraryRepository:
         order_column: str,
         limit: int,
         offset: int,
+        folder_id: Optional[str] = None,
+        ungrouped: bool = False,
     ):
         query = self.db.table(_UPLOADS).select("*", count="exact")
         if created_by:
@@ -165,6 +181,10 @@ class FbaShipmentLibraryRepository:
             query = query.is_("trashed_at", "null").not_.is_("archived_at", "null")
         else:
             query = query.is_("trashed_at", "null").is_("archived_at", "null")
+        if ungrouped:
+            query = query.is_("folder_id", "null")
+        elif folder_id:
+            query = query.eq("folder_id", folder_id)
         if visibility and search_or:
             query.params = query.params.add("and", f"(or({visibility}),or({search_or}))")
         elif visibility:
@@ -172,6 +192,176 @@ class FbaShipmentLibraryRepository:
         elif search_or:
             query.params = query.params.add("or", f"({search_or})")
         return query.order(order_column, desc=True).range(offset, offset + limit).execute()
+
+    def list_folders(self) -> List[dict]:
+        try:
+            response = (
+                self.db.table(_FOLDERS)
+                .select("id,name,created_by,created_by_email,created_at")
+                .order("name")
+                .limit(200)
+                .execute()
+            )
+        except Exception as exc:
+            _raise_persist_error(exc)
+        return list(response.data or [])
+
+    def get_folder(self, folder_id: str) -> Optional[dict]:
+        try:
+            response = self.db.table(_FOLDERS).select("*").eq("id", folder_id).limit(1).execute()
+        except Exception as exc:
+            _raise_persist_error(exc)
+        rows = response.data or []
+        return rows[0] if rows else None
+
+    def _require_unique_folder_name(self, name: str, except_id: Optional[str] = None) -> None:
+        try:
+            response = self.db.table(_FOLDERS).select("id,name").limit(500).execute()
+        except Exception as exc:
+            _raise_persist_error(exc)
+        target = name.casefold()
+        for row in response.data or []:
+            if except_id and str(row.get("id") or "") == except_id:
+                continue
+            if str(row.get("name") or "").casefold() == target:
+                raise ValueError("A folder with that name already exists.")
+
+    def create_folder(self, name: str, user_id: str, email: str) -> dict:
+        self._require_unique_folder_name(name)
+        try:
+            response = (
+                self.db.table(_FOLDERS)
+                .insert(
+                    {
+                        "name": name,
+                        "created_by": user_id or None,
+                        "created_by_email": email or "",
+                    }
+                )
+                .execute()
+            )
+        except Exception as exc:
+            if _is_unique_violation(exc):
+                raise ValueError("A folder with that name already exists.") from exc
+            _raise_persist_error(exc)
+        rows = response.data or []
+        if not rows:
+            raise ValueError("The folder was not saved.")
+        return rows[0]
+
+    def rename_folder(self, folder_id: str, name: str) -> dict:
+        self._require_unique_folder_name(name, except_id=folder_id)
+        try:
+            response = (
+                self.db.table(_FOLDERS)
+                .update(
+                    {
+                        "name": name,
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
+                .eq("id", folder_id)
+                .execute()
+            )
+        except Exception as exc:
+            if _is_unique_violation(exc):
+                raise ValueError("A folder with that name already exists.") from exc
+            _raise_persist_error(exc)
+        rows = response.data or []
+        if not rows:
+            raise ValueError("The folder name was not saved.")
+        return rows[0]
+
+    def delete_folder(self, folder_id: str) -> None:
+        """Remove the folder and leave its shipments in the list."""
+        try:
+            self.db.table(_UPLOADS).update({"folder_id": None}).eq("folder_id", folder_id).execute()
+            self.db.table(_FOLDERS).delete().eq("id", folder_id).execute()
+        except Exception as exc:
+            _raise_persist_error(exc)
+
+    def set_uploads_folder(self, upload_ids: List[str], folder_id: Optional[str]) -> None:
+        if not upload_ids:
+            return
+        try:
+            response = (
+                self.db.table(_UPLOADS)
+                .update({"folder_id": folder_id})
+                .in_("id", upload_ids)
+                .execute()
+            )
+        except Exception as exc:
+            _raise_persist_error(exc)
+        if not response.data:
+            raise ValueError("Those shipments could not be moved.")
+
+    def folder_placement_counts(
+        self,
+        *,
+        created_by: Optional[str] = None,
+        archived: bool = False,
+        trashed: bool = False,
+        viewer_id: Optional[str] = None,
+        see_locked: bool = False,
+    ) -> Tuple[Dict[str, int], int]:
+        visibility = upload_visibility_filter(viewer_id) if viewer_id and not see_locked else None
+        try:
+            return self._count_folder_placements(
+                created_by=created_by,
+                archived=archived,
+                trashed=trashed,
+                visibility=visibility,
+            )
+        except Exception as exc:
+            legacy = f"is_locked.eq.false,created_by.eq.{viewer_id}" if viewer_id else None
+            if visibility and legacy and "shared_with" in str(exc).lower():
+                try:
+                    return self._count_folder_placements(
+                        created_by=created_by,
+                        archived=archived,
+                        trashed=trashed,
+                        visibility=legacy,
+                    )
+                except Exception as retry_exc:
+                    _raise_persist_error(retry_exc)
+            _raise_persist_error(exc)
+
+    def _count_folder_placements(
+        self,
+        *,
+        created_by: Optional[str],
+        archived: bool,
+        trashed: bool,
+        visibility: Optional[str],
+    ) -> Tuple[Dict[str, int], int]:
+        counts: Dict[str, int] = {}
+        ungrouped = 0
+        offset = 0
+        page = 1000
+        while True:
+            query = self.db.table(_UPLOADS).select("folder_id")
+            if created_by:
+                query = query.eq("created_by", created_by)
+            if trashed:
+                query = query.not_.is_("trashed_at", "null")
+            elif archived:
+                query = query.is_("trashed_at", "null").not_.is_("archived_at", "null")
+            else:
+                query = query.is_("trashed_at", "null").is_("archived_at", "null")
+            if visibility:
+                query.params = query.params.add("or", f"({visibility})")
+            response = query.range(offset, offset + page - 1).execute()
+            rows = list(response.data or [])
+            for row in rows:
+                placed = row.get("folder_id")
+                if placed:
+                    key = str(placed)
+                    counts[key] = counts.get(key, 0) + 1
+                else:
+                    ungrouped += 1
+            if len(rows) < page:
+                return counts, ungrouped
+            offset += page
 
     def get_upload(self, upload_id: str) -> Optional[dict]:
         response = self.db.table(_UPLOADS).select("*").eq("id", upload_id).limit(1).execute()

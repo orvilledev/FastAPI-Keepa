@@ -1,6 +1,7 @@
 """FBA Order Checker — store yellow fields from the official shipment TSV."""
 import logging
 from typing import Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
@@ -22,6 +23,12 @@ from app.models.fba_shipment_library import (
     FbaShareUser,
     FbaShipmentAccessRequest,
     FbaShipmentDetailResponse,
+    FbaShipmentFolderAssignRequest,
+    FbaShipmentFolderCreateRequest,
+    FbaShipmentFolderListResponse,
+    FbaShipmentFolderMoveResult,
+    FbaShipmentFolderRenameRequest,
+    FbaShipmentFolderResponse,
     FbaShipmentNameRequest,
     FbaShipmentUnitsResponse,
     FbaShipmentImportResult,
@@ -178,6 +185,7 @@ def _upload_response(
         archived_at=row.get("archived_at"),
         trashed_at=row.get("trashed_at"),
         fully_accounted=bool(row.get("fully_accounted")),
+        folder_id=row.get("folder_id") or None,
     )
 
 
@@ -218,6 +226,8 @@ def list_fba_shipments(
     mine: bool = Query(False),
     archived: bool = Query(False),
     trashed: bool = Query(False),
+    folder_id: Optional[UUID] = Query(None),
+    ungrouped: bool = Query(False),
     current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
@@ -233,6 +243,8 @@ def list_fba_shipments(
             trashed=trashed,
             viewer_id=str(current_user["id"]),
             see_locked=can_manage_any,
+            folder_id=str(folder_id) if folder_id and not ungrouped else None,
+            ungrouped=ungrouped,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -283,6 +295,160 @@ def list_fba_share_users(
         people.append(FbaShareUser(id=user_id, name=name, email=email))
     people.sort(key=lambda person: (person.name.casefold(), person.email))
     return people
+
+
+def _folder_list_scope(current_user: dict, db: Client, mine: bool, trashed: bool) -> tuple[FbaShipmentLibraryRepository, bool, Optional[str]]:
+    repo = FbaShipmentLibraryRepository(db)
+    can_manage_any = is_superadmin_user(current_user, db)
+    created_by = str(current_user["id"]) if mine or (trashed and not can_manage_any) else None
+    return repo, can_manage_any, created_by
+
+
+def _folder_response(row: dict, shipment_count: int = 0) -> FbaShipmentFolderResponse:
+    return FbaShipmentFolderResponse(
+        id=row["id"],
+        name=row.get("name") or "",
+        shipment_count=shipment_count,
+        created_at=row["created_at"],
+    )
+
+
+def _visible_uploads_for_folder(
+    repo: FbaShipmentLibraryRepository,
+    upload_ids: list[str],
+    current_user: dict,
+    can_manage_any: bool,
+) -> None:
+    for upload_id in upload_ids:
+        upload = repo.get_upload(upload_id)
+        if not upload:
+            raise HTTPException(status_code=404, detail="That shipment upload was not found.")
+        _require_visible(upload, current_user, can_manage_any)
+
+
+@router.get("/fba-shipment-library/folders", response_model=FbaShipmentFolderListResponse)
+@handle_api_errors("list FBA shipment folders")
+def list_fba_shipment_folders(
+    mine: bool = Query(False),
+    archived: bool = Query(False),
+    trashed: bool = Query(False),
+    current_user: dict = Depends(get_fba_order_checker_user),
+    db: Client = Depends(get_supabase),
+):
+    """Folders for the current Active, Archive, or Trash list."""
+    repo, can_manage_any, created_by = _folder_list_scope(current_user, db, mine, trashed)
+    try:
+        folders = repo.list_folders()
+        counts, ungrouped = repo.folder_placement_counts(
+            created_by=created_by,
+            archived=archived,
+            trashed=trashed,
+            viewer_id=str(current_user["id"]),
+            see_locked=can_manage_any,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return FbaShipmentFolderListResponse(
+        folders=[
+            _folder_response(row, counts.get(str(row.get("id") or ""), 0))
+            for row in folders
+        ],
+        ungrouped_count=ungrouped,
+    )
+
+
+@router.post("/fba-shipment-library/folders", response_model=FbaShipmentFolderResponse, status_code=201)
+@handle_api_errors("create FBA shipment folder")
+def create_fba_shipment_folder(
+    body: FbaShipmentFolderCreateRequest,
+    current_user: dict = Depends(get_fba_order_checker_user),
+    db: Client = Depends(get_supabase),
+):
+    """Create a named folder. Checked shipments are moved into it."""
+    repo = FbaShipmentLibraryRepository(db)
+    can_manage_any = is_superadmin_user(current_user, db)
+    upload_ids = [str(item) for item in body.upload_ids]
+    try:
+        _visible_uploads_for_folder(repo, upload_ids, current_user, can_manage_any)
+        folder = repo.create_folder(
+            body.name,
+            str(current_user.get("id") or ""),
+            str(current_user.get("email") or ""),
+        )
+        if upload_ids:
+            try:
+                repo.set_uploads_folder(upload_ids, str(folder["id"]))
+            except ValueError:
+                repo.delete_folder(str(folder["id"]))
+                raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _folder_response(folder, len(upload_ids))
+
+
+@router.put("/fba-shipment-library/folders/members", response_model=FbaShipmentFolderMoveResult)
+@handle_api_errors("move FBA shipments to a folder")
+def assign_fba_shipment_folder(
+    body: FbaShipmentFolderAssignRequest,
+    current_user: dict = Depends(get_fba_order_checker_user),
+    db: Client = Depends(get_supabase),
+):
+    """Put shipments in a folder, or take them out when folder_id is empty."""
+    repo = FbaShipmentLibraryRepository(db)
+    can_manage_any = is_superadmin_user(current_user, db)
+    upload_ids = [str(item) for item in body.upload_ids]
+    folder_id = str(body.folder_id) if body.folder_id else None
+    try:
+        folder = repo.get_folder(folder_id) if folder_id else None
+        if folder_id and not folder:
+            raise HTTPException(status_code=404, detail="That folder was not found.")
+        _visible_uploads_for_folder(repo, upload_ids, current_user, can_manage_any)
+        repo.set_uploads_folder(upload_ids, folder_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return FbaShipmentFolderMoveResult(
+        folder_id=folder_id,
+        name=(folder or {}).get("name") or "",
+        moved=len(upload_ids),
+    )
+
+
+@router.patch("/fba-shipment-library/folders/{folder_id}", response_model=FbaShipmentFolderResponse)
+@handle_api_errors("rename FBA shipment folder")
+def rename_fba_shipment_folder(
+    folder_id: UUID,
+    body: FbaShipmentFolderRenameRequest,
+    current_user: dict = Depends(get_fba_order_checker_user),
+    db: Client = Depends(get_supabase),
+):
+    repo = FbaShipmentLibraryRepository(db)
+    try:
+        existing = repo.get_folder(str(folder_id))
+        if not existing:
+            raise HTTPException(status_code=404, detail="That folder was not found.")
+        saved = repo.rename_folder(str(folder_id), body.name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _folder_response(saved)
+
+
+@router.delete("/fba-shipment-library/folders/{folder_id}", status_code=204)
+@handle_api_errors("delete FBA shipment folder")
+def delete_fba_shipment_folder(
+    folder_id: UUID,
+    current_user: dict = Depends(get_fba_order_checker_user),
+    db: Client = Depends(get_supabase),
+):
+    """Delete the folder. Shipments stay in the list."""
+    repo = FbaShipmentLibraryRepository(db)
+    try:
+        existing = repo.get_folder(str(folder_id))
+        if not existing:
+            raise HTTPException(status_code=404, detail="That folder was not found.")
+        repo.delete_folder(str(folder_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return None
 
 
 @router.get("/fba-shipment-library/{upload_id}", response_model=FbaShipmentDetailResponse)

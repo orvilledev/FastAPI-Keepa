@@ -15,6 +15,7 @@ import {
   type FbaFnskuLabels,
   type FbaShareUser,
   type FbaShipmentDetail,
+  type FbaShipmentFolder,
   type FbaShipmentLine,
   type FbaShipmentUnit,
   type FbaShipmentUpload,
@@ -34,6 +35,9 @@ import {
 const PAGE_SIZE = 50
 const LINE_PAGE_SIZE = 100
 const FILTER_DELAY_MS = 300
+const LIST_COLUMNS = 11
+const ALL_SHIPMENTS = 'all'
+const UNGROUPED_SHIPMENTS = 'ungrouped'
 
 function digitsOnly(value: string): string {
   return value.replace(/\D/g, '').slice(0, 5)
@@ -86,6 +90,20 @@ function filterChipClass(selected: boolean, tone: FilterTone): string {
       : 'bg-violet-100 text-violet-900 ring-violet-300 hover:bg-violet-200',
   }
   return `rounded-md px-3 py-1.5 text-sm font-semibold ring-1 shadow-sm ${tones[tone]}`
+}
+
+function folderChipClass(selected: boolean): string {
+  return selected
+    ? 'inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-sm font-medium text-amber-950 shadow-sm ring-2 ring-amber-400'
+    : 'inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-gray-700 ring-1 ring-amber-200 hover:bg-white'
+}
+
+function FolderMark() {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-3.5 w-3.5 text-amber-700">
+      <path d="M2.8 6.2A1.8 1.8 0 0 1 4.6 4.4h2.7c.4 0 .8.2 1 .5l.7.9c.2.2.4.3.7.3h5.7a1.8 1.8 0 0 1 1.8 1.8v6.2a1.8 1.8 0 0 1-1.8 1.8H4.6a1.8 1.8 0 0 1-1.8-1.8V6.2Z" />
+    </svg>
+  )
 }
 
 function rowClass(line: FbaShipmentLine): string {
@@ -346,6 +364,18 @@ export default function FbaShipmentLibrary() {
   const [search, setSearch] = useState('')
   const [mine, setMine] = useState(false)
   const [listView, setListView] = useState<'active' | 'archive' | 'trash'>('active')
+  const [folders, setFolders] = useState<FbaShipmentFolder[]>([])
+  const [ungroupedCount, setUngroupedCount] = useState(0)
+  const [folderFilter, setFolderFilter] = useState(ALL_SHIPMENTS)
+  const [folderLoadError, setFolderLoadError] = useState<string | null>(null)
+  const [showNewFolder, setShowNewFolder] = useState(false)
+  const [folderNameDraft, setFolderNameDraft] = useState('')
+  const [renamingFolder, setRenamingFolder] = useState(false)
+  const [renameDraft, setRenameDraft] = useState('')
+  const [folderBusy, setFolderBusy] = useState(false)
+  const [movingFolder, setMovingFolder] = useState(false)
+  const [selectedUploadIds, setSelectedUploadIds] = useState<string[]>([])
+  const [pendingDeleteFolder, setPendingDeleteFolder] = useState<FbaShipmentFolder | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -425,7 +455,13 @@ export default function FbaShipmentLibrary() {
     setLoading(true)
     setError(null)
     try {
-      const result = await fbaShipmentLibraryApi.list(PAGE_SIZE, offset, search, mine, listView)
+      const folder =
+        folderFilter === UNGROUPED_SHIPMENTS
+          ? { ungrouped: true }
+          : folderFilter !== ALL_SHIPMENTS
+            ? { id: folderFilter }
+            : undefined
+      const result = await fbaShipmentLibraryApi.list(PAGE_SIZE, offset, search, mine, listView, folder)
       setUploads(result.items)
       setTotal(result.total)
     } catch (err) {
@@ -433,11 +469,40 @@ export default function FbaShipmentLibrary() {
     } finally {
       setLoading(false)
     }
-  }, [listView, mine, offset, refreshKey, search])
+  }, [folderFilter, listView, mine, offset, refreshKey, search])
+
+  const loadFolders = useCallback(async () => {
+    try {
+      const result = await fbaShipmentLibraryApi.listFolders(mine, listView)
+      setFolders(result.folders)
+      setUngroupedCount(result.ungrouped_count)
+      setFolderLoadError(null)
+      setFolderFilter((current) =>
+        current !== ALL_SHIPMENTS &&
+        current !== UNGROUPED_SHIPMENTS &&
+        !result.folders.some((folder) => folder.id === current)
+          ? ALL_SHIPMENTS
+          : current,
+      )
+    } catch (err) {
+      setFolderLoadError(errorMessage(err, 'Folders could not be loaded.'))
+    }
+  }, [listView, mine, refreshKey])
 
   useEffect(() => {
     void loadUploads()
   }, [loadUploads])
+
+  useEffect(() => {
+    void loadFolders()
+  }, [loadFolders])
+
+  useEffect(() => {
+    setSelectedUploadIds((current) => {
+      const next = current.filter((id) => uploads.some((item) => item.id === id))
+      return next.length === current.length ? current : next
+    })
+  }, [uploads])
 
   // The scan box is where the next unit goes, and it also narrows the list to units packed in that box.
   // The box filter above the table wins when it has a number.
@@ -1138,6 +1203,109 @@ export default function FbaShipmentLibrary() {
     }
   }
 
+  const chooseFolder = (next: string) => {
+    setFolderFilter(next)
+    setOffset(0)
+    setSelectedUploadIds([])
+    setRenamingFolder(false)
+    setShowNewFolder(false)
+  }
+
+  const moveUploads = async (uploadIds: string[], folderId: string | null) => {
+    if (uploadIds.length === 0 || movingFolder) return
+    setMovingFolder(true)
+    setError(null)
+    try {
+      await fbaShipmentLibraryApi.assignFolder(folderId, uploadIds)
+      const folder = folders.find((item) => item.id === folderId)
+      const countLabel = uploadIds.length === 1 ? '1 shipment' : `${uploadIds.length} shipments`
+      setNotice(
+        folder
+          ? `Moved ${countLabel} to "${folder.name}".`
+          : `Took ${countLabel} out of ${uploadIds.length === 1 ? 'its folder' : 'their folders'}.`,
+      )
+      setSelectedUploadIds((current) => current.filter((id) => !uploadIds.includes(id)))
+      setRefreshKey((value) => value + 1)
+    } catch (err) {
+      setError(errorMessage(err, 'Could not move those shipments.'))
+    } finally {
+      setMovingFolder(false)
+    }
+  }
+
+  const handleCreateFolder = async (event: FormEvent) => {
+    event.preventDefault()
+    const name = folderNameDraft.trim()
+    if (!name || folderBusy) return
+    const moving = [...selectedUploadIds]
+    setFolderBusy(true)
+    setError(null)
+    try {
+      const created = await fbaShipmentLibraryApi.createFolder(name, moving)
+      setNotice(
+        moving.length
+          ? `Created "${created.name}" and moved ${moving.length} shipment${moving.length === 1 ? '' : 's'} into it.`
+          : `Created folder "${created.name}".`,
+      )
+      setFolderNameDraft('')
+      setShowNewFolder(false)
+      setSelectedUploadIds([])
+      if (moving.length) {
+        setFolderFilter(created.id)
+        setOffset(0)
+      }
+      setRefreshKey((value) => value + 1)
+    } catch (err) {
+      setError(errorMessage(err, 'Could not create that folder.'))
+    } finally {
+      setFolderBusy(false)
+    }
+  }
+
+  const handleRenameFolder = async (event: FormEvent) => {
+    event.preventDefault()
+    const folder = folders.find((item) => item.id === folderFilter)
+    const name = renameDraft.trim()
+    if (!folder || !name || folderBusy) {
+      setRenamingFolder(false)
+      return
+    }
+    if (name === folder.name) {
+      setRenamingFolder(false)
+      return
+    }
+    setFolderBusy(true)
+    setError(null)
+    try {
+      const updated = await fbaShipmentLibraryApi.renameFolder(folder.id, name)
+      setNotice(`Renamed folder to "${updated.name}".`)
+      setRenamingFolder(false)
+      setRefreshKey((value) => value + 1)
+    } catch (err) {
+      setError(errorMessage(err, 'Could not rename that folder.'))
+    } finally {
+      setFolderBusy(false)
+    }
+  }
+
+  const confirmDeleteFolder = async () => {
+    if (!pendingDeleteFolder || folderBusy) return
+    setFolderBusy(true)
+    setError(null)
+    try {
+      await fbaShipmentLibraryApi.deleteFolder(pendingDeleteFolder.id)
+      if (folderFilter === pendingDeleteFolder.id) setFolderFilter(ALL_SHIPMENTS)
+      setNotice(`Deleted folder "${pendingDeleteFolder.name}". The shipments are still in the list.`)
+      setPendingDeleteFolder(null)
+      setRenamingFolder(false)
+      setRefreshKey((value) => value + 1)
+    } catch (err) {
+      setError(errorMessage(err, 'Could not delete that folder.'))
+    } finally {
+      setFolderBusy(false)
+    }
+  }
+
   const handleReport = async (upload: FbaShipmentUpload) => {
     setError(null)
     try {
@@ -1165,6 +1333,12 @@ export default function FbaShipmentLibrary() {
     }
   }
 
+  const activeFolder =
+    folderFilter === ALL_SHIPMENTS || folderFilter === UNGROUPED_SHIPMENTS
+      ? null
+      : folders.find((folder) => folder.id === folderFilter) ?? null
+  const pageIds = uploads.map((upload) => upload.id)
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedUploadIds.includes(id))
   const page = Math.floor(offset / PAGE_SIZE) + 1
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const linePage = Math.floor(lineOffset / LINE_PAGE_SIZE) + 1
@@ -1363,12 +1537,217 @@ export default function FbaShipmentLibrary() {
           </div>
         </div>
 
+        <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50/70 px-3 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-amber-900/70">Folders</span>
+            <button
+              type="button"
+              aria-pressed={folderFilter === ALL_SHIPMENTS}
+              className={folderChipClass(folderFilter === ALL_SHIPMENTS)}
+              onClick={() => chooseFolder(ALL_SHIPMENTS)}
+            >
+              All shipments
+            </button>
+            {folders.map((folder) => (
+              <button
+                key={folder.id}
+                type="button"
+                aria-pressed={folderFilter === folder.id}
+                className={folderChipClass(folderFilter === folder.id)}
+                onClick={() => chooseFolder(folder.id)}
+              >
+                <FolderMark />
+                <span className="max-w-[12rem] truncate">{folder.name}</span>
+                <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
+                  {folder.shipment_count}
+                </span>
+              </button>
+            ))}
+            {folders.length > 0 && ungroupedCount > 0 && (
+              <button
+                type="button"
+                aria-pressed={folderFilter === UNGROUPED_SHIPMENTS}
+                className={folderChipClass(folderFilter === UNGROUPED_SHIPMENTS)}
+                onClick={() => chooseFolder(UNGROUPED_SHIPMENTS)}
+              >
+                Not in a folder
+                <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
+                  {ungroupedCount}
+                </span>
+              </button>
+            )}
+            {!showNewFolder && (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium text-amber-900 hover:bg-white"
+                onClick={() => {
+                  setShowNewFolder(true)
+                  setRenamingFolder(false)
+                  setFolderNameDraft('')
+                }}
+              >
+                + New folder
+              </button>
+            )}
+          </div>
+          <p className="mt-2 text-xs text-amber-950/70">
+            Group related shipments in a folder and give it a name. Deleting a folder leaves the shipments in the list.
+          </p>
+          {folderLoadError && <p className="mt-2 text-xs text-red-700">{folderLoadError}</p>}
+          {showNewFolder && (
+            <form className="mt-3 flex flex-wrap items-center gap-2" onSubmit={(event) => void handleCreateFolder(event)}>
+              <input
+                value={folderNameDraft}
+                onChange={(event) => setFolderNameDraft(event.target.value)}
+                placeholder="Folder name"
+                maxLength={80}
+                autoFocus
+                aria-label="Folder name"
+                className="w-56 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-sm"
+              />
+              <button
+                type="submit"
+                disabled={folderBusy || !folderNameDraft.trim()}
+                className="rounded-lg bg-amber-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-900 disabled:opacity-50"
+              >
+                {folderBusy ? 'Saving…' : 'Create folder'}
+              </button>
+              <button
+                type="button"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-white"
+                onClick={() => {
+                  setShowNewFolder(false)
+                  setFolderNameDraft('')
+                }}
+              >
+                Cancel
+              </button>
+              <span className="text-xs text-amber-950/70">
+                {selectedUploadIds.length > 0
+                  ? `${selectedUploadIds.length} selected shipment${selectedUploadIds.length === 1 ? '' : 's'} will go in this folder.`
+                  : 'Select shipments below if you want them in this folder right away.'}
+              </span>
+            </form>
+          )}
+          {activeFolder && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-amber-100 pt-3">
+              {renamingFolder ? (
+                <form className="flex flex-wrap items-center gap-2" onSubmit={(event) => void handleRenameFolder(event)}>
+                  <input
+                    value={renameDraft}
+                    onChange={(event) => setRenameDraft(event.target.value)}
+                    maxLength={80}
+                    autoFocus
+                    aria-label="Rename folder"
+                    className="w-56 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-sm"
+                  />
+                  <button
+                    type="submit"
+                    disabled={folderBusy || !renameDraft.trim()}
+                    className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {folderBusy ? 'Saving…' : 'Save name'}
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-white"
+                    onClick={() => setRenamingFolder(false)}
+                  >
+                    Cancel
+                  </button>
+                </form>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-700">
+                    <span className="font-medium">{activeFolder.name}</span>
+                    <span className="text-gray-500">
+                      {' '}
+                      · {activeFolder.shipment_count} in this list
+                    </span>
+                  </p>
+                  <button
+                    type="button"
+                    className="rounded-lg bg-white px-3 py-1 text-sm font-medium text-gray-800 ring-1 ring-amber-200 hover:bg-amber-50"
+                    onClick={() => {
+                      setRenamingFolder(true)
+                      setRenameDraft(activeFolder.name)
+                      setShowNewFolder(false)
+                    }}
+                  >
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-lg bg-white px-3 py-1 text-sm font-medium text-red-700 ring-1 ring-red-200 hover:bg-red-50"
+                    onClick={() => setPendingDeleteFolder(activeFolder)}
+                  >
+                    Delete folder
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          {selectedUploadIds.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-gray-700 ring-1 ring-amber-200">
+              <span className="font-medium">
+                {selectedUploadIds.length} selected
+              </span>
+              <label className="inline-flex items-center gap-2 text-sm text-gray-600">
+                Move to
+                <select
+                  aria-label="Move selected shipments to a folder"
+                  defaultValue=""
+                  disabled={movingFolder || folders.length === 0}
+                  className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm text-gray-800 disabled:opacity-50"
+                  onChange={(event) => {
+                    const value = event.target.value
+                    event.currentTarget.value = ''
+                    if (!value) return
+                    void moveUploads(selectedUploadIds, value === 'none' ? null : value)
+                  }}
+                >
+                  <option value="">Choose a folder</option>
+                  <option value="none">No folder</option>
+                  {folders.map((folder) => (
+                    <option key={folder.id} value={folder.id}>
+                      {folder.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="text-sm font-medium text-gray-600 hover:text-gray-900"
+                onClick={() => setSelectedUploadIds([])}
+              >
+                Clear
+              </button>
+            </div>
+          )}
+        </div>
+
         <div className="mt-4 overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
               <tr>
+                <th className="w-8 px-2 py-2">
+                  <input
+                    type="checkbox"
+                    aria-label="Select shipments on this page"
+                    checked={allPageSelected}
+                    disabled={uploads.length === 0 || loading}
+                    onChange={() => {
+                      setSelectedUploadIds((current) =>
+                        allPageSelected
+                          ? current.filter((id) => !pageIds.includes(id))
+                          : [...new Set([...current, ...pageIds])],
+                      )
+                    }}
+                  />
+                </th>
                 <th className="px-2 py-2">Shipment ID</th>
                 <th className="px-2 py-2">Name</th>
+                <th className="px-2 py-2">Folder</th>
                 <th className="px-2 py-2">SKUs</th>
                 <th className="px-2 py-2">Shipped</th>
                 <th className="px-2 py-2">Uploaded by</th>
@@ -1381,29 +1760,70 @@ export default function FbaShipmentLibrary() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-2 py-6 text-gray-500">
+                  <td colSpan={LIST_COLUMNS} className="px-2 py-6 text-gray-500">
                     Loading stored shipments…
                   </td>
                 </tr>
               ) : uploads.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-2 py-6 text-gray-500">
-                    {listView === 'trash'
-                      ? 'Trash is empty.'
-                      : listView === 'archive'
-                        ? 'No completed shipments yet.'
-                        : 'No shipments stored yet.'}
+                  <td colSpan={LIST_COLUMNS} className="px-2 py-6 text-gray-500">
+                    {folderFilter === UNGROUPED_SHIPMENTS
+                      ? 'Every shipment in this list is already in a folder.'
+                      : activeFolder
+                        ? 'This folder has no shipments in this list.'
+                        : listView === 'trash'
+                          ? 'Trash is empty.'
+                          : listView === 'archive'
+                            ? 'No completed shipments yet.'
+                            : 'No shipments stored yet.'}
                   </td>
                 </tr>
               ) : (
-                uploads.map((upload) => (
+                uploads.map((upload) => {
+                  const placed = folders.find((folder) => folder.id === upload.folder_id)
+                  return (
                   <tr
                     key={upload.id}
                     className={`border-b border-gray-100 ${selectedId === upload.id ? 'bg-amber-50' : ''}`}
                   >
+                    <td className="px-2 py-2">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${upload.shipment_id}`}
+                        checked={selectedUploadIds.includes(upload.id)}
+                        onChange={() => {
+                          setSelectedUploadIds((current) =>
+                            current.includes(upload.id)
+                              ? current.filter((id) => id !== upload.id)
+                              : [...current, upload.id],
+                          )
+                        }}
+                      />
+                    </td>
                     <td className="px-2 py-2 font-medium text-gray-900">{upload.shipment_id}</td>
                     <td className="max-w-[10rem] truncate px-2 py-2 text-gray-700" title={upload.shipment_name || undefined}>
                       {upload.shipment_name || '—'}
+                    </td>
+                    <td className="px-2 py-2">
+                      <select
+                        aria-label={`Folder for ${upload.shipment_id}`}
+                        value={upload.folder_id || ''}
+                        disabled={movingFolder || folderBusy}
+                        className="max-w-[11rem] rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800 disabled:opacity-50"
+                        onChange={(event) => {
+                          const next = event.target.value || null
+                          if ((upload.folder_id || null) === next) return
+                          void moveUploads([upload.id], next)
+                        }}
+                      >
+                        <option value="">No folder</option>
+                        {upload.folder_id && !placed && <option value={upload.folder_id}>Folder</option>}
+                        {folders.map((folder) => (
+                          <option key={folder.id} value={folder.id}>
+                            {folder.name}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-2 py-2">{upload.line_count}</td>
                     <td className="px-2 py-2">{upload.total_shipped.toLocaleString()}</td>
@@ -1501,7 +1921,8 @@ export default function FbaShipmentLibrary() {
                       )}
                     </td>
                   </tr>
-                ))
+                  )
+                })
               )}
             </tbody>
           </table>
@@ -1962,6 +2383,49 @@ export default function FbaShipmentLibrary() {
                 onClick={() => setDuplicateUpload(null)}
               >
                 OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {pendingDeleteFolder && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="presentation"
+          onClick={() => {
+            if (!folderBusy) setPendingDeleteFolder(null)
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-folder-title"
+            className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="delete-folder-title" className="text-lg font-semibold text-gray-900">
+              Delete this folder?
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              {pendingDeleteFolder.name} will be removed. The shipments stay in the list. They are only taken out of
+              this folder.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={folderBusy}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                onClick={() => setPendingDeleteFolder(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={folderBusy}
+                className="rounded-lg bg-red-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
+                onClick={() => void confirmDeleteFolder()}
+              >
+                {folderBusy ? 'Deleting…' : 'Delete folder'}
               </button>
             </div>
           </div>
