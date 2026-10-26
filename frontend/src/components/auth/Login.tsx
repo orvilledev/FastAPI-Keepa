@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { fetchMfaStatus, shouldSkipMfaForEmail, shouldShowMfaSetup, shouldShowMfaVerify } from '../../lib/mfa'
@@ -7,6 +7,7 @@ import ThemeSelector from '../common/ThemeSelector'
 import AppLogo from '../common/AppLogo'
 import { WAREHOUSE_HOME_PATH } from '../../constants/warehouseAccess'
 import { markNightlyFreshLogin } from '../../lib/nightlyStationLogout'
+import { forgetLoginEmail, listSavedLoginEmails, rememberLoginEmail } from '../../lib/savedLoginEmails'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -18,6 +19,10 @@ export default function Login() {
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false)
   const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false)
   const [notice, setNotice] = useState('')
+  const [savedEmails, setSavedEmails] = useState<string[]>(() => listSavedLoginEmails())
+  const [emailSuggestionsOpen, setEmailSuggestionsOpen] = useState(false)
+  const [activeSuggestion, setActiveSuggestion] = useState(0)
+  const passwordRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -74,6 +79,7 @@ export default function Login() {
       })
 
       if (signInError) throw signInError
+      setSavedEmails(rememberLoginEmail(email))
       markNightlyFreshLogin(email)
       await routeAfterPasswordSignIn()
     } catch (loginError: unknown) {
@@ -113,6 +119,23 @@ export default function Login() {
     }
   }
 
+  const emailSuggestions = useMemo(() => {
+    const query = email.trim().toLowerCase()
+    if (!query) return savedEmails
+    return savedEmails.filter((item) => item.toLowerCase().includes(query))
+  }, [email, savedEmails])
+
+  const showEmailSuggestions = emailSuggestionsOpen && emailSuggestions.length > 0
+  const highlightedIndex = showEmailSuggestions
+    ? Math.min(activeSuggestion, emailSuggestions.length - 1)
+    : 0
+
+  const chooseEmail = (value: string) => {
+    setEmail(value)
+    setEmailSuggestionsOpen(false)
+    requestAnimationFrame(() => passwordRef.current?.focus())
+  }
+
   return (
     <div className="relative min-h-app-screen flex items-center justify-center app-page-bg py-12 px-4 sm:px-6 lg:px-8">
       <div className="absolute right-4 top-4 sm:right-6 sm:top-6">
@@ -143,17 +166,104 @@ export default function Login() {
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                   Email address
                 </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
+                <div className="relative">
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="username"
+                    required
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-expanded={showEmailSuggestions}
+                    aria-controls="saved-login-emails"
+                    aria-activedescendant={
+                      showEmailSuggestions ? `saved-login-email-${highlightedIndex}` : undefined
+                    }
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value)
+                      setEmailSuggestionsOpen(true)
+                      setActiveSuggestion(0)
+                    }}
+                    onFocus={() => {
+                      setSavedEmails(listSavedLoginEmails())
+                      setEmailSuggestionsOpen(true)
+                      setActiveSuggestion(0)
+                    }}
+                    onBlur={() => setEmailSuggestionsOpen(false)}
+                    onKeyDown={(e) => {
+                      if (!showEmailSuggestions) return
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault()
+                        setActiveSuggestion((index) => (index + 1) % emailSuggestions.length)
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault()
+                        setActiveSuggestion(
+                          (index) => (index - 1 + emailSuggestions.length) % emailSuggestions.length,
+                        )
+                      } else if (e.key === 'Escape') {
+                        setEmailSuggestionsOpen(false)
+                      } else if (
+                        e.key === 'Enter' &&
+                        email.trim().toLowerCase() !== emailSuggestions[highlightedIndex]?.toLowerCase()
+                      ) {
+                        e.preventDefault()
+                        chooseEmail(emailSuggestions[highlightedIndex])
+                      }
+                    }}
+                  />
+                  {showEmailSuggestions && (
+                    <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-slate-600 dark:bg-slate-800">
+                      <p className="px-4 pb-1 pt-2 text-xs font-medium text-gray-500 dark:text-slate-400">
+                        Previous sign-ins
+                      </p>
+                      <ul
+                        id="saved-login-emails"
+                        role="listbox"
+                        className="max-h-56 overflow-auto py-1"
+                      >
+                        {emailSuggestions.map((item, index) => (
+                          <li
+                            key={item}
+                            id={`saved-login-email-${index}`}
+                            role="option"
+                            aria-selected={index === highlightedIndex}
+                            className={`flex items-center ${
+                              index === highlightedIndex
+                                ? 'bg-gray-100 dark:bg-slate-700'
+                                : 'bg-white dark:bg-slate-800'
+                            }`}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onMouseEnter={() => setActiveSuggestion(index)}
+                          >
+                            <button
+                              type="button"
+                              className="min-w-0 flex-1 truncate px-4 py-2 text-left text-sm text-gray-800 dark:text-slate-100"
+                              onClick={() => chooseEmail(item)}
+                            >
+                              {item}
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Remove ${item}`}
+                              className="px-3 py-2 text-sm text-gray-400 hover:text-gray-700 dark:hover:text-slate-200"
+                              onClick={() => {
+                                const next = forgetLoginEmail(item)
+                                setSavedEmails(next)
+                                setActiveSuggestion(0)
+                              }}
+                            >
+                              ×
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -176,6 +286,7 @@ export default function Login() {
                 <input
                   id="password"
                   name="password"
+                  ref={passwordRef}
                   type="password"
                   autoComplete="current-password"
                   required

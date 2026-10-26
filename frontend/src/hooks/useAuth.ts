@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { clearMfaActivity } from '../lib/mfa'
 import { recordWebAuditEvent } from '../lib/auditEvents'
+import { rememberLoginEmail } from '../lib/savedLoginEmails'
 import type { User } from '../types'
 
 export function useAuth() {
@@ -22,6 +23,10 @@ export function useAuth() {
 
     return () => subscription.unsubscribe()
   }, [])
+
+  useEffect(() => {
+    if (user?.email) rememberLoginEmail(user.email)
+  }, [user?.email])
 
   const signOut = async () => {
     await recordWebAuditEvent('logout')
