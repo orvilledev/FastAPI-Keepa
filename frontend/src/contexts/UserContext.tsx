@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
-import { supabase } from '../lib/supabase'
+import { signOutThisBrowser, supabase } from '../lib/supabase'
 import { authApi, invalidateAuthTokenCache, systemApi } from '../services/api'
 import { signOutIfForceLoggedOut } from '../lib/forceLogout'
 import { clearMfaActivity, getMfaExemptEmails, isMfaAuthRoute, isMfaExemptEmail, redirectForIncompleteMfa } from '../lib/mfa'
@@ -131,7 +131,7 @@ function UserProviderAuthenticated({ children }: UserProviderProps) {
       if (status === 403 && typeof detail === 'string' && detail.toLowerCase().includes('pending superadmin approval')) {
         sessionStorage.setItem('auth_notice', 'Your account is pending superadmin approval.')
         profileLoadedForUserId.current = null
-        await supabase.auth.signOut()
+        await signOutThisBrowser()
         setUserInfo(null)
         if (typeof window !== 'undefined' && !isMfaAuthRoute()) {
           window.location.assign('/login')
@@ -243,7 +243,7 @@ function UserProviderAuthenticated({ children }: UserProviderProps) {
 
   const signOut = async () => {
     await recordWebAuditEvent('logout')
-    await supabase.auth.signOut()
+    await signOutThisBrowser()
     setUserInfo(null)
     profileLoadedForUserId.current = null
     clearMfaActivity()

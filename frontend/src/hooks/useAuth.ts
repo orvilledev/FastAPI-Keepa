@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
+import { signOutThisBrowser, supabase } from '../lib/supabase'
 import { clearMfaActivity } from '../lib/mfa'
 import { recordWebAuditEvent } from '../lib/auditEvents'
 import { rememberLoginEmail } from '../lib/savedLoginEmails'
@@ -30,7 +30,7 @@ export function useAuth() {
 
   const signOut = async () => {
     await recordWebAuditEvent('logout')
-    await supabase.auth.signOut()
+    await signOutThisBrowser()
     clearMfaActivity()
   }
 

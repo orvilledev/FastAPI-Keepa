@@ -181,6 +181,7 @@ export default function LabelStation() {
   // Each scan gets an id; it advances whenever the scan field is cleared. A scan
   // can only add to the queue once, no matter how many code paths try to commit it.
   const scanSessionRef = useRef(0)
+  const lookupSeqRef = useRef(0)
   const lastQueuedSessionRef = useRef(-1)
   const scanUpcRef = useRef('')
   const queuedEchoRef = useRef<QueuedScanEcho | null>(null)
@@ -289,6 +290,7 @@ export default function LabelStation() {
 
   const clearScan = useCallback((opts?: { keepMessage?: boolean }) => {
     pendingPrintUpcRef.current = null
+    lookupSeqRef.current += 1
     scanSessionRef.current += 1
     scanUpcRef.current = ''
     setScanUpc('')
@@ -592,10 +594,12 @@ export default function LabelStation() {
         return
       }
       const session = scanSessionRef.current
+      const seq = ++lookupSeqRef.current
       setLookingUp(true)
       setError(null)
       try {
         const row = await warehouseProductsApi.lookup(upc)
+        if (seq !== lookupSeqRef.current) return
         const item: WarehouseCatalogProduct = {
           upc: row.upc,
           sku: row.sku || '',
@@ -613,14 +617,26 @@ export default function LabelStation() {
             await printProduct(item)
           }
         }
-      } catch {
-        setProduct(null)
-        setLookupError(true)
+      } catch (err) {
+        if (seq !== lookupSeqRef.current) return
         if (pendingPrintUpcRef.current === upc) {
           pendingPrintUpcRef.current = null
         }
+        const status = (err as { response?: { status?: number } })?.response?.status
+        if (status === 404) {
+          setProduct(null)
+          setLookupError(true)
+        } else {
+          setProduct(null)
+          setLookupError(false)
+          setError(
+            status === 401
+              ? 'This station was signed out. Sign in again.'
+              : 'Lookup failed. Scan again.',
+          )
+        }
       } finally {
-        setLookingUp(false)
+        if (seq === lookupSeqRef.current) setLookingUp(false)
       }
     },
     [printProduct, printMode, addToQueue],

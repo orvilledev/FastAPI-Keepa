@@ -1,6 +1,6 @@
 import axios from 'axios'
 import JSZip from 'jszip'
-import { supabase } from '../lib/supabase'
+import { signOutThisBrowser, supabase } from '../lib/supabase'
 import { isMfaAuthRoute, redirectForIncompleteMfa } from '../lib/mfa'
 import { isElectronDesktop } from '../lib/privatePath'
 import type {
@@ -78,6 +78,53 @@ export function invalidateAuthTokenCache() {
   tokenExpiresAt = 0
 }
 
+const SESSION_ENDED_NOTICE = 'This station was signed out. Sign in to continue.'
+
+let authRecovery: Promise<string | null> | null = null
+let leavingForLogin = false
+
+function leaveForLogin(notice: string) {
+  if (leavingForLogin) return
+  leavingForLogin = true
+  try {
+    sessionStorage.setItem('auth_notice', notice)
+  } catch {
+    // Login still works without the notice.
+  }
+  invalidateAuthTokenCache()
+  const alreadyOnLogin =
+    typeof window !== 'undefined' &&
+    (window.location.pathname.startsWith('/login') || window.location.hash.includes('/login'))
+  void signOutThisBrowser().finally(() => {
+    leavingForLogin = false
+    if (!alreadyOnLogin) redirectToLogin()
+  })
+}
+
+/** One refresh shared by every request that just got a 401. */
+function recoverAccessToken(): Promise<string | null> {
+  if (!authRecovery) {
+    authRecovery = (async () => {
+      const { data, error } = await supabase.auth.refreshSession()
+      if (error || !data.session?.access_token) return null
+      cachedToken = data.session.access_token
+      tokenExpiresAt = (data.session.expires_at || 0) * 1000 - 5 * 60 * 1000
+      return cachedToken
+    })().finally(() => {
+      authRecovery = null
+    })
+  }
+  return authRecovery
+}
+
+function authorizationToken(headers: unknown): string {
+  if (!headers || typeof headers !== 'object') return ''
+  const bag = headers as { Authorization?: unknown; get?: (name: string) => unknown }
+  const value = typeof bag.get === 'function' ? bag.get('Authorization') : bag.Authorization
+  if (typeof value !== 'string') return ''
+  return value.replace(/^Bearer\s+/i, '')
+}
+
 async function syncAuthTokenFromSession() {
   const { data: { session } } = await supabase.auth.getSession()
   if (session?.access_token) {
@@ -146,13 +193,7 @@ api.interceptors.response.use(
       message.toLowerCase().includes('signed out by an administrator')
 
     if (signedOutByAdmin) {
-      try {
-        sessionStorage.setItem('auth_notice', 'You were signed out by an administrator.')
-      } catch {
-        // Login still works without the notice.
-      }
-      invalidateAuthTokenCache()
-      void supabase.auth.signOut().finally(() => redirectToLogin())
+      leaveForLogin('You were signed out by an administrator.')
       return Promise.reject(error)
     }
 
@@ -169,6 +210,32 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
     
+    const invalidCredentials =
+      error.response?.status === 401 &&
+      typeof message === 'string' &&
+      message.toLowerCase().includes('invalid authentication credentials')
+
+    // The browser still has a token Supabase has deleted (another station signed
+    // this shared account out). Refresh once; if that fails, go to the login page
+    // instead of treating the next scan as "not in catalog".
+    if (invalidCredentials && error.config && !leavingForLogin) {
+      if (!error.config._retry) {
+        error.config._retry = true
+        try {
+          const nextToken = await recoverAccessToken()
+          const used = authorizationToken(error.config.headers)
+          if (nextToken && nextToken !== used) {
+            error.config.headers.Authorization = `Bearer ${nextToken}`
+            return api.request(error.config)
+          }
+        } catch {
+          // Session cannot be restored.
+        }
+      }
+      leaveForLogin(SESSION_ENDED_NOTICE)
+      return Promise.reject(error)
+    }
+
     // Handle 401 Unauthorized - try to refresh token
     if (error.response?.status === 401 && error.config && !error.config._retry) {
       error.config._retry = true

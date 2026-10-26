@@ -15,3 +15,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 })
 
+/**
+ * End the session in this browser only.
+ * The default sign-out revokes every device on the same account, which leaves
+ * other warehouse stations sending a token Supabase has already deleted.
+ * An administrator force-logout still signs every station out on the server.
+ */
+export function signOutThisBrowser() {
+  return supabase.auth.signOut({ scope: 'local' })
+}
+

@@ -11,7 +11,7 @@ import {
   verifyMfaCode,
 } from '../../lib/mfa'
 import { getLastPrivatePath } from '../../lib/privatePath'
-import { supabase } from '../../lib/supabase'
+import { signOutThisBrowser, supabase } from '../../lib/supabase'
 import { useUser } from '../../contexts/UserContext'
 import { recordWebAuditEvent } from '../../lib/auditEvents'
 
@@ -85,7 +85,7 @@ export default function MfaVerify() {
       const status = (authError as { response?: { status?: number; data?: { detail?: string } } })?.response?.status
       const detail = (authError as { response?: { status?: number; data?: { detail?: string } } })?.response?.data?.detail
       if (status === 403 && typeof detail === 'string' && detail.toLowerCase().includes('pending superadmin approval')) {
-        await supabase.auth.signOut()
+        await signOutThisBrowser()
         sessionStorage.setItem('auth_notice', 'Your account is pending superadmin approval.')
         navigate('/login', { replace: true })
         return
@@ -129,7 +129,7 @@ export default function MfaVerify() {
   }
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
+    await signOutThisBrowser()
     navigate('/login', { replace: true })
   }
 

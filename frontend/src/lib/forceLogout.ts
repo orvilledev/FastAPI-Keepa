@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { signOutThisBrowser, supabase } from './supabase'
 
 export const FORCE_LOGOUT_NOTICE = 'You were signed out by an administrator.'
 
@@ -43,6 +43,7 @@ export async function signOutIfForceLoggedOut(status: {
     // Login still works without the notice.
   }
   redirectToLogin()
-  await supabase.auth.signOut()
+  // The server cutoff already rejects every station. Clear only this browser.
+  await signOutThisBrowser()
   return true
 }

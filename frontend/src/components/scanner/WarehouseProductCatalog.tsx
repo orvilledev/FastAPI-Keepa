@@ -279,9 +279,11 @@ export default function WarehouseProductCatalog({
               ) : items.length === 0 ? (
                 <tr>
                   <td colSpan={showActions ? 6 : 5} className="px-4 py-8 text-center text-gray-500">
-                    {search
-                      ? 'No products match your search.'
-                      : 'No products yet. Upload a PRODUCTS file below.'}
+                    {error
+                      ? 'Could not search the catalog.'
+                      : search
+                        ? 'No products match your search.'
+                        : 'No products yet. Upload a PRODUCTS file below.'}
                   </td>
                 </tr>
               ) : (

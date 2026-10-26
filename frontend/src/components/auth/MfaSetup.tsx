@@ -10,7 +10,7 @@ import {
   shouldShowMfaVerify,
   verifyEnrollmentCode,
 } from '../../lib/mfa'
-import { supabase } from '../../lib/supabase'
+import { signOutThisBrowser, supabase } from '../../lib/supabase'
 import { useUser } from '../../contexts/UserContext'
 import TotpQrCode from './TotpQrCode'
 import { recordWebAuditEvent } from '../../lib/auditEvents'
@@ -105,7 +105,7 @@ export default function MfaSetup() {
   }
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
+    await signOutThisBrowser()
     navigate('/login', { replace: true })
   }
 
