@@ -178,6 +178,25 @@ class FbaShipmentLibraryRepository:
         rows = response.data or []
         return rows[0] if rows else None
 
+    def find_shipment_copies(self, shipment_id: str) -> List[dict]:
+        """Uploads of this Shipment ID, including archived and trashed copies."""
+        cleaned = (shipment_id or "").strip()
+        if not cleaned:
+            return []
+        pattern = cleaned.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        try:
+            response = (
+                self.db.table(_UPLOADS)
+                .select("id,shipment_id,trashed_at,archived_at,created_at")
+                .ilike("shipment_id", pattern)
+                .order("created_at")
+                .limit(50)
+                .execute()
+            )
+        except Exception as exc:
+            _raise_persist_error(exc)
+        return list(response.data or [])
+
     def list_line_quantities(self, upload_id: str) -> List[dict]:
         rows: List[dict] = []
         offset = 0

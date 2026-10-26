@@ -13,6 +13,8 @@ from app.services.fba_shipment_library import (
     STATUS_NOT_IN_LIST,
     STATUS_OVERAGE,
     accounting_report_filename,
+    choose_blocking_shipment_copy,
+    duplicate_shipment_message,
     assert_box_number_follows,
     box_count_and_missing,
     build_accounting_workbook,
@@ -477,6 +479,21 @@ def test_fnsku_labels_for_a_sku_search_skip_other_items():
     ) == [
         (1, [("845028000003", 1)]),
     ]
+
+
+def test_second_copy_of_a_shipment_is_blocked():
+    active = {"shipment_id": "FBA1", "trashed_at": None, "archived_at": None, "created_at": "2026-01-02"}
+    archived = {"shipment_id": "FBA1", "trashed_at": None, "archived_at": "2026-01-03", "created_at": "2026-01-01"}
+    trashed = {"shipment_id": "FBA1", "trashed_at": "2026-01-04", "archived_at": None, "created_at": "2026-01-01"}
+
+    chosen = choose_blocking_shipment_copy([trashed, archived, active])
+    assert chosen is active
+    assert duplicate_shipment_message(active) == (
+        "A copy of this shipment is already uploaded. Uploading this second copy was blocked."
+    )
+    assert "Completed shipments" in duplicate_shipment_message(archived)
+    assert "Trash" in duplicate_shipment_message(trashed)
+    assert choose_blocking_shipment_copy([]) is None
 
 
 def test_report_filename_uses_the_upload_name_not_the_shipment_id():

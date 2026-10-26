@@ -349,6 +349,7 @@ export default function FbaShipmentLibrary() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [duplicateUpload, setDuplicateUpload] = useState<string | null>(null)
 
   const [file, setFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -867,10 +868,11 @@ export default function FbaShipmentLibrary() {
     setUploading(true)
     setError(null)
     setNotice(null)
+    setDuplicateUpload(null)
     try {
       const result = await fbaShipmentLibraryApi.importFile(file)
       setNotice(
-        `Stored ${result.upload.shipment_id} (${result.upload.line_count} SKUs, ${result.upload.total_shipped} units). Earlier uploads were left in place.`,
+        `Stored ${result.upload.shipment_id} (${result.upload.line_count} SKUs, ${result.upload.total_shipped} units).`,
       )
       setFile(null)
       setOffset(0)
@@ -886,7 +888,13 @@ export default function FbaShipmentLibrary() {
       setFieldReset((value) => value + 1)
       setRefreshKey((value) => value + 1)
     } catch (err) {
-      setError(errorMessage(err, 'Failed to store this shipment.'))
+      const status = (err as { response?: { status?: number } })?.response?.status
+      const detail = errorMessage(err, '')
+      if (status === 409 && /already uploaded/i.test(detail)) {
+        setDuplicateUpload(detail)
+      } else {
+        setError(detail || 'Failed to store this shipment.')
+      }
     } finally {
       setUploading(false)
     }
@@ -1198,6 +1206,7 @@ export default function FbaShipmentLibrary() {
 
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-gray-900">Upload official template</h2>
+        <p className="mt-1 text-xs text-gray-500">Each Shipment ID can be stored once.</p>
         <div
           className={`mt-3 rounded-xl border-2 border-dashed p-5 text-center transition-colors ${
             isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 bg-gray-50'
@@ -1924,6 +1933,35 @@ export default function FbaShipmentLibrary() {
                 onClick={() => void saveShare()}
               >
                 {shareSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {duplicateUpload && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="presentation"
+          onClick={() => setDuplicateUpload(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="duplicate-shipment-title"
+            className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="duplicate-shipment-title" className="text-lg font-semibold text-gray-900">
+              Shipment already uploaded
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">{duplicateUpload}</p>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800"
+                onClick={() => setDuplicateUpload(null)}
+              >
+                OK
               </button>
             </div>
           </div>

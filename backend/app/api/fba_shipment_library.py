@@ -40,7 +40,9 @@ from app.services.fba_shipment_library import (
     assert_box_number_follows,
     build_accounting_workbook,
     labels_by_box,
+    choose_blocking_shipment_copy,
     choose_line_for_scan,
+    duplicate_shipment_message,
     is_fully_accounted,
     parse_fba_shipment_tsv,
     share_audience,
@@ -905,7 +907,7 @@ async def import_fba_shipment(
     current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
-    """Store Name, Shipment ID, Merchant SKU, external-id, and Shipped. Does not replace earlier uploads."""
+    """Store Name, Shipment ID, Merchant SKU, external-id, and Shipped. One Shipment ID only."""
     _validate_name(file)
     raw = await _read_upload(file)
     try:
@@ -916,6 +918,9 @@ async def import_fba_shipment(
     created_by, email, name = _creator_snapshot(db, current_user)
     repo = FbaShipmentLibraryRepository(db)
     try:
+        existing = choose_blocking_shipment_copy(repo.find_shipment_copies(parsed.shipment_id))
+        if existing:
+            raise HTTPException(status_code=409, detail=duplicate_shipment_message(existing))
         saved = repo.create_upload(
             shipment_id=parsed.shipment_id,
             shipment_name=parsed.shipment_name,

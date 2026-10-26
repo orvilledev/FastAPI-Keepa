@@ -222,6 +222,41 @@ def parse_fba_shipment_tsv(content: bytes) -> ParsedFbaShipment:
     return ParsedFbaShipment(shipment_id=shipment_id, lines=lines, shipment_name=shipment_name)
 
 
+def choose_blocking_shipment_copy(rows: list[dict]) -> dict | None:
+    """The copy that should stop another upload of the same Shipment ID.
+
+    An active copy is preferred, then a completed one, then one in Trash.
+    Existing extra copies are left in place; this only decides which one to mention.
+    """
+    if not rows:
+        return None
+
+    def rank(row: dict) -> tuple[int, str]:
+        if row.get("trashed_at"):
+            place = 2
+        elif row.get("archived_at"):
+            place = 1
+        else:
+            place = 0
+        return (place, str(row.get("created_at") or ""))
+
+    return min(rows, key=rank)
+
+
+def duplicate_shipment_message(existing: dict) -> str:
+    """Popup text when a Shipment ID is already stored."""
+    if existing.get("trashed_at"):
+        place = " The existing copy is in Trash."
+    elif existing.get("archived_at"):
+        place = " The existing copy is in Completed shipments."
+    else:
+        place = ""
+    return (
+        "A copy of this shipment is already uploaded."
+        f"{place} Uploading this second copy was blocked."
+    )
+
+
 _UNSAFE_FILENAME = re.compile(r'[\\/:*?"<>|\x00-\x1f]+')
 
 
