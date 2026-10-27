@@ -417,6 +417,21 @@ export const authApi = {
     )
     return response.data
   },
+  getMaintenanceBypassAllowlist: async () => {
+    const response = await api.get<{ emails: string[] }>('/api/v1/auth/maintenance-bypass-allowlist')
+    return response.data
+  },
+  getMaintenanceBypassAccess: async () => {
+    const response = await api.get<{ allowed: boolean }>('/api/v1/auth/maintenance-bypass-access')
+    return response.data
+  },
+  updateMaintenanceBypassAllowlist: async (emails: string[]) => {
+    const response = await api.put<{ emails: string[] }>(
+      '/api/v1/auth/maintenance-bypass-allowlist',
+      { emails },
+    )
+    return response.data
+  },
   presenceHeartbeat: async (payload: {
     session_id: string
     client_type: 'web' | 'electron'

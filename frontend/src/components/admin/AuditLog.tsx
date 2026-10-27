@@ -167,6 +167,13 @@ function rebuildDetail(row: AuditLogEntry): string | null {
       }
       return null
     }
+    case 'admin.maintenance_bypass_allowlist': {
+      if (typeof meta.email_count === 'number') {
+        const n = meta.email_count
+        return `Updated the maintenance access list (${n} email${n === 1 ? '' : 's'})`
+      }
+      return null
+    }
     case 'notification.clear':
       return 'Cleared all completed-run notifications'
     default:

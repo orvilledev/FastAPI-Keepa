@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 interface MaintenanceProps {
   title?: string
   message?: string
   expectedEndAt?: string | null
   durationHours?: number | null
+  showStaffSignIn?: boolean
+  signedInBlocked?: boolean
 }
 
 type QuizItem = {
@@ -177,6 +180,8 @@ export default function Maintenance({
   message,
   expectedEndAt,
   durationHours,
+  showStaffSignIn = false,
+  signedInBlocked = false,
 }: MaintenanceProps) {
   const [askedIds, setAskedIds] = useState<string[]>([])
   const [quiz, setQuiz] = useState<QuizItem>(() => randomQuestion())
@@ -261,6 +266,24 @@ export default function Maintenance({
         <p className="mt-2 text-sm text-gray-500">
           Thank you for your patience.
         </p>
+        {showStaffSignIn && (
+          <div className="mt-4">
+            <Link
+              to="/login"
+              className="inline-flex px-4 py-2 rounded-lg bg-[#404040] text-white text-sm font-medium hover:bg-[#2a2a2a]"
+            >
+              Staff sign in
+            </Link>
+            <p className="mt-2 text-xs text-gray-500">
+              Superadmins and accounts on the maintenance access list can sign in and keep working.
+            </p>
+          </div>
+        )}
+        {signedInBlocked && (
+          <p className="mt-4 text-sm text-gray-600">
+            This account is signed in, but it is not on the maintenance access list.
+          </p>
+        )}
         {countdownText && (
           <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#81B81D]/20 text-[#111827] text-sm font-semibold">
             <span>Estimated time remaining:</span>

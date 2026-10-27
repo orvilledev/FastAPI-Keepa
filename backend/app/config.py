@@ -176,6 +176,7 @@ class Settings(BaseSettings):
     # Maintenance mode controls
     maintenance_mode: bool = False
     maintenance_message: str = "App is currently under maintenance. Please try again later."
+    # Comma-separated extra emails that bypass maintenance. User Management stores the editable list.
     maintenance_allowlist_emails: str = ""
 
     # Comma-separated emails that skip TOTP MFA (password-only sign-in for shared stations).

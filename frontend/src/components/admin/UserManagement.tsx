@@ -304,6 +304,12 @@ export default function UserManagement() {
   const [emailFrom, setEmailFrom] = useState('')
   const [emailTransportSaving, setEmailTransportSaving] = useState(false)
   const [emailTransportMessage, setEmailTransportMessage] = useState<string | null>(null)
+  const [maintenanceBypassEmails, setMaintenanceBypassEmails] = useState<string[]>([])
+  const [maintenanceBypassDraftEmail, setMaintenanceBypassDraftEmail] = useState('')
+  const [maintenanceBypassLoading, setMaintenanceBypassLoading] = useState(false)
+  const [maintenanceBypassSaving, setMaintenanceBypassSaving] = useState(false)
+  const [maintenanceBypassMessage, setMaintenanceBypassMessage] = useState<string | null>(null)
+  const [maintenanceBypassError, setMaintenanceBypassError] = useState<string | null>(null)
   const [upcDnkEmails, setUpcDnkEmails] = useState<string[]>([])
   const [upcDnkDraftEmail, setUpcDnkDraftEmail] = useState('')
   const [upcDnkLoading, setUpcDnkLoading] = useState(false)
@@ -410,6 +416,70 @@ export default function UserManagement() {
     }
   }
 
+  const loadMaintenanceBypassAllowlist = async () => {
+    try {
+      setMaintenanceBypassError(null)
+      setMaintenanceBypassLoading(true)
+      const data = await authApi.getMaintenanceBypassAllowlist()
+      setMaintenanceBypassEmails(data.emails || [])
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined
+      setMaintenanceBypassError(
+        typeof msg === 'string'
+          ? msg
+          : 'Failed to load the maintenance access list. Run the create_maintenance_bypass_allowlist migration if needed.',
+      )
+    } finally {
+      setMaintenanceBypassLoading(false)
+    }
+  }
+
+  const saveMaintenanceBypassAllowlist = async (emails: string[]) => {
+    try {
+      setMaintenanceBypassSaving(true)
+      setMaintenanceBypassError(null)
+      setMaintenanceBypassMessage(null)
+      const data = await authApi.updateMaintenanceBypassAllowlist(emails)
+      setMaintenanceBypassEmails(data.emails || [])
+      setMaintenanceBypassMessage('Maintenance access list saved.')
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined
+      setMaintenanceBypassError(typeof msg === 'string' ? msg : 'Failed to save the maintenance access list')
+    } finally {
+      setMaintenanceBypassSaving(false)
+    }
+  }
+
+  const handleAddMaintenanceBypassEmail = async () => {
+    const email = maintenanceBypassDraftEmail.trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setMaintenanceBypassError('Enter a valid email address.')
+      return
+    }
+    if (maintenanceBypassEmails.some((e) => e.toLowerCase() === email)) {
+      setMaintenanceBypassError('That email is already on the access list.')
+      return
+    }
+    setMaintenanceBypassDraftEmail('')
+    await saveMaintenanceBypassAllowlist([...maintenanceBypassEmails, email])
+  }
+
+  const handleRemoveMaintenanceBypassEmail = async (email: string) => {
+    const confirmed = window.confirm(
+      `Remove ${email} from maintenance access? They will see the maintenance page while maintenance is on.`,
+    )
+    if (!confirmed) return
+    await saveMaintenanceBypassAllowlist(
+      maintenanceBypassEmails.filter((e) => e.toLowerCase() !== email.toLowerCase()),
+    )
+  }
+
   const loadUpcDnkAllowlist = async () => {
     try {
       setUpcDnkError(null)
@@ -478,6 +548,7 @@ export default function UserManagement() {
     if (!isSuperadmin) return
     void loadUsers()
     void loadMaintenanceMode()
+    void loadMaintenanceBypassAllowlist()
     void loadEmailTransport()
     void loadPresence()
     void loadUpcDnkAllowlist()
@@ -1009,7 +1080,7 @@ export default function UserManagement() {
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Maintenance Mode</h2>
             <p className="text-sm text-gray-600">
-              When enabled, only superadmin and allowlisted emails can access the app.
+              When enabled, only superadmins and emails on the maintenance access list can use the app.
             </p>
           </div>
           <button
@@ -1193,6 +1264,72 @@ export default function UserManagement() {
           >
             {maintenanceSaving ? 'Saving...' : 'Save Maintenance Details'}
           </button>
+        </div>
+        <div className="border-t border-gray-200 pt-4 space-y-3">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900">Maintenance access</h3>
+            <p className="text-sm text-gray-600 mt-1">
+              Superadmins always stay in. Add other emails here so those signed-in accounts can keep
+              using Overwatch while maintenance is on. Everyone else still sees the maintenance page.
+            </p>
+          </div>
+          {maintenanceBypassLoading ? (
+            <p className="text-sm text-gray-500">Loading access list…</p>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {maintenanceBypassEmails.length === 0 ? (
+                  <p className="text-sm text-gray-500">No extra emails — only superadmins can use the app during maintenance.</p>
+                ) : (
+                  maintenanceBypassEmails.map((email) => (
+                    <span
+                      key={email}
+                      className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-sm text-amber-950"
+                    >
+                      {email}
+                      <button
+                        type="button"
+                        disabled={maintenanceBypassSaving}
+                        onClick={() => void handleRemoveMaintenanceBypassEmail(email)}
+                        className="rounded-full px-1.5 text-amber-900 hover:bg-amber-200 disabled:opacity-50"
+                        aria-label={`Remove ${email}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))
+                )}
+              </div>
+              <form
+                className="flex flex-wrap items-end gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  void handleAddMaintenanceBypassEmail()
+                }}
+              >
+                <label className="block text-sm font-medium text-gray-700 flex-1 min-w-[16rem]">
+                  Add email
+                  <input
+                    type="email"
+                    value={maintenanceBypassDraftEmail}
+                    onChange={(e) => setMaintenanceBypassDraftEmail(e.target.value)}
+                    className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    placeholder="name@metroshoewarehouse.com"
+                    autoComplete="off"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={maintenanceBypassSaving || !maintenanceBypassDraftEmail.trim()}
+                  className="px-4 py-2 rounded-lg bg-[#404040] text-white text-sm font-medium disabled:opacity-50"
+                >
+                  {maintenanceBypassSaving ? 'Saving…' : 'Add'}
+                </button>
+              </form>
+              {maintenanceBypassMessage && <p className="text-sm text-emerald-700">{maintenanceBypassMessage}</p>}
+              {maintenanceBypassError && <p className="text-sm text-red-700">{maintenanceBypassError}</p>}
+            </>
+          )}
         </div>
       </div>
 

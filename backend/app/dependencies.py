@@ -628,8 +628,9 @@ def _is_maintenance_bypass_user(current_user: dict, db: Client) -> bool:
     """Return True when user can bypass maintenance mode."""
     if is_superadmin_user(current_user, db):
         return True
-    user_email = (current_user.get("email") or "").strip().lower()
-    return user_email in set(settings.maintenance_allowlist_emails_list)
+    from app.services.maintenance_bypass_allowlist import is_maintenance_bypass_allowed
+
+    return is_maintenance_bypass_allowed(db, current_user.get("email"))
 
 
 def require_app_access(

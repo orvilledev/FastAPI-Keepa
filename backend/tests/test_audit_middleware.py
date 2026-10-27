@@ -146,6 +146,7 @@ def test_noise_and_views_are_skipped(method, path):
         ("DELETE", "/api/v1/analytics/off-price/demo-snapshots"),
         ("PUT", "/api/v1/analytics/off-price/tracking/tev"),
         ("PUT", "/api/v1/auth/upc-dnk-print-id-allowlist"),
+        ("PUT", "/api/v1/auth/maintenance-bypass-allowlist"),
         ("GET", "/api/v1/keepa-import-export/dnk/download"),
         ("GET", "/api/v1/keepa-import-export/builds/abc/download"),
         ("GET", "/api/v1/keepa-import-export/builds/history/abc/download"),

@@ -28,6 +28,11 @@ from app.services.upc_dnk_print_id_allowlist import (
     list_upc_dnk_print_id_emails,
     replace_upc_dnk_print_id_emails,
 )
+from app.services.maintenance_bypass_allowlist import (
+    is_maintenance_bypass_allowed,
+    list_maintenance_bypass_emails,
+    replace_maintenance_bypass_emails,
+)
 from app.services.audit_log_service import record_audit_event
 
 logger = logging.getLogger(__name__)
@@ -366,6 +371,10 @@ class UpcDnkPrintIdAllowlistUpdate(BaseModel):
     emails: List[str]
 
 
+class MaintenanceBypassAllowlistUpdate(BaseModel):
+    emails: List[str]
+
+
 class CreateUserRequest(BaseModel):
     email: str
     password: str
@@ -662,6 +671,68 @@ def update_upc_dnk_print_id_allowlist(
         request=request,
         detail=(
             f"Updated the Label Station UPC (DNK) Print ID allowlist "
+            f"({count} email{'s' if count != 1 else ''})"
+        ),
+        metadata={"email_count": count, "emails": emails},
+    )
+    return {"emails": emails}
+
+
+@router.get("/maintenance-bypass-allowlist")
+@handle_api_errors("get maintenance bypass allowlist")
+def get_maintenance_bypass_allowlist(
+    current_user: dict = Depends(get_superadmin_user),
+    db: Client = Depends(get_supabase),
+):
+    """List emails allowed to use the app during maintenance (superadmin only)."""
+    try:
+        emails = list_maintenance_bypass_emails(db)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Maintenance bypass allowlist read failed (table missing?): %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Maintenance access list is not available. "
+                "Run the create_maintenance_bypass_allowlist migration."
+            ),
+        ) from exc
+    return {"emails": emails}
+
+
+@router.get("/maintenance-bypass-access")
+@handle_api_errors("check maintenance bypass access")
+def get_maintenance_bypass_access(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Whether the signed-in user may use the app during maintenance."""
+    return {
+        "allowed": is_maintenance_bypass_allowed(db, current_user.get("email")),
+    }
+
+
+@router.put("/maintenance-bypass-allowlist")
+@limiter.limit(RateLimits.ADMIN_OPERATIONS)
+@handle_api_errors("update maintenance bypass allowlist")
+def update_maintenance_bypass_allowlist(
+    request: Request,
+    payload: MaintenanceBypassAllowlistUpdate,
+    current_user: dict = Depends(get_superadmin_user),
+    db: Client = Depends(get_supabase),
+):
+    """Replace the maintenance access list (superadmin only)."""
+    emails = replace_maintenance_bypass_emails(db, payload.emails or [])
+    count = len(emails)
+    record_audit_event(
+        db,
+        action="admin.maintenance_bypass_allowlist",
+        category="admin",
+        current_user=current_user,
+        request=request,
+        detail=(
+            f"Updated the maintenance access list "
             f"({count} email{'s' if count != 1 else ''})"
         ),
         metadata={"email_count": count, "emails": emails},

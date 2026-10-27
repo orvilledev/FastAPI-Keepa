@@ -441,7 +441,7 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
       <>
         General includes <strong>About</strong> (version and feature overview), <strong>FAQ</strong> (this page),{' '}
         <strong>Feedback From Users</strong> (submit and review suggestions), and for superadmins{' '}
-        <strong>User Management</strong> (accounts, permissions, maintenance, and the UPC DNK Print ID allowlist) and{' '}
+        <strong>User Management</strong> (accounts, permissions, maintenance access, and the UPC DNK Print ID allowlist) and{' '}
         <strong>Audit Log</strong>.
       </>
     ),
@@ -482,9 +482,8 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     a: (
       <>
         When a superadmin enables maintenance mode, most users see a maintenance page and cannot use the app.{' '}
-        <strong>Superadmins</strong> and emails on the server allowlist can still use the API; the web UI currently
-        lets superadmins through the maintenance screen. Maintenance can be toggled from{' '}
-        <strong>User Management</strong>.
+        <strong>Superadmins</strong> stay in. Other accounts on the maintenance access list in{' '}
+        <strong>User Management</strong> can sign in and keep working. Everyone else stays on the maintenance page.
       </>
     ),
   },

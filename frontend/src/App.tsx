@@ -21,7 +21,7 @@ import About from './components/About'
 import Maintenance from './components/Maintenance'
 import DesktopUpdateOverlay from './components/desktop/DesktopUpdateOverlay'
 import PresenceHeartbeat from './components/admin/PresenceHeartbeat'
-import { systemApi } from './services/api'
+import { authApi, systemApi } from './services/api'
 import { fetchMfaStatus, isMfaIdleReverifyDue, recordMfaActivity, shouldShowMfaSetup, shouldShowMfaVerify, shouldSkipMfaForEmail } from './lib/mfa'
 import { getLastPrivatePath, getCurrentRememberedPath, isLabelCenterAvailable, setLastPrivatePath } from './lib/privatePath'
 import { WAREHOUSE_HOME_PATH, isWarehouseAllowedPath } from './constants/warehouseAccess'
@@ -309,13 +309,18 @@ function RememberLastPrivatePath() {
 }
 
 // Inner app component that uses the user context
+const MAINTENANCE_AUTH_PATHS = new Set(['/login', '/reset-password', '/mfa/setup', '/mfa/verify'])
+
 function AppRoutes() {
   const { authLoading, authUser, userInfoLoading, isSuperadmin, userInfo } = useUser()
+  const location = useLocation()
   const [maintenanceMode, setMaintenanceMode] = useState(false)
   const [maintenanceMessage, setMaintenanceMessage] = useState<string>('')
   const [maintenanceExpectedEndAt, setMaintenanceExpectedEndAt] = useState<string | null>(null)
   const [maintenanceDurationHours, setMaintenanceDurationHours] = useState<number | null>(null)
   const [maintenanceChecked, setMaintenanceChecked] = useState(false)
+  const [maintenanceBypass, setMaintenanceBypass] = useState(false)
+  const [bypassChecked, setBypassChecked] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -354,17 +359,65 @@ function AppRoutes() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!maintenanceMode || !authUser) {
+      setMaintenanceBypass(false)
+      setBypassChecked(true)
+      return
+    }
+    if (userInfoLoading) return
+    if (isSuperadmin) {
+      setMaintenanceBypass(true)
+      setBypassChecked(true)
+      return
+    }
+
+    let active = true
+    const check = async (initial: boolean) => {
+      if (initial) setBypassChecked(false)
+      try {
+        const data = await authApi.getMaintenanceBypassAccess()
+        if (!active) return
+        setMaintenanceBypass(Boolean(data.allowed))
+      } catch {
+        if (!active) return
+        setMaintenanceBypass(false)
+      } finally {
+        if (active) setBypassChecked(true)
+      }
+    }
+    void check(true)
+    const interval = window.setInterval(() => void check(false), 60_000)
+    return () => {
+      active = false
+      window.clearInterval(interval)
+    }
+  }, [maintenanceMode, authUser, userInfoLoading, isSuperadmin])
+
   if (authLoading || !maintenanceChecked) {
     return <LoadingSpinner />
   }
 
-  if (maintenanceMode && (!authUser || userInfoLoading || !isSuperadmin)) {
-    if (authUser && userInfoLoading) return <LoadingSpinner />
+  const onMaintenanceAuthRoute = MAINTENANCE_AUTH_PATHS.has(location.pathname)
+  const waitingForBypass =
+    maintenanceMode &&
+    Boolean(authUser) &&
+    !onMaintenanceAuthRoute &&
+    (userInfoLoading || !bypassChecked)
+  if (waitingForBypass) {
+    return <LoadingSpinner />
+  }
+
+  const canPassMaintenance =
+    Boolean(authUser) && !userInfoLoading && (isSuperadmin || maintenanceBypass)
+  if (maintenanceMode && !onMaintenanceAuthRoute && !canPassMaintenance) {
     return (
       <Maintenance
         message={maintenanceMessage}
         expectedEndAt={maintenanceExpectedEndAt}
         durationHours={maintenanceDurationHours}
+        showStaffSignIn={!authUser}
+        signedInBlocked={Boolean(authUser)}
       />
     )
   }

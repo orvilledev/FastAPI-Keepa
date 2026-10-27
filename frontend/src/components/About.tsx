@@ -298,8 +298,9 @@ export default function About() {
           </li>
           <li>
             <span className="font-semibold">User Management:</span> Superadmin only — manage accounts, permissions,
-            maintenance mode, and the <span className="font-semibold">Label Station — UPC (DNK) Print ID</span>{' '}
-            email allowlist (who may switch Print ID to UPC for DNK carton labels).
+            maintenance mode, the maintenance access list (who may use the app while maintenance is on), and the{' '}
+            <span className="font-semibold">Label Station — UPC (DNK) Print ID</span> email allowlist (who may switch
+            Print ID to UPC for DNK carton labels).
           </li>
           <li>
             <span className="font-semibold">Audit Log:</span> Superadmin only — sign-in, sign-out, Keepa file actions,
