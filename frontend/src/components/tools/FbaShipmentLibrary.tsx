@@ -1354,7 +1354,7 @@ export default function FbaShipmentLibrary() {
   )
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
+    <div className="w-full min-w-0 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">FBA Order Checker</h1>
         <p className="mt-2 max-w-3xl text-sm text-gray-600">
@@ -1726,11 +1726,11 @@ export default function FbaShipmentLibrary() {
           )}
         </div>
 
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
+        <div className="mt-4 min-w-0">
+          <table className="w-full table-fixed text-left text-sm">
             <thead className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
               <tr>
-                <th className="w-8 px-2 py-2">
+                <th className="w-[4%] px-1 py-2">
                   <input
                     type="checkbox"
                     aria-label="Select shipments on this page"
@@ -1745,16 +1745,16 @@ export default function FbaShipmentLibrary() {
                     }}
                   />
                 </th>
-                <th className="px-2 py-2">Shipment ID</th>
-                <th className="px-2 py-2">Name</th>
-                <th className="px-2 py-2">Folder</th>
-                <th className="px-2 py-2">SKUs</th>
-                <th className="px-2 py-2">Shipped</th>
-                <th className="px-2 py-2">Uploaded by</th>
-                <th className="px-2 py-2">When</th>
-                <th className="px-2 py-2">File</th>
-                <th className="px-2 py-2">Access</th>
-                <th className="px-2 py-2" />
+                <th className="w-[11%] px-2 py-2">Shipment ID</th>
+                <th className="w-[7%] px-2 py-2">Name</th>
+                <th className="w-[11%] px-2 py-2">Folder</th>
+                <th className="w-[5%] px-2 py-2">SKUs</th>
+                <th className="w-[6%] px-2 py-2">Shipped</th>
+                <th className="w-[7%] px-2 py-2">Uploaded by</th>
+                <th className="w-[9%] px-2 py-2">When</th>
+                <th className="w-[11%] px-2 py-2">File</th>
+                <th className="w-[8%] px-2 py-2">Access</th>
+                <th className="w-[21%] px-2 py-2" />
               </tr>
             </thead>
             <tbody>
@@ -1786,7 +1786,7 @@ export default function FbaShipmentLibrary() {
                     key={upload.id}
                     className={`border-b border-gray-100 ${selectedId === upload.id ? 'bg-amber-50' : ''}`}
                   >
-                    <td className="px-2 py-2">
+                    <td className="px-1 py-2">
                       <input
                         type="checkbox"
                         aria-label={`Select ${upload.shipment_id}`}
@@ -1800,16 +1800,17 @@ export default function FbaShipmentLibrary() {
                         }}
                       />
                     </td>
-                    <td className="px-2 py-2 font-medium text-gray-900">{upload.shipment_id}</td>
-                    <td className="max-w-[10rem] truncate px-2 py-2 text-gray-700" title={upload.shipment_name || undefined}>
+                    <td className="max-w-0 break-words px-2 py-2 font-medium text-gray-900">{upload.shipment_id}</td>
+                    <td className="max-w-0 break-words px-2 py-2 text-gray-700" title={upload.shipment_name || undefined}>
                       {upload.shipment_name || '—'}
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="max-w-0 overflow-hidden px-2 py-2">
                       <select
                         aria-label={`Folder for ${upload.shipment_id}`}
                         value={upload.folder_id || ''}
                         disabled={movingFolder || folderBusy}
-                        className="max-w-[11rem] rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800 disabled:opacity-50"
+                        title={placed?.name || 'No folder'}
+                        className="w-full min-w-0 max-w-full rounded-lg border border-gray-200 bg-white px-1.5 py-1 text-xs text-gray-800 disabled:opacity-50"
                         onChange={(event) => {
                           const next = event.target.value || null
                           if ((upload.folder_id || null) === next) return
@@ -1827,9 +1828,11 @@ export default function FbaShipmentLibrary() {
                     </td>
                     <td className="px-2 py-2">{upload.line_count}</td>
                     <td className="px-2 py-2">{upload.total_shipped.toLocaleString()}</td>
-                    <td className="px-2 py-2">{upload.created_by_name || upload.created_by_email || '—'}</td>
-                    <td className="px-2 py-2 whitespace-nowrap">{formatWhen(upload.created_at)}</td>
-                    <td className="max-w-[12rem] truncate px-2 py-2 text-gray-600" title={upload.source_filename}>
+                    <td className="max-w-0 break-words px-2 py-2" title={upload.created_by_name || upload.created_by_email || undefined}>
+                      {upload.created_by_name || upload.created_by_email || '—'}
+                    </td>
+                    <td className="max-w-0 break-words px-2 py-2 leading-snug">{formatWhen(upload.created_at)}</td>
+                    <td className="max-w-0 break-words px-2 py-2 text-gray-600" title={upload.source_filename}>
                       {upload.source_filename || '—'}
                     </td>
                     <td className="px-2 py-2">
@@ -1855,70 +1858,72 @@ export default function FbaShipmentLibrary() {
                         </span>
                       )}
                     </td>
-                    <td className="px-2 py-2 whitespace-nowrap text-right">
-                      {listView !== 'trash' && (
-                        <button
-                          type="button"
-                          className="text-sm font-medium text-emerald-700 hover:text-emerald-900"
-                          onClick={() => void handleReport(upload)}
-                        >
-                          Download
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className={`${listView === 'trash' ? '' : 'ml-3 '}text-sm font-medium text-indigo-700 hover:text-indigo-900`}
-                        onClick={() => {
-                          setSelectedId(upload.id)
-                          setLineOffset(0)
-                          lineSearchRef.current = ''
-                          setLineSearch('')
-                          queryBoxRef.current = undefined
-                          setQueryBox(undefined)
-                          setFieldReset((value) => value + 1)
-                        }}
-                      >
-                        View
-                      </button>
-                      {listView === 'trash' && upload.owned_by_me && (
-                        <button
-                          type="button"
-                          className="ml-3 text-sm font-medium text-gray-800 hover:text-gray-950"
-                          onClick={() => void handleRestore(upload)}
-                        >
-                          Restore
-                        </button>
-                      )}
-                      {upload.owned_by_me && !upload.archived_at && listView !== 'trash' && (
-                        <>
+                    <td className="max-w-0 px-2 py-2 text-right">
+                      <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-2.5 gap-y-1">
+                        {listView !== 'trash' && (
                           <button
                             type="button"
-                            className="ml-3 text-sm font-medium text-gray-800 hover:text-gray-950"
-                            onClick={() => void openShare(upload)}
+                            className="whitespace-nowrap text-sm font-medium text-emerald-700 hover:text-emerald-900"
+                            onClick={() => void handleReport(upload)}
                           >
-                            Share
+                            Download
                           </button>
-                          {!upload.is_locked && (
-                            <button
-                              type="button"
-                              className="ml-3 text-sm font-medium text-gray-800 hover:text-gray-950"
-                              onClick={() => void handleAccess(upload, true)}
-                            >
-                              Lock
-                            </button>
-                          )}
-                        </>
-                      )}
-                      {upload.owned_by_me && (
+                        )}
                         <button
                           type="button"
-                          disabled={deletingId === upload.id}
-                          className="ml-10 border-l border-gray-200 pl-4 text-sm font-medium text-red-700 hover:text-red-900 disabled:opacity-50"
-                          onClick={() => void handleDelete(upload)}
+                          className="whitespace-nowrap text-sm font-medium text-indigo-700 hover:text-indigo-900"
+                          onClick={() => {
+                            setSelectedId(upload.id)
+                            setLineOffset(0)
+                            lineSearchRef.current = ''
+                            setLineSearch('')
+                            queryBoxRef.current = undefined
+                            setQueryBox(undefined)
+                            setFieldReset((value) => value + 1)
+                          }}
                         >
-                          {listView === 'trash' ? 'Delete' : 'Remove'}
+                          View
                         </button>
-                      )}
+                        {listView === 'trash' && upload.owned_by_me && (
+                          <button
+                            type="button"
+                            className="whitespace-nowrap text-sm font-medium text-gray-800 hover:text-gray-950"
+                            onClick={() => void handleRestore(upload)}
+                          >
+                            Restore
+                          </button>
+                        )}
+                        {upload.owned_by_me && !upload.archived_at && listView !== 'trash' && (
+                          <>
+                            <button
+                              type="button"
+                              className="whitespace-nowrap text-sm font-medium text-gray-800 hover:text-gray-950"
+                              onClick={() => void openShare(upload)}
+                            >
+                              Share
+                            </button>
+                            {!upload.is_locked && (
+                              <button
+                                type="button"
+                                className="whitespace-nowrap text-sm font-medium text-gray-800 hover:text-gray-950"
+                                onClick={() => void handleAccess(upload, true)}
+                              >
+                                Lock
+                              </button>
+                            )}
+                          </>
+                        )}
+                        {upload.owned_by_me && (
+                          <button
+                            type="button"
+                            disabled={deletingId === upload.id}
+                            className="whitespace-nowrap border-l border-gray-200 pl-2.5 text-sm font-medium text-red-700 hover:text-red-900 disabled:opacity-50"
+                            onClick={() => void handleDelete(upload)}
+                          >
+                            {listView === 'trash' ? 'Delete' : 'Remove'}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                   )
