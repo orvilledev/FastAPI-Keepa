@@ -244,12 +244,14 @@ export default function About() {
         <p className="mt-4 text-sm text-gray-600">
           Label Station requires Keepa access or a warehouse-only account. FNSKU Pack Station is available to all
           signed-in users, including warehouse-only stations; Freight Class is available to every signed-in user except
-          hello@warehouserepublic.com. FNSKU Labels is also available to warehouse1@metroshoewarehouse.com,
-          cameron@pmshoesinc.com, corp1997@pmshoesinc.com, ap@pmshoesinc.com, and
-          brittany@metroshoewarehouse.com. Micro Tools, Tracking Extractor, FNSKU Labels, Manifest Generator, and DNK
+          hello@warehouserepublic.com. FNSKU Labels is also available to the floor stations
+          (warehouse1, label1–label8, and pack1–pack6), cameron@pmshoesinc.com,
+          corp1997@pmshoesinc.com, ap@pmshoesinc.com, and brittany@metroshoewarehouse.com. Micro Tools,
+          Tracking Extractor, FNSKU Labels, Manifest Generator, and DNK
           AllInventory are available to all signed-in non-warehouse users. Product Catalog Formatter
           appears under BC Tools for Superadmin and allowlisted BC Tools accounts. Shipment Manager is available to
-          every signed-in user except the Warehouse1 and Hello station accounts. Freight Class and SMW Shipment Analyzer
+          every signed-in user except the floor stations (warehouse1, label1–label8, pack1–pack6) and Hello.
+          Freight Class and SMW Shipment Analyzer
           appear for signed-in users who are allowed those tools.
         </p>
       </div>

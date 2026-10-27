@@ -10,6 +10,7 @@ import httpx
 import logging
 from app.utils.jwt_utils import get_jwt_aal, get_jwt_iat
 from app.force_logout import SIGNED_OUT_BY_ADMIN_DETAIL, token_was_force_logged_out
+from app.constants.warehouse_stations import FLOOR_STATION_EMAILS
 
 logger = logging.getLogger(__name__)
 
@@ -412,7 +413,7 @@ def get_fba_box_contents_user(
 _DEFAULT_SHIPMENT_ANALYZER_BLOCKED = frozenset(
     {
         "hello@warehouserepublic.com",
-        "warehouse1@metroshoewarehouse.com",
+        *FLOOR_STATION_EMAILS,
         "cameron@pmshoesinc.com",
         "corp1997@pmshoesinc.com",
         "ap@pmshoesinc.com",
@@ -422,7 +423,7 @@ _DEFAULT_SHIPMENT_ANALYZER_BLOCKED = frozenset(
 
 
 def is_shipment_analyzer_allowed_user(current_user: dict, db: Client) -> bool:
-    """True for signed-in users except the Hello and Warehouse1 station accounts."""
+    """True for signed-in users except Hello and the floor station accounts."""
     email = (current_user.get("email") or "").strip().lower()
     blocked = set(settings.shipment_analyzer_blocked_emails_list) or set(
         _DEFAULT_SHIPMENT_ANALYZER_BLOCKED
@@ -437,13 +438,13 @@ def is_shipment_analyzer_allowed_user(current_user: dict, db: Client) -> bool:
 _SHIPMENT_MANAGER_BLOCKED = frozenset(
     {
         "hello@warehouserepublic.com",
-        "warehouse1@metroshoewarehouse.com",
+        *FLOOR_STATION_EMAILS,
     }
 )
 
 
 def is_shipment_manager_allowed_user(current_user: dict) -> bool:
-    """True for every signed-in account except the Hello and Warehouse1 stations."""
+    """True for every signed-in account except Hello and the floor stations."""
     email = (current_user.get("email") or "").strip().lower()
     return bool(email) and email not in _SHIPMENT_MANAGER_BLOCKED
 

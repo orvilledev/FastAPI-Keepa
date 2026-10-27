@@ -4,6 +4,8 @@ from typing import List
 from pathlib import Path
 import os
 
+from app.constants.warehouse_stations import FLOOR_STATION_EMAILS
+
 # Find .env file relative to backend directory, not current working directory
 # This ensures .env is found regardless of where the command is run from
 BACKEND_DIR = Path(__file__).parent.parent
@@ -177,24 +179,30 @@ class Settings(BaseSettings):
     maintenance_allowlist_emails: str = ""
 
     # Comma-separated emails that skip TOTP MFA (password-only sign-in for shared stations).
-    mfa_exempt_emails: str = (
-        "warehouse1@metroshoewarehouse.com,"
-        "hello@warehouserepublic.com,"
-        "cameron@pmshoesinc.com,"
-        "corp1997@pmshoesinc.com,"
-        "ap@pmshoesinc.com,"
-        "brittany@metroshoewarehouse.com"
+    # Setting MFA_EXEMPT_EMAILS in the environment replaces this whole list.
+    mfa_exempt_emails: str = ",".join(
+        (
+            *FLOOR_STATION_EMAILS,
+            "hello@warehouserepublic.com",
+            "cameron@pmshoesinc.com",
+            "corp1997@pmshoesinc.com",
+            "ap@pmshoesinc.com",
+            "brittany@metroshoewarehouse.com",
+        )
     )
 
     # Comma-separated emails blocked from Off-Price Analytics (web API).
     # Everyone else with Keepa access can use it. Empty falls back to defaults.
-    analytics_blocked_emails: str = (
-        "hello@warehouserepublic.com,"
-        "warehouse1@metroshoewarehouse.com,"
-        "cameron@pmshoesinc.com,"
-        "corp1997@pmshoesinc.com,"
-        "ap@pmshoesinc.com,"
-        "brittany@metroshoewarehouse.com"
+    # Setting ANALYTICS_BLOCKED_EMAILS in the environment replaces this whole list.
+    analytics_blocked_emails: str = ",".join(
+        (
+            "hello@warehouserepublic.com",
+            *FLOOR_STATION_EMAILS,
+            "cameron@pmshoesinc.com",
+            "corp1997@pmshoesinc.com",
+            "ap@pmshoesinc.com",
+            "brittany@metroshoewarehouse.com",
+        )
     )
 
     # Comma-separated emails allowed to use the Master Sheet tool (plus superadmin).
@@ -243,13 +251,16 @@ class Settings(BaseSettings):
 
     # Comma-separated emails blocked from the SMW Shipment Analyzer.
     # Everyone else who is signed in can use it. Empty falls back to defaults.
-    shipment_analyzer_blocked_emails: str = (
-        "hello@warehouserepublic.com,"
-        "warehouse1@metroshoewarehouse.com,"
-        "cameron@pmshoesinc.com,"
-        "corp1997@pmshoesinc.com,"
-        "ap@pmshoesinc.com,"
-        "brittany@metroshoewarehouse.com"
+    # Setting SHIPMENT_ANALYZER_BLOCKED_EMAILS replaces this whole list.
+    shipment_analyzer_blocked_emails: str = ",".join(
+        (
+            "hello@warehouserepublic.com",
+            *FLOOR_STATION_EMAILS,
+            "cameron@pmshoesinc.com",
+            "corp1997@pmshoesinc.com",
+            "ap@pmshoesinc.com",
+            "brittany@metroshoewarehouse.com",
+        )
     )
 
     # Comma-separated emails allowed to use the Old SKUs catalog (plus superadmin).

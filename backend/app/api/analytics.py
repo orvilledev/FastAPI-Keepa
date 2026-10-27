@@ -6,6 +6,7 @@ from typing import List, Literal, Optional
 from supabase import Client
 
 from app.config import settings
+from app.constants.warehouse_stations import FLOOR_STATION_EMAILS
 from app.database import get_supabase
 from app.dependencies import get_current_user
 from app.repositories.off_price_analytics_download_log_repository import (
@@ -31,7 +32,7 @@ _MAX_ANALYTICS_EMAIL_BYTES = 25 * 1024 * 1024
 _DEFAULT_ANALYTICS_BLOCKED = frozenset(
     {
         "hello@warehouserepublic.com",
-        "warehouse1@metroshoewarehouse.com",
+        *FLOOR_STATION_EMAILS,
         "cameron@pmshoesinc.com",
         "corp1997@pmshoesinc.com",
         "ap@pmshoesinc.com",

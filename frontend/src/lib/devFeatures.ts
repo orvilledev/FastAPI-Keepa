@@ -1,3 +1,5 @@
+import { FLOOR_STATION_EMAILS } from '../constants/warehouseStations'
+
 /**
  * Feature gates shared by web and Electron.
  */
@@ -5,7 +7,7 @@
 /** Shared warehouse station accounts that should not see Off-Price Analytics. */
 export const ANALYTICS_BLOCKED_EMAILS = [
   'hello@warehouserepublic.com',
-  'warehouse1@metroshoewarehouse.com',
+  ...FLOOR_STATION_EMAILS,
   'cameron@pmshoesinc.com',
   'corp1997@pmshoesinc.com',
   'ap@pmshoesinc.com',

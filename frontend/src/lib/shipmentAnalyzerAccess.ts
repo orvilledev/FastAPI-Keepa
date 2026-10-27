@@ -1,12 +1,14 @@
+import { FLOOR_STATION_EMAILS } from '../constants/warehouseStations'
+
 /**
- * SMW Shipment Analyzer access — every signed-in user except the
- * Hello, Warehouse1, and the other warehouse-only station accounts. Keep in sync with backend
- * `app.dependencies` / config blocklist.
+ * SMW Shipment Analyzer access — every signed-in user except Hello, the floor
+ * stations, and the other warehouse-only station accounts. Keep in sync with
+ * backend `app.dependencies` / config blocklist.
  */
 
 export const SHIPMENT_ANALYZER_BLOCKED_EMAILS = [
   'hello@warehouserepublic.com',
-  'warehouse1@metroshoewarehouse.com',
+  ...FLOOR_STATION_EMAILS,
   'cameron@pmshoesinc.com',
   'corp1997@pmshoesinc.com',
   'ap@pmshoesinc.com',

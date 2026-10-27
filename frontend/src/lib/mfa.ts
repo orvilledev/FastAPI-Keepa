@@ -1,3 +1,4 @@
+import { FLOOR_STATION_EMAILS } from '../constants/warehouseStations'
 import { supabase } from './supabase'
 import { APP_NAME } from '../constants/app'
 
@@ -46,7 +47,7 @@ const API_BASE_URL = normalizeApiBaseUrl(
 
 /** Always password-only, even when the API exempt list is older than this build. */
 const BUILT_IN_MFA_EXEMPT_EMAILS = [
-  'warehouse1@metroshoewarehouse.com',
+  ...FLOOR_STATION_EMAILS,
   'hello@warehouserepublic.com',
   'cameron@pmshoesinc.com',
   'corp1997@pmshoesinc.com',

@@ -1,11 +1,13 @@
+import { FLOOR_STATION_EMAILS } from '../constants/warehouseStations'
+
 /**
- * Shipment Manager — every signed-in user except the Hello and Warehouse1
- * station accounts. Keep in sync with backend `is_shipment_manager_allowed_user`.
+ * Shipment Manager — every signed-in user except Hello and the floor station
+ * accounts. Keep in sync with backend `is_shipment_manager_allowed_user`.
  */
 
 export const SHIPMENT_MANAGER_BLOCKED_EMAILS = [
   'hello@warehouserepublic.com',
-  'warehouse1@metroshoewarehouse.com',
+  ...FLOOR_STATION_EMAILS,
 ] as const
 
 const SHIPMENT_MANAGER_BLOCKED_SET = new Set(

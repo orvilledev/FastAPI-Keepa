@@ -1,9 +1,11 @@
+import { FLOOR_STATION_EMAILS } from '../constants/warehouseStations'
+
 /**
  * Shared warehouse stations that stay signed in on the floor.
  * They remain password-only. This schedule only signs them out.
  */
 export const NIGHTLY_LOGOUT_EMAILS = [
-  'warehouse1@metroshoewarehouse.com',
+  ...FLOOR_STATION_EMAILS,
   'hello@warehouserepublic.com',
 ] as const
 
