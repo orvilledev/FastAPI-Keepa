@@ -376,6 +376,10 @@ export default function FbaShipmentLibrary() {
   const [movingFolder, setMovingFolder] = useState(false)
   const [selectedUploadIds, setSelectedUploadIds] = useState<string[]>([])
   const [pendingDeleteFolder, setPendingDeleteFolder] = useState<FbaShipmentFolder | null>(null)
+  const [pendingArchive, setPendingArchive] = useState<FbaShipmentUpload | null>(null)
+  const [archiveFolderId, setArchiveFolderId] = useState('')
+  const [archiveError, setArchiveError] = useState<string | null>(null)
+  const [archiving, setArchiving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -1091,19 +1095,33 @@ export default function FbaShipmentLibrary() {
     }
   }
 
-  const handleArchive = async (upload: FbaShipmentUpload) => {
-    const ok = window.confirm(
-      `Archive ${upload.shipment_id}? It will leave the active list and stay in Completed shipments.`,
-    )
-    if (!ok) return
+  const openArchive = (upload: FbaShipmentUpload) => {
+    const currentFolder = upload.folder_id && folders.some((folder) => folder.id === upload.folder_id) ? upload.folder_id : ''
+    setArchiveFolderId(currentFolder)
+    setArchiveError(null)
+    setPendingArchive(upload)
+  }
+
+  const confirmArchive = async () => {
+    if (!pendingArchive || archiving) return
+    if (!archiveFolderId) {
+      setArchiveError('Choose a folder.')
+      return
+    }
+    setArchiving(true)
+    setArchiveError(null)
     setError(null)
     try {
-      await fbaShipmentLibraryApi.archive(upload.id)
-      setNotice(`${upload.shipment_id} is in the completed archive.`)
-      if (selectedId === upload.id) setSelectedId(null)
+      await fbaShipmentLibraryApi.archive(pendingArchive.id, archiveFolderId)
+      const folderName = folders.find((folder) => folder.id === archiveFolderId)?.name || 'the selected folder'
+      setNotice(`${pendingArchive.shipment_id} is in Completed shipments, in ${folderName}.`)
+      if (selectedId === pendingArchive.id) setSelectedId(null)
+      setPendingArchive(null)
       setRefreshKey((value) => value + 1)
     } catch (err) {
-      setError(errorMessage(err, 'Failed to archive this shipment.'))
+      setArchiveError(errorMessage(err, 'Failed to archive this shipment.'))
+    } finally {
+      setArchiving(false)
     }
   }
 
@@ -1363,8 +1381,8 @@ export default function FbaShipmentLibrary() {
           <strong>Shipped</strong>, plus the <strong>Name</strong> from the top of the file. Open a shipment to
           fill in a Name that was not saved. The owner can lock a shipment or share it with everyone or with chosen people.
           Shipments that are already shared stay open to everyone until the owner changes that.
-          Counts are shared: everyone who opens a shipment sees the same scans. Download report is on each shipment. Archive moves it into
-          Completed shipments once every line is All Accounted. Remove sends a shipment to Trash, where it
+          Counts are shared: everyone who opens a shipment sees the same scans. Download report is on each shipment. Anyone the shipment is shared with can archive it into a folder once every line is All Accounted, and it then shows in
+          Completed shipments. Remove sends a shipment to Trash, where it
           stays until it is removed for good or Trash is emptied.
         </p>
       </div>
@@ -2024,11 +2042,11 @@ export default function FbaShipmentLibrary() {
                   {printingLabels ? 'Printing…' : 'Print FNSKU labels'}
                 </button>
               )}
-              {selected.owned_by_me && selected.fully_accounted && !selected.archived_at && !selected.trashed_at && (
+              {selected.fully_accounted && !selected.archived_at && !selected.trashed_at && (
                 <button
                   type="button"
                   className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50"
-                  onClick={() => void handleArchive(selected)}
+                  onClick={() => openArchive(selected)}
                 >
                   Archive
                 </button>
@@ -2040,7 +2058,7 @@ export default function FbaShipmentLibrary() {
           )}
           {!selected.fully_accounted && !selected.archived_at && !selected.trashed_at && (
             <p className="mt-2 text-xs text-gray-500">
-              Archive is available when every line is All Accounted. Download report works with the count so far.
+              Archive is available when every line is All Accounted. Anyone this shipment is shared with can put it in a folder. Download report works with the count so far.
             </p>
           )}
           {selected.archived_at && !selected.trashed_at && (
@@ -2266,6 +2284,73 @@ export default function FbaShipmentLibrary() {
             </div>
           )}
         </section>
+      )}
+      {pendingArchive && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="presentation"
+          onClick={() => {
+            if (!archiving) setPendingArchive(null)
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="archive-shipment-title"
+            className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="archive-shipment-title" className="text-lg font-semibold text-gray-900">
+              Archive {pendingArchive.shipment_id}
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Choose the folder for this shipment in Completed shipments. Anyone this shipment is shared with can archive it.
+            </p>
+            {folders.length === 0 ? (
+              <p className="mt-4 text-sm text-gray-700">Create a folder above, then archive this shipment into it.</p>
+            ) : (
+              <label className="mt-4 block text-sm text-gray-700">
+                Folder
+                <select
+                  aria-label="Folder for the archived shipment"
+                  value={archiveFolderId}
+                  disabled={archiving}
+                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 disabled:opacity-50"
+                  onChange={(event) => {
+                    setArchiveFolderId(event.target.value)
+                    setArchiveError(null)
+                  }}
+                >
+                  <option value="">Choose a folder</option>
+                  {folders.map((folder) => (
+                    <option key={folder.id} value={folder.id}>
+                      {folder.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {archiveError && <p className="mt-2 text-sm text-red-700">{archiveError}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={archiving}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                onClick={() => setPendingArchive(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={archiving || folders.length === 0 || !archiveFolderId}
+                className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                onClick={() => void confirmArchive()}
+              >
+                {archiving ? 'Archiving…' : 'Archive'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {shareTarget && (
         <div

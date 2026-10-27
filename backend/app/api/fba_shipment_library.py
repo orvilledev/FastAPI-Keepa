@@ -22,6 +22,7 @@ from app.models.fba_shipment_library import (
     FbaFnskuLabelsResponse,
     FbaShareUser,
     FbaShipmentAccessRequest,
+    FbaShipmentArchiveRequest,
     FbaShipmentDetailResponse,
     FbaShipmentFolderAssignRequest,
     FbaShipmentFolderCreateRequest,
@@ -864,18 +865,21 @@ def set_fba_shipment_access(
 @handle_api_errors("archive FBA shipment")
 def archive_fba_shipment(
     upload_id: str,
+    body: FbaShipmentArchiveRequest,
     current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
-    """Move a fully accounted shipment into the completed archive."""
+    """Move a fully accounted shipment into a folder in the completed archive.
+
+    Anyone the shipment is shared with can do this, not only the person who stored it.
+    """
     repo = FbaShipmentLibraryRepository(db)
     can_manage_any = is_superadmin_user(current_user, db)
     try:
         upload = repo.get_upload(upload_id)
         if not upload:
             raise HTTPException(status_code=404, detail="That shipment upload was not found.")
-        if not _owns_upload(upload, current_user, can_manage_any):
-            raise HTTPException(status_code=403, detail="Only the owner can archive this shipment.")
+        _require_visible(upload, current_user, can_manage_any)
         if upload.get("trashed_at"):
             raise HTTPException(status_code=400, detail="Restore this shipment from Trash before archiving it.")
         if upload.get("archived_at"):
@@ -885,7 +889,10 @@ def archive_fba_shipment(
                 status_code=400,
                 detail="Archive is available after every line is All Accounted.",
             )
-        saved = repo.archive_upload(upload_id, str(current_user["id"]))
+        folder = repo.get_folder(str(body.folder_id))
+        if not folder:
+            raise HTTPException(status_code=404, detail="That folder was not found.")
+        saved = repo.archive_upload(upload_id, str(current_user["id"]), str(body.folder_id))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     saved["fully_accounted"] = True

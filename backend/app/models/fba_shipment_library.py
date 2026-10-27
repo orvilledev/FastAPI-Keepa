@@ -115,6 +115,10 @@ class FbaShipmentNameRequest(BaseModel):
     shipment_name: str = Field(default="", max_length=200)
 
 
+class FbaShipmentArchiveRequest(BaseModel):
+    folder_id: UUID
+
+
 def _clean_folder_name(value: str) -> str:
     cleaned = " ".join(value.split())
     if not cleaned:

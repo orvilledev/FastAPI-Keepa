@@ -453,7 +453,7 @@ class FbaShipmentLibraryRepository:
             raise ValueError("The shipment lock was not saved.")
         return rows[0]
 
-    def archive_upload(self, upload_id: str, user_id: str) -> dict:
+    def archive_upload(self, upload_id: str, user_id: str, folder_id: str) -> dict:
         try:
             response = (
                 self.db.table(_UPLOADS)
@@ -461,6 +461,7 @@ class FbaShipmentLibraryRepository:
                     {
                         "archived_at": datetime.now(timezone.utc).isoformat(),
                         "archived_by": user_id,
+                        "folder_id": folder_id,
                     }
                 )
                 .eq("id", upload_id)

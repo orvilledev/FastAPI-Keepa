@@ -3413,8 +3413,10 @@ export const fbaShipmentLibraryApi = {
     })
     return response.data
   },
-  archive: async (uploadId: string): Promise<FbaShipmentUpload> => {
-    const response = await api.post(`/api/v1/fba-shipment-library/${uploadId}/archive`)
+  archive: async (uploadId: string, folderId: string): Promise<FbaShipmentUpload> => {
+    const response = await api.post(`/api/v1/fba-shipment-library/${uploadId}/archive`, {
+      folder_id: folderId,
+    })
     return response.data
   },
   fnskuLabels: async (
