@@ -1,7 +1,7 @@
 {
   "name": "msw-overwatch-frontend",
   "private": true,
-  "version": "3.8.4",
+  "version": "3.8.5",
   "description": "MSW Overwatch dashboard (web and Electron)",
   "author": "MSW Overwatch",
   "type": "module",
@@ -88,7 +88,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotesFile": "release-notes-3.8.4.txt"
+      "releaseNotesFile": "release-notes-3.8.5.txt"
     }
   }
 }
