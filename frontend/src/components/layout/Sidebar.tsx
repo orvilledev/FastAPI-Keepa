@@ -13,6 +13,7 @@ import { canAccessShipmentManager } from '../../lib/shipmentManagerAccess'
 import { canAccessFbaOrderChecker } from '../../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { canAccessDimensioner } from '../../lib/dimensionerAccess'
+import { canAccessNsTool } from '../../lib/nsToolAccess'
 import { canWarehouseAccessFnskuLabels } from '../../constants/warehouseAccess'
 import { isLabelCenterAvailable } from '../../lib/privatePath'
 
@@ -167,6 +168,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z" />
     </svg>
   ),
+  nsTool: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6m4 6V7m4 10v-3M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z" />
+    </svg>
+  ),
   dnkAllInventory: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h10M4 18h10M15 14l5 5m0-5v5h-5" />
@@ -245,6 +251,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     isSuperadmin,
   )
   const canUseDimensioner = canAccessDimensioner(accountEmail, isSuperadmin)
+  const canUseNsTool = canAccessNsTool(accountEmail, isSuperadmin)
   const isElectron = Boolean(window.desktop?.isElectron)
   const [desktopVersion, setDesktopVersion] = useState<string | null>(null)
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false)
@@ -825,7 +832,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
             )}
         </div>
 
-        {(canUseBcTools || canUseShipmentAnalyzer || canUseShipmentManager) && (
+        {(canUseBcTools || canUseShipmentAnalyzer || canUseShipmentManager || canUseNsTool) && (
           <>
             <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 
@@ -872,6 +879,20 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                 >
                   <span className="shrink-0">{Icons.productCatalog}</span>
                   <span className="sidebar-link-label">Product Catalog Formatter</span>
+                </Link>
+              )}
+              {canUseNsTool && (
+                <Link
+                  to="/ns-tool"
+                  onMouseEnter={() => setHoveredNav('ns-tool')}
+                  className={`sidebar-link ${
+                    navHighlighted('ns-tool', isActive('/ns-tool'))
+                      ? 'sidebar-link-active'
+                      : 'sidebar-link-inactive'
+                  }`}
+                >
+                  <span className="shrink-0">{Icons.nsTool}</span>
+                  <span className="sidebar-link-label">NS Tool</span>
                 </Link>
               )}
               {canUseShipmentManager && (

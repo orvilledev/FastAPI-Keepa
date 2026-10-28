@@ -6,6 +6,7 @@ import { getApiErrorDetail } from '../../utils/apiErrorMessage'
 import { isLabelCenterAvailable } from '../../lib/privatePath'
 import { canAccessShipmentManager } from '../../lib/shipmentManagerAccess'
 import { canAccessDimensioner } from '../../lib/dimensionerAccess'
+import { canAccessNsTool } from '../../lib/nsToolAccess'
 import { useUser } from '../../contexts/UserContext'
 import CustomLinksPanel from './CustomLinksPanel'
 import NoteContent from './NoteContent'
@@ -75,6 +76,7 @@ export default function MySpacePage() {
   const labelCenterAvailable = isLabelCenterAvailable(accountEmail)
   const shipmentManagerAvailable = canAccessShipmentManager(accountEmail)
   const dimensionerAvailable = canAccessDimensioner(accountEmail, isSuperadmin)
+  const nsToolAvailable = canAccessNsTool(accountEmail, isSuperadmin)
   const [tab, setTab] = useState<TabId>('bookmarks')
   const [links, setLinks] = useState<QuickAccessLink[]>([])
   const [groupedLinkCount, setGroupedLinkCount] = useState(0)
@@ -124,10 +126,11 @@ export default function MySpacePage() {
         (t.path !== '/label-center' || labelCenterAvailable) &&
         (t.path !== '/shipment-manager' || shipmentManagerAvailable) &&
         (t.path !== '/dimensioner' || dimensionerAvailable) &&
+        (t.path !== '/ns-tool' || nsToolAvailable) &&
         (t.label.toLowerCase().includes(toolSearchQuery) ||
           t.path.toLowerCase().includes(toolSearchQuery)),
     )
-  }, [toolSearchQuery, labelCenterAvailable, shipmentManagerAvailable, dimensionerAvailable])
+  }, [toolSearchQuery, labelCenterAvailable, shipmentManagerAvailable, dimensionerAvailable, nsToolAvailable])
 
   const toolsByGroup = useMemo(() => {
     const map = new Map<string, BookmarkableTool[]>()

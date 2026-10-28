@@ -30,6 +30,7 @@ export const BOOKMARKABLE_TOOLS: BookmarkableTool[] = [
   { path: '/fba-shipment-library', label: 'FBA Order Checker', group: 'BC Tools' },
   { path: '/fba-upload-compare', label: 'FBA Upload Compare', group: 'BC Tools' },
   { path: '/product-catalog-formatter', label: 'Product Catalog Formatter', group: 'BC Tools' },
+  { path: '/ns-tool', label: 'NS Tool', group: 'BC Tools' },
   { path: '/shipment-manager', label: 'Shipment Manager', group: 'BC Tools' },
   { path: '/freight-class-calculator', label: 'Freight Class Calculator', group: 'BC Tools' },
   { path: '/dimensioner', label: 'Dimensioner', group: 'BC Tools' },
