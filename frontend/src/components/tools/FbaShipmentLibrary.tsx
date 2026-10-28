@@ -1381,7 +1381,7 @@ export default function FbaShipmentLibrary() {
           <strong>Shipped</strong>, plus the <strong>Name</strong> from the top of the file. Open a shipment to
           fill in a Name that was not saved. The owner can lock a shipment or share it with everyone or with chosen people.
           Shipments that are already shared stay open to everyone until the owner changes that.
-          Counts are shared: everyone who opens a shipment sees the same scans. Download report is on each shipment. Anyone the shipment is shared with can archive it into a folder once every line is All Accounted, and it then shows in
+          Counts are shared: everyone who opens a shipment sees the same scans. Download report is on each shipment. Anyone the shipment is shared with can archive it into a folder at any time, including before counting starts, and it then shows in
           Completed shipments. Remove sends a shipment to Trash, where it
           stays until it is removed for good or Trash is emptied.
         </p>
@@ -1902,6 +1902,15 @@ export default function FbaShipmentLibrary() {
                         >
                           View
                         </button>
+                        {listView !== 'trash' && !upload.archived_at && (
+                          <button
+                            type="button"
+                            className="whitespace-nowrap text-sm font-medium text-gray-800 hover:text-gray-950"
+                            onClick={() => openArchive(upload)}
+                          >
+                            Archive
+                          </button>
+                        )}
                         {listView === 'trash' && upload.owned_by_me && (
                           <button
                             type="button"
@@ -2042,7 +2051,7 @@ export default function FbaShipmentLibrary() {
                   {printingLabels ? 'Printing…' : 'Print FNSKU labels'}
                 </button>
               )}
-              {selected.fully_accounted && !selected.archived_at && !selected.trashed_at && (
+              {!selected.archived_at && !selected.trashed_at && (
                 <button
                   type="button"
                   className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50"
@@ -2055,11 +2064,6 @@ export default function FbaShipmentLibrary() {
           </div>
           {selected.trashed_at && (
             <p className="mt-2 text-xs text-gray-500">This shipment is in Trash. Restore it to count again.</p>
-          )}
-          {!selected.fully_accounted && !selected.archived_at && !selected.trashed_at && (
-            <p className="mt-2 text-xs text-gray-500">
-              Archive is available when every line is All Accounted. Anyone this shipment is shared with can put it in a folder. Download report works with the count so far.
-            </p>
           )}
           {selected.archived_at && !selected.trashed_at && (
             <p className="mt-2 text-xs text-gray-500">This shipment is in the completed archive.</p>
@@ -2304,7 +2308,7 @@ export default function FbaShipmentLibrary() {
               Archive {pendingArchive.shipment_id}
             </h2>
             <p className="mt-2 text-sm text-gray-600">
-              Choose the folder for this shipment in Completed shipments. Anyone this shipment is shared with can archive it.
+              Choose the folder for this shipment in Completed shipments. Anyone this shipment is shared with can archive it, including before counting starts.
             </p>
             {folders.length === 0 ? (
               <p className="mt-4 text-sm text-gray-700">Create a folder above, then archive this shipment into it.</p>

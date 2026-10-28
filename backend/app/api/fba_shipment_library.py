@@ -869,9 +869,10 @@ def archive_fba_shipment(
     current_user: dict = Depends(get_fba_order_checker_user),
     db: Client = Depends(get_supabase),
 ):
-    """Move a fully accounted shipment into a folder in the completed archive.
+    """Move a shipment into a folder in the completed archive.
 
-    Anyone the shipment is shared with can do this, not only the person who stored it.
+    Anyone the shipment is shared with can do this, including before counting
+    starts and before every line is All Accounted.
     """
     repo = FbaShipmentLibraryRepository(db)
     can_manage_any = is_superadmin_user(current_user, db)
@@ -884,18 +885,13 @@ def archive_fba_shipment(
             raise HTTPException(status_code=400, detail="Restore this shipment from Trash before archiving it.")
         if upload.get("archived_at"):
             raise HTTPException(status_code=400, detail="This shipment is already archived.")
-        if not _is_accounted(repo, upload_id):
-            raise HTTPException(
-                status_code=400,
-                detail="Archive is available after every line is All Accounted.",
-            )
         folder = repo.get_folder(str(body.folder_id))
         if not folder:
             raise HTTPException(status_code=404, detail="That folder was not found.")
         saved = repo.archive_upload(upload_id, str(current_user["id"]), str(body.folder_id))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    saved["fully_accounted"] = True
+    saved["fully_accounted"] = _is_accounted(repo, upload_id)
     return _upload_response(
         saved,
         current_user,

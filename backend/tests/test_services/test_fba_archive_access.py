@@ -1,4 +1,4 @@
-"""Anyone a shipment is shared with can archive it into a chosen folder."""
+"""Anyone a shipment is shared with can archive it, before or after counting."""
 import pytest
 from fastapi import HTTPException
 
@@ -107,14 +107,15 @@ def test_someone_the_shipment_is_not_shared_with_cannot_archive(monkeypatch):
     assert repo.archived is None
 
 
-def test_archive_requires_a_real_folder_and_a_finished_count(monkeypatch):
-    unfinished = ArchiveRepo(_open_upload(), counted=0)
-    _install(monkeypatch, unfinished)
-    with pytest.raises(HTTPException) as not_ready:
-        _archive(OWNER)
-    assert not_ready.value.status_code == 400
-    assert unfinished.archived is None
+def test_a_shared_person_can_archive_before_counting_starts(monkeypatch):
+    repo = ArchiveRepo(_open_upload(shared_with=[SHARED]), counted=0)
+    _install(monkeypatch, repo)
+    saved = _archive(SHARED)
+    assert repo.archived == (UPLOAD, SHARED, FOLDER)
+    assert saved.fully_accounted is False
 
+
+def test_archive_still_requires_a_real_folder(monkeypatch):
     missing_folder = ArchiveRepo(_open_upload(), folder=False)
     _install(monkeypatch, missing_folder)
     with pytest.raises(HTTPException) as missing:
