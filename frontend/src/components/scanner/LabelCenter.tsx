@@ -27,6 +27,12 @@ import {
   saveLabelCenterStock,
   type LabelCenterStock,
 } from '../../utils/labelCenterPrint'
+import {
+  NO_KNIFE_HEIGHT_IN,
+  NO_KNIFE_WIDTH_IN,
+  buildNoKnifeLabelPdf,
+  suggestedNoKnifeFilename,
+} from '../../utils/noKnifeLabel'
 import { SUPPORTED_DPIS, detectPrinterDpi, type LabelDpi } from '../../utils/warehouseLabel'
 
 type GeneratedLabels = {
@@ -151,6 +157,10 @@ export default function LabelCenter() {
   const [textError, setTextError] = useState<string | null>(null)
   const [textNotice, setTextNotice] = useState<string | null>(null)
   const [textBusy, setTextBusy] = useState<'print' | 'download' | null>(null)
+  const [noKnifePdf, setNoKnifePdf] = useState<Uint8Array | null>(null)
+  const [noKnifeError, setNoKnifeError] = useState<string | null>(null)
+  const [noKnifeNotice, setNoKnifeNotice] = useState<string | null>(null)
+  const [noKnifeBusy, setNoKnifeBusy] = useState<'print' | 'download' | null>(null)
 
   const [stock, setStock] = useState<LabelCenterStock>(getLabelCenterStock)
   const [printers, setPrinters] = useState<DesktopPrinter[]>([])
@@ -179,6 +189,22 @@ export default function LabelCenter() {
   useEffect(() => {
     if (canPrintDirect) void refreshPrinters()
   }, [canPrintDirect, refreshPrinters])
+
+  useEffect(() => {
+    let cancelled = false
+    buildNoKnifeLabelPdf()
+      .then((pdf) => {
+        if (!cancelled) setNoKnifePdf(pdf)
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setNoKnifeError(err instanceof Error ? err.message : 'Could not build the No Knife sticker.')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const selectedPrinterInfo = printers.find((printer) => printer.name === selectedPrinter)
   const selectedPrinterLabel = selectedPrinterInfo?.displayName || selectedPrinter
@@ -220,7 +246,11 @@ export default function LabelCenter() {
   }
 
   /** Sends every page straight to the chosen Zebra. Returns the success message. */
-  const printDirect = async (pdf: Uint8Array, labelStock: LabelCenterStock): Promise<string> => {
+  const printDirect = async (
+    pdf: Uint8Array,
+    labelStock: LabelCenterStock,
+    size?: { widthIn: number; heightIn: number },
+  ): Promise<string> => {
     const printerName = selectedPrinter.trim()
     if (!printerName) {
       throw new Error('Choose a Zebra printer in the printer section before printing.')
@@ -231,7 +261,7 @@ export default function LabelCenter() {
     const printZpl = window.desktop?.printZpl
     if (!printZpl) throw new Error('Direct printing is not available in this app version.')
 
-    const jobs = await labelCenterPdfToZpl(pdf, labelStock, selectedDpi)
+    const jobs = await labelCenterPdfToZpl(pdf, labelStock, selectedDpi, size)
     let sent = 0
     for (const batch of batchZplJobs(jobs)) {
       const result = await printZpl({ printerName, zpl: batch.join('\n') })
@@ -243,7 +273,10 @@ export default function LabelCenter() {
       }
       sent += batch.length
     }
-    return `Sent ${labelCount(jobs.length)} to ${selectedPrinterLabel} (${labelCenterStockDimensions(labelStock)}).`
+    const dimensions = size
+      ? `${size.widthIn}" × ${size.heightIn}"`
+      : labelCenterStockDimensions(labelStock)
+    return `Sent ${labelCount(jobs.length)} to ${selectedPrinterLabel} (${dimensions}).`
   }
 
   const summary = useMemo(() => {
@@ -317,6 +350,26 @@ export default function LabelCenter() {
       setTextError(err instanceof Error ? err.message : 'Could not build the text label.')
     } finally {
       setTextBusy(null)
+    }
+  }
+
+  const withNoKnifePdf = async (action: 'print' | 'download') => {
+    if (!noKnifePdf) return
+    setNoKnifeBusy(action)
+    setNoKnifeError(null)
+    setNoKnifeNotice(null)
+    try {
+      const blob = new Blob([noKnifePdf.slice()], { type: 'application/pdf' })
+      if (action === 'download') downloadBlob(blob, suggestedNoKnifeFilename())
+      else if (canPrintDirect) {
+        setNoKnifeNotice(
+          await printDirect(noKnifePdf, stock, { widthIn: NO_KNIFE_WIDTH_IN, heightIn: NO_KNIFE_HEIGHT_IN }),
+        )
+      } else printPdfBlob(blob)
+    } catch (err: unknown) {
+      setNoKnifeError(err instanceof Error ? err.message : 'Could not build the No Knife sticker.')
+    } finally {
+      setNoKnifeBusy(null)
     }
   }
 
@@ -627,6 +680,58 @@ export default function LabelCenter() {
 
         {textLabel && (
           <LabelPdfPreview pdf={textLabel.pdf} captions={['Text label']} />
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <header>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">No Knife sticker</h2>
+          <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">
+            Prints at 1.5" × 1". This sticker keeps its own size, so the label size selected above does not
+            change it.
+          </p>
+        </header>
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-border dark:bg-surface sm:p-5">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={!noKnifePdf || noKnifeBusy !== null}
+              onClick={() => void withNoKnifePdf('print')}
+              className="rounded-lg bg-[#404040] px-4 py-2 text-sm font-medium text-white hover:bg-[#2f2f2f] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {noKnifeBusy === 'print' ? (canPrintDirect ? 'Printing…' : 'Preparing…') : 'Print'}
+            </button>
+            <button
+              type="button"
+              disabled={!noKnifePdf || noKnifeBusy !== null}
+              onClick={() => void withNoKnifePdf('download')}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-border dark:bg-surface dark:text-slate-100 dark:hover:bg-surface-hover"
+            >
+              {noKnifeBusy === 'download' ? 'Preparing…' : 'Download PDF'}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+            {canPrintDirect
+              ? selectedPrinterInfo
+                ? `Prints to ${selectedPrinterLabel} on 1.5" × 1" stock.`
+                : 'Choose a printer above before printing.'
+              : 'Opens the print dialog. Pick your label printer and 1.5" × 1" paper there.'}
+          </p>
+        </div>
+        {noKnifeError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{noKnifeError}</div>
+        )}
+        {noKnifeNotice && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+            {noKnifeNotice}
+          </div>
+        )}
+        {noKnifePdf ? (
+          <div className="max-w-xs">
+            <LabelPdfPreview pdf={noKnifePdf} captions={['No Knife sticker']} />
+          </div>
+        ) : (
+          !noKnifeError && <p className="text-sm text-gray-500 dark:text-slate-400">Drawing sticker…</p>
         )}
       </section>
     </div>

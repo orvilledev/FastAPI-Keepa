@@ -126,8 +126,9 @@ export async function labelCenterPdfToZpl(
   pdf: Uint8Array,
   stock: LabelCenterStock,
   dpi: LabelDpi,
+  size?: { widthIn: number; heightIn: number },
 ): Promise<string[]> {
-  const { widthIn, heightIn } = LABEL_CENTER_STOCK_INFO[stock]
+  const { widthIn, heightIn } = size ?? LABEL_CENTER_STOCK_INFO[stock]
   const loading = getDocument({
     data: pdf.slice(),
     useWorkerFetch: false,
