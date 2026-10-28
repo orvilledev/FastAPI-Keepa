@@ -7,6 +7,8 @@ export const NO_KNIFE_HEIGHT_IN = 1
 
 const PAGE_WIDTH_PT = NO_KNIFE_WIDTH_IN * 72
 const PAGE_HEIGHT_PT = NO_KNIFE_HEIGHT_IN * 72
+/** Keep the artwork inside the stock so the printer does not clip the edges. */
+const IMAGE_SCALE = 0.95
 
 function readBlob(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -30,7 +32,16 @@ export async function buildNoKnifeLabelPdf(): Promise<Uint8Array> {
     orientation: 'landscape',
     compress: true,
   })
-  doc.addImage(dataUrl, 'PNG', 0, 0, PAGE_WIDTH_PT, PAGE_HEIGHT_PT)
+  const imageWidth = PAGE_WIDTH_PT * IMAGE_SCALE
+  const imageHeight = PAGE_HEIGHT_PT * IMAGE_SCALE
+  doc.addImage(
+    dataUrl,
+    'PNG',
+    (PAGE_WIDTH_PT - imageWidth) / 2,
+    (PAGE_HEIGHT_PT - imageHeight) / 2,
+    imageWidth,
+    imageHeight,
+  )
   return new Uint8Array(doc.output('arraybuffer'))
 }
 
