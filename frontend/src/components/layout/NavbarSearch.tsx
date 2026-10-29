@@ -13,6 +13,7 @@ import { canAccessFbaOrderChecker } from '../../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { canAccessDimensioner } from '../../lib/dimensionerAccess'
 import { canAccessNsTool } from '../../lib/nsToolAccess'
+import { canAccessSessionAudit } from '../../lib/sessionAuditAccess'
 import { canWarehouseAccessFnskuLabels } from '../../constants/warehouseAccess'
 import { isLabelCenterAvailable } from '../../lib/privatePath'
 
@@ -39,6 +40,7 @@ function buildSearchItems(
   showFnskuLabels: boolean,
   showLabelCenter: boolean,
   showNsTool: boolean,
+  showSessionAudit: boolean,
 ): SearchItem[] {
   if (isWarehouseOnly) {
     const warehouseItems: SearchItem[] = [
@@ -185,8 +187,11 @@ function buildSearchItems(
   )
 
   if (isSuperadmin) {
+    items.push({ label: 'User Management', path: '/admin/users', section: 'General' })
+  }
+  if (showSessionAudit) {
     items.push(
-      { label: 'User Management', path: '/admin/users', section: 'General' },
+      { label: 'Live App Sessions', path: '/admin/live-sessions', section: 'General' },
       { label: 'Audit Log', path: '/admin/audit-log', section: 'General' },
     )
   }
@@ -240,6 +245,7 @@ export default function NavbarSearch() {
   const showFnskuLabels = canWarehouseAccessFnskuLabels(accountEmail)
   const showLabelCenter = isLabelCenterAvailable(accountEmail)
   const showNsTool = canAccessNsTool(accountEmail, isSuperadmin)
+  const showSessionAudit = canAccessSessionAudit(accountEmail, isSuperadmin)
 
   const searchItems = useMemo(
     () =>
@@ -260,8 +266,9 @@ export default function NavbarSearch() {
         showFnskuLabels,
         showLabelCenter,
         showNsTool,
+        showSessionAudit,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools, showShipmentAnalyzer, showShipmentManager, showFreightClass, showDimensioner, showFbaOrderChecker, showFnskuLabels, showLabelCenter, showNsTool],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools, showShipmentAnalyzer, showShipmentManager, showFreightClass, showDimensioner, showFbaOrderChecker, showFnskuLabels, showLabelCenter, showNsTool, showSessionAudit],
   )
 
   const results = useMemo(() => {

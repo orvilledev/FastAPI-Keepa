@@ -441,8 +441,9 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
       <>
         General includes <strong>About</strong> (version and feature overview), <strong>FAQ</strong> (this page),{' '}
         <strong>Feedback From Users</strong> (submit and review suggestions), and for superadmins{' '}
-        <strong>User Management</strong> (accounts, permissions, maintenance access, and the UPC DNK Print ID allowlist) and{' '}
-        <strong>Audit Log</strong>.
+        <strong>User Management</strong> (accounts, permissions, maintenance access, and the UPC DNK Print ID allowlist).{' '}
+        <strong>Live App Sessions</strong> and <strong>Audit Log</strong> are available to superadmins, Stephanie, and
+        Sunshine.
       </>
     ),
   },

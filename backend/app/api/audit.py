@@ -1,4 +1,4 @@
-"""Superadmin audit log API (web and Electron)."""
+"""Audit log API (web and Electron). Listing is limited to authorized viewers."""
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from supabase import Client
 
 from app.database import get_supabase
-from app.dependencies import get_current_user, get_superadmin_user
+from app.dependencies import get_current_user, get_session_audit_user
 from app.repositories.audit_log_repository import AuditLogRepository
 from app.services.audit_actions import CATEGORIES
 from app.services.audit_log_service import record_audit_event
@@ -104,10 +104,10 @@ def list_audit_events(
     category: Optional[str] = Query(None, max_length=32),
     search: Optional[str] = Query(None, max_length=120),
     client_type: Optional[str] = Query(None),
-    current_user: dict = Depends(get_superadmin_user),
+    current_user: dict = Depends(get_session_audit_user),
     db: Client = Depends(get_supabase),
 ):
-    """Superadmin-only list of audit events from web and Electron."""
+    """Audit events from web and Electron (superadmin, Stephanie, Sunshine)."""
     if category and category.strip().lower() not in CATEGORIES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

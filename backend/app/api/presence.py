@@ -1,4 +1,4 @@
-"""Presence heartbeat + superadmin live session listing."""
+"""Presence heartbeat + live session listing for authorized viewers."""
 
 import logging
 import re
@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from supabase import Client
 
 from app.database import get_supabase
-from app.dependencies import get_current_user, get_superadmin_user
+from app.dependencies import get_current_user, get_session_audit_user
 from app.repositories.user_presence_repository import UserPresenceRepository
 from app.utils.error_handler import handle_api_errors
 
@@ -119,8 +119,8 @@ def presence_leave(
 @router.get("/presence/sessions")
 @handle_api_errors("list presence sessions")
 def list_presence_sessions(
-    current_user: dict = Depends(get_superadmin_user),
+    current_user: dict = Depends(get_session_audit_user),
     db: Client = Depends(get_supabase),
 ):
-    """Superadmin-only: live web + Electron sessions with email and IP."""
+    """Live web + Electron sessions with email and IP (superadmin, Stephanie, Sunshine)."""
     return UserPresenceRepository(db).list_live_sessions()

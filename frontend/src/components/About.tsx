@@ -67,7 +67,8 @@ export default function About() {
           <span className="font-semibold">Keepa access</span> unlocks the full Menu and Label Station in
           Tools. <span className="font-semibold">Warehouse-only</span> accounts see Label Station, FNSKU Pack
           Station, Freight Class, and General. <span className="font-semibold">Superadmins</span> also get User Management,
-          Audit Log, catalog tools, and maintenance controls. Most staff accounts use{' '}
+          catalog tools, and maintenance controls. <span className="font-semibold">Live App Sessions</span> and the{' '}
+          <span className="font-semibold">Audit Log</span> are available to superadmins, Stephanie, and Sunshine. Most staff accounts use{' '}
           <span className="font-semibold">two-factor authentication</span> (authenticator app) at sign-in;
           shared warehouse stations are exempt. After MFA, idle sessions ask for a fresh code after{' '}
           <span className="font-semibold">48 hours</span> without activity.
@@ -303,8 +304,12 @@ export default function About() {
             Print ID to UPC for DNK carton labels).
           </li>
           <li>
-            <span className="font-semibold">Audit Log:</span> Superadmin only — sign-in, sign-out, Keepa file actions,
-            and other mutating requests and downloads.
+            <span className="font-semibold">Live App Sessions:</span> Superadmin, Stephanie, and Sunshine — who is
+            signed in on the web app and the desktop app, including idle windows that are still open.
+          </li>
+          <li>
+            <span className="font-semibold">Audit Log:</span> Superadmin, Stephanie, and Sunshine — sign-in, sign-out,
+            Keepa file actions, and other mutating requests and downloads.
           </li>
         </ul>
       </div>

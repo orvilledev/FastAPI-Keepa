@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { authApi, type AuditLogEntry } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
+import { canAccessSessionAudit } from '../../lib/sessionAuditAccess'
 
 const CATEGORY_LABELS: Record<string, string> = {
   auth: 'Sign in / out',
@@ -186,7 +187,8 @@ function describeRow(row: AuditLogEntry): string {
 }
 
 export default function AuditLog() {
-  const { isSuperadmin, userInfoLoading } = useUser()
+  const { isSuperadmin, userInfoLoading, userInfo, authUser } = useUser()
+  const canView = canAccessSessionAudit(userInfo?.email || authUser?.email, isSuperadmin)
   const [logs, setLogs] = useState<AuditLogEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -222,9 +224,9 @@ export default function AuditLog() {
   }, [category, appliedSearch])
 
   useEffect(() => {
-    if (userInfoLoading || !isSuperadmin) return
+    if (userInfoLoading || !canView) return
     void loadLogs()
-  }, [userInfoLoading, isSuperadmin, loadLogs])
+  }, [userInfoLoading, canView, loadLogs])
 
   const counts = useMemo(() => {
     const byCategory: Record<string, number> = {}
@@ -247,13 +249,13 @@ export default function AuditLog() {
     )
   }
 
-  if (!isSuperadmin) {
+  if (!canView) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <div className="text-4xl mb-4">🔒</div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Restricted</h2>
-          <p className="text-gray-600">Only superadmin can access this page.</p>
+          <p className="text-gray-600">This page is limited to superadmin, Stephanie, and Sunshine.</p>
         </div>
       </div>
     )

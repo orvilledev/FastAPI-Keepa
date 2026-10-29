@@ -380,7 +380,7 @@ app.include_router(
 )
 # Off-price analytics (web). Electron hides the UI; API remains auth-gated.
 app.include_router(analytics.router, prefix=settings.api_v1_str, tags=["analytics"], dependencies=[Depends(require_app_access)])
-# Superadmin audit log (web-app actions). Record endpoints need auth; list is superadmin-gated in-router.
+# Audit log (web-app actions). Record endpoints need auth; list is gated in-router.
 app.include_router(audit.router, prefix=settings.api_v1_str, tags=["audit"], dependencies=[Depends(require_app_access)])
 app.include_router(catalog_upc_dims.router, prefix=settings.api_v1_str, tags=["catalog-upc-dims"], dependencies=[Depends(require_app_access)])
 app.include_router(catalog_ship_to.router, prefix=settings.api_v1_str, tags=["catalog-ship-to"], dependencies=[Depends(require_app_access)])

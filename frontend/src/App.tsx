@@ -77,6 +77,7 @@ const LabelCenter = lazy(() => import('./components/scanner/LabelCenter'))
 const LabelStation = lazy(() => import('./components/scanner/LabelStation'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
+const LiveAppSessions = lazy(() => import('./components/admin/LiveAppSessions'))
 const AuditLog = lazy(() => import('./components/admin/AuditLog'))
 const Feedback = lazy(() => import('./components/feedback/Feedback'))
 const OffPriceAnalytics = lazy(() => import('./components/analytics/OffPriceAnalytics'))
@@ -600,7 +601,22 @@ function AppRoutes() {
           <Route path="tools/job-aids" element={<Navigate to="/faq" replace />} />
           <Route path="tools/my-toolbox" element={<Navigate to="/dashboard" replace />} />
           <Route path="admin/users" element={<UserManagement />} />
-          <Route path="admin/audit-log" element={<AuditLog />} />
+          <Route
+            path="admin/live-sessions"
+            element={
+              <ProtectedRoute requireSessionAuditAccess={true}>
+                <LiveAppSessions />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/audit-log"
+            element={
+              <ProtectedRoute requireSessionAuditAccess={true}>
+                <AuditLog />
+              </ProtectedRoute>
+            }
+          />
           {/* Retired catalog tools — keep deep links from bookmarking a blank page */}
           <Route path="catalog/upc" element={<Navigate to="/dashboard" replace />} />
           <Route path="catalog/dims" element={<Navigate to="/dashboard" replace />} />

@@ -219,6 +219,38 @@ def get_superadmin_user(
     return current_user
 
 
+_DEFAULT_SESSION_AUDIT_ALLOWED = frozenset(
+    {
+        "stephanie@metroshoewarehouse.com",
+        "sunshine@metroshoewarehouse.com",
+    }
+)
+
+
+def is_session_audit_allowed_user(current_user: dict, db: Client) -> bool:
+    """True for superadmin or Stephanie and Sunshine (Live App Sessions and Audit Log)."""
+    if is_superadmin_user(current_user, db):
+        return True
+    email = (current_user.get("email") or "").strip().lower()
+    if not email:
+        return False
+    allowed = set(settings.session_audit_allowed_emails_list) or set(_DEFAULT_SESSION_AUDIT_ALLOWED)
+    return email in allowed
+
+
+def get_session_audit_user(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+) -> dict:
+    """Verify user may view Live App Sessions and the Audit Log."""
+    if not is_session_audit_allowed_user(current_user, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Live app sessions and the audit log are restricted to authorized users",
+        )
+    return current_user
+
+
 def is_master_sheet_allowed_user(current_user: dict, db: Client) -> bool:
     """True for superadmin or emails on the Master Sheet allowlist."""
     if is_superadmin_user(current_user, db):

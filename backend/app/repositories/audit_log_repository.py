@@ -1,4 +1,4 @@
-"""Repository for superadmin web-app audit logs."""
+"""Repository for web-app audit logs."""
 from __future__ import annotations
 
 import re

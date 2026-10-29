@@ -241,6 +241,13 @@ class Settings(BaseSettings):
         "johnbernard@metroshoewarehouse.com"
     )
 
+    # Comma-separated emails allowed to view Live App Sessions and the Audit Log
+    # (plus superadmin). Empty falls back to Stephanie and Sunshine.
+    session_audit_allowed_emails: str = (
+        "stephanie@metroshoewarehouse.com,"
+        "sunshine@metroshoewarehouse.com"
+    )
+
     # Comma-separated emails allowed to use FBA Box Contents (plus superadmin).
     fba_box_contents_allowed_emails: str = (
         "sunshine@metroshoewarehouse.com,"
@@ -369,6 +376,14 @@ class Settings(BaseSettings):
     def projects_allowed_emails_list(self) -> List[str]:
         """Normalized emails allowed to use the Projects page."""
         raw = (self.projects_allowed_emails or "").strip()
+        if not raw:
+            return []
+        return [email.strip().lower() for email in raw.split(",") if email.strip()]
+
+    @property
+    def session_audit_allowed_emails_list(self) -> List[str]:
+        """Normalized emails allowed to view Live App Sessions and the Audit Log."""
+        raw = (self.session_audit_allowed_emails or "").strip()
         if not raw:
             return []
         return [email.strip().lower() for email in raw.split(",") if email.strip()]

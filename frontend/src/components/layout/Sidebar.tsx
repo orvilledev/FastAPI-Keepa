@@ -14,6 +14,7 @@ import { canAccessFbaOrderChecker } from '../../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { canAccessDimensioner } from '../../lib/dimensionerAccess'
 import { canAccessNsTool } from '../../lib/nsToolAccess'
+import { canAccessSessionAudit } from '../../lib/sessionAuditAccess'
 import { canWarehouseAccessFnskuLabels } from '../../constants/warehouseAccess'
 import { isLabelCenterAvailable } from '../../lib/privatePath'
 
@@ -80,6 +81,11 @@ const Icons = {
   users: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+    </svg>
+  ),
+  liveSessions: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728M8.464 15.536a5 5 0 010-7.072m7.072 0a5 5 0 010 7.072M12 12h.01" />
     </svg>
   ),
   audit: (
@@ -251,6 +257,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     isSuperadmin,
   )
   const canUseDimensioner = canAccessDimensioner(accountEmail, isSuperadmin)
+  const canViewSessionAudit = canAccessSessionAudit(accountEmail, isSuperadmin)
   const canUseNsTool = canAccessNsTool(accountEmail, isSuperadmin)
   const isElectron = Boolean(window.desktop?.isElectron)
   const [desktopVersion, setDesktopVersion] = useState<string | null>(null)
@@ -985,7 +992,21 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
               <span className="sidebar-link-label">User Management</span>
             </Link>
           )}
-          {isSuperadmin && (
+          {canViewSessionAudit && (
+            <Link
+              to="/admin/live-sessions"
+              onMouseEnter={() => setHoveredNav('admin-live-sessions')}
+              className={`sidebar-link ${
+                navHighlighted('admin-live-sessions', isActive('/admin/live-sessions'))
+                  ? 'sidebar-link-active'
+                  : 'sidebar-link-inactive'
+              }`}
+            >
+              <span className="shrink-0">{Icons.liveSessions}</span>
+              <span className="sidebar-link-label">Live App Sessions</span>
+            </Link>
+          )}
+          {canViewSessionAudit && (
             <Link
               to="/admin/audit-log"
               onMouseEnter={() => setHoveredNav('admin-audit')}

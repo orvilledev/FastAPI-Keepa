@@ -10,6 +10,7 @@ import { canAccessFbaOrderChecker } from '../../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { canAccessDimensioner } from '../../lib/dimensionerAccess'
 import { canAccessNsTool } from '../../lib/nsToolAccess'
+import { canAccessSessionAudit } from '../../lib/sessionAuditAccess'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -25,6 +26,7 @@ interface ProtectedRouteProps {
   requireDimensionerAccess?: boolean
   requireFbaOrderCheckerAccess?: boolean
   requireNsToolAccess?: boolean
+  requireSessionAuditAccess?: boolean
 }
 
 export default function ProtectedRoute({
@@ -41,6 +43,7 @@ export default function ProtectedRoute({
   requireDimensionerAccess = false,
   requireFbaOrderCheckerAccess = false,
   requireNsToolAccess = false,
+  requireSessionAuditAccess = false,
 }: ProtectedRouteProps) {
   const {
     hasKeepaAccess,
@@ -137,6 +140,13 @@ export default function ProtectedRoute({
   if (requireNsToolAccess) {
     const email = userInfo.email || authUser?.email || null
     if (!canAccessNsTool(email, isSuperadmin)) {
+      return <Navigate to={isWarehouseOnly ? '/label-station' : '/dashboard'} replace />
+    }
+  }
+
+  if (requireSessionAuditAccess) {
+    const email = userInfo.email || authUser?.email || null
+    if (!canAccessSessionAudit(email, isSuperadmin)) {
       return <Navigate to={isWarehouseOnly ? '/label-station' : '/dashboard'} replace />
     }
   }
