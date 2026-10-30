@@ -221,15 +221,10 @@ class Settings(BaseSettings):
         "hello@warehouserepublic.com"
     )
 
-    # Comma-separated emails allowed to use the Dimensioner page (plus superadmin).
-    # Empty falls back to Orville, Stephanie, Sunshine, Paolo, and John Bernard.
-    dimensioner_allowed_emails: str = (
-        "orvillebarba@gmail.com,"
-        "stephanie@metroshoewarehouse.com,"
-        "sunshine@metroshoewarehouse.com,"
-        "paolo@metroshoewarehouse.com,"
-        "paulo@metroshoewarehouse.com,"
-        "johnbernard@metroshoewarehouse.com"
+    # Comma-separated emails blocked from the Dimensioner page.
+    # Everyone else who is signed in can use it. Empty falls back to defaults.
+    dimensioner_blocked_emails: str = (
+        "hello@warehouserepublic.com"
     )
 
     # Comma-separated emails allowed to use the Projects page (plus superadmin).
@@ -365,9 +360,9 @@ class Settings(BaseSettings):
         return [email.strip().lower() for email in raw.split(",") if email.strip()]
 
     @property
-    def dimensioner_allowed_emails_list(self) -> List[str]:
-        """Normalized emails allowed to use the Dimensioner page."""
-        raw = (self.dimensioner_allowed_emails or "").strip()
+    def dimensioner_blocked_emails_list(self) -> List[str]:
+        """Normalized emails blocked from the Dimensioner page."""
+        raw = (self.dimensioner_blocked_emails or "").strip()
         if not raw:
             return []
         return [email.strip().lower() for email in raw.split(",") if email.strip()]

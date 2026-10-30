@@ -357,23 +357,22 @@ def test_camera_test_requires_a_signed_in_user(store):
     assert store.rows == []
 
 
-def test_dimensioner_allowlist_is_the_named_accounts(monkeypatch):
+def test_dimensioner_is_open_to_signed_in_users_except_hello(monkeypatch):
     monkeypatch.setattr("app.dependencies.is_superadmin_user", lambda user, db: False)
 
     assert is_dimensioner_allowed_user({"email": "orvillebarba@gmail.com"}, object())
     assert is_dimensioner_allowed_user({"email": " Stephanie@MetroShoeWarehouse.com "}, object())
-    assert is_dimensioner_allowed_user({"email": "sunshine@metroshoewarehouse.com"}, object())
-    assert is_dimensioner_allowed_user({"email": "paolo@metroshoewarehouse.com"}, object())
-    assert is_dimensioner_allowed_user({"email": "paulo@metroshoewarehouse.com"}, object())
-    assert is_dimensioner_allowed_user({"email": "johnbernard@metroshoewarehouse.com"}, object())
-    assert not is_dimensioner_allowed_user({"email": "warehouse1@metroshoewarehouse.com"}, object())
+    assert is_dimensioner_allowed_user({"email": "warehouse1@metroshoewarehouse.com"}, object())
+    assert not is_dimensioner_allowed_user({"email": "hello@warehouserepublic.com"}, object())
+    assert not is_dimensioner_allowed_user({"email": " Hello@WarehouseRepublic.com "}, object())
     assert not is_dimensioner_allowed_user({"email": ""}, object())
 
 
-def test_dimensioner_allowlist_includes_superadmin(monkeypatch):
+def test_dimensioner_blocklist_includes_superadmin_except_hello(monkeypatch):
     monkeypatch.setattr("app.dependencies.is_superadmin_user", lambda user, db: True)
 
     assert is_dimensioner_allowed_user({"email": "someone-else@example.com"}, object())
+    assert not is_dimensioner_allowed_user({"email": "hello@warehouserepublic.com"}, object())
 
 
 def test_camera_test_storage_failure_is_a_503(user, store):

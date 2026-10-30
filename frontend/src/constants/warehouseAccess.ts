@@ -7,7 +7,7 @@ import { canAccessFreightClassCalculator } from '../lib/freightClassAccess'
 export const WAREHOUSE_HOME_PATH = '/label-station'
 
 const FREIGHT_CLASS_PATH = '/freight-class-calculator'
-/** QBOID M2 scans. Limited to Orville, Stephanie, Sunshine, Paolo, and John Bernard. */
+/** QBOID M2 scans. Every signed-in user except Hello@warehouserepublic. */
 const DIMENSIONER_PATH = '/dimensioner'
 const FBA_ORDER_CHECKER_PATH = '/fba-shipment-library'
 

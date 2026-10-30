@@ -308,27 +308,24 @@ def get_freight_class_user(
     return current_user
 
 
-_DEFAULT_DIMENSIONER_ALLOWED = frozenset(
+_DEFAULT_DIMENSIONER_BLOCKED = frozenset(
     {
-        "orvillebarba@gmail.com",
-        "stephanie@metroshoewarehouse.com",
-        "sunshine@metroshoewarehouse.com",
-        "paolo@metroshoewarehouse.com",
-        "paulo@metroshoewarehouse.com",
-        "johnbernard@metroshoewarehouse.com",
+        "hello@warehouserepublic.com",
     }
 )
 
 
 def is_dimensioner_allowed_user(current_user: dict, db: Client) -> bool:
-    """True for superadmin or Orville, Stephanie, Sunshine, Paolo, and John Bernard."""
+    """True for signed-in users except Hello@warehouserepublic."""
+    email = (current_user.get("email") or "").strip().lower()
+    blocked = set(settings.dimensioner_blocked_emails_list) or set(
+        _DEFAULT_DIMENSIONER_BLOCKED
+    )
+    if email in blocked:
+        return False
     if is_superadmin_user(current_user, db):
         return True
-    email = (current_user.get("email") or "").strip().lower()
-    if not email:
-        return False
-    allowed = set(settings.dimensioner_allowed_emails_list) or set(_DEFAULT_DIMENSIONER_ALLOWED)
-    return email in allowed
+    return bool(email)
 
 
 def get_dimensioner_user(
@@ -339,7 +336,7 @@ def get_dimensioner_user(
     if not is_dimensioner_allowed_user(current_user, db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Dimensioner is restricted to authorized users",
+            detail="Dimensioner is not available for this account",
         )
     return current_user
 

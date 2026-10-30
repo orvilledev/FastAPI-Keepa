@@ -5,8 +5,8 @@ Two routers live here because they are authenticated differently:
 * ``receiver_router`` is called by the M2 itself. The device cannot sign in, so it
   proves who it is with a shared secret in the ``Authorization`` header
   (``DIMENSIONER_API_KEY``). It only ever stores a scan.
-* ``router`` is called by the web app. Only Orville, Stephanie, Sunshine, Paolo,
-  John Bernard, and superadmin accounts may list, delete, or save a camera test scan.
+* ``router`` is called by the web app. Every signed-in account may list, delete,
+  or save a camera test scan, except hello@warehouserepublic.com.
 
 Nothing here touches any other table or tool.
 """
