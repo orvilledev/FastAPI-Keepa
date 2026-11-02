@@ -34,6 +34,20 @@ function formatWhen(iso: string | null): string {
   })
 }
 
+/** _1 before _2 … _10; empty barcodes last. */
+function compareBarcodes(a: string, b: string): number {
+  const left = (a || '').trim()
+  const right = (b || '').trim()
+  if (!left && !right) return 0
+  if (!left) return 1
+  if (!right) return -1
+  return left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
+}
+
+function sortScansByBarcode(scans: DimensionerScan[]): DimensionerScan[] {
+  return [...scans].sort((a, b) => compareBarcodes(a.barcode, b.barcode))
+}
+
 function buildScansSheet(scans: DimensionerScan[]): XLSX.WorkSheet {
   const rows: (string | number)[][] = [
     [...SCAN_HEADERS],
@@ -64,7 +78,7 @@ function buildScansSheet(scans: DimensionerScan[]): XLSX.WorkSheet {
 }
 
 /**
- * Pivot of the same filtered scans: columns are Box# 1..N in list order
+ * Pivot of the same filtered scans: columns are Box# 1..N in barcode order
  * (same top-to-bottom order as the Dimensioner Scans sheet).
  */
 function buildDimensionSheet(scans: DimensionerScan[]): XLSX.WorkSheet {
@@ -99,9 +113,10 @@ function buildDimensionSheet(scans: DimensionerScan[]): XLSX.WorkSheet {
 
 /** Excel of the scans currently shown (respects barcode search / filter). */
 export function buildDimensionerScansExcelBlob(scans: DimensionerScan[]): Blob {
+  const ordered = sortScansByBarcode(scans)
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, buildScansSheet(scans), 'Dimensioner Scans')
-  XLSX.utils.book_append_sheet(wb, buildDimensionSheet(scans), 'Dimension')
+  XLSX.utils.book_append_sheet(wb, buildScansSheet(ordered), 'Dimensioner Scans')
+  XLSX.utils.book_append_sheet(wb, buildDimensionSheet(ordered), 'Dimension')
   const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
   return new Blob([out], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
