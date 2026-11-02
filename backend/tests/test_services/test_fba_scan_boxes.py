@@ -258,9 +258,9 @@ def test_stored_scans_produce_a_workbook_that_matches(wire):
     sheet = load_workbook(BytesIO(content))["Boxed"]
     log = [tuple(c.value for c in row) for row in sheet.iter_rows(min_row=2, max_col=3)]
     assert [row for row in log if row[0] is not None] == [
-        ("111", 1, 1),
-        ("111", 1, 2),
+        ("A", 1, 1),
         ("999", 1, 2),
+        ("A", 1, 2),
     ]
 
 

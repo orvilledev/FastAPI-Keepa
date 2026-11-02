@@ -287,7 +287,7 @@ def accounting_report_filename(shipment_name: str, shipment_id: str = "") -> str
 
 
 BOXED_SHEET = "Boxed"
-BOXED_HEADER = ["external-id", "Counted", "Box Number"]
+BOXED_HEADER = ["Merchant SKU", "Counted", "Box Number"]
 MAX_BOX_NUMBER = 99999
 MISSING_BOX_FILL = "FF0000"
 
@@ -373,6 +373,25 @@ def accounting_totals_by_external_id(lines: list[dict], unknown_lines: list[dict
     return totals
 
 
+def accounting_totals_by_merchant_sku(lines: list[dict], unknown_lines: list[dict]) -> dict[str, int]:
+    """Counted units per Merchant SKU; unknown scans fall back to external-id."""
+    totals: dict[str, int] = {}
+    for line in lines:
+        sku = str(line.get("merchant_sku") or "").strip()
+        counted = int(line.get("counted") or 0)
+        if not sku or counted <= 0:
+            continue
+        totals[sku] = totals.get(sku, 0) + counted
+    for row in unknown_lines:
+        external_id = strip_upc_label(str(row.get("external_id") or ""))
+        counted = int(row.get("counted") or 0)
+        if not external_id or counted <= 0:
+            continue
+        key = str(row.get("merchant_sku") or "").strip() or external_id
+        totals[key] = totals.get(key, 0) + counted
+    return totals
+
+
 def counts_kept_in_box(
     scans: list[dict],
     box_number: int,
@@ -445,6 +464,9 @@ def build_boxed_rows(
     external-id still has units in the Accounting count, so Boxed can never exceed
     Accounting. Units counted without a box (for example before boxes existed) are
     added at the end with a blank box number, so the two sheets always agree.
+
+    Used for label printing and the Accounting "Boxes" column. The download's Boxed
+    sheet / pivot uses :func:`build_boxed_sku_rows` instead (Merchant SKU).
     """
     expected = accounting_totals_by_external_id(lines, unknown_lines)
     placed: dict[str, int] = {}
@@ -461,6 +483,88 @@ def build_boxed_rows(
     for external_id in sorted(expected):
         for _ in range(expected[external_id] - placed.get(external_id, 0)):
             rows.append((external_id, None))
+    rows.sort(key=lambda row: (row[1] is None, row[1] or 0, row[0]))
+    return rows
+
+
+def build_boxed_sku_rows(
+    *,
+    lines: list[dict],
+    unknown_lines: list[dict],
+    box_scans: list[dict],
+) -> list[BoxedRow]:
+    """One (Merchant SKU, box number) row per counted unit for the Boxed download pivot.
+
+    Known scans are attributed to a line's Merchant SKU via ``line_id`` when present,
+    otherwise to the next line for that external-id that still has counted units left
+    (same order as scanning). Not-in-list scans keep the external-id as the row label.
+    """
+    expected = accounting_totals_by_merchant_sku(lines, unknown_lines)
+    ordered_lines = sorted(lines, key=lambda row: int(row.get("line_number") or 0))
+    lines_by_id = {
+        str(line.get("id") or ""): line
+        for line in ordered_lines
+        if line.get("id")
+    }
+    remaining_by_line: dict[str, int] = {
+        str(line.get("id") or ""): int(line.get("counted") or 0)
+        for line in ordered_lines
+        if line.get("id") and int(line.get("counted") or 0) > 0
+    }
+    # Index-based remaining when scans / lines have no id (unit tests, legacy rows).
+    remaining_slots: list[dict] = []
+    for line in ordered_lines:
+        sku = str(line.get("merchant_sku") or "").strip()
+        counted = int(line.get("counted") or 0)
+        if not sku or counted <= 0:
+            continue
+        remaining_slots.append(
+            {
+                "sku": sku,
+                "external_id": strip_upc_label(str(line.get("external_id") or "")),
+                "id": str(line.get("id") or ""),
+                "left": counted,
+            }
+        )
+
+    placed: dict[str, int] = {}
+    rows: list[BoxedRow] = []
+
+    def _take_sku(scan: dict) -> str | None:
+        line_id = str(scan.get("line_id") or "") or None
+        if line_id and line_id in remaining_by_line and remaining_by_line[line_id] > 0:
+            remaining_by_line[line_id] -= 1
+            for slot in remaining_slots:
+                if slot["id"] == line_id and slot["left"] > 0:
+                    slot["left"] -= 1
+                    break
+            sku = str(lines_by_id[line_id].get("merchant_sku") or "").strip()
+            return sku or None
+
+        external_id = strip_upc_label(str(scan.get("external_id") or ""))
+        if not external_id:
+            return None
+        for slot in remaining_slots:
+            if slot["external_id"] == external_id and slot["left"] > 0:
+                slot["left"] -= 1
+                if slot["id"] and slot["id"] in remaining_by_line:
+                    remaining_by_line[slot["id"]] = max(0, remaining_by_line[slot["id"]] - 1)
+                return slot["sku"]
+        return external_id
+
+    for scan in box_scans:
+        box_number = scan.get("box_number")
+        if box_number is None:
+            continue
+        sku = _take_sku(scan)
+        if not sku or placed.get(sku, 0) >= expected.get(sku, 0):
+            continue
+        rows.append((sku, int(box_number)))
+        placed[sku] = placed.get(sku, 0) + 1
+
+    for sku in sorted(expected):
+        for _ in range(expected[sku] - placed.get(sku, 0)):
+            rows.append((sku, None))
     rows.sort(key=lambda row: (row[1] is None, row[1] or 0, row[0]))
     return rows
 
@@ -558,7 +662,7 @@ def _column_letter(index: int) -> str:
 
 
 def _add_boxed_pivot(sheet, rows: list[BoxedRow], first_column: int = 7) -> None:
-    """Excel PivotTable beside the Boxed rows: external-id down, Box Number across, sum of Counted."""
+    """Excel PivotTable beside the Boxed rows: Merchant SKU down, Box Number across, sum of Counted."""
     from datetime import datetime, timezone
 
     from openpyxl.pivot.cache import (
@@ -582,11 +686,11 @@ def _add_boxed_pivot(sheet, rows: list[BoxedRow], first_column: int = 7) -> None
     )
     from openpyxl.styles import Font
 
-    external_ids = sorted({external_id for external_id, _ in rows})
+    skus = sorted({sku for sku, _ in rows})
     box_numbers = sorted({box for _, box in rows if box is not None})
     has_blank = any(box is None for _, box in rows)
     box_items: list["int | None"] = [*box_numbers, *([None] if has_blank else [])]
-    ext_index = {value: pos for pos, value in enumerate(external_ids)}
+    sku_index = {value: pos for pos, value in enumerate(skus)}
     box_index = {value: pos for pos, value in enumerate(box_items)}
 
     cache = CacheDefinition(
@@ -609,8 +713,8 @@ def _add_boxed_pivot(sheet, rows: list[BoxedRow], first_column: int = 7) -> None
                 name=BOXED_HEADER[0],
                 numFmtId=0,
                 sharedItems=SharedItems(
-                    _fields=[Text(v=value) for value in external_ids],
-                    count=len(external_ids),
+                    _fields=[Text(v=value) for value in skus],
+                    count=len(skus),
                 ),
             ),
             CacheField(
@@ -647,17 +751,17 @@ def _add_boxed_pivot(sheet, rows: list[BoxedRow], first_column: int = 7) -> None
         r=[
             Record(
                 _fields=[
-                    Index(v=ext_index[external_id]),
+                    Index(v=sku_index[sku]),
                     Number(v=1),
                     Index(v=box_index[box]),
                 ]
             )
-            for external_id, box in rows
+            for sku, box in rows
         ],
     )
 
     last_column = first_column + 1 + len(box_items)
-    last_row = 2 + len(external_ids) + 1
+    last_row = 2 + len(skus) + 1
     pivot = TableDefinition(
         name="PivotTable1",
         cacheId=1,
@@ -683,7 +787,7 @@ def _add_boxed_pivot(sheet, rows: list[BoxedRow], first_column: int = 7) -> None
                 axis="axisRow",
                 showAll=False,
                 items=[
-                    *[FieldItem(x=pos) for pos in range(len(external_ids))],
+                    *[FieldItem(x=pos) for pos in range(len(skus))],
                     FieldItem(t="default"),
                 ],
             ),
@@ -699,7 +803,7 @@ def _add_boxed_pivot(sheet, rows: list[BoxedRow], first_column: int = 7) -> None
         ],
         rowFields=[RowColField(x=0)],
         rowItems=[
-            *[RowColItem(t="data", x=[Index(v=pos)]) for pos in range(len(external_ids))],
+            *[RowColItem(t="data", x=[Index(v=pos)]) for pos in range(len(skus))],
             RowColItem(t="grand", x=[Index(v=0)]),
         ],
         colFields=[RowColField(x=2)],
@@ -723,8 +827,8 @@ def _add_boxed_pivot(sheet, rows: list[BoxedRow], first_column: int = 7) -> None
     # The cells Excel shows until the pivot refreshes. refreshOnLoad rebuilds it on open.
     bold = Font(bold=True)
     grid: dict[tuple[str, "int | None"], int] = {}
-    for external_id, box in rows:
-        grid[(external_id, box)] = grid.get((external_id, box), 0) + 1
+    for sku, box in rows:
+        grid[(sku, box)] = grid.get((sku, box), 0) + 1
 
     def put(row: int, offset: int, value, *, is_bold: bool = False) -> None:
         cell = sheet.cell(row=row, column=first_column + offset, value=value)
@@ -739,17 +843,17 @@ def _add_boxed_pivot(sheet, rows: list[BoxedRow], first_column: int = 7) -> None
     for pos, box in enumerate(box_items):
         put(2, 1 + pos, "(blank)" if box is None else box, is_bold=True)
     put(2, 1 + len(box_items), "Grand Total", is_bold=True)
-    for row_pos, external_id in enumerate(external_ids):
+    for row_pos, sku in enumerate(skus):
         row_number = 3 + row_pos
-        put(row_number, 0, external_id)
+        put(row_number, 0, sku)
         row_total = 0
         for pos, box in enumerate(box_items):
-            count = grid.get((external_id, box), 0)
+            count = grid.get((sku, box), 0)
             if count:
                 put(row_number, 1 + pos, count)
                 row_total += count
         put(row_number, 1 + len(box_items), row_total, is_bold=True)
-    total_row = 3 + len(external_ids)
+    total_row = 3 + len(skus)
     put(total_row, 0, "Grand Total", is_bold=True)
     for pos, box in enumerate(box_items):
         put(total_row, 1 + pos, sum(c for (_, b), c in grid.items() if b == box), is_bold=True)
@@ -767,8 +871,8 @@ def _add_boxed_sheet(workbook, rows: list[BoxedRow]) -> None:
     sheet.append(BOXED_HEADER)
     for cell in sheet[1]:
         cell.font = Font(bold=True)
-    for external_id, box in rows:
-        sheet.append([external_id, 1, box])
+    for sku, box in rows:
+        sheet.append([sku, 1, box])
         sheet.cell(row=sheet.max_row, column=1).data_type = "s"
     sheet.column_dimensions["A"].width = 20
     sheet.column_dimensions["B"].width = 10
@@ -789,7 +893,8 @@ def build_accounting_workbook(
     """Excel report of one user's count against the shipment.
 
     Sheet 1 (Accounting) is the per-SKU summary. Sheet 2 (Boxed) lists every counted
-    unit with its box number plus a pivot, and always adds up to the Accounting sheet.
+    unit by Merchant SKU with its box number plus a pivot, and always adds up to the
+    Accounting sheet.
     """
     from io import BytesIO
     from datetime import datetime, timezone
@@ -803,9 +908,16 @@ def build_accounting_workbook(
         STATUS_OVERAGE: PatternFill("solid", fgColor="FDBA74"),
         STATUS_NOT_IN_LIST: PatternFill("solid", fgColor="FECACA"),
     }
-    boxed_rows = build_boxed_rows(lines=lines, unknown_lines=unknown_lines, box_scans=box_scans or [])
+    scans = box_scans or []
+    boxed_rows = build_boxed_rows(lines=lines, unknown_lines=unknown_lines, box_scans=scans)
     _verify_boxed_matches_accounting(boxed_rows, lines, unknown_lines)
     boxes_for = box_summary(boxed_rows)
+    boxed_sku_rows = build_boxed_sku_rows(lines=lines, unknown_lines=unknown_lines, box_scans=scans)
+    if len(boxed_sku_rows) != len(boxed_rows):
+        raise ValueError(
+            "The Boxed Merchant SKU totals do not match the Accounting totals, so the report "
+            "was not created. Scan the shipment again or contact support."
+        )
 
     workbook = Workbook()
     sheet = workbook.active
@@ -860,7 +972,7 @@ def build_accounting_workbook(
             for cell in sheet[sheet.max_row]:
                 cell.fill = fills[STATUS_NOT_IN_LIST]
     sheet.column_dimensions["G"].width = 32
-    _add_boxed_sheet(workbook, boxed_rows)
+    _add_boxed_sheet(workbook, boxed_sku_rows)
     buffer = BytesIO()
     workbook.save(buffer)
     return buffer.getvalue()

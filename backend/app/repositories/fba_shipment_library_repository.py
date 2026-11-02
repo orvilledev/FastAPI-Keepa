@@ -1109,7 +1109,7 @@ class FbaShipmentLibraryRepository:
             try:
                 query = (
                     self.db.table(_BOX_SCANS)
-                    .select("external_id, box_number, created_at")
+                    .select("line_id, external_id, box_number, created_at")
                     .eq("upload_id", upload_id)
                 )
                 if user_id:

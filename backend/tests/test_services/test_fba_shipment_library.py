@@ -19,6 +19,7 @@ from app.services.fba_shipment_library import (
     box_count_and_missing,
     build_accounting_workbook,
     build_boxed_rows,
+    build_boxed_sku_rows,
     labels_by_box,
     share_audience,
     shipment_open_to,
@@ -131,17 +132,17 @@ def _boxed_log(sheet) -> list[tuple[str, int, object]]:
 
 
 def _pivot_cells(sheet) -> dict[tuple[str, object], int]:
-    """Read the pivot grid at G:... into {(external-id, box): count}."""
+    """Read the pivot grid at G:... into {(Merchant SKU, box): count}."""
     header = [cell.value for cell in sheet[2]][7:]
     boxes = header[:-1]
     cells: dict[tuple[str, object], int] = {}
     row = 3
     while sheet.cell(row=row, column=7).value not in (None, "Grand Total"):
-        external_id = sheet.cell(row=row, column=7).value
+        sku = sheet.cell(row=row, column=7).value
         for offset, box in enumerate(boxes):
             value = sheet.cell(row=row, column=8 + offset).value
             if value:
-                cells[(str(external_id), None if box == "(blank)" else box)] = int(value)
+                cells[(str(sku), None if box == "(blank)" else box)] = int(value)
         row += 1
     return cells
 
@@ -181,7 +182,7 @@ def test_boxed_tab_matches_the_users_example_workbook():
     assert [c.value for c in accounting[7]] == [
         "845028000003", "845028000003", 3, 3, 0, "All Accounted", "Box 1: 2, Box 2: 1",
     ]
-    assert [c.value for c in boxed[1]][:3] == ["external-id", "Counted", "Box Number"]
+    assert [c.value for c in boxed[1]][:3] == ["Merchant SKU", "Counted", "Box Number"]
     assert _boxed_log(boxed) == [
         ("845028000003", 1, 1),
         ("845028000003", 1, 1),
@@ -194,6 +195,7 @@ def test_boxed_tab_matches_the_users_example_workbook():
         ["845028000003", 2, 1, 3],
         ["Grand Total", 2, 1, 3],
     ]
+    assert boxed._pivots[0].cache.cacheFields[0].name == "Merchant SKU"
     assert boxed._pivots[0].location.ref == "G1:J4"
 
 
@@ -224,15 +226,17 @@ def test_boxed_totals_match_accounting_for_many_items_boxes_and_unknown_scans():
     log = _boxed_log(boxed)
 
     per_item: dict[str, int] = {}
-    for external_id, counted, _ in log:
-        per_item[external_id] = per_item.get(external_id, 0) + counted
-    assert per_item == _accounting_counts(accounting) == {"111": 5, "222": 1, "999": 2}
+    for sku, counted, _ in log:
+        per_item[sku] = per_item.get(sku, 0) + counted
+    # Pivot / Boxed source rows are Merchant SKU (unknowns keep external-id).
+    assert per_item == {"A": 3, "B": 1, "D": 2, "999": 2}
+    assert sum(per_item.values()) == sum(_accounting_counts(accounting).values()) == 8
     assert all(box is not None for _, _, box in log)
 
     pivot = _pivot_cells(boxed)
     expected: dict[tuple[str, object], int] = {}
-    for external_id, _, box in log:
-        expected[(external_id, box)] = expected.get((external_id, box), 0) + 1
+    for sku, _, box in log:
+        expected[(sku, box)] = expected.get((sku, box), 0) + 1
     assert pivot == expected
     grand_row = 3 + len(per_item)
     assert boxed.cell(row=grand_row, column=7).value == "Grand Total"
@@ -334,9 +338,9 @@ def test_units_counted_without_a_box_still_add_up_to_accounting():
         )
     )
     boxed = workbook["Boxed"]
-    assert _boxed_log(boxed) == [("111", 1, 1), ("111", 1, 1), ("111", 1, None), ("111", 1, None)]
+    assert _boxed_log(boxed) == [("A", 1, 1), ("A", 1, 1), ("A", 1, None), ("A", 1, None)]
     assert [c.value for c in boxed[2]][7:] == [1, "(blank)", "Grand Total"]
-    assert _pivot_cells(boxed) == {("111", 1): 2, ("111", None): 2}
+    assert _pivot_cells(boxed) == {("A", 1): 2, ("A", None): 2}
 
 
 def test_a_box_count_ignores_units_placed_in_other_boxes():
@@ -361,6 +365,25 @@ def test_box_scans_beyond_the_counted_total_are_never_exported():
     assert rows == [("111", 1)]
 
 
+def test_boxed_sku_rows_use_merchant_sku_and_honor_line_id():
+    lines = [
+        {"id": "line-a", "line_number": 1, "merchant_sku": "SKU-A", "external_id": "111", "shipped": 2, "counted": 2},
+        {"id": "line-d", "line_number": 2, "merchant_sku": "SKU-D", "external_id": "111", "shipped": 1, "counted": 1},
+    ]
+    scans = [
+        {"line_id": "line-d", "external_id": "111", "box_number": 2},
+        {"line_id": "line-a", "external_id": "111", "box_number": 1},
+        {"line_id": "line-a", "external_id": "111", "box_number": 1},
+        {"external_id": "999", "box_number": 3},
+    ]
+    rows = build_boxed_sku_rows(
+        lines=lines,
+        unknown_lines=[{"external_id": "999", "counted": 1}],
+        box_scans=scans,
+    )
+    assert rows == [("SKU-A", 1), ("SKU-A", 1), ("SKU-D", 2), ("999", 3)]
+
+
 def test_boxed_rows_are_listed_box_by_box():
     lines = [
         {"merchant_sku": "A", "external_id": "222", "shipped": 2, "counted": 2},
@@ -383,7 +406,7 @@ def test_boxed_tab_without_any_scans_has_only_headers():
     )
     boxed = workbook["Boxed"]
     assert [[c.value for c in row] for row in boxed.iter_rows(max_col=3)] == [
-        ["external-id", "Counted", "Box Number"]
+        ["Merchant SKU", "Counted", "Box Number"]
     ]
     assert not boxed._pivots
 
