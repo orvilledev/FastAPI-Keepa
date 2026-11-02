@@ -90,6 +90,11 @@ export function suggestedToBoxLabelFilename(toNumber: string, boxes: number[]): 
   return `${toNumber}-boxes.pdf`
 }
 
+/** Display + barcode value for one carton: TO123456_1, TO123456_2, … */
+export function toBoxLabelValue(toNumber: string, boxNumber: number): string {
+  return `${toNumber}_${boxNumber}`
+}
+
 function renderBarcodeDataUrl(value: string): string {
   const canvas = document.createElement('canvas')
   JsBarcode(canvas, value, {
@@ -110,7 +115,7 @@ const CAP_HEIGHT = 0.718
 function drawToBoxLabel(
   doc: jsPDF,
   page: LabelPageSize,
-  toNumber: string,
+  labelValue: string,
   boxNumber: number,
   barcode: string,
 ) {
@@ -124,12 +129,13 @@ function drawToBoxLabel(
   doc.setTextColor(0, 0, 0)
   let toFontSize = fit(58)
   doc.setFontSize(toFontSize)
-  while (toFontSize > fit(22) && doc.getTextWidth(toNumber) > page.width - fit(56)) {
+  // Keep TO_N centered; shrink so the full value (including _box) fits inside the border.
+  while (toFontSize > fit(22) && doc.getTextWidth(labelValue) > page.width - fit(56)) {
     toFontSize -= fit(2)
     doc.setFontSize(toFontSize)
   }
   const toBaseline = fit(72)
-  doc.text(toNumber, page.width / 2, toBaseline, { align: 'center' })
+  doc.text(labelValue, page.width / 2, toBaseline, { align: 'center' })
 
   const boxFontSize = fit(46)
   const boxBaseline = fit(246)
@@ -154,7 +160,7 @@ function drawToBoxLabel(
   doc.line(numberX, boxBaseline + fit(7), numberX + underlineWidth, boxBaseline + fit(7))
 }
 
-/** One PDF page per box. The barcode encodes the TO number on every page. */
+/** One PDF page per box. Top text and barcode both encode TO_N (e.g. TO123456_1). */
 export function buildToBoxLabelsPdf(
   toNumber: string,
   boxes: number[],
@@ -163,7 +169,6 @@ export function buildToBoxLabelsPdf(
   if (boxes.length === 0) {
     throw new Error('Enter a box number, a range such as 1-10, or a list such as 1,2,8.')
   }
-  const barcode = renderBarcodeDataUrl(toNumber)
   const doc = new jsPDF({
     unit: 'pt',
     format: [page.width, page.height],
@@ -174,7 +179,9 @@ export function buildToBoxLabelsPdf(
     if (index > 0) {
       doc.addPage([page.width, page.height], 'landscape')
     }
-    drawToBoxLabel(doc, page, toNumber, boxNumber, barcode)
+    const labelValue = toBoxLabelValue(toNumber, boxNumber)
+    const barcode = renderBarcodeDataUrl(labelValue)
+    drawToBoxLabel(doc, page, labelValue, boxNumber, barcode)
   })
   return new Uint8Array(doc.output('arraybuffer'))
 }
