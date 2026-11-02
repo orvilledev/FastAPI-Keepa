@@ -1,13 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { dimensionerApi, getApiBaseUrl, type DimensionerScan } from '../../services/api'
 import { useUser } from '../../contexts/UserContext'
 import { canAccessDimensioner } from '../../lib/dimensionerAccess'
 import {
-  buildHandoffState,
-  canSendToFreightClass,
-  toHandoffRows,
-} from '../../lib/dimensionerHandoff'
+  buildDimensionerScansExcelBlob,
+  suggestedDimensionerExportFilename,
+} from '../../utils/dimensionerExport'
+import { downloadBlob } from '../../utils/downloadLinkedFile'
 import { getApiErrorDetail } from '../../utils/apiErrorMessage'
 import DimensionerCameraTest from './DimensionerCameraTest'
 
@@ -68,7 +67,6 @@ function RulerIcon({ className }: { className?: string }) {
 }
 
 export default function DimensionerScans() {
-  const navigate = useNavigate()
   const { isSuperadmin, userInfoLoading, userInfo, authUser } = useUser()
   const canUse = canAccessDimensioner(userInfo?.email || authUser?.email, isSuperadmin)
   const enabled = canUse && !userInfoLoading
@@ -82,7 +80,6 @@ export default function DimensionerScans() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
-  const [selected, setSelected] = useState<Set<string>>(new Set())
   const [showSetup, setShowSetup] = useState(false)
   const [copied, setCopied] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -120,11 +117,6 @@ export default function DimensionerScans() {
       setReceivePath(data.receive_path || DEFAULT_RECEIVE_PATH)
       setError(null)
       setLastUpdated(new Date())
-      setSelected((previous) => {
-        const present = new Set(data.scans.map((scan) => scan.id))
-        const kept = new Set([...previous].filter((id) => present.has(id)))
-        return kept.size === previous.size ? previous : kept
-      })
     } catch (err) {
       if (mine !== requestSeq.current) return
       setError(getApiErrorDetail(err) || 'Could not load scans. Check your connection and try again.')
@@ -157,39 +149,13 @@ export default function DimensionerScans() {
     }
   }, [enabled, load])
 
-  const sendableScans = useMemo(() => scans.filter(canSendToFreightClass), [scans])
-  const allSendableSelected =
-    sendableScans.length > 0 && sendableScans.every((scan) => selected.has(scan.id))
-  const selectedCount = selected.size
   const endpointUrl = `${getApiBaseUrl()}${receivePath}`
 
-  const toggleOne = useCallback((scanId: string) => {
-    setSelected((previous) => {
-      const next = new Set(previous)
-      if (next.has(scanId)) next.delete(scanId)
-      else next.add(scanId)
-      return next
-    })
-  }, [])
-
-  const toggleAll = useCallback(() => {
-    setSelected(allSendableSelected ? new Set() : new Set(sendableScans.map((scan) => scan.id)))
-  }, [allSendableSelected, sendableScans])
-
-  const sendToFreightClass = useCallback(
-    (chosen: DimensionerScan[]) => {
-      // Oldest first, so pallets land in the calculator in the order they were measured.
-      const ordered = [...chosen].sort((a, b) => receivedMs(a) - receivedMs(b))
-      const rows = toHandoffRows(ordered)
-      if (rows.length === 0) return
-      navigate('/freight-class-calculator', { state: buildHandoffState(rows) })
-    },
-    [navigate],
-  )
-
-  const sendSelected = useCallback(() => {
-    sendToFreightClass(scans.filter((scan) => selected.has(scan.id)))
-  }, [scans, selected, sendToFreightClass])
+  const downloadExcel = useCallback(() => {
+    if (scans.length === 0) return
+    const blob = buildDimensionerScansExcelBlob(scans)
+    downloadBlob(blob, suggestedDimensionerExportFilename(search))
+  }, [scans, search])
 
   const deleteScan = useCallback(
     async (scan: DimensionerScan) => {
@@ -199,12 +165,6 @@ export default function DimensionerScans() {
       try {
         await dimensionerApi.deleteScan(scan.id)
         setScans((previous) => previous.filter((row) => row.id !== scan.id))
-        setSelected((previous) => {
-          if (!previous.has(scan.id)) return previous
-          const next = new Set(previous)
-          next.delete(scan.id)
-          return next
-        })
         setError(null)
       } catch (err) {
         setError(getApiErrorDetail(err) || 'Could not delete the scan.')
@@ -309,13 +269,11 @@ export default function DimensionerScans() {
           </span>
           <button
             type="button"
-            onClick={sendSelected}
-            disabled={selectedCount === 0}
+            onClick={downloadExcel}
+            disabled={scans.length === 0 || loading}
             className="ml-auto inline-flex items-center justify-center rounded-xl bg-[#81B81D] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#6fa019] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {selectedCount > 0
-              ? `Send ${selectedCount} to Freight Class`
-              : 'Select scans to send to Freight Class'}
+            Download Excel
           </button>
         </div>
 
@@ -341,16 +299,6 @@ export default function DimensionerScans() {
             <table className="w-full text-left text-sm">
               <thead className="bg-gray-50 text-[11px] font-semibold uppercase tracking-wider text-gray-600 dark:bg-gray-800/50 dark:text-gray-400">
                 <tr>
-                  <th className="w-10 px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={allSendableSelected}
-                      onChange={toggleAll}
-                      disabled={sendableScans.length === 0}
-                      aria-label="Select all scans that can be sent"
-                      className="h-4 w-4 rounded border-gray-300 accent-[#81B81D]"
-                    />
-                  </th>
                   <th className="px-3 py-3">Received</th>
                   <th className="px-3 py-3">Barcode</th>
                   <th className="px-3 py-3 text-right">Length</th>
@@ -366,26 +314,9 @@ export default function DimensionerScans() {
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {scans.map((scan) => {
-                  const sendable = canSendToFreightClass(scan)
                   const extra = detailLine(scan)
                   return (
-                    <tr
-                      key={scan.id}
-                      className={`text-gray-900 dark:text-gray-100 ${
-                        selected.has(scan.id) ? 'bg-[#81B81D]/[0.07]' : ''
-                      }`}
-                    >
-                      <td className="px-4 py-3">
-                        <input
-                          type="checkbox"
-                          checked={selected.has(scan.id)}
-                          onChange={() => toggleOne(scan.id)}
-                          disabled={!sendable}
-                          aria-label={`Select scan ${scan.barcode || scan.id}`}
-                          title={sendable ? undefined : 'No size was captured for this scan'}
-                          className="h-4 w-4 rounded border-gray-300 accent-[#81B81D]"
-                        />
-                      </td>
+                    <tr key={scan.id} className="text-gray-900 dark:text-gray-100">
                       <td className="whitespace-nowrap px-3 py-3 text-gray-700 dark:text-gray-300">
                         {formatWhen(scan.received_at)}
                         {isNew(scan) && (
@@ -419,17 +350,9 @@ export default function DimensionerScans() {
                       <td className="whitespace-nowrap px-3 py-3 text-right">
                         <button
                           type="button"
-                          onClick={() => sendToFreightClass([scan])}
-                          disabled={!sendable}
-                          className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[#4d7010] transition-colors hover:bg-[#81B81D]/15 disabled:cursor-not-allowed disabled:opacity-40 dark:text-[#a6d94a]"
-                        >
-                          Use in Freight Class
-                        </button>
-                        <button
-                          type="button"
                           onClick={() => void deleteScan(scan)}
                           disabled={deletingId === scan.id}
-                          className="ml-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-red-950/30"
+                          className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-red-950/30"
                           aria-label={`Delete scan ${scan.barcode || scan.id}`}
                         >
                           Delete

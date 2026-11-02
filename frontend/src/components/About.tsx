@@ -223,8 +223,8 @@ export default function About() {
           </li>
           <li>
             <span className="font-semibold">Dimensioner:</span> Shows measurements sent by the warehouse QBOID M2 as
-            soon as someone taps Save on the device, in inches and pounds. Pick one or more scans and send them to
-            Freight Class to fill in the pallet sizes. Same access as Freight Class.
+            soon as someone taps Save on the device, in inches and pounds. Download the visible (filtered) scans as
+            Excel. Same access as Freight Class.
           </li>
           <li>
             <span className="font-semibold">Label Station:</span> Scan a product UPC, look up the warehouse catalog, and
