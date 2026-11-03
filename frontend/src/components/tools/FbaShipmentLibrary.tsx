@@ -24,13 +24,18 @@ import {
   buildWarehouseLabelBatchPdfBlob,
   buildWarehouseLabelBatchZpl,
   getSelectedDpi,
-  getSelectedLabelIdMode,
   getSelectedLabelSize,
   getSelectedPrinter,
   getStoredCustomLabelText,
   saveSelectedPrinter,
   type WarehouseLabelPrintItem,
 } from '../../utils/warehouseLabel'
+import {
+  isFnskuLabelDesignRemembered,
+  resolveLabelIdMode,
+  saveFnskuLabelDesignRemembered,
+} from '../../utils/fbaLabelDesignPrefs'
+import FnskuLabelDesignModal, { FnskuLabelDesignSummary } from './FnskuLabelDesign'
 
 const PAGE_SIZE = 50
 const LINE_PAGE_SIZE = 100
@@ -396,6 +401,11 @@ export default function FbaShipmentLibrary() {
   const [nameDirty, setNameDirty] = useState(false)
   const [savingName, setSavingName] = useState(false)
   const [printingLabels, setPrintingLabels] = useState(false)
+  const [labelDesignRemembered, setLabelDesignRemembered] = useState(isFnskuLabelDesignRemembered)
+  const [labelDesignRevision, setLabelDesignRevision] = useState(0)
+  const [labelDesignDialog, setLabelDesignDialog] = useState<
+    { mode: 'print'; upload: FbaShipmentUpload } | { mode: 'edit' } | null
+  >(null)
   const [lines, setLines] = useState<FbaShipmentLine[]>([])
   const [unknownLines, setUnknownLines] = useState<FbaShipmentLine[]>([])
   const [scanAlert, setScanAlert] = useState<string | null>(null)
@@ -1171,7 +1181,7 @@ export default function FbaShipmentLibrary() {
       }
       const dpi = getSelectedDpi()
       const size = getSelectedLabelSize()
-      const idMode = getSelectedLabelIdMode()
+      const idMode = await resolveLabelIdMode()
       const customText = getStoredCustomLabelText()
       const boxCount = plan.boxes.length
       const scope = [
@@ -1183,7 +1193,7 @@ export default function FbaShipmentLibrary() {
       if (isElectron) {
         const printerName = await printerForLabels()
         if (!printerName) {
-          setError('No printer selected. Choose a printer in Label Station, then print again.')
+          setError('No printer selected. Open Label design, choose a printer, then print again.')
           return
         }
         const zpl = buildWarehouseLabelBatchZpl(items, dpi, size, idMode, customText)
@@ -1219,6 +1229,26 @@ export default function FbaShipmentLibrary() {
     } finally {
       setPrintingLabels(false)
     }
+  }
+
+  /** Print straight away when a design is remembered; otherwise ask for the design first. */
+  const handlePrintClick = (upload: FbaShipmentUpload) => {
+    if (printingLabels) return
+    if (labelDesignRemembered) {
+      void handlePrintLabels(upload)
+      return
+    }
+    setLabelDesignDialog({ mode: 'print', upload })
+  }
+
+  /** The popup has already saved the design to this browser by the time this runs. */
+  const confirmLabelDesign = (remember: boolean) => {
+    const dialog = labelDesignDialog
+    setLabelDesignDialog(null)
+    saveFnskuLabelDesignRemembered(remember)
+    setLabelDesignRemembered(remember)
+    setLabelDesignRevision((value) => value + 1)
+    if (dialog?.mode === 'print') void handlePrintLabels(dialog.upload)
   }
 
   const chooseFolder = (next: string) => {
@@ -2033,7 +2063,7 @@ export default function FbaShipmentLibrary() {
                 {selected.archived_at ? ' · Archived' : ''}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className={`flex flex-wrap gap-2 ${labelDesignRemembered ? 'items-start' : 'items-center'}`}>
               <button
                 type="button"
                 className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-800"
@@ -2042,14 +2072,22 @@ export default function FbaShipmentLibrary() {
                 Download report
               </button>
               {!selected.trashed_at && (
-                <button
-                  type="button"
-                  disabled={printingLabels}
-                  className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
-                  onClick={() => void handlePrintLabels(selected)}
-                >
-                  {printingLabels ? 'Printing…' : 'Print FNSKU labels'}
-                </button>
+                <div className="flex flex-col items-start gap-1.5">
+                  <button
+                    type="button"
+                    disabled={printingLabels}
+                    className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                    onClick={() => handlePrintClick(selected)}
+                  >
+                    {printingLabels ? 'Printing…' : 'Print FNSKU labels'}
+                  </button>
+                  {labelDesignRemembered && (
+                    <FnskuLabelDesignSummary
+                      revision={labelDesignRevision}
+                      onOpen={() => setLabelDesignDialog({ mode: 'edit' })}
+                    />
+                  )}
+                </div>
               )}
               {!selected.archived_at && !selected.trashed_at && (
                 <button
@@ -2288,6 +2326,14 @@ export default function FbaShipmentLibrary() {
             </div>
           )}
         </section>
+      )}
+      {labelDesignDialog && (
+        <FnskuLabelDesignModal
+          mode={labelDesignDialog.mode}
+          initialRemember={labelDesignRemembered}
+          onCancel={() => setLabelDesignDialog(null)}
+          onConfirm={confirmLabelDesign}
+        />
       )}
       {pendingArchive && (
         <div
