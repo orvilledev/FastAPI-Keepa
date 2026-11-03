@@ -1,0 +1,19 @@
+MSW Overwatch 3.9.0 — desktop and web release
+
+Feature release since 3.8.7. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Label Center
+- Each TO/box label prints and barcodes as TO_N (for example TO123456_1), so the box number is part of the scan value
+- The TO_N text stays centered on the label
+
+## Dimensioner
+- Freight Class handoff is removed (no more Select scans / Use in Freight Class)
+- Download Excel exports the filtered scan list
+- The workbook has a Dimensioner Scans sheet (Weight before L/W/H) and a Dimension pivot tab
+- Excel rows are sorted by barcode so _1, _2, _3 appear in order
+
+## FBA Order Checker
+- Downloads pivot by Merchant SKU instead of external-id
+
+## Upgrade from 3.8.7
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 3.9.0, download it, then prompt to install now or later. Web/PWA users get 3.9.0 on the next deploy/refresh.
