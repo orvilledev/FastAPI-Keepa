@@ -156,16 +156,10 @@ export default function About() {
             more versus that vendor’s last daily run (shown in red). Available in the browser and the desktop app.
             Warehouse station accounts do not see this page.
           </li>
-          <li>
-            <span className="font-semibold">Projects:</span> Personal work log for current projects. Set status
-            (planning, in progress, on hold, complete, deployed, cancelled), keep notes, and update or delete entries.
-            Each signed-in user sees only their own projects. Visible for now to Superadmin, Stephanie, Sunshine,
-            Paolo, and John Bernard.
-          </li>
         </ul>
         <p className="mt-4 text-sm text-gray-600">
           Express Jobs, Daily Runs, Manage UPCs, Manage MAP, Seller List, Email List, Ship To Addresses, and Analytics
-          require Keepa access on your account. Projects is allowlisted separately and does not require Keepa access.
+          require Keepa access on your account.
         </p>
       </div>
 

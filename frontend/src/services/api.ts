@@ -8,7 +8,7 @@ import type {
   ManualEmailDraft,
   ManualEmailDraftOpenResult,
   WarehouseProductLookup, WarehouseProductImportResult, WarehouseProduct, WarehouseSkuCheckResult,
-  CatalogShipToListResponse, CatalogShipToImportResult, CatalogShipToImportPreview, CatalogOldSkusListResponse, CatalogOldSkusImportResult, ProjectRecord, ProjectStatus, MySpaceNote,
+  CatalogShipToListResponse, CatalogShipToImportResult, CatalogShipToImportPreview, CatalogOldSkusListResponse, CatalogOldSkusImportResult, MySpaceNote,
   ShipmentRecord, ShipmentDetail, ShipmentUploadResult, ShipmentFolder } from '../types'
 
 /** All request paths begin with `/api/v1`. Strip a mistaken `/api/v1` suffix from env to avoid doubled paths (404 Not Found). */
@@ -1694,29 +1694,6 @@ export interface FeedbackItem {
   signature: string
   message: string | null
   created_at: string
-}
-
-export const projectsApi = {
-  list: async (status?: ProjectStatus) => {
-    const response = await api.get<ProjectRecord[]>('/api/v1/projects', {
-      params: status ? { status } : undefined,
-    })
-    return response.data
-  },
-  create: async (body: { name: string; notes?: string; status?: ProjectStatus }) => {
-    const response = await api.post<ProjectRecord>('/api/v1/projects', body)
-    return response.data
-  },
-  update: async (
-    projectId: string,
-    body: { name?: string; notes?: string; status?: ProjectStatus },
-  ) => {
-    const response = await api.patch<ProjectRecord>(`/api/v1/projects/${projectId}`, body)
-    return response.data
-  },
-  delete: async (projectId: string): Promise<void> => {
-    await api.delete(`/api/v1/projects/${projectId}`)
-  },
 }
 
 export const mySpaceNotesApi = {

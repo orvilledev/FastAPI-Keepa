@@ -26,10 +26,9 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         Menu includes <strong>Dashboard</strong>, <strong>Notifications</strong>,{' '}
         <strong>Express Jobs</strong>, <strong>Daily Runs</strong>, <strong>Manage UPCs</strong>,{' '}
         <strong>Manage MAP</strong>, <strong>Seller List</strong>, <strong>Email List</strong>,{' '}
-        <strong>Ship To Addresses</strong>, <strong>Analytics</strong>, and <strong>Projects</strong>. Express Jobs
+        <strong>Ship To Addresses</strong>, and <strong>Analytics</strong>. Express Jobs
         through Analytics require Keepa access; Dashboard and Notifications are available to all signed-in users.
-        Projects is limited to Superadmin, Stephanie, Sunshine, Paolo, and John Bernard. Warehouse-only accounts do not
-        see Projects or the notifications bell.
+        Warehouse-only accounts do not see the notifications bell.
       </>
     ),
   },
@@ -142,16 +141,6 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         <strong>Hit Alert</strong> flags any vendor whose daily off-price listings jump by 100 or more versus that
         vendor&apos;s last daily run (shown in red). Available in the browser and desktop app for Keepa accounts;
         warehouse station accounts do not see this page.
-      </>
-    ),
-  },
-  {
-    q: 'What is Projects?',
-    a: (
-      <>
-        Projects is a personal work log. Set status (planning, in progress, on hold, complete, deployed, cancelled), keep
-        notes, and update or delete entries. Each signed-in user sees only their own projects. Access is allowlisted
-        (Superadmin, Stephanie, Sunshine, Paolo, and John Bernard) and does not require Keepa access.
       </>
     ),
   },

@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useUser } from '../../contexts/UserContext'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
-import { canAccessProjects } from '../../lib/projectsAccess'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 import { canAccessBcTools } from '../../lib/bcToolsAccess'
@@ -27,7 +26,6 @@ function buildSearchItems(
   isWarehouseOnly: boolean,
   isSuperadmin: boolean,
   showAnalytics: boolean,
-  showProjects: boolean,
   showFbaBoxContents: boolean,
   showOldSkus: boolean,
   showBcTools: boolean,
@@ -110,10 +108,6 @@ function buildSearchItems(
     }
   }
 
-  if (showProjects) {
-    items.push({ label: 'Projects', path: '/projects', section: 'Menu' })
-  }
-
   if (showOldSkus) {
     items.push({ label: 'Old SKUs', path: '/catalog/old-skus', section: 'Menu' })
   }
@@ -192,10 +186,6 @@ export default function NavbarSearch() {
   const rootRef = useRef<HTMLDivElement>(null)
 
   const showAnalytics = canAccessWebAnalytics(userInfo?.email || authUser?.email)
-  const showProjects = canAccessProjects(
-    userInfo?.email || authUser?.email,
-    isSuperadmin,
-  )
   const showFbaBoxContents = canAccessFbaBoxContents(
     userInfo?.email || authUser?.email,
     isSuperadmin,
@@ -234,7 +224,6 @@ export default function NavbarSearch() {
         isWarehouseOnly,
         isSuperadmin,
         showAnalytics,
-        showProjects,
         showFbaBoxContents,
         showOldSkus,
         showBcTools,
@@ -247,7 +236,7 @@ export default function NavbarSearch() {
         showNsTool,
         showSessionAudit,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools, showShipmentManager, showFreightClass, showDimensioner, showFbaOrderChecker, showFnskuLabels, showLabelCenter, showNsTool, showSessionAudit],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showFbaBoxContents, showOldSkus, showBcTools, showShipmentManager, showFreightClass, showDimensioner, showFbaOrderChecker, showFnskuLabels, showLabelCenter, showNsTool, showSessionAudit],
   )
 
   const results = useMemo(() => {

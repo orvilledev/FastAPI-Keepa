@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.database import init_db
-from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, keepa_import_export, analytics, presence, manifest_generator, dnk_all_inventory, freight_class_calculator, audit, catalog_upc_dims, catalog_ship_to, catalog_old_skus, master_sheet, projects, notes, shipments, fnsku_box_pivot, fba_box_contents, fba_upload_compare, fba_shipment_library, product_catalog_formatter, dimensioner
+from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, keepa_import_export, analytics, presence, manifest_generator, dnk_all_inventory, freight_class_calculator, audit, catalog_upc_dims, catalog_ship_to, catalog_old_skus, master_sheet, notes, shipments, fnsku_box_pivot, fba_box_contents, fba_upload_compare, fba_shipment_library, product_catalog_formatter, dimensioner
 from app.scheduler import (
     setup_scheduler,
     setup_completed_jobs_retention_cleanup,
@@ -385,7 +385,6 @@ app.include_router(catalog_upc_dims.router, prefix=settings.api_v1_str, tags=["c
 app.include_router(catalog_ship_to.router, prefix=settings.api_v1_str, tags=["catalog-ship-to"], dependencies=[Depends(require_app_access)])
 app.include_router(catalog_old_skus.router, prefix=settings.api_v1_str, tags=["catalog-old-skus"], dependencies=[Depends(require_app_access)])
 app.include_router(master_sheet.router, prefix=settings.api_v1_str, tags=["master-sheet"], dependencies=[Depends(require_app_access)])
-app.include_router(projects.router, prefix=settings.api_v1_str, tags=["projects"], dependencies=[Depends(require_app_access)])
 app.include_router(notes.router, prefix=settings.api_v1_str, tags=["my-space-notes"], dependencies=[Depends(require_app_access)])
 # QBOID M2 dimensioner. The receiver is called by the device (no user session), so it is
 # not behind require_app_access; it authenticates with DIMENSIONER_API_KEY inside the route.

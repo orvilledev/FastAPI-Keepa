@@ -15,7 +15,6 @@ export const BOOKMARKABLE_TOOLS: BookmarkableTool[] = [
   { path: '/email-list', label: 'Email List', group: 'Menu' },
   { path: '/ship-to-addresses', label: 'Ship To Addresses', group: 'Menu' },
   { path: '/analytics', label: 'Analytics', group: 'Menu' },
-  { path: '/projects', label: 'Projects', group: 'Menu' },
   { path: '/catalog/old-skus', label: 'Old SKUs', group: 'Menu' },
   { path: '/notifications', label: 'Notifications', group: 'Menu' },
   { path: '/micro-tools', label: 'Micro Tools', group: 'Tools' },
