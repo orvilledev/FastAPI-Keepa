@@ -8,7 +8,6 @@ import { canAccessProjects } from '../../lib/projectsAccess'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 import { canAccessBcTools } from '../../lib/bcToolsAccess'
-import { canAccessShipmentAnalyzer } from '../../lib/shipmentAnalyzerAccess'
 import { canAccessShipmentManager } from '../../lib/shipmentManagerAccess'
 import { canAccessFbaOrderChecker } from '../../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
@@ -157,12 +156,6 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 14l2 2 4-4" />
     </svg>
   ),
-  shipmentAnalyzer: (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 4a7 7 0 100 14 7 7 0 000-14zm5.5 12.5L21 21" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.5 11.5l2 2 3.5-4" />
-    </svg>
-  ),
   manifestGenerator: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M9 8h1m5 0h.01M7 3h8l4 4v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z" />
@@ -243,10 +236,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
   )
   const accountEmail = userInfo?.email || authUser?.email
   const canUseFnskuLabels = canWarehouseAccessFnskuLabels(accountEmail)
-  const canUseShipmentAnalyzer = canAccessShipmentAnalyzer(
-    accountEmail,
-    isSuperadmin,
-  )
   const canUseShipmentManager = canAccessShipmentManager(accountEmail)
   const canUseFbaOrderChecker = canAccessFbaOrderChecker(
     accountEmail,
@@ -500,21 +489,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                 >
                   <span className="shrink-0">{Icons.shipmentManager}</span>
                   <span className="sidebar-link-label">Shipment Manager</span>
-                </Link>
-              )}
-
-              {canUseShipmentAnalyzer && (
-                <Link
-                  to="/smw-shipment-analyzer"
-                  onMouseEnter={() => setHoveredNav('smw-shipment-analyzer')}
-                  className={`sidebar-link ${
-                    navHighlighted('smw-shipment-analyzer', isActive('/smw-shipment-analyzer'))
-                      ? 'sidebar-link-active'
-                      : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="shrink-0">{Icons.shipmentAnalyzer}</span>
-                  <span className="sidebar-link-label">SMW Shipment Analyzer</span>
                 </Link>
               )}
             </div>
@@ -839,7 +813,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
             )}
         </div>
 
-        {(canUseBcTools || canUseShipmentAnalyzer || canUseShipmentManager || canUseNsTool) && (
+        {(canUseBcTools || canUseShipmentManager || canUseNsTool) && (
           <>
             <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 
@@ -914,20 +888,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                 >
                   <span className="shrink-0">{Icons.shipmentManager}</span>
                   <span className="sidebar-link-label">Shipment Manager</span>
-                </Link>
-              )}
-              {canUseShipmentAnalyzer && (
-                <Link
-                  to="/smw-shipment-analyzer"
-                  onMouseEnter={() => setHoveredNav('smw-shipment-analyzer')}
-                  className={`sidebar-link ${
-                    navHighlighted('smw-shipment-analyzer', isActive('/smw-shipment-analyzer'))
-                      ? 'sidebar-link-active'
-                      : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="shrink-0">{Icons.shipmentAnalyzer}</span>
-                  <span className="sidebar-link-label">SMW Shipment Analyzer</span>
                 </Link>
               )}
             </div>

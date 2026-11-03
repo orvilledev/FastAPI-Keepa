@@ -213,8 +213,7 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
         <strong>Product Catalog Formatter</strong>, and{' '}
         <strong>Shipment Manager</strong> for every signed-in user except the floor stations (warehouse1, label1–label8,
         pack1–pack6) and Hello, plus{' '}
-        <strong>Freight Class</strong> and{' '}
-        <strong>SMW Shipment Analyzer</strong> for signed-in users who are allowed those tools.{' '}
+        <strong>Freight Class</strong> for signed-in users who are allowed that tool.{' '}
         <strong>Label Station</strong> requires Keepa access or a warehouse-only account. Warehouse-only accounts also get{' '}
         <strong>FNSKU Pack Station</strong> and <strong>Freight Class</strong> (except hello@warehouserepublic.com).{' '}
         The floor stations (<strong>warehouse1</strong>, <strong>label1–label8</strong>, <strong>pack1–pack6</strong>),{' '}

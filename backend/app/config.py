@@ -252,20 +252,6 @@ class Settings(BaseSettings):
         "johnbernard@metroshoewarehouse.com"
     )
 
-    # Comma-separated emails blocked from the SMW Shipment Analyzer.
-    # Everyone else who is signed in can use it. Empty falls back to defaults.
-    # Setting SHIPMENT_ANALYZER_BLOCKED_EMAILS replaces this whole list.
-    shipment_analyzer_blocked_emails: str = ",".join(
-        (
-            "hello@warehouserepublic.com",
-            *FLOOR_STATION_EMAILS,
-            "cameron@pmshoesinc.com",
-            "corp1997@pmshoesinc.com",
-            "ap@pmshoesinc.com",
-            "brittany@metroshoewarehouse.com",
-        )
-    )
-
     # Comma-separated emails allowed to use the Old SKUs catalog (plus superadmin).
     old_skus_allowed_emails: str = (
         "sunshine@metroshoewarehouse.com,"
@@ -387,14 +373,6 @@ class Settings(BaseSettings):
     def fba_box_contents_allowed_emails_list(self) -> List[str]:
         """Normalized emails allowed to use the FBA Box Contents tool."""
         raw = (self.fba_box_contents_allowed_emails or "").strip()
-        if not raw:
-            return []
-        return [email.strip().lower() for email in raw.split(",") if email.strip()]
-
-    @property
-    def shipment_analyzer_blocked_emails_list(self) -> List[str]:
-        """Normalized emails blocked from the SMW Shipment Analyzer."""
-        raw = (self.shipment_analyzer_blocked_emails or "").strip()
         if not raw:
             return []
         return [email.strip().lower() for email in raw.split(",") if email.strip()]

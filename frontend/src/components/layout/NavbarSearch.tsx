@@ -7,7 +7,6 @@ import { canAccessProjects } from '../../lib/projectsAccess'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 import { canAccessBcTools } from '../../lib/bcToolsAccess'
-import { canAccessShipmentAnalyzer } from '../../lib/shipmentAnalyzerAccess'
 import { canAccessShipmentManager } from '../../lib/shipmentManagerAccess'
 import { canAccessFbaOrderChecker } from '../../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
@@ -32,7 +31,6 @@ function buildSearchItems(
   showFbaBoxContents: boolean,
   showOldSkus: boolean,
   showBcTools: boolean,
-  showShipmentAnalyzer: boolean,
   showShipmentManager: boolean,
   showFreightClass: boolean,
   showDimensioner: boolean,
@@ -80,13 +78,6 @@ function buildSearchItems(
       warehouseItems.push({
         label: 'Shipment Manager',
         path: '/shipment-manager',
-        section: 'Warehouse Tools',
-      })
-    }
-    if (showShipmentAnalyzer) {
-      warehouseItems.push({
-        label: 'SMW Shipment Analyzer',
-        path: '/smw-shipment-analyzer',
         section: 'Warehouse Tools',
       })
     }
@@ -171,13 +162,6 @@ function buildSearchItems(
   if (showShipmentManager) {
     items.push({ label: 'Shipment Manager', path: '/shipment-manager', section: 'BC Tools' })
   }
-  if (showShipmentAnalyzer) {
-    items.push({
-      label: 'SMW Shipment Analyzer',
-      path: '/smw-shipment-analyzer',
-      section: 'BC Tools',
-    })
-  }
 
   items.push(
     { label: 'My Space', path: '/my-space', section: 'My Space' },
@@ -224,10 +208,6 @@ export default function NavbarSearch() {
     userInfo?.email || authUser?.email,
     isSuperadmin,
   )
-  const showShipmentAnalyzer = canAccessShipmentAnalyzer(
-    userInfo?.email || authUser?.email,
-    isSuperadmin,
-  )
   const showShipmentManager = canAccessShipmentManager(userInfo?.email || authUser?.email)
   const showFreightClass = canAccessFreightClassCalculator(
     userInfo?.email || authUser?.email,
@@ -258,7 +238,6 @@ export default function NavbarSearch() {
         showFbaBoxContents,
         showOldSkus,
         showBcTools,
-        showShipmentAnalyzer,
         showShipmentManager,
         showFreightClass,
         showDimensioner,
@@ -268,7 +247,7 @@ export default function NavbarSearch() {
         showNsTool,
         showSessionAudit,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools, showShipmentAnalyzer, showShipmentManager, showFreightClass, showDimensioner, showFbaOrderChecker, showFnskuLabels, showLabelCenter, showNsTool, showSessionAudit],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showProjects, showFbaBoxContents, showOldSkus, showBcTools, showShipmentManager, showFreightClass, showDimensioner, showFbaOrderChecker, showFnskuLabels, showLabelCenter, showNsTool, showSessionAudit],
   )
 
   const results = useMemo(() => {

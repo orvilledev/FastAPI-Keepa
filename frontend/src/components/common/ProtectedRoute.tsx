@@ -4,7 +4,6 @@ import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessProjects } from '../../lib/projectsAccess'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
-import { canAccessShipmentAnalyzer } from '../../lib/shipmentAnalyzerAccess'
 import { canAccessShipmentManager } from '../../lib/shipmentManagerAccess'
 import { canAccessFbaOrderChecker } from '../../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
@@ -20,7 +19,6 @@ interface ProtectedRouteProps {
   requireProjectsAccess?: boolean
   requireFbaBoxContentsAccess?: boolean
   requireOldSkusAccess?: boolean
-  requireShipmentAnalyzerAccess?: boolean
   requireShipmentManagerAccess?: boolean
   requireFreightClassAccess?: boolean
   requireDimensionerAccess?: boolean
@@ -37,7 +35,6 @@ export default function ProtectedRoute({
   requireProjectsAccess = false,
   requireFbaBoxContentsAccess = false,
   requireOldSkusAccess = false,
-  requireShipmentAnalyzerAccess = false,
   requireShipmentManagerAccess = false,
   requireFreightClassAccess = false,
   requireDimensionerAccess = false,
@@ -98,13 +95,6 @@ export default function ProtectedRoute({
   if (requireOldSkusAccess) {
     const email = userInfo.email || authUser?.email || null
     if (!canAccessOldSkus(email, isSuperadmin)) {
-      return <Navigate to={isWarehouseOnly ? '/label-station' : '/dashboard'} replace />
-    }
-  }
-
-  if (requireShipmentAnalyzerAccess) {
-    const email = userInfo.email || authUser?.email || null
-    if (!canAccessShipmentAnalyzer(email, isSuperadmin)) {
       return <Navigate to={isWarehouseOnly ? '/label-station' : '/dashboard'} replace />
     }
   }

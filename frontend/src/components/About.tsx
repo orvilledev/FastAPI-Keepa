@@ -252,8 +252,7 @@ export default function About() {
           AllInventory are available to all signed-in non-warehouse users. Product Catalog Formatter
           appears under BC Tools for Superadmin and allowlisted BC Tools accounts. Shipment Manager is available to
           every signed-in user except the floor stations (warehouse1, label1–label8, pack1–pack6) and Hello.
-          Freight Class and SMW Shipment Analyzer
-          appear for signed-in users who are allowed those tools.
+          Freight Class appears for signed-in users who are allowed that tool.
         </p>
       </div>
 
