@@ -40,7 +40,7 @@ import FnskuLabelDesignModal, { FnskuLabelDesignSummary } from './FnskuLabelDesi
 const PAGE_SIZE = 50
 const LINE_PAGE_SIZE = 100
 const FILTER_DELAY_MS = 300
-const LIST_COLUMNS = 11
+const LIST_COLUMNS = 6
 const ALL_SHIPMENTS = 'all'
 const UNGROUPED_SHIPMENTS = 'ungrouped'
 
@@ -1775,10 +1775,10 @@ export default function FbaShipmentLibrary() {
         </div>
 
         <div className="mt-4 min-w-0">
-          <table className="w-full table-fixed text-left text-sm">
-            <thead className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-gray-200 bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
               <tr>
-                <th className="w-[4%] px-1 py-2">
+                <th className="w-8 rounded-tl-lg px-3 py-2.5">
                   <input
                     type="checkbox"
                     aria-label="Select shipments on this page"
@@ -1793,16 +1793,12 @@ export default function FbaShipmentLibrary() {
                     }}
                   />
                 </th>
-                <th className="w-[11%] px-2 py-2">Shipment ID</th>
-                <th className="w-[7%] px-2 py-2">Name</th>
-                <th className="w-[11%] px-2 py-2">Folder</th>
-                <th className="w-[5%] px-2 py-2">SKUs</th>
-                <th className="w-[6%] px-2 py-2">Shipped</th>
-                <th className="w-[7%] px-2 py-2">Uploaded by</th>
-                <th className="w-[9%] px-2 py-2">When</th>
-                <th className="w-[11%] px-2 py-2">File</th>
-                <th className="w-[8%] px-2 py-2">Access</th>
-                <th className="w-[21%] px-2 py-2" />
+                <th className="px-3 py-2.5">Shipment</th>
+                <th className="w-40 px-3 py-2.5">Folder</th>
+                <th className="w-14 px-3 py-2.5 text-right">SKUs</th>
+                <th className="w-20 px-3 py-2.5 text-right">Shipped</th>
+                <th className="w-40 px-3 py-2.5">Uploaded</th>
+                <th className="w-[232px] rounded-tr-lg px-3 py-2.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -1832,9 +1828,11 @@ export default function FbaShipmentLibrary() {
                   return (
                   <tr
                     key={upload.id}
-                    className={`border-b border-gray-100 ${selectedId === upload.id ? 'bg-amber-50' : ''}`}
+                    className={`border-b border-gray-100 align-middle transition-colors last:border-b-0 ${
+                      selectedId === upload.id ? 'bg-amber-50' : 'hover:bg-gray-50/70'
+                    }`}
                   >
-                    <td className="px-1 py-2">
+                    <td className="px-3 py-3">
                       <input
                         type="checkbox"
                         aria-label={`Select ${upload.shipment_id}`}
@@ -1848,17 +1846,50 @@ export default function FbaShipmentLibrary() {
                         }}
                       />
                     </td>
-                    <td className="max-w-0 break-words px-2 py-2 font-medium text-gray-900">{upload.shipment_id}</td>
-                    <td className="max-w-0 break-words px-2 py-2 text-gray-700" title={upload.shipment_name || undefined}>
-                      {upload.shipment_name || '—'}
+                    <td className="max-w-0 px-3 py-3">
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="font-semibold text-gray-900">{upload.shipment_id}</span>
+                        {upload.trashed_at ? (
+                          <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-700">
+                            Trash
+                          </span>
+                        ) : upload.archived_at ? (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                            Archived
+                          </span>
+                        ) : upload.is_locked ? (
+                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-800">
+                            Locked
+                          </span>
+                        ) : upload.shared_with_everyone === false ? (
+                          <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-800">
+                            Custom
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+                            Shared
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        className="mt-0.5 truncate text-xs text-gray-600"
+                        title={upload.shipment_name || undefined}
+                      >
+                        {upload.shipment_name || '—'}
+                      </div>
+                      {upload.source_filename && (
+                        <div className="truncate text-[11px] text-gray-400" title={upload.source_filename}>
+                          {upload.source_filename}
+                        </div>
+                      )}
                     </td>
-                    <td className="max-w-0 overflow-hidden px-2 py-2">
+                    <td className="px-3 py-3">
                       <select
                         aria-label={`Folder for ${upload.shipment_id}`}
                         value={upload.folder_id || ''}
                         disabled={movingFolder || folderBusy}
                         title={placed?.name || 'No folder'}
-                        className="w-full min-w-0 max-w-full rounded-lg border border-gray-200 bg-white px-1.5 py-1 text-xs text-gray-800 disabled:opacity-50"
+                        className="w-full min-w-0 max-w-full truncate rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-800 shadow-sm focus:border-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
                         onChange={(event) => {
                           const next = event.target.value || null
                           if ((upload.folder_id || null) === next) return
@@ -1874,112 +1905,97 @@ export default function FbaShipmentLibrary() {
                         ))}
                       </select>
                     </td>
-                    <td className="px-2 py-2">{upload.line_count}</td>
-                    <td className="px-2 py-2">{upload.total_shipped.toLocaleString()}</td>
-                    <td className="max-w-0 break-words px-2 py-2" title={upload.created_by_name || upload.created_by_email || undefined}>
-                      {upload.created_by_name || upload.created_by_email || '—'}
+                    <td className="px-3 py-3 text-right tabular-nums text-gray-800">{upload.line_count}</td>
+                    <td className="px-3 py-3 text-right font-medium tabular-nums text-gray-900">
+                      {upload.total_shipped.toLocaleString()}
                     </td>
-                    <td className="max-w-0 break-words px-2 py-2 leading-snug">{formatWhen(upload.created_at)}</td>
-                    <td className="max-w-0 break-words px-2 py-2 text-gray-600" title={upload.source_filename}>
-                      {upload.source_filename || '—'}
+                    <td
+                      className="max-w-0 px-3 py-3"
+                      title={upload.created_by_name || upload.created_by_email || undefined}
+                    >
+                      <div className="truncate text-sm text-gray-800">
+                        {upload.created_by_name || upload.created_by_email || '—'}
+                      </div>
+                      <div className="text-xs leading-snug text-gray-500">{formatWhen(upload.created_at)}</div>
                     </td>
-                    <td className="px-2 py-2">
-                      {upload.trashed_at ? (
-                        <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">
-                          Trash
-                        </span>
-                      ) : upload.archived_at ? (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-                          Archived
-                        </span>
-                      ) : upload.is_locked ? (
-                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
-                          Locked
-                        </span>
-                      ) : upload.shared_with_everyone === false ? (
-                        <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800">
-                          Custom
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
-                          Shared
-                        </span>
-                      )}
-                    </td>
-                    <td className="max-w-0 px-2 py-2 text-right">
-                      <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-2.5 gap-y-1">
-                        {listView !== 'trash' && (
-                          <button
-                            type="button"
-                            className="whitespace-nowrap text-sm font-medium text-emerald-700 hover:text-emerald-900"
-                            onClick={() => void handleReport(upload)}
-                          >
-                            Download
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          className="whitespace-nowrap text-sm font-medium text-indigo-700 hover:text-indigo-900"
-                          onClick={() => {
-                            setSelectedId(upload.id)
-                            setLineOffset(0)
-                            lineSearchRef.current = ''
-                            setLineSearch('')
-                            queryBoxRef.current = undefined
-                            setQueryBox(undefined)
-                            setFieldReset((value) => value + 1)
-                          }}
-                        >
-                          View
-                        </button>
-                        {listView !== 'trash' && !upload.archived_at && (
-                          <button
-                            type="button"
-                            className="whitespace-nowrap text-sm font-medium text-gray-800 hover:text-gray-950"
-                            onClick={() => openArchive(upload)}
-                          >
-                            Archive
-                          </button>
-                        )}
-                        {listView === 'trash' && upload.owned_by_me && (
-                          <button
-                            type="button"
-                            className="whitespace-nowrap text-sm font-medium text-gray-800 hover:text-gray-950"
-                            onClick={() => void handleRestore(upload)}
-                          >
-                            Restore
-                          </button>
-                        )}
-                        {upload.owned_by_me && !upload.archived_at && listView !== 'trash' && (
-                          <>
+                    <td className="px-3 py-3">
+                      <div className="flex flex-col items-end gap-1.5">
+                        <div className="flex items-center gap-1.5">
+                          {listView !== 'trash' && (
                             <button
                               type="button"
-                              className="whitespace-nowrap text-sm font-medium text-gray-800 hover:text-gray-950"
-                              onClick={() => void openShare(upload)}
+                              className="whitespace-nowrap rounded-md bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100"
+                              onClick={() => void handleReport(upload)}
                             >
-                              Share
+                              Download
                             </button>
-                            {!upload.is_locked && (
-                              <button
-                                type="button"
-                                className="whitespace-nowrap text-sm font-medium text-gray-800 hover:text-gray-950"
-                                onClick={() => void handleAccess(upload, true)}
-                              >
-                                Lock
-                              </button>
-                            )}
-                          </>
-                        )}
-                        {upload.owned_by_me && (
+                          )}
                           <button
                             type="button"
-                            disabled={deletingId === upload.id}
-                            className="whitespace-nowrap border-l border-gray-200 pl-2.5 text-sm font-medium text-red-700 hover:text-red-900 disabled:opacity-50"
-                            onClick={() => void handleDelete(upload)}
+                            className="whitespace-nowrap rounded-md bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-100"
+                            onClick={() => {
+                              setSelectedId(upload.id)
+                              setLineOffset(0)
+                              lineSearchRef.current = ''
+                              setLineSearch('')
+                              queryBoxRef.current = undefined
+                              setQueryBox(undefined)
+                              setFieldReset((value) => value + 1)
+                            }}
                           >
-                            {listView === 'trash' ? 'Delete' : 'Remove'}
+                            View
                           </button>
-                        )}
+                        </div>
+                        <div className="flex items-center gap-0.5">
+                          {listView !== 'trash' && !upload.archived_at && (
+                            <button
+                              type="button"
+                              className="whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-950"
+                              onClick={() => openArchive(upload)}
+                            >
+                              Archive
+                            </button>
+                          )}
+                          {listView === 'trash' && upload.owned_by_me && (
+                            <button
+                              type="button"
+                              className="whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-950"
+                              onClick={() => void handleRestore(upload)}
+                            >
+                              Restore
+                            </button>
+                          )}
+                          {upload.owned_by_me && !upload.archived_at && listView !== 'trash' && (
+                            <>
+                              <button
+                                type="button"
+                                className="whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-950"
+                                onClick={() => void openShare(upload)}
+                              >
+                                Share
+                              </button>
+                              {!upload.is_locked && (
+                                <button
+                                  type="button"
+                                  className="whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-950"
+                                  onClick={() => void handleAccess(upload, true)}
+                                >
+                                  Lock
+                                </button>
+                              )}
+                            </>
+                          )}
+                          {upload.owned_by_me && (
+                            <button
+                              type="button"
+                              disabled={deletingId === upload.id}
+                              className="ml-1 whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-50 hover:text-red-900 disabled:opacity-50"
+                              onClick={() => void handleDelete(upload)}
+                            >
+                              {listView === 'trash' ? 'Delete' : 'Remove'}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>
