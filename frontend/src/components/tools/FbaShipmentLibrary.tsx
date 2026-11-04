@@ -1604,10 +1604,10 @@ export default function FbaShipmentLibrary() {
           </div>
         </div>
 
-        <div className="mt-4 rounded-xl border border-[#2a2a2a] bg-[#404040] px-3 py-3">
+        <div className="mt-4 rounded-xl border border-[#6a6a6a] bg-[#787878] px-3 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <span className="text-xs font-semibold uppercase tracking-wide text-white/70">Folders</span>
+              <span className="text-base font-semibold uppercase tracking-wide text-white/90">Folders</span>
               <p className="mt-0.5 text-xs text-white/55">
                 Group related shipments. Deleting a folder leaves the shipments in the list.
               </p>
@@ -1949,9 +1949,9 @@ export default function FbaShipmentLibrary() {
 
         <div className="mt-4 min-w-0">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-200 bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+            <thead className="border-b border-gray-200 bg-gray-50/80 text-base font-semibold uppercase tracking-wider text-gray-600">
               <tr>
-                <th className="w-8 rounded-tl-lg px-3 py-2.5">
+                <th className="w-8 rounded-tl-lg px-3 py-3">
                   <input
                     type="checkbox"
                     aria-label="Select shipments on this page"
@@ -1966,13 +1966,13 @@ export default function FbaShipmentLibrary() {
                     }}
                   />
                 </th>
-                <th className="w-44 px-3 py-2.5">Shipment</th>
-                <th className="px-3 py-2.5">Name</th>
-                <th className="w-40 px-3 py-2.5">Folder</th>
-                <th className="w-14 px-3 py-2.5 text-right">SKUs</th>
-                <th className="w-20 px-3 py-2.5 text-right">Shipped</th>
-                <th className="w-40 px-3 py-2.5">Uploaded</th>
-                <th className="w-[232px] rounded-tr-lg px-3 py-2.5 text-right">Actions</th>
+                <th className="w-44 px-3 py-3">Shipment</th>
+                <th className="px-3 py-3">Name</th>
+                <th className="w-40 px-3 py-3">Folder</th>
+                <th className="w-14 px-3 py-3 text-right">SKUs</th>
+                <th className="w-20 px-3 py-3 text-right">Shipped</th>
+                <th className="w-40 px-3 py-3">Uploaded</th>
+                <th className="w-[232px] rounded-tr-lg px-3 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
