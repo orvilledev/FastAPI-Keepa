@@ -1848,8 +1848,8 @@ export default function FbaShipmentLibrary() {
                       />
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="font-semibold text-gray-900">{upload.shipment_id}</span>
+                      <div className="font-semibold text-gray-900">{upload.shipment_id}</div>
+                      <div className="mt-1">
                         {upload.trashed_at ? (
                           <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-700">
                             Trash
