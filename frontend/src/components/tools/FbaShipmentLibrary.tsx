@@ -43,6 +43,18 @@ const FILTER_DELAY_MS = 300
 const LIST_COLUMNS = 7
 const ALL_SHIPMENTS = 'all'
 const UNGROUPED_SHIPMENTS = 'ungrouped'
+const FOLDER_VIEW_KEY = 'fba-shipment-folder-view'
+type FolderViewMode = 'cards' | 'list' | 'compact'
+
+function readFolderView(): FolderViewMode {
+  try {
+    const value = localStorage.getItem(FOLDER_VIEW_KEY)
+    if (value === 'cards' || value === 'list' || value === 'compact') return value
+  } catch {
+    /* ignore */
+  }
+  return 'cards'
+}
 
 function digitsOnly(value: string): string {
   return value.replace(/\D/g, '').slice(0, 5)
@@ -74,15 +86,25 @@ function statusClass(status: string): string {
   return 'bg-amber-500 text-white'
 }
 
-function folderChipClass(selected: boolean): string {
+function folderItemClass(view: FolderViewMode, selected: boolean): string {
+  if (view === 'cards') {
+    return selected
+      ? 'flex min-h-[4.5rem] flex-col justify-between rounded-xl bg-white p-3 text-left shadow-sm ring-2 ring-amber-400'
+      : 'flex min-h-[4.5rem] flex-col justify-between rounded-xl bg-white/85 p-3 text-left ring-1 ring-amber-200/80 transition hover:bg-white hover:shadow-sm'
+  }
+  if (view === 'list') {
+    return selected
+      ? 'flex w-full items-center gap-3 rounded-lg bg-white px-3 py-2.5 text-left shadow-sm ring-2 ring-amber-400'
+      : 'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-gray-700 ring-1 ring-transparent transition hover:bg-white/90 hover:ring-amber-200'
+  }
   return selected
     ? 'inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-sm font-medium text-amber-950 shadow-sm ring-2 ring-amber-400'
     : 'inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-gray-700 ring-1 ring-amber-200 hover:bg-white'
 }
 
-function FolderMark() {
+function FolderMark({ className = 'h-3.5 w-3.5 text-amber-700' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-3.5 w-3.5 text-amber-700">
+    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className={className}>
       <path d="M2.8 6.2A1.8 1.8 0 0 1 4.6 4.4h2.7c.4 0 .8.2 1 .5l.7.9c.2.2.4.3.7.3h5.7a1.8 1.8 0 0 1 1.8 1.8v6.2a1.8 1.8 0 0 1-1.8 1.8H4.6a1.8 1.8 0 0 1-1.8-1.8V6.2Z" />
     </svg>
   )
@@ -349,6 +371,7 @@ export default function FbaShipmentLibrary() {
   const [folders, setFolders] = useState<FbaShipmentFolder[]>([])
   const [ungroupedCount, setUngroupedCount] = useState(0)
   const [folderFilter, setFolderFilter] = useState(ALL_SHIPMENTS)
+  const [folderView, setFolderView] = useState<FolderViewMode>(() => readFolderView())
   const [folderLoadError, setFolderLoadError] = useState<string | null>(null)
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [folderNameDraft, setFolderNameDraft] = useState('')
@@ -1553,61 +1576,166 @@ export default function FbaShipmentLibrary() {
         </div>
 
         <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50/70 px-3 py-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-amber-900/70">Folders</span>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span className="text-xs font-semibold uppercase tracking-wide text-amber-900/70">Folders</span>
+              <p className="mt-0.5 text-xs text-amber-950/60">
+                Group related shipments. Deleting a folder leaves the shipments in the list.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div
+                className="inline-flex rounded-lg bg-white/80 p-0.5 ring-1 ring-amber-200"
+                role="group"
+                aria-label="Folder view"
+              >
+                {(
+                  [
+                    ['cards', 'Cards'],
+                    ['list', 'List'],
+                    ['compact', 'Compact'],
+                  ] as const
+                ).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    aria-pressed={folderView === mode}
+                    className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                      folderView === mode
+                        ? 'bg-amber-800 text-white shadow-sm'
+                        : 'text-amber-900/80 hover:bg-white hover:text-amber-950'
+                    }`}
+                    onClick={() => {
+                      setFolderView(mode)
+                      try {
+                        localStorage.setItem(FOLDER_VIEW_KEY, mode)
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {!showNewFolder && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-amber-950 ring-1 ring-amber-200 hover:bg-amber-50"
+                  onClick={() => {
+                    setShowNewFolder(true)
+                    setRenamingFolder(false)
+                    setFolderNameDraft('')
+                  }}
+                >
+                  + New folder
+                </button>
+              )}
+            </div>
+          </div>
+          <div
+            className={
+              folderView === 'cards'
+                ? 'mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+                : folderView === 'list'
+                  ? 'mt-3 space-y-1'
+                  : 'mt-3 flex flex-wrap items-center gap-2'
+            }
+          >
             <button
               type="button"
               aria-pressed={folderFilter === ALL_SHIPMENTS}
-              className={folderChipClass(folderFilter === ALL_SHIPMENTS)}
+              className={folderItemClass(folderView, folderFilter === ALL_SHIPMENTS)}
               onClick={() => chooseFolder(ALL_SHIPMENTS)}
             >
-              All shipments
+              {folderView === 'cards' ? (
+                <>
+                  <FolderMark className="h-4 w-4 text-amber-700" />
+                  <span className="mt-2 text-sm font-semibold text-gray-900">All shipments</span>
+                </>
+              ) : folderView === 'list' ? (
+                <>
+                  <FolderMark className="h-4 w-4 shrink-0 text-amber-700" />
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">All shipments</span>
+                </>
+              ) : (
+                <span>All shipments</span>
+              )}
             </button>
             {folders.map((folder) => (
               <button
                 key={folder.id}
                 type="button"
                 aria-pressed={folderFilter === folder.id}
-                className={folderChipClass(folderFilter === folder.id)}
+                className={folderItemClass(folderView, folderFilter === folder.id)}
                 onClick={() => chooseFolder(folder.id)}
+                title={folder.name}
               >
-                <FolderMark />
-                <span className="max-w-[12rem] truncate">{folder.name}</span>
-                <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
-                  {folder.shipment_count}
-                </span>
+                {folderView === 'cards' ? (
+                  <>
+                    <div className="flex items-start justify-between gap-2">
+                      <FolderMark className="h-4 w-4 text-amber-700" />
+                      <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
+                        {folder.shipment_count}
+                      </span>
+                    </div>
+                    <span className="mt-2 line-clamp-2 text-sm font-semibold text-gray-900">{folder.name}</span>
+                  </>
+                ) : folderView === 'list' ? (
+                  <>
+                    <FolderMark className="h-4 w-4 shrink-0 text-amber-700" />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">{folder.name}</span>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+                      {folder.shipment_count}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <FolderMark />
+                    <span className="max-w-[12rem] truncate">{folder.name}</span>
+                    <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
+                      {folder.shipment_count}
+                    </span>
+                  </>
+                )}
               </button>
             ))}
             {folders.length > 0 && ungroupedCount > 0 && (
               <button
                 type="button"
                 aria-pressed={folderFilter === UNGROUPED_SHIPMENTS}
-                className={folderChipClass(folderFilter === UNGROUPED_SHIPMENTS)}
+                className={folderItemClass(folderView, folderFilter === UNGROUPED_SHIPMENTS)}
                 onClick={() => chooseFolder(UNGROUPED_SHIPMENTS)}
               >
-                Not in a folder
-                <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
-                  {ungroupedCount}
-                </span>
-              </button>
-            )}
-            {!showNewFolder && (
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium text-amber-900 hover:bg-white"
-                onClick={() => {
-                  setShowNewFolder(true)
-                  setRenamingFolder(false)
-                  setFolderNameDraft('')
-                }}
-              >
-                + New folder
+                {folderView === 'cards' ? (
+                  <>
+                    <div className="flex items-start justify-between gap-2">
+                      <FolderMark className="h-4 w-4 text-amber-700" />
+                      <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
+                        {ungroupedCount}
+                      </span>
+                    </div>
+                    <span className="mt-2 text-sm font-semibold text-gray-900">Not in a folder</span>
+                  </>
+                ) : folderView === 'list' ? (
+                  <>
+                    <FolderMark className="h-4 w-4 shrink-0 text-amber-700" />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">Not in a folder</span>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+                      {ungroupedCount}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Not in a folder
+                    <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
+                      {ungroupedCount}
+                    </span>
+                  </>
+                )}
               </button>
             )}
           </div>
-          <p className="mt-2 text-xs text-amber-950/70">
-            Group related shipments in a folder and give it a name. Deleting a folder leaves the shipments in the list.
-          </p>
           {folderLoadError && <p className="mt-2 text-xs text-red-700">{folderLoadError}</p>}
           {showNewFolder && (
             <form className="mt-3 flex flex-wrap items-center gap-2" onSubmit={(event) => void handleCreateFolder(event)}>
