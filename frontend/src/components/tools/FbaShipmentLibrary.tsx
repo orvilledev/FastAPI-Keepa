@@ -40,7 +40,7 @@ import FnskuLabelDesignModal, { FnskuLabelDesignSummary } from './FnskuLabelDesi
 const PAGE_SIZE = 50
 const LINE_PAGE_SIZE = 100
 const FILTER_DELAY_MS = 300
-const LIST_COLUMNS = 6
+const LIST_COLUMNS = 7
 const ALL_SHIPMENTS = 'all'
 const UNGROUPED_SHIPMENTS = 'ungrouped'
 
@@ -1793,7 +1793,8 @@ export default function FbaShipmentLibrary() {
                     }}
                   />
                 </th>
-                <th className="px-3 py-2.5">Shipment</th>
+                <th className="w-44 px-3 py-2.5">Shipment</th>
+                <th className="px-3 py-2.5">Name</th>
                 <th className="w-40 px-3 py-2.5">Folder</th>
                 <th className="w-14 px-3 py-2.5 text-right">SKUs</th>
                 <th className="w-20 px-3 py-2.5 text-right">Shipped</th>
@@ -1846,7 +1847,7 @@ export default function FbaShipmentLibrary() {
                         }}
                       />
                     </td>
-                    <td className="max-w-0 px-3 py-3">
+                    <td className="px-3 py-3">
                       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                         <span className="font-semibold text-gray-900">{upload.shipment_id}</span>
                         {upload.trashed_at ? (
@@ -1871,17 +1872,9 @@ export default function FbaShipmentLibrary() {
                           </span>
                         )}
                       </div>
-                      <div
-                        className="mt-0.5 truncate text-xs text-gray-600"
-                        title={upload.shipment_name || undefined}
-                      >
-                        {upload.shipment_name || '—'}
-                      </div>
-                      {upload.source_filename && (
-                        <div className="truncate text-[11px] text-gray-400" title={upload.source_filename}>
-                          {upload.source_filename}
-                        </div>
-                      )}
+                    </td>
+                    <td className="max-w-0 px-3 py-3 text-gray-700" title={upload.shipment_name || undefined}>
+                      <div className="truncate">{upload.shipment_name || '—'}</div>
                     </td>
                     <td className="px-3 py-3">
                       <select
