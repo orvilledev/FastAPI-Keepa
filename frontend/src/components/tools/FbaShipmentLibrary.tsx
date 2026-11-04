@@ -1136,6 +1136,18 @@ export default function FbaShipmentLibrary() {
     }
   }
 
+  const handleUnarchive = async (upload: FbaShipmentUpload) => {
+    setError(null)
+    try {
+      await fbaShipmentLibraryApi.unarchive(upload.id)
+      if (selectedId === upload.id) setSelectedId(null)
+      setNotice(`${upload.shipment_id} is back in the active list.`)
+      setRefreshKey((value) => value + 1)
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to unarchive this shipment.'))
+    }
+  }
+
   const handleSaveName = async () => {
     if (!selected || savingName || selected.trashed_at) return
     const next = nameDraft.trim()
@@ -2135,6 +2147,15 @@ export default function FbaShipmentLibrary() {
                               Archive
                             </button>
                           )}
+                          {listView === 'archive' && upload.archived_at && (
+                            <button
+                              type="button"
+                              className={`whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium ${quietBtn}`}
+                              onClick={() => void handleUnarchive(upload)}
+                            >
+                              Unarchive
+                            </button>
+                          )}
                           {listView === 'trash' && upload.owned_by_me && (
                             <button
                               type="button"
@@ -2297,13 +2318,24 @@ export default function FbaShipmentLibrary() {
                   Archive
                 </button>
               )}
+              {selected.archived_at && !selected.trashed_at && (
+                <button
+                  type="button"
+                  className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50"
+                  onClick={() => void handleUnarchive(selected)}
+                >
+                  Unarchive
+                </button>
+              )}
             </div>
           </div>
           {selected.trashed_at && (
             <p className="mt-2 text-xs text-gray-500">This shipment is in Trash. Restore it to count again.</p>
           )}
           {selected.archived_at && !selected.trashed_at && (
-            <p className="mt-2 text-xs text-gray-500">This shipment is in the completed archive.</p>
+            <p className="mt-2 text-xs text-gray-500">
+              This shipment is in the completed archive. Unarchive it to count again.
+            </p>
           )}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             {scanCountNotice && (

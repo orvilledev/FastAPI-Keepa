@@ -951,6 +951,40 @@ def archive_fba_shipment(
     )
 
 
+@router.post("/fba-shipment-library/{upload_id}/unarchive", response_model=FbaShipmentUploadResponse)
+@handle_api_errors("unarchive FBA shipment")
+def unarchive_fba_shipment(
+    upload_id: str,
+    current_user: dict = Depends(get_fba_order_checker_user),
+    db: Client = Depends(get_supabase),
+):
+    """Move a completed shipment back to the active list so counting can resume.
+
+    Anyone the shipment is shared with can do this. Folder membership is kept.
+    """
+    repo = FbaShipmentLibraryRepository(db)
+    can_manage_any = is_superadmin_user(current_user, db)
+    try:
+        upload = repo.get_upload(upload_id)
+        if not upload:
+            raise HTTPException(status_code=404, detail="That shipment upload was not found.")
+        _require_visible(upload, current_user, can_manage_any)
+        if upload.get("trashed_at"):
+            raise HTTPException(status_code=400, detail="Restore this shipment from Trash before unarchiving it.")
+        if not upload.get("archived_at"):
+            raise HTTPException(status_code=400, detail="This shipment is not archived.")
+        saved = repo.unarchive_upload(upload_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    saved["fully_accounted"] = _is_accounted(repo, upload_id)
+    return _upload_response(
+        saved,
+        current_user,
+        can_manage_any=can_manage_any,
+        uploader_names=_given_names_by_user(db, [str(saved.get("created_by") or "")]),
+    )
+
+
 @router.patch("/fba-shipment-library/{upload_id}/name", response_model=FbaShipmentUploadResponse)
 @handle_api_errors("rename FBA shipment")
 def set_fba_shipment_name(

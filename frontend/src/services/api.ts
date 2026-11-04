@@ -3345,6 +3345,10 @@ export const fbaShipmentLibraryApi = {
     })
     return response.data
   },
+  unarchive: async (uploadId: string): Promise<FbaShipmentUpload> => {
+    const response = await api.post(`/api/v1/fba-shipment-library/${uploadId}/unarchive`)
+    return response.data
+  },
   fnskuLabels: async (
     uploadId: string,
     filters?: { box?: number; search?: string },

@@ -474,6 +474,22 @@ class FbaShipmentLibraryRepository:
             raise ValueError("The shipment was not archived.")
         return rows[0]
 
+    def unarchive_upload(self, upload_id: str) -> dict:
+        """Return a completed shipment to the active list. Folder membership stays."""
+        try:
+            response = (
+                self.db.table(_UPLOADS)
+                .update({"archived_at": None, "archived_by": None})
+                .eq("id", upload_id)
+                .execute()
+            )
+        except Exception as exc:
+            _raise_persist_error(exc)
+        rows = response.data or []
+        if not rows:
+            raise ValueError("The shipment was not unarchived.")
+        return rows[0]
+
     def list_active_uploads_in_folder(self, folder_id: str) -> List[dict]:
         """Active (not archived, not trashed) shipments currently in this folder."""
         try:
