@@ -24,6 +24,7 @@ from app.models.fba_shipment_library import (
     FbaShipmentAccessRequest,
     FbaShipmentArchiveRequest,
     FbaShipmentDetailResponse,
+    FbaShipmentFolderArchiveResult,
     FbaShipmentFolderAssignRequest,
     FbaShipmentFolderCreateRequest,
     FbaShipmentFolderListResponse,
@@ -450,6 +451,56 @@ def delete_fba_shipment_folder(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return None
+
+
+@router.post(
+    "/fba-shipment-library/folders/{folder_id}/archive",
+    response_model=FbaShipmentFolderArchiveResult,
+)
+@handle_api_errors("archive FBA shipment folder")
+def archive_fba_shipment_folder(
+    folder_id: UUID,
+    current_user: dict = Depends(get_fba_order_checker_user),
+    db: Client = Depends(get_supabase),
+):
+    """Move every active shipment in this folder into Completed shipments.
+
+    Shipments the current user cannot see are left alone. The folder itself stays;
+    archived shipments keep the same folder and show under Archive.
+    """
+    repo = FbaShipmentLibraryRepository(db)
+    can_manage_any = is_superadmin_user(current_user, db)
+    try:
+        folder = repo.get_folder(str(folder_id))
+        if not folder:
+            raise HTTPException(status_code=404, detail="That folder was not found.")
+        rows = repo.list_active_uploads_in_folder(str(folder_id))
+        if not rows:
+            raise HTTPException(
+                status_code=400,
+                detail="This folder has no active shipments to archive.",
+            )
+        allowed_ids: list[str] = []
+        skipped = 0
+        for row in rows:
+            if shipment_open_to(row, str(current_user.get("id") or ""), can_manage_any=can_manage_any):
+                allowed_ids.append(str(row["id"]))
+            else:
+                skipped += 1
+        if not allowed_ids:
+            raise HTTPException(
+                status_code=403,
+                detail="None of the shipments in this folder are shared with you.",
+            )
+        archived = repo.archive_uploads(allowed_ids, str(current_user["id"]))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return FbaShipmentFolderArchiveResult(
+        folder_id=folder["id"],
+        name=folder.get("name") or "",
+        archived=archived,
+        skipped=skipped,
+    )
 
 
 @router.get("/fba-shipment-library/{upload_id}", response_model=FbaShipmentDetailResponse)

@@ -381,6 +381,7 @@ export default function FbaShipmentLibrary() {
   const [movingFolder, setMovingFolder] = useState(false)
   const [selectedUploadIds, setSelectedUploadIds] = useState<string[]>([])
   const [pendingDeleteFolder, setPendingDeleteFolder] = useState<FbaShipmentFolder | null>(null)
+  const [pendingArchiveFolder, setPendingArchiveFolder] = useState<FbaShipmentFolder | null>(null)
   const [pendingArchive, setPendingArchive] = useState<FbaShipmentUpload | null>(null)
   const [archiveFolderId, setArchiveFolderId] = useState('')
   const [archiveError, setArchiveError] = useState<string | null>(null)
@@ -1354,6 +1355,34 @@ export default function FbaShipmentLibrary() {
     }
   }
 
+  const confirmArchiveFolder = async () => {
+    if (!pendingArchiveFolder || folderBusy) return
+    setFolderBusy(true)
+    setError(null)
+    try {
+      const result = await fbaShipmentLibraryApi.archiveFolder(pendingArchiveFolder.id)
+      const skippedNote =
+        result.skipped > 0
+          ? ` ${result.skipped} shipment${result.skipped === 1 ? '' : 's'} stayed in Active because they are not shared with you.`
+          : ''
+      setNotice(
+        result.archived === 0
+          ? `No shipments were archived from "${result.name}".${skippedNote}`
+          : `Moved ${result.archived} shipment${result.archived === 1 ? '' : 's'} from "${result.name}" to Completed shipments.${skippedNote}`,
+      )
+      if (folderFilter === pendingArchiveFolder.id) setFolderFilter(ALL_SHIPMENTS)
+      setSelectedId(null)
+      setSelectedUploadIds([])
+      setPendingArchiveFolder(null)
+      setRenamingFolder(false)
+      setRefreshKey((value) => value + 1)
+    } catch (err) {
+      setError(errorMessage(err, 'Could not archive that folder.'))
+    } finally {
+      setFolderBusy(false)
+    }
+  }
+
   const handleReport = async (upload: FbaShipmentUpload) => {
     setError(null)
     try {
@@ -1819,6 +1848,19 @@ export default function FbaShipmentLibrary() {
                   >
                     Rename
                   </button>
+                  {listView === 'active' && activeFolder.shipment_count > 0 && (
+                    <button
+                      type="button"
+                      className="rounded-lg bg-white px-3 py-1 text-sm font-medium text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50"
+                      onClick={() => {
+                        setPendingArchiveFolder(activeFolder)
+                        setShowNewFolder(false)
+                        setRenamingFolder(false)
+                      }}
+                    >
+                      Archive folder
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="rounded-lg bg-white px-3 py-1 text-sm font-medium text-red-700 ring-1 ring-red-200 hover:bg-red-50"
@@ -2627,6 +2669,52 @@ export default function FbaShipmentLibrary() {
                 onClick={() => setDuplicateUpload(null)}
               >
                 OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {pendingArchiveFolder && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="presentation"
+          onClick={() => {
+            if (!folderBusy) setPendingArchiveFolder(null)
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="archive-folder-title"
+            className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="archive-folder-title" className="text-lg font-semibold text-gray-900">
+              Archive this folder?
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              All active shipments in <span className="font-medium text-gray-800">{pendingArchiveFolder.name}</span>
+              {pendingArchiveFolder.shipment_count > 0
+                ? ` (${pendingArchiveFolder.shipment_count} in this list)`
+                : ''}{' '}
+              will move to Completed shipments and stay in the same folder there. Nothing moves until you confirm.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={folderBusy}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                onClick={() => setPendingArchiveFolder(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={folderBusy}
+                className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                onClick={() => void confirmArchiveFolder()}
+              >
+                {folderBusy ? 'Archiving…' : 'Archive folder'}
               </button>
             </div>
           </div>

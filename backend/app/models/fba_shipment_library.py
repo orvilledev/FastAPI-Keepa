@@ -170,6 +170,13 @@ class FbaShipmentFolderMoveResult(BaseModel):
     moved: int = 0
 
 
+class FbaShipmentFolderArchiveResult(BaseModel):
+    folder_id: UUID
+    name: str
+    archived: int = 0
+    skipped: int = 0
+
+
 class FbaFnskuLabelItem(BaseModel):
     external_id: str
     quantity: int

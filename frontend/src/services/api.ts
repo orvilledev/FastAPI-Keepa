@@ -3216,6 +3216,12 @@ export const fbaShipmentLibraryApi = {
   deleteFolder: async (folderId: string): Promise<void> => {
     await api.delete(`/api/v1/fba-shipment-library/folders/${folderId}`)
   },
+  archiveFolder: async (
+    folderId: string,
+  ): Promise<{ folder_id: string; name: string; archived: number; skipped: number }> => {
+    const response = await api.post(`/api/v1/fba-shipment-library/folders/${folderId}/archive`)
+    return response.data
+  },
   assignFolder: async (folderId: string | null, uploadIds: string[]): Promise<void> => {
     await api.put('/api/v1/fba-shipment-library/folders/members', {
       folder_id: folderId,

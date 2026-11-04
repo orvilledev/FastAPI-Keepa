@@ -474,6 +474,46 @@ class FbaShipmentLibraryRepository:
             raise ValueError("The shipment was not archived.")
         return rows[0]
 
+    def list_active_uploads_in_folder(self, folder_id: str) -> List[dict]:
+        """Active (not archived, not trashed) shipments currently in this folder."""
+        try:
+            response = (
+                self.db.table(_UPLOADS)
+                .select("*")
+                .eq("folder_id", folder_id)
+                .is_("trashed_at", "null")
+                .is_("archived_at", "null")
+                .order("created_at", desc=True)
+                .limit(500)
+                .execute()
+            )
+        except Exception as exc:
+            _raise_persist_error(exc)
+        return list(response.data or [])
+
+    def archive_uploads(self, upload_ids: List[str], user_id: str) -> int:
+        """Mark shipments archived. Folder membership is left as-is."""
+        ids = [str(item) for item in upload_ids if item]
+        if not ids:
+            return 0
+        try:
+            response = (
+                self.db.table(_UPLOADS)
+                .update(
+                    {
+                        "archived_at": datetime.now(timezone.utc).isoformat(),
+                        "archived_by": user_id,
+                    }
+                )
+                .in_("id", ids)
+                .is_("trashed_at", "null")
+                .is_("archived_at", "null")
+                .execute()
+            )
+        except Exception as exc:
+            _raise_persist_error(exc)
+        return len(response.data or [])
+
     def list_lines(
         self,
         upload_id: str,
