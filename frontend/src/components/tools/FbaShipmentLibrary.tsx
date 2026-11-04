@@ -1513,17 +1513,17 @@ export default function FbaShipmentLibrary() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-gray-900">
+              <h2 className="text-base font-semibold text-gray-900">
                 {listView === 'trash' ? 'Trash' : listView === 'archive' ? 'Completed shipments' : 'Stored shipments'}
               </h2>
-              <p className="text-xs text-gray-500">{total} upload{total === 1 ? '' : 's'} visible</p>
+              <p className="text-sm text-gray-500">{total} upload{total === 1 ? '' : 's'} visible</p>
             </div>
             <label className="inline-flex flex-col gap-1">
               <span className="sr-only">Shipment list</span>
               <select
                 aria-label="Shipment list"
                 value={listView}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 shadow-sm focus:border-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-300"
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-base font-medium text-gray-800 shadow-sm focus:border-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-300"
                 onChange={(event) => {
                   const next = event.target.value as 'active' | 'archive' | 'trash'
                   setListView(next)
@@ -1542,7 +1542,7 @@ export default function FbaShipmentLibrary() {
               <button
                 type="button"
                 disabled={total === 0 || deletingId === 'empty'}
-                className="rounded-lg px-3 py-1.5 text-sm font-medium text-red-700 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-40"
+                className="rounded-lg px-3 py-2 text-base font-medium text-red-700 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-40"
                 onClick={() => setPendingRemove({ mode: 'empty' })}
               >
                 Empty trash
@@ -1556,7 +1556,7 @@ export default function FbaShipmentLibrary() {
               <button
                 type="button"
                 aria-pressed={!mine}
-                className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+                className={`rounded-md px-3 py-1.5 text-base font-medium transition-colors ${
                   !mine ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
                 }`}
                 onClick={() => {
@@ -1569,7 +1569,7 @@ export default function FbaShipmentLibrary() {
               <button
                 type="button"
                 aria-pressed={mine}
-                className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+                className={`rounded-md px-3 py-1.5 text-base font-medium transition-colors ${
                   mine ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
                 }`}
                 onClick={() => {
@@ -1592,11 +1592,11 @@ export default function FbaShipmentLibrary() {
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
                 placeholder="Shipment, SKU, external-id, or name"
-                className="w-64 rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+                className="w-72 rounded-lg border border-gray-300 px-3 py-2 text-base"
               />
               <button
                 type="submit"
-                className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50"
+                className="rounded-lg bg-white px-3 py-2 text-base font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50"
               >
                 Search
               </button>
