@@ -366,6 +366,8 @@ export default function FbaShipmentLibrary() {
   const [offset, setOffset] = useState(0)
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
+  const searchRef = useRef(search)
+  searchRef.current = search
   const [mine, setMine] = useState(false)
   const [listView, setListView] = useState<'active' | 'archive' | 'trash'>('active')
   const [folders, setFolders] = useState<FbaShipmentFolder[]>([])
@@ -507,6 +509,17 @@ export default function FbaShipmentLibrary() {
   useEffect(() => {
     void loadUploads()
   }, [loadUploads])
+
+  // Live list search: apply after a short pause so each keystroke does not hit the API.
+  useEffect(() => {
+    const next = searchInput.trim()
+    const timer = window.setTimeout(() => {
+      if (searchRef.current === next) return
+      setOffset(0)
+      setSearch(next)
+    }, FILTER_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [searchInput])
 
   useEffect(() => {
     void loadFolders()
@@ -1596,14 +1609,17 @@ export default function FbaShipmentLibrary() {
               className="flex gap-2"
               onSubmit={(event) => {
                 event.preventDefault()
+                const next = searchInput.trim()
+                if (searchRef.current === next) return
                 setOffset(0)
-                setSearch(searchInput.trim())
+                setSearch(next)
               }}
             >
               <input
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
                 placeholder="Shipment, SKU, external-id, or name"
+                aria-label="Search stored shipments"
                 className="w-72 rounded-lg border border-gray-300 px-3 py-2 text-base"
               />
               <button
