@@ -89,20 +89,20 @@ function statusClass(status: string): string {
 function folderItemClass(view: FolderViewMode, selected: boolean): string {
   if (view === 'cards') {
     return selected
-      ? 'flex min-h-[4.5rem] flex-col justify-between rounded-xl bg-white p-3 text-left shadow-sm ring-2 ring-amber-400'
-      : 'flex min-h-[4.5rem] flex-col justify-between rounded-xl bg-white/85 p-3 text-left ring-1 ring-amber-200/80 transition hover:bg-white hover:shadow-sm'
+      ? 'flex min-h-[4.5rem] flex-col justify-between rounded-xl bg-white p-3 text-left shadow-sm ring-2 ring-[#a442a4]'
+      : 'flex min-h-[4.5rem] flex-col justify-between rounded-xl bg-white/95 p-3 text-left ring-1 ring-white/25 transition hover:bg-white hover:shadow-sm'
   }
   if (view === 'list') {
     return selected
-      ? 'flex w-full items-center gap-3 rounded-lg bg-white px-3 py-2.5 text-left shadow-sm ring-2 ring-amber-400'
-      : 'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-gray-700 ring-1 ring-transparent transition hover:bg-white/90 hover:ring-amber-200'
+      ? 'flex w-full items-center gap-3 rounded-lg bg-white px-3 py-2.5 text-left text-gray-900 shadow-sm ring-2 ring-[#a442a4]'
+      : 'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-white/90 ring-1 ring-transparent transition hover:bg-white/10 hover:ring-white/20'
   }
   return selected
-    ? 'inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-sm font-medium text-amber-950 shadow-sm ring-2 ring-amber-400'
-    : 'inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-gray-700 ring-1 ring-amber-200 hover:bg-white'
+    ? 'inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-sm font-medium text-[#491d49] shadow-sm ring-2 ring-[#a442a4]'
+    : 'inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-sm font-medium text-white ring-1 ring-white/25 hover:bg-white/25'
 }
 
-function FolderMark({ className = 'h-3.5 w-3.5 text-amber-700' }: { className?: string }) {
+function FolderMark({ className = 'h-3.5 w-3.5 text-[#a442a4]' }: { className?: string }) {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className={className}>
       <path d="M2.8 6.2A1.8 1.8 0 0 1 4.6 4.4h2.7c.4 0 .8.2 1 .5l.7.9c.2.2.4.3.7.3h5.7a1.8 1.8 0 0 1 1.8 1.8v6.2a1.8 1.8 0 0 1-1.8 1.8H4.6a1.8 1.8 0 0 1-1.8-1.8V6.2Z" />
@@ -1604,17 +1604,17 @@ export default function FbaShipmentLibrary() {
           </div>
         </div>
 
-        <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50/70 px-3 py-3">
+        <div className="mt-4 rounded-xl border border-[#3a173a] bg-[#491d49] px-3 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <span className="text-xs font-semibold uppercase tracking-wide text-amber-900/70">Folders</span>
-              <p className="mt-0.5 text-xs text-amber-950/60">
+              <span className="text-xs font-semibold uppercase tracking-wide text-white/70">Folders</span>
+              <p className="mt-0.5 text-xs text-white/55">
                 Group related shipments. Deleting a folder leaves the shipments in the list.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div
-                className="inline-flex rounded-lg bg-white/80 p-0.5 ring-1 ring-amber-200"
+                className="inline-flex rounded-lg bg-black/20 p-0.5 ring-1 ring-white/20"
                 role="group"
                 aria-label="Folder view"
               >
@@ -1631,8 +1631,8 @@ export default function FbaShipmentLibrary() {
                     aria-pressed={folderView === mode}
                     className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                       folderView === mode
-                        ? 'bg-amber-800 text-white shadow-sm'
-                        : 'text-amber-900/80 hover:bg-white hover:text-amber-950'
+                        ? 'bg-[#a442a4] text-white shadow-sm'
+                        : 'text-white/75 hover:bg-white/10 hover:text-white'
                     }`}
                     onClick={() => {
                       setFolderView(mode)
@@ -1650,7 +1650,7 @@ export default function FbaShipmentLibrary() {
               {!showNewFolder && (
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-amber-950 ring-1 ring-amber-200 hover:bg-amber-50"
+                  className="inline-flex items-center gap-1 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-[#491d49] ring-1 ring-white/30 hover:bg-white/90"
                   onClick={() => {
                     setShowNewFolder(true)
                     setRenamingFolder(false)
@@ -1679,13 +1679,13 @@ export default function FbaShipmentLibrary() {
             >
               {folderView === 'cards' ? (
                 <>
-                  <FolderMark className="h-4 w-4 text-amber-700" />
+                  <FolderMark className="h-4 w-4 text-[#a442a4]" />
                   <span className="mt-2 text-sm font-semibold text-gray-900">All shipments</span>
                 </>
               ) : folderView === 'list' ? (
                 <>
-                  <FolderMark className="h-4 w-4 shrink-0 text-amber-700" />
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">All shipments</span>
+                  <FolderMark className="h-4 w-4 shrink-0 text-white/80" />
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">All shipments</span>
                 </>
               ) : (
                 <span>All shipments</span>
@@ -1703,8 +1703,8 @@ export default function FbaShipmentLibrary() {
                 {folderView === 'cards' ? (
                   <>
                     <div className="flex items-start justify-between gap-2">
-                      <FolderMark className="h-4 w-4 text-amber-700" />
-                      <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
+                      <FolderMark className="h-4 w-4 text-[#a442a4]" />
+                      <span className="rounded-full bg-[#491d49]/10 px-1.5 py-0.5 text-[11px] font-semibold text-[#491d49]">
                         {folder.shipment_count}
                       </span>
                     </div>
@@ -1712,9 +1712,17 @@ export default function FbaShipmentLibrary() {
                   </>
                 ) : folderView === 'list' ? (
                   <>
-                    <FolderMark className="h-4 w-4 shrink-0 text-amber-700" />
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">{folder.name}</span>
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+                    <FolderMark className={`h-4 w-4 shrink-0 ${folderFilter === folder.id ? 'text-[#a442a4]' : 'text-white/80'}`} />
+                    <span className={`min-w-0 flex-1 truncate text-sm font-medium ${folderFilter === folder.id ? 'text-gray-900' : ''}`}>
+                      {folder.name}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                        folderFilter === folder.id
+                          ? 'bg-[#491d49]/10 text-[#491d49]'
+                          : 'bg-white/15 text-white'
+                      }`}
+                    >
                       {folder.shipment_count}
                     </span>
                   </>
@@ -1722,7 +1730,13 @@ export default function FbaShipmentLibrary() {
                   <>
                     <FolderMark />
                     <span className="max-w-[12rem] truncate">{folder.name}</span>
-                    <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
+                        folderFilter === folder.id
+                          ? 'bg-[#491d49]/10 text-[#491d49]'
+                          : 'bg-white/15 text-white'
+                      }`}
+                    >
                       {folder.shipment_count}
                     </span>
                   </>
@@ -1739,8 +1753,8 @@ export default function FbaShipmentLibrary() {
                 {folderView === 'cards' ? (
                   <>
                     <div className="flex items-start justify-between gap-2">
-                      <FolderMark className="h-4 w-4 text-amber-700" />
-                      <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
+                      <FolderMark className="h-4 w-4 text-[#a442a4]" />
+                      <span className="rounded-full bg-[#491d49]/10 px-1.5 py-0.5 text-[11px] font-semibold text-[#491d49]">
                         {ungroupedCount}
                       </span>
                     </div>
@@ -1748,16 +1762,38 @@ export default function FbaShipmentLibrary() {
                   </>
                 ) : folderView === 'list' ? (
                   <>
-                    <FolderMark className="h-4 w-4 shrink-0 text-amber-700" />
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">Not in a folder</span>
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+                    <FolderMark
+                      className={`h-4 w-4 shrink-0 ${
+                        folderFilter === UNGROUPED_SHIPMENTS ? 'text-[#a442a4]' : 'text-white/80'
+                      }`}
+                    />
+                    <span
+                      className={`min-w-0 flex-1 truncate text-sm font-medium ${
+                        folderFilter === UNGROUPED_SHIPMENTS ? 'text-gray-900' : ''
+                      }`}
+                    >
+                      Not in a folder
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                        folderFilter === UNGROUPED_SHIPMENTS
+                          ? 'bg-[#491d49]/10 text-[#491d49]'
+                          : 'bg-white/15 text-white'
+                      }`}
+                    >
                       {ungroupedCount}
                     </span>
                   </>
                 ) : (
                   <>
                     Not in a folder
-                    <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
+                        folderFilter === UNGROUPED_SHIPMENTS
+                          ? 'bg-[#491d49]/10 text-[#491d49]'
+                          : 'bg-white/15 text-white'
+                      }`}
+                    >
                       {ungroupedCount}
                     </span>
                   </>
@@ -1765,7 +1801,7 @@ export default function FbaShipmentLibrary() {
               </button>
             )}
           </div>
-          {folderLoadError && <p className="mt-2 text-xs text-red-700">{folderLoadError}</p>}
+          {folderLoadError && <p className="mt-2 text-xs text-rose-200">{folderLoadError}</p>}
           {showNewFolder && (
             <form className="mt-3 flex flex-wrap items-center gap-2" onSubmit={(event) => void handleCreateFolder(event)}>
               <input
@@ -1775,18 +1811,18 @@ export default function FbaShipmentLibrary() {
                 maxLength={80}
                 autoFocus
                 aria-label="Folder name"
-                className="w-56 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-sm"
+                className="w-56 rounded-lg border border-white/20 bg-white px-3 py-1.5 text-sm"
               />
               <button
                 type="submit"
                 disabled={folderBusy || !folderNameDraft.trim()}
-                className="rounded-lg bg-amber-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-900 disabled:opacity-50"
+                className="rounded-lg bg-[#a442a4] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#8f3890] disabled:opacity-50"
               >
                 {folderBusy ? 'Saving…' : 'Create folder'}
               </button>
               <button
                 type="button"
-                className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-white"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white"
                 onClick={() => {
                   setShowNewFolder(false)
                   setFolderNameDraft('')
@@ -1794,7 +1830,7 @@ export default function FbaShipmentLibrary() {
               >
                 Cancel
               </button>
-              <span className="text-xs text-amber-950/70">
+              <span className="text-xs text-white/60">
                 {selectedUploadIds.length > 0
                   ? `${selectedUploadIds.length} selected shipment${selectedUploadIds.length === 1 ? '' : 's'} will go in this folder.`
                   : 'Select shipments below if you want them in this folder right away.'}
@@ -1802,7 +1838,7 @@ export default function FbaShipmentLibrary() {
             </form>
           )}
           {activeFolder && (
-            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-amber-100 pt-3">
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/15 pt-3">
               {renamingFolder ? (
                 <form className="flex flex-wrap items-center gap-2" onSubmit={(event) => void handleRenameFolder(event)}>
                   <input
@@ -1811,18 +1847,18 @@ export default function FbaShipmentLibrary() {
                     maxLength={80}
                     autoFocus
                     aria-label="Rename folder"
-                    className="w-56 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-sm"
+                    className="w-56 rounded-lg border border-white/20 bg-white px-3 py-1.5 text-sm"
                   />
                   <button
                     type="submit"
                     disabled={folderBusy || !renameDraft.trim()}
-                    className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                    className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-[#491d49] ring-1 ring-white/30 hover:bg-white/90 disabled:opacity-50"
                   >
                     {folderBusy ? 'Saving…' : 'Save name'}
                   </button>
                   <button
                     type="button"
-                    className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-white"
+                    className="rounded-lg px-3 py-1.5 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white"
                     onClick={() => setRenamingFolder(false)}
                   >
                     Cancel
@@ -1830,16 +1866,16 @@ export default function FbaShipmentLibrary() {
                 </form>
               ) : (
                 <>
-                  <p className="text-sm text-gray-700">
-                    <span className="font-medium">{activeFolder.name}</span>
-                    <span className="text-gray-500">
+                  <p className="text-sm text-white/90">
+                    <span className="font-medium text-white">{activeFolder.name}</span>
+                    <span className="text-white/55">
                       {' '}
                       · {activeFolder.shipment_count} in this list
                     </span>
                   </p>
                   <button
                     type="button"
-                    className="rounded-lg bg-white px-3 py-1 text-sm font-medium text-gray-800 ring-1 ring-amber-200 hover:bg-amber-50"
+                    className="rounded-lg bg-white px-3 py-1 text-sm font-medium text-[#491d49] ring-1 ring-white/30 hover:bg-white/90"
                     onClick={() => {
                       setRenamingFolder(true)
                       setRenameDraft(activeFolder.name)
@@ -1851,7 +1887,7 @@ export default function FbaShipmentLibrary() {
                   {listView === 'active' && activeFolder.shipment_count > 0 && (
                     <button
                       type="button"
-                      className="rounded-lg bg-white px-3 py-1 text-sm font-medium text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50"
+                      className="rounded-lg bg-white/15 px-3 py-1 text-sm font-medium text-white ring-1 ring-white/25 hover:bg-white/25"
                       onClick={() => {
                         setPendingArchiveFolder(activeFolder)
                         setShowNewFolder(false)
@@ -1873,7 +1909,7 @@ export default function FbaShipmentLibrary() {
             </div>
           )}
           {selectedUploadIds.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-gray-700 ring-1 ring-amber-200">
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-gray-700 ring-1 ring-white/25">
               <span className="font-medium">
                 {selectedUploadIds.length} selected
               </span>
@@ -1967,7 +2003,9 @@ export default function FbaShipmentLibrary() {
                   <tr
                     key={upload.id}
                     className={`border-b border-gray-100 align-middle transition-colors last:border-b-0 ${
-                      selectedId === upload.id ? 'bg-amber-50' : 'hover:bg-gray-50/70'
+                      selectedId === upload.id
+                        ? 'bg-[#a442a4] text-white [&_button]:text-white [&_button:hover]:bg-white/15 [&_.text-gray-400]:text-white/70 [&_.text-gray-500]:text-white/75 [&_.text-gray-600]:text-white/80 [&_.text-gray-700]:text-white/90 [&_.text-gray-800]:text-white [&_.text-gray-900]:text-white [&_.text-emerald-700]:text-emerald-100 [&_.text-indigo-700]:text-indigo-100 [&_.text-red-700]:text-rose-100 [&_span.bg-emerald-100]:bg-white/20 [&_span.bg-emerald-100]:text-white [&_span.bg-indigo-100]:bg-white/20 [&_span.bg-indigo-100]:text-white [&_span.bg-red-100]:bg-white/20 [&_span.bg-red-100]:text-white [&_span.bg-slate-100]:bg-white/20 [&_span.bg-slate-100]:text-white'
+                        : 'hover:bg-gray-50/70'
                     }`}
                   >
                     <td className="px-3 py-3">
