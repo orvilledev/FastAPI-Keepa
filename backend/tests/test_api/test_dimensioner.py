@@ -60,13 +60,46 @@ class FakeStore:
                 store.rows.append(saved)
                 return saved
 
-            def list_recent(self, limit, barcode_search=None):
+            def list_recent(self, limit, barcode_search=None, *, trashed=False):
                 if store.fail_with:
                     raise store.fail_with
                 rows = list(reversed(store.rows))
+                if trashed:
+                    rows = [r for r in rows if r.get("trashed_at")]
+                else:
+                    rows = [r for r in rows if not r.get("trashed_at")]
                 if barcode_search:
                     rows = [r for r in rows if barcode_search.lower() in r["barcode"].lower()]
                 return rows[:limit]
+
+            def trash(self, scan_id):
+                if store.fail_with:
+                    raise store.fail_with
+                for row in store.rows:
+                    if row["id"] == scan_id and not row.get("trashed_at"):
+                        row["trashed_at"] = "2026-10-24T00:00:00+00:00"
+                        return True
+                return False
+
+            def trash_many(self, scan_ids):
+                if store.fail_with:
+                    raise store.fail_with
+                moved = 0
+                wanted = set(scan_ids)
+                for row in store.rows:
+                    if row["id"] in wanted and not row.get("trashed_at"):
+                        row["trashed_at"] = "2026-10-24T00:00:00+00:00"
+                        moved += 1
+                return moved
+
+            def restore(self, scan_id):
+                if store.fail_with:
+                    raise store.fail_with
+                for row in store.rows:
+                    if row["id"] == scan_id and row.get("trashed_at"):
+                        row["trashed_at"] = None
+                        return True
+                return False
 
             def delete(self, scan_id):
                 if store.fail_with:
@@ -76,6 +109,11 @@ class FakeStore:
                         del store.rows[index]
                         return True
                 return False
+
+            def purge_trashed_older_than(self, retention_days):
+                if store.fail_with:
+                    raise store.fail_with
+                return 0
 
         return FakeRepository
 
@@ -290,7 +328,7 @@ def test_list_storage_failure_is_a_503(user, store):
     assert user.get("/api/v1/dimensioner/scans").status_code == 503
 
 
-def test_delete_removes_one_scan(user, store):
+def test_delete_moves_one_scan_to_trash(user, store):
     _post(user, {**RECORD, "barcode": "KEEP"})
     _post(user, {**RECORD, "timestamp": "2026/10/23 14:09:00", "barcode": "DROP"})
     drop_id = next(r["id"] for r in store.rows if r["barcode"] == "DROP")
@@ -298,7 +336,46 @@ def test_delete_removes_one_scan(user, store):
     response = user.delete(f"/api/v1/dimensioner/scans/{drop_id}")
 
     assert response.status_code == 200 and response.json() == {"deleted": True}
-    assert [r["barcode"] for r in store.rows] == ["KEEP"]
+    active = user.get("/api/v1/dimensioner/scans").json()["scans"]
+    trashed = user.get("/api/v1/dimensioner/scans", params={"trashed": True}).json()["scans"]
+    assert [s["barcode"] for s in active] == ["KEEP"]
+    assert [s["barcode"] for s in trashed] == ["DROP"]
+
+
+def test_bulk_trash_moves_selected_scans(user, store):
+    _post(user, {**RECORD, "barcode": "A"})
+    _post(user, {**RECORD, "timestamp": "2026/10/23 14:09:00", "barcode": "B"})
+    _post(user, {**RECORD, "timestamp": "2026/10/23 14:10:00", "barcode": "C"})
+    ids = [r["id"] for r in store.rows if r["barcode"] in {"A", "B"}]
+
+    response = user.post("/api/v1/dimensioner/scans/trash", json={"ids": ids})
+
+    assert response.status_code == 200 and response.json() == {"trashed": 2}
+    active = user.get("/api/v1/dimensioner/scans").json()["scans"]
+    assert [s["barcode"] for s in active] == ["C"]
+
+
+def test_restore_returns_a_trashed_scan(user, store):
+    _post(user, {**RECORD, "barcode": "BACK"})
+    scan_id = store.rows[0]["id"]
+    assert user.delete(f"/api/v1/dimensioner/scans/{scan_id}").status_code == 200
+
+    response = user.post(f"/api/v1/dimensioner/scans/{scan_id}/restore")
+
+    assert response.status_code == 200 and response.json() == {"restored": True}
+    active = user.get("/api/v1/dimensioner/scans").json()["scans"]
+    assert [s["barcode"] for s in active] == ["BACK"]
+
+
+def test_permanent_delete_removes_a_trashed_scan(user, store):
+    _post(user, {**RECORD, "barcode": "GONE"})
+    scan_id = store.rows[0]["id"]
+    user.delete(f"/api/v1/dimensioner/scans/{scan_id}")
+
+    response = user.delete(f"/api/v1/dimensioner/scans/{scan_id}/permanent")
+
+    assert response.status_code == 200 and response.json() == {"deleted": True}
+    assert store.rows == []
 
 
 def test_delete_unknown_scan_is_a_404(user, store):

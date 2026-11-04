@@ -80,9 +80,13 @@ export default function DimensionerScans() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
+  const [listView, setListView] = useState<'active' | 'trash'>('active')
+  const [trashRetentionDays, setTrashRetentionDays] = useState(15)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [showSetup, setShowSetup] = useState(false)
   const [copied, setCopied] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [bulkBusy, setBulkBusy] = useState(false)
 
   const requestSeq = useRef(0)
   const inFlight = useRef(0)
@@ -94,6 +98,10 @@ export default function DimensionerScans() {
     return () => window.clearTimeout(timer)
   }, [searchInput])
 
+  useEffect(() => {
+    setSelectedIds([])
+  }, [search, listView])
+
   const load = useCallback(async () => {
     const mine = ++requestSeq.current
     inFlight.current += 1
@@ -102,11 +110,12 @@ export default function DimensionerScans() {
       const data = await dimensionerApi.listScans({
         limit: PAGE_SIZE,
         search: search || undefined,
+        trashed: listView === 'trash',
       })
       // A newer request (for example a changed search) has started; drop this answer.
       if (mine !== requestSeq.current) return
-      // Only an unfiltered list can say what was already there when the page opened.
-      if (!baselineRef.current.ready && !search) {
+      // Only an unfiltered active list can say what was already there when the page opened.
+      if (!baselineRef.current.ready && !search && listView === 'active') {
         baselineRef.current = {
           ready: true,
           newest: data.scans.reduce((max, scan) => Math.max(max, receivedMs(scan)), 0),
@@ -115,6 +124,10 @@ export default function DimensionerScans() {
       setScans(data.scans)
       setReceiverConfigured(data.receiver_configured)
       setReceivePath(data.receive_path || DEFAULT_RECEIVE_PATH)
+      if (typeof data.trash_retention_days === 'number' && data.trash_retention_days > 0) {
+        setTrashRetentionDays(data.trash_retention_days)
+      }
+      setSelectedIds((current) => current.filter((id) => data.scans.some((scan) => scan.id === id)))
       setError(null)
       setLastUpdated(new Date())
     } catch (err) {
@@ -125,7 +138,7 @@ export default function DimensionerScans() {
       if (inFlight.current === 0) setRefreshing(false)
       setLoading(false)
     }
-  }, [search])
+  }, [search, listView])
 
   useEffect(() => {
     if (!enabled) return
@@ -150,6 +163,9 @@ export default function DimensionerScans() {
   }, [enabled, load])
 
   const endpointUrl = `${getApiBaseUrl()}${receivePath}`
+  const pageIds = scans.map((scan) => scan.id)
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id))
+  const showBulkControls = listView === 'active' && scans.length > 0
 
   const downloadExcel = useCallback(() => {
     if (scans.length === 0) return
@@ -160,11 +176,14 @@ export default function DimensionerScans() {
   const deleteScan = useCallback(
     async (scan: DimensionerScan) => {
       const label = scan.barcode ? `the scan for ${scan.barcode}` : 'this scan'
-      if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return
+      if (!window.confirm(`Move ${label} to Trash? It will be removed automatically after ${trashRetentionDays} days.`)) {
+        return
+      }
       setDeletingId(scan.id)
       try {
         await dimensionerApi.deleteScan(scan.id)
         setScans((previous) => previous.filter((row) => row.id !== scan.id))
+        setSelectedIds((current) => current.filter((id) => id !== scan.id))
         setError(null)
       } catch (err) {
         setError(getApiErrorDetail(err) || 'Could not delete the scan.')
@@ -172,8 +191,77 @@ export default function DimensionerScans() {
         setDeletingId(null)
       }
     },
-    [],
+    [trashRetentionDays],
   )
+
+  const deleteSelected = useCallback(async () => {
+    if (selectedIds.length === 0 || bulkBusy) return
+    const count = selectedIds.length
+    if (
+      !window.confirm(
+        `Move ${count} selected scan${count === 1 ? '' : 's'} to Trash? They will be removed automatically after ${trashRetentionDays} days.`,
+      )
+    ) {
+      return
+    }
+    setBulkBusy(true)
+    try {
+      const result = await dimensionerApi.trashScans(selectedIds)
+      setScans((previous) => previous.filter((row) => !selectedIds.includes(row.id)))
+      setSelectedIds([])
+      setError(null)
+      if (result.trashed === 0) {
+        setError('None of the selected scans could be moved to Trash.')
+      }
+    } catch (err) {
+      setError(getApiErrorDetail(err) || 'Could not delete the selected scans.')
+    } finally {
+      setBulkBusy(false)
+    }
+  }, [selectedIds, bulkBusy, trashRetentionDays])
+
+  const restoreScan = useCallback(async (scan: DimensionerScan) => {
+    setDeletingId(scan.id)
+    try {
+      await dimensionerApi.restoreScan(scan.id)
+      setScans((previous) => previous.filter((row) => row.id !== scan.id))
+      setError(null)
+    } catch (err) {
+      setError(getApiErrorDetail(err) || 'Could not restore the scan.')
+    } finally {
+      setDeletingId(null)
+    }
+  }, [])
+
+  const permanentlyDeleteScan = useCallback(async (scan: DimensionerScan) => {
+    const label = scan.barcode ? `the scan for ${scan.barcode}` : 'this scan'
+    if (!window.confirm(`Permanently delete ${label}? This cannot be undone.`)) return
+    setDeletingId(scan.id)
+    try {
+      await dimensionerApi.permanentlyDeleteScan(scan.id)
+      setScans((previous) => previous.filter((row) => row.id !== scan.id))
+      setError(null)
+    } catch (err) {
+      setError(getApiErrorDetail(err) || 'Could not permanently delete the scan.')
+    } finally {
+      setDeletingId(null)
+    }
+  }, [])
+
+  const toggleSelected = useCallback((scanId: string) => {
+    setSelectedIds((current) =>
+      current.includes(scanId) ? current.filter((id) => id !== scanId) : [...current, scanId],
+    )
+  }, [])
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((current) => {
+      if (pageIds.length > 0 && pageIds.every((id) => current.includes(id))) {
+        return current.filter((id) => !pageIds.includes(id))
+      }
+      return [...new Set([...current, ...pageIds])]
+    })
+  }, [pageIds])
 
   const copyEndpoint = useCallback(async () => {
     try {
@@ -246,6 +334,36 @@ export default function DimensionerScans() {
 
       <div className="rounded-2xl border border-gray-300 bg-white shadow-md dark:border-gray-600 dark:bg-surface">
         <div className="flex flex-wrap items-center gap-3 border-b border-gray-200 p-4 dark:border-gray-700">
+          <div
+            className="inline-flex rounded-lg bg-gray-100 p-0.5 ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-600"
+            role="group"
+            aria-label="Scan list"
+          >
+            <button
+              type="button"
+              aria-pressed={listView === 'active'}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                listView === 'active'
+                  ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'
+              }`}
+              onClick={() => setListView('active')}
+            >
+              Active
+            </button>
+            <button
+              type="button"
+              aria-pressed={listView === 'trash'}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                listView === 'trash'
+                  ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'
+              }`}
+              onClick={() => setListView('trash')}
+            >
+              Trash
+            </button>
+          </div>
           <input
             type="search"
             value={searchInput}
@@ -267,6 +385,16 @@ export default function DimensionerScans() {
               ? `Updated ${lastUpdated.toLocaleTimeString()} · refreshes every ${REFRESH_MS / 1000}s`
               : 'Loading…'}
           </span>
+          {showBulkControls && selectedIds.length > 0 && (
+            <button
+              type="button"
+              onClick={() => void deleteSelected()}
+              disabled={bulkBusy}
+              className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 disabled:opacity-50"
+            >
+              {bulkBusy ? 'Deleting…' : `Delete selected (${selectedIds.length})`}
+            </button>
+          )}
           <button
             type="button"
             onClick={downloadExcel}
@@ -277,6 +405,12 @@ export default function DimensionerScans() {
           </button>
         </div>
 
+        {listView === 'trash' && (
+          <p className="border-b border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            Items in Trash are removed automatically after {trashRetentionDays} days.
+          </p>
+        )}
+
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#404040] border-t-transparent" />
@@ -285,6 +419,11 @@ export default function DimensionerScans() {
           <div className="px-6 py-16 text-center text-sm text-gray-600 dark:text-gray-400">
             {search ? (
               <>No scans match “{search}”.</>
+            ) : listView === 'trash' ? (
+              <>
+                <p className="font-medium text-gray-800 dark:text-gray-200">Trash is empty.</p>
+                <p className="mt-1">Deleted scans stay here for {trashRetentionDays} days, then are removed.</p>
+              </>
             ) : (
               <>
                 <p className="font-medium text-gray-800 dark:text-gray-200">No scans yet.</p>
@@ -299,6 +438,16 @@ export default function DimensionerScans() {
             <table className="w-full text-left text-sm">
               <thead className="bg-gray-50 text-[11px] font-semibold uppercase tracking-wider text-gray-600 dark:bg-gray-800/50 dark:text-gray-400">
                 <tr>
+                  {listView === 'active' && (
+                    <th className="w-10 px-3 py-3">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all scans on this page"
+                        checked={allPageSelected}
+                        onChange={toggleSelectAll}
+                      />
+                    </th>
+                  )}
                   <th className="px-3 py-3">Received</th>
                   <th className="px-3 py-3">Barcode</th>
                   <th className="px-3 py-3 text-right">Length</th>
@@ -315,11 +464,27 @@ export default function DimensionerScans() {
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {scans.map((scan) => {
                   const extra = detailLine(scan)
+                  const selected = selectedIds.includes(scan.id)
                   return (
-                    <tr key={scan.id} className="text-gray-900 dark:text-gray-100">
+                    <tr
+                      key={scan.id}
+                      className={`text-gray-900 dark:text-gray-100 ${
+                        selected ? 'bg-[#81B81D]/10 dark:bg-[#81B81D]/10' : ''
+                      }`}
+                    >
+                      {listView === 'active' && (
+                        <td className="px-3 py-3">
+                          <input
+                            type="checkbox"
+                            aria-label={`Select scan ${scan.barcode || scan.id}`}
+                            checked={selected}
+                            onChange={() => toggleSelected(scan.id)}
+                          />
+                        </td>
+                      )}
                       <td className="whitespace-nowrap px-3 py-3 text-gray-700 dark:text-gray-300">
                         {formatWhen(scan.received_at)}
-                        {isNew(scan) && (
+                        {listView === 'active' && isNew(scan) && (
                           <span className="ml-2 rounded-full bg-[#81B81D]/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#4d7010] dark:text-[#a6d94a]">
                             New
                           </span>
@@ -348,15 +513,38 @@ export default function DimensionerScans() {
                         {scan.device || '—'}
                       </td>
                       <td className="whitespace-nowrap px-3 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => void deleteScan(scan)}
-                          disabled={deletingId === scan.id}
-                          className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-red-950/30"
-                          aria-label={`Delete scan ${scan.barcode || scan.id}`}
-                        >
-                          Delete
-                        </button>
+                        {listView === 'trash' ? (
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => void restoreScan(scan)}
+                              disabled={deletingId === scan.id}
+                              className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                              aria-label={`Restore scan ${scan.barcode || scan.id}`}
+                            >
+                              Restore
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void permanentlyDeleteScan(scan)}
+                              disabled={deletingId === scan.id}
+                              className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-950/30"
+                              aria-label={`Permanently delete scan ${scan.barcode || scan.id}`}
+                            >
+                              Delete forever
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => void deleteScan(scan)}
+                            disabled={deletingId === scan.id}
+                            className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-red-950/30"
+                            aria-label={`Delete scan ${scan.barcode || scan.id}`}
+                          >
+                            Delete
+                          </button>
+                        )}
                       </td>
                     </tr>
                   )

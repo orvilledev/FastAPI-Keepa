@@ -120,19 +120,27 @@ async def receive_scan(
 def list_scans(
     limit: int = Query(50, ge=1, le=200),
     search: str | None = Query(None, max_length=128),
+    trashed: bool = Query(False),
     current_user: dict = Depends(get_dimensioner_user),
     db: Client = Depends(get_supabase),
 ):
     """Newest scans first, plus what the page needs to explain device setup."""
     _ = current_user
+    repo = DimensionerScanRepository(db)
     try:
-        rows = DimensionerScanRepository(db).list_recent(limit, search)
+        # Drop expired trash on the way in so retention works even without the cron.
+        if trashed:
+            days = int(getattr(settings, "dimensioner_trash_retention_days", 15) or 0)
+            if days > 0:
+                repo.purge_trashed_older_than(days)
+        rows = repo.list_recent(limit, search, trashed=trashed)
     except DimensionerStorageError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {
         "scans": [present_scan(row) for row in rows],
         "receiver_configured": _receiver_configured(),
         "receive_path": f"{settings.api_v1_str}{_RECEIVE_PATH}",
+        "trash_retention_days": int(getattr(settings, "dimensioner_trash_retention_days", 15) or 15),
     }
 
 
@@ -175,6 +183,33 @@ def create_camera_test_scan(
     return present_scan(saved)
 
 
+class TrashScansBody(BaseModel):
+    """One or more active scans to move to Trash."""
+
+    ids: list[UUID]
+
+
+@router.post("/dimensioner/scans/trash")
+@handle_api_errors("trash dimensioner scans")
+def trash_scans(
+    body: TrashScansBody,
+    current_user: dict = Depends(get_dimensioner_user),
+    db: Client = Depends(get_supabase),
+):
+    """Move one or more active scans to Trash (auto-emptied after retention)."""
+    _ = current_user
+    ids = [str(item) for item in (body.ids or [])]
+    if not ids:
+        raise HTTPException(status_code=400, detail="Choose at least one scan to delete.")
+    if len(ids) > 200:
+        raise HTTPException(status_code=400, detail="You can delete at most 200 scans at a time.")
+    try:
+        moved = DimensionerScanRepository(db).trash_many(ids)
+    except DimensionerStorageError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"trashed": moved}
+
+
 @router.delete("/dimensioner/scans/{scan_id}")
 @handle_api_errors("delete dimensioner scan")
 def delete_scan(
@@ -182,7 +217,43 @@ def delete_scan(
     current_user: dict = Depends(get_dimensioner_user),
     db: Client = Depends(get_supabase),
 ):
-    """Remove one scan, for example a mis-measured item."""
+    """Move one active scan to Trash (kept for the retention window, then purged)."""
+    _ = current_user
+    try:
+        removed = DimensionerScanRepository(db).trash(str(scan_id))
+    except DimensionerStorageError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not removed:
+        raise HTTPException(status_code=404, detail="Scan not found.")
+    return {"deleted": True}
+
+
+@router.post("/dimensioner/scans/{scan_id}/restore")
+@handle_api_errors("restore dimensioner scan")
+def restore_scan(
+    scan_id: UUID,
+    current_user: dict = Depends(get_dimensioner_user),
+    db: Client = Depends(get_supabase),
+):
+    """Return one trashed scan to the active list."""
+    _ = current_user
+    try:
+        restored = DimensionerScanRepository(db).restore(str(scan_id))
+    except DimensionerStorageError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not restored:
+        raise HTTPException(status_code=404, detail="Scan not found in Trash.")
+    return {"restored": True}
+
+
+@router.delete("/dimensioner/scans/{scan_id}/permanent")
+@handle_api_errors("permanently delete dimensioner scan")
+def permanently_delete_scan(
+    scan_id: UUID,
+    current_user: dict = Depends(get_dimensioner_user),
+    db: Client = Depends(get_supabase),
+):
+    """Permanently remove one scan from Trash."""
     _ = current_user
     try:
         removed = DimensionerScanRepository(db).delete(str(scan_id))

@@ -167,6 +167,9 @@ class Settings(BaseSettings):
     # When (America/Chicago) the retention cleanup cron runs each day.
     completed_jobs_cleanup_hour: int = 3
     completed_jobs_cleanup_minute: int = 15
+    # Dimensioner Trash: hard-delete soft-deleted scans older than this many days.
+    # Set to 0 to disable the Dimensioner trash purge job.
+    dimensioner_trash_retention_days: int = 15
 
     # CLI chat (OpenAI + Supabase session memory); optional until OPENAI_API_KEY is set
     openai_api_key: str = ""

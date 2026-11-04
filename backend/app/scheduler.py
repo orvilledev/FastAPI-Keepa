@@ -1275,6 +1275,65 @@ def shutdown_scheduler():
 
 
 COMPLETED_JOBS_RETENTION_JOB_ID = "completed_jobs_retention_cleanup"
+DIMENSIONER_TRASH_PURGE_JOB_ID = "dimensioner_trash_purge"
+
+
+async def run_dimensioner_trash_purge() -> int:
+    """Hard-delete Dimensioner scans that have been in Trash past the retention window."""
+    from app.repositories.dimensioner_scan_repository import DimensionerScanRepository
+
+    days = int(getattr(settings, "dimensioner_trash_retention_days", 15) or 0)
+    if days <= 0:
+        logger.info("Dimensioner trash purge skipped (retention_days=%s)", days)
+        return 0
+
+    def _purge() -> int:
+        return DimensionerScanRepository(get_supabase()).purge_trashed_older_than(days)
+
+    deleted = await _run_sync(_purge)
+    logger.info(
+        "Dimensioner trash purge deleted %s scan(s) older than %s day(s)",
+        deleted,
+        days,
+    )
+    return deleted
+
+
+def setup_dimensioner_trash_purge() -> None:
+    """Schedule daily purge of Dimensioner Trash past the retention window."""
+    days = int(getattr(settings, "dimensioner_trash_retention_days", 15) or 0)
+    if days <= 0:
+        if scheduler.get_job(DIMENSIONER_TRASH_PURGE_JOB_ID):
+            scheduler.remove_job(DIMENSIONER_TRASH_PURGE_JOB_ID)
+        logger.info("Dimensioner trash purge disabled (retention_days=%s)", days)
+        return
+
+    hour = int(getattr(settings, "completed_jobs_cleanup_hour", 3))
+    minute = int(getattr(settings, "completed_jobs_cleanup_minute", 15))
+    tz_name = "America/Chicago"
+    try:
+        tz = timezone(tz_name)
+    except Exception:
+        tz = timezone("UTC")
+        tz_name = "UTC"
+
+    scheduler.add_job(
+        run_dimensioner_trash_purge,
+        trigger=CronTrigger(hour=hour, minute=minute, timezone=tz),
+        id=DIMENSIONER_TRASH_PURGE_JOB_ID,
+        name=f"Purge Dimensioner Trash older than {days} days",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=_scheduler_misfire_grace_seconds,
+    )
+    logger.info(
+        "Dimensioner trash purge scheduled daily at %02d:%02d %s (keep %s day(s))",
+        hour,
+        minute,
+        tz_name,
+        days,
+    )
 
 
 async def run_completed_jobs_retention_cleanup() -> int:

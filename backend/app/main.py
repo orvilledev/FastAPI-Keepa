@@ -10,9 +10,11 @@ from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_
 from app.scheduler import (
     setup_scheduler,
     setup_completed_jobs_retention_cleanup,
+    setup_dimensioner_trash_purge,
     start_scheduler,
     shutdown_scheduler,
     run_completed_jobs_retention_cleanup,
+    run_dimensioner_trash_purge,
 )
 from app.dependencies import get_shipment_manager_user, require_app_access
 from app.maintenance import get_maintenance_state
@@ -266,6 +268,7 @@ async def startup_event():
         setup_scheduler(category='cha')  # Use CHA defaults
         setup_scheduler(category='jfs')  # Use JFS defaults
     setup_completed_jobs_retention_cleanup()
+    setup_dimensioner_trash_purge()
     start_scheduler()
     try:
         deleted = await run_completed_jobs_retention_cleanup()
@@ -273,6 +276,12 @@ async def startup_event():
             logger.info("Startup retention cleanup removed %s completed job(s)", deleted)
     except Exception as e:
         logger.warning("Startup completed-jobs retention cleanup failed: %s", e)
+    try:
+        purged = await run_dimensioner_trash_purge()
+        if purged:
+            logger.info("Startup Dimensioner trash purge removed %s scan(s)", purged)
+    except Exception as e:
+        logger.warning("Startup Dimensioner trash purge failed: %s", e)
     try:
         from app.services.keepa_import_build_runner import (
             reconcile_stale_keepa_import_builds,

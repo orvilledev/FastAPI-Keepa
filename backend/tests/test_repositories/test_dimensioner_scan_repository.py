@@ -13,8 +13,22 @@ def _db():
     db = MagicMock()
     table = MagicMock()
     db.table.return_value = table
-    for name in ("select", "insert", "delete", "eq", "ilike", "order", "limit"):
+    for name in (
+        "select",
+        "insert",
+        "delete",
+        "update",
+        "eq",
+        "in_",
+        "ilike",
+        "order",
+        "limit",
+        "lt",
+        "is_",
+    ):
         getattr(table, name).return_value = table
+    table.not_ = MagicMock()
+    table.not_.is_.return_value = table
     table.execute.return_value = MagicMock(data=[])
     return db, table
 
@@ -61,9 +75,19 @@ def test_list_orders_newest_first_and_applies_the_limit():
     rows = DimensionerScanRepository(db).list_recent(25)
 
     assert rows == [{"id": "1"}]
+    table.is_.assert_called_with("trashed_at", "null")
     table.order.assert_called_with("received_at", desc=True)
     table.limit.assert_called_with(25)
     table.ilike.assert_not_called()
+
+
+def test_list_trash_filters_to_trashed_rows():
+    db, table = _db()
+
+    DimensionerScanRepository(db).list_recent(10, trashed=True)
+
+    table.not_.is_.assert_called_with("trashed_at", "null")
+    table.order.assert_called_with("trashed_at", desc=True)
 
 
 def test_list_search_matches_literally():
@@ -80,6 +104,24 @@ def test_blank_search_is_ignored():
     DimensionerScanRepository(db).list_recent(10, "   ")
 
     table.ilike.assert_not_called()
+
+
+def test_trash_updates_active_rows_only():
+    db, table = _db()
+    table.execute.return_value = MagicMock(data=[{"id": "1"}])
+
+    assert DimensionerScanRepository(db).trash("1") is True
+    table.update.assert_called_once()
+    table.eq.assert_called_with("id", "1")
+    table.is_.assert_called_with("trashed_at", "null")
+
+
+def test_trash_many_returns_how_many_moved():
+    db, table = _db()
+    table.execute.return_value = MagicMock(data=[{"id": "1"}, {"id": "2"}])
+
+    assert DimensionerScanRepository(db).trash_many(["1", "2", ""]) == 2
+    table.in_.assert_called_with("id", ["1", "2"])
 
 
 def test_delete_reports_whether_anything_was_removed():

@@ -2881,6 +2881,7 @@ export type DimensionerScan = {
   attributes: Record<string, string>
   scanned_at: string | null
   received_at: string | null
+  trashed_at?: string | null
 }
 
 export type DimensionerScanList = {
@@ -2888,16 +2889,34 @@ export type DimensionerScanList = {
   receiver_configured: boolean
   /** Path (starting with `/api/v1`) the M2 posts to. */
   receive_path: string
+  trash_retention_days?: number
 }
 
 export const dimensionerApi = {
-  listScans: async (params?: { limit?: number; search?: string }): Promise<DimensionerScanList> => {
+  listScans: async (params?: {
+    limit?: number
+    search?: string
+    trashed?: boolean
+  }): Promise<DimensionerScanList> => {
     const response = await api.get<DimensionerScanList>('/api/v1/dimensioner/scans', { params })
     return response.data
   },
 
   deleteScan: async (scanId: string): Promise<void> => {
     await api.delete(`/api/v1/dimensioner/scans/${encodeURIComponent(scanId)}`)
+  },
+
+  trashScans: async (ids: string[]): Promise<{ trashed: number }> => {
+    const response = await api.post<{ trashed: number }>('/api/v1/dimensioner/scans/trash', { ids })
+    return response.data
+  },
+
+  restoreScan: async (scanId: string): Promise<void> => {
+    await api.post(`/api/v1/dimensioner/scans/${encodeURIComponent(scanId)}/restore`)
+  },
+
+  permanentlyDeleteScan: async (scanId: string): Promise<void> => {
+    await api.delete(`/api/v1/dimensioner/scans/${encodeURIComponent(scanId)}/permanent`)
   },
 
   createTestScan: async (body: {

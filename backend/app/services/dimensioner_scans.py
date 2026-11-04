@@ -249,6 +249,7 @@ def present_scan(row: dict[str, Any]) -> dict[str, Any]:
         "attributes": attributes if isinstance(attributes, dict) else {},
         "scanned_at": row.get("scanned_at"),
         "received_at": row.get("received_at"),
+        "trashed_at": row.get("trashed_at"),
     }
 
 
