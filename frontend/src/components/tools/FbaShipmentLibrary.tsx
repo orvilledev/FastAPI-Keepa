@@ -74,29 +74,6 @@ function statusClass(status: string): string {
   return 'bg-amber-500 text-white'
 }
 
-type FilterTone = 'emerald' | 'sky' | 'rose' | 'slate' | 'violet'
-
-function filterChipClass(selected: boolean, tone: FilterTone): string {
-  const tones: Record<FilterTone, string> = {
-    emerald: selected
-      ? 'bg-emerald-600 text-white ring-emerald-700'
-      : 'bg-emerald-100 text-emerald-900 ring-emerald-300 hover:bg-emerald-200',
-    sky: selected
-      ? 'bg-sky-600 text-white ring-sky-700'
-      : 'bg-sky-100 text-sky-900 ring-sky-300 hover:bg-sky-200',
-    rose: selected
-      ? 'bg-rose-600 text-white ring-rose-700'
-      : 'bg-rose-100 text-rose-900 ring-rose-300 hover:bg-rose-200',
-    slate: selected
-      ? 'bg-slate-800 text-white ring-slate-900'
-      : 'bg-slate-200 text-slate-900 ring-slate-400 hover:bg-slate-300',
-    violet: selected
-      ? 'bg-violet-600 text-white ring-violet-700'
-      : 'bg-violet-100 text-violet-900 ring-violet-300 hover:bg-violet-200',
-  }
-  return `rounded-md px-3 py-1.5 text-sm font-semibold ring-1 shadow-sm ${tones[tone]}`
-}
-
 function folderChipClass(selected: boolean): string {
   return selected
     ? 'inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-sm font-medium text-amber-950 shadow-sm ring-2 ring-amber-400'
@@ -1482,13 +1459,33 @@ export default function FbaShipmentLibrary() {
 
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900">
-              {listView === 'trash' ? 'Trash' : listView === 'archive' ? 'Completed shipments' : 'Stored shipments'}
-            </h2>
-            <p className="text-xs text-gray-500">{total} upload{total === 1 ? '' : 's'} visible</p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">
+                {listView === 'trash' ? 'Trash' : listView === 'archive' ? 'Completed shipments' : 'Stored shipments'}
+              </h2>
+              <p className="text-xs text-gray-500">{total} upload{total === 1 ? '' : 's'} visible</p>
+            </div>
+            <label className="inline-flex flex-col gap-1">
+              <span className="sr-only">Shipment list</span>
+              <select
+                aria-label="Shipment list"
+                value={listView}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 shadow-sm focus:border-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-300"
+                onChange={(event) => {
+                  const next = event.target.value as 'active' | 'archive' | 'trash'
+                  setListView(next)
+                  setOffset(0)
+                  setSelectedId(null)
+                }}
+              >
+                <option value="active">Active</option>
+                <option value="archive">Archive</option>
+                <option value="trash">Trash</option>
+              </select>
+            </label>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
             {listView === 'trash' && (
               <button
                 type="button"
@@ -1499,49 +1496,17 @@ export default function FbaShipmentLibrary() {
                 Empty trash
               </button>
             )}
-            <div className="inline-flex items-center gap-1" role="group" aria-label="Shipment list">
-              <button
-                type="button"
-                aria-pressed={listView === 'active'}
-                className={filterChipClass(listView === 'active', 'emerald')}
-                onClick={() => {
-                  setListView('active')
-                  setOffset(0)
-                  setSelectedId(null)
-                }}
-              >
-                Active
-              </button>
-              <button
-                type="button"
-                aria-pressed={listView === 'archive'}
-                className={filterChipClass(listView === 'archive', 'sky')}
-                onClick={() => {
-                  setListView('archive')
-                  setOffset(0)
-                  setSelectedId(null)
-                }}
-              >
-                Archive
-              </button>
-              <button
-                type="button"
-                aria-pressed={listView === 'trash'}
-                className={filterChipClass(listView === 'trash', 'rose')}
-                onClick={() => {
-                  setListView('trash')
-                  setOffset(0)
-                  setSelectedId(null)
-                }}
-              >
-                Trash
-              </button>
-            </div>
-            <div className="ml-3 inline-flex items-center gap-1" role="group" aria-label="Whose shipments">
+            <div
+              className="inline-flex rounded-lg bg-gray-100 p-0.5 ring-1 ring-gray-200"
+              role="group"
+              aria-label="Whose shipments"
+            >
               <button
                 type="button"
                 aria-pressed={!mine}
-                className={filterChipClass(!mine, 'slate')}
+                className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+                  !mine ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                }`}
                 onClick={() => {
                   setMine(false)
                   setOffset(0)
@@ -1552,7 +1517,9 @@ export default function FbaShipmentLibrary() {
               <button
                 type="button"
                 aria-pressed={mine}
-                className={filterChipClass(mine, 'violet')}
+                className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+                  mine ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                }`}
                 onClick={() => {
                   setMine(true)
                   setOffset(0)
