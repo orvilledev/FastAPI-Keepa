@@ -1999,13 +1999,15 @@ export default function FbaShipmentLibrary() {
               ) : (
                 uploads.map((upload) => {
                   const placed = folders.find((folder) => folder.id === upload.folder_id)
+                  const rowOn = selectedId === upload.id
+                  const quietBtn = rowOn
+                    ? 'text-white hover:bg-white/20'
+                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-950'
                   return (
                   <tr
                     key={upload.id}
                     className={`border-b border-gray-100 align-middle transition-colors last:border-b-0 ${
-                      selectedId === upload.id
-                        ? 'bg-[#a442a4] text-white [&_button]:text-white [&_button:hover]:bg-white/15 [&_.text-gray-400]:text-white/70 [&_.text-gray-500]:text-white/75 [&_.text-gray-600]:text-white/80 [&_.text-gray-700]:text-white/90 [&_.text-gray-800]:text-white [&_.text-gray-900]:text-white [&_.text-emerald-700]:text-emerald-100 [&_.text-indigo-700]:text-indigo-100 [&_.text-red-700]:text-rose-100 [&_span.bg-emerald-100]:bg-white/20 [&_span.bg-emerald-100]:text-white [&_span.bg-indigo-100]:bg-white/20 [&_span.bg-indigo-100]:text-white [&_span.bg-red-100]:bg-white/20 [&_span.bg-red-100]:text-white [&_span.bg-slate-100]:bg-white/20 [&_span.bg-slate-100]:text-white'
-                        : 'hover:bg-gray-50/70'
+                      rowOn ? 'bg-[#a442a4]' : 'hover:bg-gray-50/70'
                     }`}
                   >
                     <td className="px-3 py-3">
@@ -2023,7 +2025,7 @@ export default function FbaShipmentLibrary() {
                       />
                     </td>
                     <td className="px-3 py-3">
-                      <div className="font-semibold text-gray-900">{upload.shipment_id}</div>
+                      <div className={`font-semibold ${rowOn ? 'text-white' : 'text-gray-900'}`}>{upload.shipment_id}</div>
                       <div className="mt-1">
                         {upload.trashed_at ? (
                           <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-700">
@@ -2048,7 +2050,10 @@ export default function FbaShipmentLibrary() {
                         )}
                       </div>
                     </td>
-                    <td className="max-w-0 px-3 py-3 text-gray-700" title={upload.shipment_name || undefined}>
+                    <td
+                      className={`max-w-0 px-3 py-3 ${rowOn ? 'text-white' : 'text-gray-700'}`}
+                      title={upload.shipment_name || undefined}
+                    >
                       <div className="truncate">{upload.shipment_name || '—'}</div>
                     </td>
                     <td className="px-3 py-3">
@@ -2057,7 +2062,7 @@ export default function FbaShipmentLibrary() {
                         value={upload.folder_id || ''}
                         disabled={movingFolder || folderBusy}
                         title={placed?.name || 'No folder'}
-                        className="w-full min-w-0 max-w-full truncate rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-800 shadow-sm focus:border-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
+                        className="w-full min-w-0 max-w-full truncate rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-900 shadow-sm focus:border-[#a442a4] focus:outline-none focus:ring-1 focus:ring-[#a442a4] disabled:opacity-50"
                         onChange={(event) => {
                           const next = event.target.value || null
                           if ((upload.folder_id || null) === next) return
@@ -2073,18 +2078,24 @@ export default function FbaShipmentLibrary() {
                         ))}
                       </select>
                     </td>
-                    <td className="px-3 py-3 text-right tabular-nums text-gray-800">{upload.line_count}</td>
-                    <td className="px-3 py-3 text-right font-medium tabular-nums text-gray-900">
+                    <td className={`px-3 py-3 text-right tabular-nums ${rowOn ? 'text-white' : 'text-gray-800'}`}>
+                      {upload.line_count}
+                    </td>
+                    <td
+                      className={`px-3 py-3 text-right font-medium tabular-nums ${rowOn ? 'text-white' : 'text-gray-900'}`}
+                    >
                       {upload.total_shipped.toLocaleString()}
                     </td>
                     <td
                       className="max-w-0 px-3 py-3"
                       title={upload.created_by_name || upload.created_by_email || undefined}
                     >
-                      <div className="truncate text-sm text-gray-800">
+                      <div className={`truncate text-sm ${rowOn ? 'text-white' : 'text-gray-800'}`}>
                         {upload.created_by_name || upload.created_by_email || '—'}
                       </div>
-                      <div className="text-xs leading-snug text-gray-500">{formatWhen(upload.created_at)}</div>
+                      <div className={`text-xs leading-snug ${rowOn ? 'text-white/85' : 'text-gray-500'}`}>
+                        {formatWhen(upload.created_at)}
+                      </div>
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex flex-col items-end gap-1.5">
@@ -2118,7 +2129,7 @@ export default function FbaShipmentLibrary() {
                           {listView !== 'trash' && !upload.archived_at && (
                             <button
                               type="button"
-                              className="whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-950"
+                              className={`whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium ${quietBtn}`}
                               onClick={() => openArchive(upload)}
                             >
                               Archive
@@ -2127,7 +2138,7 @@ export default function FbaShipmentLibrary() {
                           {listView === 'trash' && upload.owned_by_me && (
                             <button
                               type="button"
-                              className="whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-950"
+                              className={`whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium ${quietBtn}`}
                               onClick={() => void handleRestore(upload)}
                             >
                               Restore
@@ -2137,7 +2148,7 @@ export default function FbaShipmentLibrary() {
                             <>
                               <button
                                 type="button"
-                                className="whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-950"
+                                className={`whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium ${quietBtn}`}
                                 onClick={() => void openShare(upload)}
                               >
                                 Share
@@ -2145,7 +2156,7 @@ export default function FbaShipmentLibrary() {
                               {!upload.is_locked && (
                                 <button
                                   type="button"
-                                  className="whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-950"
+                                  className={`whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium ${quietBtn}`}
                                   onClick={() => void handleAccess(upload, true)}
                                 >
                                   Lock
@@ -2157,7 +2168,11 @@ export default function FbaShipmentLibrary() {
                             <button
                               type="button"
                               disabled={deletingId === upload.id}
-                              className="ml-1 whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-50 hover:text-red-900 disabled:opacity-50"
+                              className={`ml-1 whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium disabled:opacity-50 ${
+                                rowOn
+                                  ? 'bg-white text-red-700 hover:bg-red-50'
+                                  : 'text-red-700 hover:bg-red-50 hover:text-red-900'
+                              }`}
                               onClick={() => void handleDelete(upload)}
                             >
                               {listView === 'trash' ? 'Delete' : 'Remove'}
