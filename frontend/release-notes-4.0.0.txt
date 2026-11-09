@@ -1,0 +1,26 @@
+MSW Overwatch 4.0.0 — desktop and web release
+
+Major release since 3.9.2. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Label Center
+- TO/box labels print and barcode as TO_N so each carton scans uniquely
+- No Knife sticker and 3x2 custom labels
+- Printer choice and reliable Zebra / preview printing on desktop
+
+## Dimensioner
+- Excel download of the filtered scan list (Weight-first Scans sheet + Dimension pivot)
+- Bulk select/delete with Trash, Restore / Delete forever, and 15-day auto-empty
+- Open to every signed-in user (except Hello@warehouserepublic)
+
+## FBA Order Checker
+- In-place FNSKU label design when printing
+- Folders, archive/unarchive (including shared workers), live search, and overage when filtered by box
+- Visual refresh for folders and selected rows; larger headers and toolbar text
+- Shipment sharing, box-number checks, and carton dimension suggestions
+
+## Other tools
+- NS Tool under BC Tools for monthly sales and returns totals
+- App cleanup: Projects and SMW Shipment Analyzer removed
+
+## Upgrade from 3.9.2
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 4.0.0, download it, then prompt to install now or later. Web/PWA users get 4.0.0 on the next deploy/refresh.
