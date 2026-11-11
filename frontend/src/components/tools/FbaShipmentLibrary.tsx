@@ -2049,7 +2049,7 @@ export default function FbaShipmentLibrary() {
                   />
                 </th>
                 <th className="w-44 px-3 py-3">Shipment</th>
-                <th className="px-3 py-3">Name</th>
+                <th className="w-28 min-w-[7rem] px-3 py-3">Name</th>
                 <th className="w-44 px-3 py-3">Status</th>
                 <th className="w-40 px-3 py-3">Folder</th>
                 <th className="w-14 px-3 py-3 text-right">SKUs</th>
@@ -2135,10 +2135,10 @@ export default function FbaShipmentLibrary() {
                       </div>
                     </td>
                     <td
-                      className={`max-w-0 px-3 py-3 ${rowOn ? 'text-white' : 'text-gray-700'}`}
+                      className={`w-28 min-w-[7rem] whitespace-nowrap px-3 py-3 ${rowOn ? 'text-white' : 'text-gray-700'}`}
                       title={upload.shipment_name || undefined}
                     >
-                      <div className="truncate">{upload.shipment_name || '—'}</div>
+                      {upload.shipment_name || '—'}
                     </td>
                     <td className="px-3 py-3">
                       <select
