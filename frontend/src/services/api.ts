@@ -834,6 +834,19 @@ export const mapApi = {
     return response.data
   },
 
+  /** UPCs from MAP rows that are not in Manage UPCs for the same vendor. */
+  checkMissingManagedUPCs: async (
+    maps: Array<{ upc: string; vendor_type: MapVendorType; map_price?: number }>
+  ) => {
+    const response = await api.post<{
+      missing: Array<{ upc: string; vendor_type: string }>
+      missing_count: number
+      total_entries: number
+      invalid: number
+    }>('/api/v1/map/check-missing-managed-upcs', maps)
+    return response.data
+  },
+
   addMAPs: async (
     maps: Array<{ upc: string; map_price: number; vendor_type: MapVendorType }>,
     replaceDuplicates: boolean = false

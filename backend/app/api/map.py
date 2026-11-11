@@ -15,6 +15,7 @@ from app.models.map import (
 )
 from app.database import get_supabase
 from app.repositories.map_repository import MAPRepository, _validate_vendor_type
+from app.repositories.upc_repository import UPCRepository
 from app.utils.error_handler import handle_api_errors
 from supabase import Client
 import logging
@@ -85,6 +86,59 @@ def check_map_duplicates(
         "duplicate_upcs": duplicate_descriptors,
         "duplicate_count": len(duplicate_descriptors),
         "total_entries": len(valid_maps),
+        "invalid": invalid_count,
+    }
+
+
+@router.post("/map/check-missing-managed-upcs", response_model=dict)
+@handle_api_errors("check MAP UPCs missing from Manage UPCs")
+def check_missing_managed_upcs(
+    maps: List[dict],
+    current_user: dict = Depends(get_keepa_access_user),
+    db: Client = Depends(get_supabase),
+):
+    """
+    Check which MAP UPCs are not present in Manage UPCs for the same vendor.
+
+    MAP vendor_type is matched to Manage UPCs category. Each item needs upc and
+    vendor_type (map_price optional for this check).
+    """
+    if not maps:
+        raise HTTPException(status_code=400, detail="No MAP entries provided")
+
+    pairs = []
+    invalid_count = 0
+    for map_entry in maps:
+        if not isinstance(map_entry, dict):
+            invalid_count += 1
+            continue
+        upc = map_entry.get("upc", "").strip() if map_entry.get("upc") else ""
+        raw_vendor = map_entry.get("vendor_type")
+        if not upc or raw_vendor is None or (isinstance(raw_vendor, str) and not str(raw_vendor).strip()):
+            invalid_count += 1
+            continue
+        try:
+            vendor = _validate_vendor_type(str(raw_vendor))
+        except HTTPException:
+            invalid_count += 1
+            continue
+        pairs.append({"upc": upc, "category": vendor})
+
+    if not pairs:
+        raise HTTPException(
+            status_code=400,
+            detail="No valid MAP entries provided. Each entry needs upc and vendor_type (vendor code).",
+        )
+
+    upc_repo = UPCRepository(db)
+    missing = upc_repo.find_missing_upcs(pairs)
+    # Expose as vendor_type so the MAP UI can stay consistent with MAP terminology
+    missing_out = [{"upc": m["upc"], "vendor_type": m["category"]} for m in missing]
+
+    return {
+        "missing": missing_out,
+        "missing_count": len(missing_out),
+        "total_entries": len(pairs),
         "invalid": invalid_count,
     }
 

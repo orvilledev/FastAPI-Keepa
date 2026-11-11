@@ -137,6 +137,54 @@ class UPCRepository:
         """Check if a UPC already exists in the database for the given category."""
         response = self.db.table(self.table).select("id").eq("upc", upc).eq("category", category).limit(1).execute()
         return len(response.data) > 0
+
+    def find_missing_upcs(self, items: List[dict]) -> List[dict]:
+        """
+        Return upc+category pairs that are not in Manage UPCs.
+
+        Each item must include ``upc`` and ``category`` (already normalized).
+        Deduplicates input pairs; order of first occurrence is preserved.
+        """
+        if not items:
+            return []
+
+        # Preserve first-seen order while deduping (upc, category)
+        seen_keys: Set[tuple] = set()
+        unique: List[dict] = []
+        by_category: Dict[str, List[str]] = {}
+        for item in items:
+            upc = (item.get("upc") or "").strip()
+            category = (item.get("category") or "").strip().lower()
+            if not upc or not category:
+                continue
+            key = (upc, category)
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            unique.append({"upc": upc, "category": category})
+            by_category.setdefault(category, []).append(upc)
+
+        if not unique:
+            return []
+
+        existing: Set[tuple] = set()
+        batch_size = 1000
+        for category, upcs in by_category.items():
+            for i in range(0, len(upcs), batch_size):
+                chunk = upcs[i : i + batch_size]
+                response = (
+                    self.db.table(self.table)
+                    .select("upc")
+                    .eq("category", category)
+                    .in_("upc", chunk)
+                    .execute()
+                )
+                for row in response.data or []:
+                    upc = row.get("upc")
+                    if upc:
+                        existing.add((upc, category))
+
+        return [p for p in unique if (p["upc"], p["category"]) not in existing]
     
     def add_upc(self, upc: str, category: str = "dnk") -> bool:
         """
