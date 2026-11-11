@@ -1,16 +1,19 @@
 """Pydantic models for FBA Order Checker."""
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.services.fba_shipment_library import (
     MAX_BOX_NUMBER,
+    PROGRESS_NOT_STARTED,
     STATUS_NOT_IN_LIST,
     count_progress,
     strip_upc_label,
 )
+
+ProgressStatus = Literal["Not Yet Started", "Ongoing", "All Accounted", "All Accounted with Overage"]
 
 
 class FbaShipmentUploadResponse(BaseModel):
@@ -32,6 +35,7 @@ class FbaShipmentUploadResponse(BaseModel):
     trashed_at: Optional[datetime] = None
     fully_accounted: bool = False
     folder_id: Optional[UUID] = None
+    progress_status: ProgressStatus = PROGRESS_NOT_STARTED
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -97,6 +101,16 @@ class FbaShipmentScanResult(BaseModel):
     box_number: Optional[int] = None
     box_counted: int = 0
     fully_accounted: bool = False
+    progress_status: ProgressStatus = PROGRESS_NOT_STARTED
+
+
+class FbaShipmentProgressResult(BaseModel):
+    fully_accounted: bool = False
+    progress_status: ProgressStatus = PROGRESS_NOT_STARTED
+
+
+class FbaShipmentProgressRequest(BaseModel):
+    progress_status: ProgressStatus
 
 
 class FbaShareUser(BaseModel):

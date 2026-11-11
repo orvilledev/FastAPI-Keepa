@@ -31,6 +31,34 @@ def is_fully_accounted(shipped_and_counted: list[tuple[int, int]]) -> bool:
     return all(counted == shipped for shipped, counted in shipped_and_counted)
 
 
+PROGRESS_NOT_STARTED = "Not Yet Started"
+PROGRESS_ONGOING = "Ongoing"
+PROGRESS_ACCOUNTED = "All Accounted"
+PROGRESS_OVERAGE = "All Accounted with Overage"
+PROGRESS_STATUSES = (PROGRESS_NOT_STARTED, PROGRESS_ONGOING, PROGRESS_ACCOUNTED, PROGRESS_OVERAGE)
+
+
+def shipment_progress(shipped_and_counted: list[tuple[int, int]], unknown_counted: int = 0) -> str:
+    """Shipment status from everyone's scans.
+
+    Overage means every line reached its shipped quantity and at least one line went
+    over, or a barcode that is not on the shipment was counted.
+    """
+    counted_total = sum(max(0, counted) for _, counted in shipped_and_counted) + max(0, unknown_counted)
+    if counted_total <= 0:
+        return PROGRESS_NOT_STARTED
+    if not shipped_and_counted or any(counted < shipped for shipped, counted in shipped_and_counted):
+        return PROGRESS_ONGOING
+    if unknown_counted > 0 or any(counted > shipped for shipped, counted in shipped_and_counted):
+        return PROGRESS_OVERAGE
+    return PROGRESS_ACCOUNTED
+
+
+def stored_progress(upload: dict) -> str:
+    value = str(upload.get("progress_status") or "")
+    return value if value in PROGRESS_STATUSES else PROGRESS_NOT_STARTED
+
+
 def count_progress(shipped: int, counted: int) -> tuple[int, str]:
     """Missing is what is still left of Shipped. Status follows the scan total."""
     missing = max(0, shipped - counted)

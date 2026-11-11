@@ -24,7 +24,7 @@ _MIGRATION_HINT = (
     "create_fba_shipment_box_scans.sql, "
     "add_fba_shipment_library_access.sql, add_fba_shipment_library_trash.sql, "
     "add_fba_shipment_name.sql, add_fba_shipment_custom_share.sql, "
-    "and add_fba_shipment_folders.sql "
+    "add_fba_shipment_folders.sql, and add_fba_shipment_progress_status.sql "
     "in the Supabase SQL Editor."
 )
 _INSERT_CHUNK = 500
@@ -83,6 +83,16 @@ def _raise_persist_error(exc: Exception) -> None:
         raise ValueError(
             "The FBA Order Checker needs a database update before shipments can be grouped into folders. "
             "Run backend/database/migrations/add_fba_shipment_folders.sql in the Supabase SQL Editor."
+        ) from exc
+    if "progress_status" in message and (
+        "schema cache" in message
+        or "does not exist" in message
+        or "column" in message
+        or "pgrst204" in message
+    ):
+        raise ValueError(
+            "The FBA Order Checker needs a database update before it can store the shipment status. "
+            "Run backend/database/migrations/add_fba_shipment_progress_status.sql in the Supabase SQL Editor."
         ) from exc
     missing_table = (
         "does not exist" in message
@@ -418,6 +428,21 @@ class FbaShipmentLibraryRepository:
         rows = response.data or []
         if not rows:
             raise ValueError("The shipment name was not saved.")
+        return rows[0]
+
+    def set_progress_status(self, upload_id: str, progress_status: str) -> dict:
+        try:
+            response = (
+                self.db.table(_UPLOADS)
+                .update({"progress_status": progress_status})
+                .eq("id", upload_id)
+                .execute()
+            )
+        except Exception as exc:
+            _raise_persist_error(exc)
+        rows = response.data or []
+        if not rows:
+            raise ValueError("The shipment status was not saved.")
         return rows[0]
 
     def set_locked(self, upload_id: str, locked: bool) -> dict:

@@ -32,6 +32,8 @@ from app.models.fba_shipment_library import (
     FbaShipmentFolderRenameRequest,
     FbaShipmentFolderResponse,
     FbaShipmentNameRequest,
+    FbaShipmentProgressRequest,
+    FbaShipmentProgressResult,
     FbaShipmentUnitsResponse,
     FbaShipmentImportResult,
     FbaShipmentLineResponse,
@@ -56,6 +58,8 @@ from app.services.fba_shipment_library import (
     parse_fba_shipment_tsv,
     share_audience,
     shipment_open_to,
+    shipment_progress,
+    stored_progress,
     strip_upc_label,
     units_for_count,
 )
@@ -188,6 +192,7 @@ def _upload_response(
         trashed_at=row.get("trashed_at"),
         fully_accounted=bool(row.get("fully_accounted")),
         folder_id=row.get("folder_id") or None,
+        progress_status=stored_progress(row),
     )
 
 
@@ -217,6 +222,28 @@ def _is_accounted(repo: FbaShipmentLibraryRepository, upload_id: str) -> bool:
         for row in rows
     ]
     return is_fully_accounted(pairs)
+
+
+def _refresh_progress(
+    repo: FbaShipmentLibraryRepository,
+    upload_id: str,
+    current: Optional[str] = None,
+) -> FbaShipmentProgressResult:
+    """Recompute the shipment status from everyone's scans and save it."""
+    rows = repo.list_line_quantities(upload_id)
+    counts = repo.counts_for_lines([str(row.get("id") or "") for row in rows])
+    pairs = [
+        (int(row.get("shipped") or 0), counts.get(str(row.get("id") or ""), 0))
+        for row in rows
+    ]
+    unknown = sum(int(row.get("counted") or 0) for row in repo.list_unknown_scans(upload_id))
+    status = shipment_progress(pairs, unknown)
+    if status != current:
+        try:
+            repo.set_progress_status(upload_id, status)
+        except ValueError:
+            logger.warning("FBA shipment status was not saved for %s", upload_id, exc_info=True)
+    return FbaShipmentProgressResult(fully_accounted=is_fully_accounted(pairs), progress_status=status)
 
 
 @router.get("/fba-shipment-library", response_model=FbaShipmentUploadListResponse)
@@ -641,12 +668,14 @@ def scan_fba_shipment(
                     saved = {**saved, "counted": int(shared.get("counted") or 0)}
                     break
             _, in_box = repo.counted_in_box(upload_id, box_number, {}, {barcode: int(saved.get("counted") or 0)})
+            progress = _refresh_progress(repo, upload_id, upload.get("progress_status"))
             return FbaShipmentScanResult(
                 barcode=barcode,
                 box_number=box_number,
                 box_counted=in_box.get(barcode, 0),
                 line=_unknown_line(saved),
-                fully_accounted=_is_accounted(repo, upload_id),
+                fully_accounted=progress.fully_accounted,
+                progress_status=progress.progress_status,
             )
         counts = repo.counts_for_lines([str(row.get("id") or "") for row in matches])
         for row in matches:
@@ -668,6 +697,7 @@ def scan_fba_shipment(
         # Show the shipment-wide total, not only this person's scans of the line.
         counted = repo.counts_for_lines([str(target["id"])]).get(str(target["id"]), counted)
         in_box, _ = repo.counted_in_box(upload_id, box_number, {str(target["id"]): counted}, {})
+        progress = _refresh_progress(repo, upload_id, upload.get("progress_status"))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     target["counted"] = counted
@@ -676,7 +706,8 @@ def scan_fba_shipment(
         box_number=box_number,
         box_counted=in_box.get(str(target["id"]), 0),
         line=FbaShipmentLineResponse(**target),
-        fully_accounted=_is_accounted(repo, upload_id),
+        fully_accounted=progress.fully_accounted,
+        progress_status=progress.progress_status,
     )
 
 
@@ -789,7 +820,10 @@ def update_fba_box_unit(
     return FbaBoxUnitUpdate(unit_number=0, scan_id=scan_id, box_number=body.box_number)
 
 
-@router.delete("/fba-shipment-library/{upload_id}/lines/{line_id}/units", status_code=204)
+@router.delete(
+    "/fba-shipment-library/{upload_id}/lines/{line_id}/units",
+    response_model=FbaShipmentProgressResult,
+)
 @handle_api_errors("delete FBA counted unit")
 def delete_fba_unit(
     upload_id: str,
@@ -838,6 +872,7 @@ def delete_fba_unit(
                 else:
                     repo.increment_count(upload_id, line_id, user_id or str(current_user["id"]))
                 raise
+        return _refresh_progress(repo, upload_id, upload.get("progress_status"))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -1004,6 +1039,37 @@ def set_fba_shipment_name(
         if upload.get("trashed_at"):
             raise HTTPException(status_code=400, detail="Restore this shipment from Trash before changing its name.")
         saved = repo.set_shipment_name(upload_id, body.shipment_name.strip())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    saved["fully_accounted"] = bool(upload.get("fully_accounted"))
+    return _upload_response(
+        saved,
+        current_user,
+        can_manage_any=can_manage_any,
+        uploader_names=_given_names_by_user(db, [str(saved.get("created_by") or "")]),
+    )
+
+
+@router.patch("/fba-shipment-library/{upload_id}/status", response_model=FbaShipmentUploadResponse)
+@handle_api_errors("set FBA shipment status")
+def set_fba_shipment_status(
+    upload_id: str,
+    body: FbaShipmentProgressRequest,
+    current_user: dict = Depends(get_fba_order_checker_user),
+    db: Client = Depends(get_supabase),
+):
+    """Owner sets the shipment status by hand. The next scan or removed unit sets it again from the counts."""
+    repo = FbaShipmentLibraryRepository(db)
+    can_manage_any = is_superadmin_user(current_user, db)
+    try:
+        upload = repo.get_upload(upload_id)
+        if not upload:
+            raise HTTPException(status_code=404, detail="That shipment upload was not found.")
+        if not _owns_upload(upload, current_user, can_manage_any):
+            raise HTTPException(status_code=403, detail="Only the owner can change the status of this shipment.")
+        if upload.get("trashed_at"):
+            raise HTTPException(status_code=400, detail="Restore this shipment from Trash before changing its status.")
+        saved = repo.set_progress_status(upload_id, body.progress_status)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     saved["fully_accounted"] = bool(upload.get("fully_accounted"))

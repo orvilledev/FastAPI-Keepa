@@ -11,8 +11,10 @@ import {
 } from 'react'
 import { auditAction } from '../../lib/auditEvents'
 import {
+  FBA_SHIPMENT_PROGRESS_STATUSES,
   fbaShipmentLibraryApi,
   type FbaFnskuLabels,
+  type FbaShipmentProgressStatus,
   type FbaShareUser,
   type FbaShipmentDetail,
   type FbaShipmentFolder,
@@ -40,7 +42,7 @@ import FnskuLabelDesignModal, { FnskuLabelDesignSummary } from './FnskuLabelDesi
 const PAGE_SIZE = 50
 const LINE_PAGE_SIZE = 100
 const FILTER_DELAY_MS = 300
-const LIST_COLUMNS = 7
+const LIST_COLUMNS = 9
 const ALL_SHIPMENTS = 'all'
 const UNGROUPED_SHIPMENTS = 'ungrouped'
 const FOLDER_VIEW_KEY = 'fba-shipment-folder-view'
@@ -84,6 +86,13 @@ function statusClass(status: string): string {
   if (status === 'Overage') return 'bg-orange-600 text-white'
   if (status === 'Not in the list') return 'bg-red-600 text-white'
   return 'bg-amber-500 text-white'
+}
+
+function progressStatusClass(status: FbaShipmentProgressStatus): string {
+  if (status === 'All Accounted') return 'border-emerald-300 text-emerald-800'
+  if (status === 'All Accounted with Overage') return 'border-orange-300 text-orange-800'
+  if (status === 'Ongoing') return 'border-amber-300 text-amber-800'
+  return 'border-gray-200 text-gray-900'
 }
 
 function folderItemClass(view: FolderViewMode, selected: boolean): string {
@@ -381,6 +390,7 @@ export default function FbaShipmentLibrary() {
   const [renameDraft, setRenameDraft] = useState('')
   const [folderBusy, setFolderBusy] = useState(false)
   const [movingFolder, setMovingFolder] = useState(false)
+  const [savingStatusId, setSavingStatusId] = useState<string | null>(null)
   const [selectedUploadIds, setSelectedUploadIds] = useState<string[]>([])
   const [pendingDeleteFolder, setPendingDeleteFolder] = useState<FbaShipmentFolder | null>(null)
   const [pendingArchiveFolder, setPendingArchiveFolder] = useState<FbaShipmentFolder | null>(null)
@@ -707,6 +717,17 @@ export default function FbaShipmentLibrary() {
     setNameDraft(selected?.shipment_name || '')
   }, [nameDirty, selected?.id, selected?.shipment_name])
 
+  useEffect(() => {
+    const id = selected?.id
+    const status = selected?.progress_status
+    if (!id || !status) return
+    setUploads((current) =>
+      current.some((item) => item.id === id && item.progress_status !== status)
+        ? current.map((item) => (item.id === id ? { ...item, progress_status: status } : item))
+        : current,
+    )
+  }, [selected?.id, selected?.progress_status])
+
   const handleScan = async (boxValue: number, code: string): Promise<boolean> => {
     if (!selectedId || !code || scanning) return false
     if (boxValue < 1 || boxValue > 99999) {
@@ -754,7 +775,13 @@ export default function FbaShipmentLibrary() {
         setNotice(boxScanNotice(result.barcode, boxValue, result.box_counted, result.line))
       }
       setSelected((current) =>
-        current ? { ...current, fully_accounted: result.fully_accounted } : current,
+        current
+          ? {
+              ...current,
+              fully_accounted: result.fully_accounted,
+              progress_status: result.progress_status ?? current.progress_status,
+            }
+          : current,
       )
       if (boxForList && inListedBox) setBoxStored((current) => (current ?? 0) + 1)
       const listedBox = queryBoxRef.current ?? scanBoxRef.current
@@ -898,7 +925,15 @@ export default function FbaShipmentLibrary() {
     setSavingUnit(`delete:${unit.unit_number}`)
     setError(null)
     try {
-      await fbaShipmentLibraryApi.deleteUnit(selectedId, line.id, unit.scan_id, Boolean(line.not_in_list))
+      const progress = await fbaShipmentLibraryApi.deleteUnit(
+        selectedId,
+        line.id,
+        unit.scan_id,
+        Boolean(line.not_in_list),
+      )
+      if (progress) {
+        setSelected((current) => (current?.id === selectedId ? { ...current, ...progress } : current))
+      }
       let units: FbaShipmentUnit[]
       try {
         units = await fbaShipmentLibraryApi.units(selectedId, line.id, Boolean(line.not_in_list))
@@ -1283,6 +1318,25 @@ export default function FbaShipmentLibrary() {
     setSelectedUploadIds([])
     setRenamingFolder(false)
     setShowNewFolder(false)
+  }
+
+  const setUploadStatus = async (upload: FbaShipmentUpload, next: FbaShipmentProgressStatus) => {
+    if (savingStatusId) return
+    setSavingStatusId(upload.id)
+    setError(null)
+    try {
+      const saved = await fbaShipmentLibraryApi.setStatus(upload.id, next)
+      const status = saved.progress_status ?? next
+      setUploads((current) =>
+        current.map((item) => (item.id === saved.id ? { ...item, progress_status: status } : item)),
+      )
+      setSelected((current) => (current?.id === saved.id ? { ...current, progress_status: status } : current))
+      setNotice(`Set ${saved.shipment_id} to ${status}.`)
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to change the shipment status.'))
+    } finally {
+      setSavingStatusId(null)
+    }
   }
 
   const moveUploads = async (uploadIds: string[], folderId: string | null) => {
@@ -1996,6 +2050,7 @@ export default function FbaShipmentLibrary() {
                 </th>
                 <th className="w-44 px-3 py-3">Shipment</th>
                 <th className="px-3 py-3">Name</th>
+                <th className="w-44 px-3 py-3">Status</th>
                 <th className="w-40 px-3 py-3">Folder</th>
                 <th className="w-14 px-3 py-3 text-right">SKUs</th>
                 <th className="w-20 px-3 py-3 text-right">Shipped</th>
@@ -2027,6 +2082,7 @@ export default function FbaShipmentLibrary() {
               ) : (
                 uploads.map((upload) => {
                   const placed = folders.find((folder) => folder.id === upload.folder_id)
+                  const progress: FbaShipmentProgressStatus = upload.progress_status ?? 'Not Yet Started'
                   const rowOn = selectedId === upload.id
                   const quietBtn = rowOn
                     ? 'text-white hover:bg-white/20'
@@ -2083,6 +2139,26 @@ export default function FbaShipmentLibrary() {
                       title={upload.shipment_name || undefined}
                     >
                       <div className="truncate">{upload.shipment_name || '—'}</div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <select
+                        aria-label={`Status for ${upload.shipment_id}`}
+                        value={progress}
+                        disabled={!upload.owned_by_me || Boolean(upload.trashed_at) || savingStatusId === upload.id}
+                        title={upload.owned_by_me ? progress : `${progress} (only the owner can change it)`}
+                        className={`w-full min-w-0 max-w-full truncate rounded-lg border bg-white px-2 py-1.5 text-xs font-medium shadow-sm focus:border-[#5b6b3c] focus:outline-none focus:ring-1 focus:ring-[#5b6b3c] disabled:cursor-not-allowed disabled:opacity-80 ${progressStatusClass(progress)}`}
+                        onChange={(event) => {
+                          const next = event.target.value as FbaShipmentProgressStatus
+                          if (next === progress) return
+                          void setUploadStatus(upload, next)
+                        }}
+                      >
+                        {FBA_SHIPMENT_PROGRESS_STATUSES.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-3 py-3">
                       <select

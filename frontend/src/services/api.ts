@@ -3142,6 +3142,21 @@ export type FbaShipmentUpload = {
   trashed_at: string | null
   fully_accounted: boolean
   folder_id?: string | null
+  progress_status?: FbaShipmentProgressStatus
+}
+
+export const FBA_SHIPMENT_PROGRESS_STATUSES = [
+  'Not Yet Started',
+  'Ongoing',
+  'All Accounted',
+  'All Accounted with Overage',
+] as const
+
+export type FbaShipmentProgressStatus = (typeof FBA_SHIPMENT_PROGRESS_STATUSES)[number]
+
+export type FbaShipmentProgress = {
+  fully_accounted: boolean
+  progress_status: FbaShipmentProgressStatus
 }
 
 export type FbaShipmentFolder = {
@@ -3325,13 +3340,14 @@ export const fbaShipmentLibraryApi = {
     lineId: string,
     scanId: string | null,
     notInList = false,
-  ): Promise<void> => {
-    await api.delete(`/api/v1/fba-shipment-library/${uploadId}/lines/${lineId}/units`, {
+  ): Promise<FbaShipmentProgress | null> => {
+    const response = await api.delete(`/api/v1/fba-shipment-library/${uploadId}/lines/${lineId}/units`, {
       params: {
         ...(scanId ? { scan_id: scanId } : {}),
         not_in_list: notInList,
       },
     })
+    return response.data?.progress_status ? (response.data as FbaShipmentProgress) : null
   },
   scan: async (
     uploadId: string,
@@ -3343,6 +3359,7 @@ export const fbaShipmentLibraryApi = {
     box_counted: number
     line: FbaShipmentLine
     fully_accounted: boolean
+    progress_status?: FbaShipmentProgressStatus
   }> => {
     const response = await api.post(`/api/v1/fba-shipment-library/${uploadId}/scan`, {
       barcode,
@@ -3368,6 +3385,12 @@ export const fbaShipmentLibraryApi = {
   setName: async (uploadId: string, shipmentName: string): Promise<FbaShipmentUpload> => {
     const response = await api.patch(`/api/v1/fba-shipment-library/${uploadId}/name`, {
       shipment_name: shipmentName,
+    })
+    return response.data
+  },
+  setStatus: async (uploadId: string, progressStatus: FbaShipmentProgressStatus): Promise<FbaShipmentUpload> => {
+    const response = await api.patch(`/api/v1/fba-shipment-library/${uploadId}/status`, {
+      progress_status: progressStatus,
     })
     return response.data
   },
