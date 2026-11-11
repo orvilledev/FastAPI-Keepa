@@ -1,7 +1,10 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { mapApi, upcsApi } from '../../services/api'
 import type { MAP, MapVendorType } from '../../types'
 import VendorDownloadModal from '../common/VendorDownloadModal'
+import MissingManagedUpcsModal, {
+  type MissingManagedUpc,
+} from './MissingManagedUpcsModal'
 import { downloadBlob, parseMicroToolDownloadResponse } from '../../utils/downloadLinkedFile'
 
 /** Matches backend app.utils.vendor_code (1–32 chars, lowercase alnum + _ -, starts with alnum). */
@@ -91,6 +94,38 @@ export default function MAPManagement() {
   const [showDownloadModal, setShowDownloadModal] = useState(false)
   const [downloadSelection, setDownloadSelection] = useState<Record<string, boolean>>({})
   const [downloading, setDownloading] = useState(false)
+
+  const [missingManagedOpen, setMissingManagedOpen] = useState(false)
+  const [missingManagedRows, setMissingManagedRows] = useState<MissingManagedUpc[]>([])
+  const [missingManagedBusy, setMissingManagedBusy] = useState(false)
+  const missingManagedResolveRef = useRef<((accepted: boolean) => void) | null>(null)
+
+  const promptAddMissingManagedUpcs = useCallback((rows: MissingManagedUpc[]) => {
+    return new Promise<boolean>((resolve) => {
+      missingManagedResolveRef.current = resolve
+      setMissingManagedRows(rows)
+      setMissingManagedBusy(false)
+      setMissingManagedOpen(true)
+    })
+  }, [])
+
+  const declineMissingManagedPrompt = useCallback(() => {
+    if (missingManagedBusy) return
+    const resolve = missingManagedResolveRef.current
+    missingManagedResolveRef.current = null
+    setMissingManagedOpen(false)
+    setMissingManagedBusy(false)
+    setMissingManagedRows([])
+    resolve?.(false)
+  }, [missingManagedBusy])
+
+  const acceptMissingManagedPrompt = useCallback(() => {
+    if (missingManagedBusy) return
+    const resolve = missingManagedResolveRef.current
+    missingManagedResolveRef.current = null
+    setMissingManagedBusy(true)
+    resolve?.(true)
+  }, [missingManagedBusy])
 
   const vendorForApi = vendorFilter || undefined
 
@@ -307,49 +342,43 @@ export default function MAPManagement() {
             missingCheck.missing_count > 0 &&
             missingCheck.missing?.length
           ) {
-            const preview = missingCheck.missing
-              .slice(0, 10)
-              .map((m) => `${m.upc} (${String(m.vendor_type).toUpperCase()})`)
-              .join(', ')
-            const moreText =
-              missingCheck.missing.length > 10
-                ? ` and ${missingCheck.missing.length - 10} more`
-                : ''
-            const confirmed = window.confirm(
-              `${missingCheck.missing_count} UPC(s) from this MAP upload are not in Manage UPCs for their vendor.\n\n` +
-                `Without them in Manage UPCs, daily runs that use Manage UPCs will not include these products.\n\n` +
-                `${preview}${moreText}\n\n` +
-                `Add these UPC(s) to Manage UPCs now?`
-            )
+            const confirmed = await promptAddMissingManagedUpcs(missingCheck.missing)
             if (confirmed) {
-              const byVendor = new Map<string, string[]>()
-              for (const m of missingCheck.missing) {
-                const vendor = String(m.vendor_type || '').trim().toLowerCase()
-                if (!vendor || !m.upc) continue
-                const list = byVendor.get(vendor) || []
-                list.push(m.upc)
-                byVendor.set(vendor, list)
-              }
-              let totalAdded = 0
-              const perVendor: string[] = []
-              for (const [vendor, upcs] of byVendor) {
-                if (abortControllerRef.current?.signal.aborted) break
-                const unique = [...new Set(upcs)]
-                const upcResult = await upcsApi.addUPCs(unique, vendor)
-                const addedCount = upcResult?.added || 0
-                totalAdded += addedCount
-                if (addedCount > 0) {
-                  perVendor.push(`${addedCount} ${vendor.toUpperCase()}`)
+              setMissingManagedBusy(true)
+              try {
+                const byVendor = new Map<string, string[]>()
+                for (const m of missingCheck.missing) {
+                  const vendor = String(m.vendor_type || '').trim().toLowerCase()
+                  if (!vendor || !m.upc) continue
+                  const list = byVendor.get(vendor) || []
+                  list.push(m.upc)
+                  byVendor.set(vendor, list)
                 }
-              }
-              if (totalAdded > 0) {
-                managedUpcNote =
-                  ` Also added ${totalAdded} UPC(s) to Manage UPCs` +
-                  (perVendor.length ? ` (${perVendor.join(', ')})` : '') +
-                  '.'
-              } else {
-                managedUpcNote =
-                  ' Manage UPCs was checked; those UPC(s) were already present or could not be added.'
+                let totalAdded = 0
+                const perVendor: string[] = []
+                for (const [vendor, upcs] of byVendor) {
+                  if (abortControllerRef.current?.signal.aborted) break
+                  const unique = [...new Set(upcs)]
+                  const upcResult = await upcsApi.addUPCs(unique, vendor)
+                  const addedCount = upcResult?.added || 0
+                  totalAdded += addedCount
+                  if (addedCount > 0) {
+                    perVendor.push(`${addedCount} ${vendor.toUpperCase()}`)
+                  }
+                }
+                if (totalAdded > 0) {
+                  managedUpcNote =
+                    ` Also added ${totalAdded} UPC(s) to Manage UPCs` +
+                    (perVendor.length ? ` (${perVendor.join(', ')})` : '') +
+                    '.'
+                } else {
+                  managedUpcNote =
+                    ' Manage UPCs was checked; those UPC(s) were already present or could not be added.'
+                }
+              } finally {
+                setMissingManagedBusy(false)
+                setMissingManagedOpen(false)
+                setMissingManagedRows([])
               }
             }
           }
@@ -981,6 +1010,14 @@ export default function MAPManagement() {
         onSelectionChange={setDownloadSelection}
         onClose={() => !downloading && setShowDownloadModal(false)}
         onConfirm={() => void handleConfirmDownload()}
+      />
+
+      <MissingManagedUpcsModal
+        open={missingManagedOpen}
+        missing={missingManagedRows}
+        busy={missingManagedBusy}
+        onDecline={declineMissingManagedPrompt}
+        onConfirm={acceptMissingManagedPrompt}
       />
     </div>
   )
