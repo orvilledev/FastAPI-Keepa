@@ -89,10 +89,10 @@ function statusClass(status: string): string {
 }
 
 function progressStatusClass(status: FbaShipmentProgressStatus): string {
-  if (status === 'All Accounted') return 'border-emerald-300 text-emerald-800'
-  if (status === 'All Accounted with Overage') return 'border-orange-300 text-orange-800'
-  if (status === 'Ongoing') return 'border-amber-300 text-amber-800'
-  return 'border-gray-200 text-gray-900'
+  if (status === 'All Accounted') return 'border-green-700 bg-green-600 text-white'
+  if (status === 'All Accounted with Overage') return 'border-red-700 bg-red-600 text-white'
+  if (status === 'Ongoing') return 'border-yellow-500 bg-yellow-400 text-yellow-950'
+  return 'border-gray-600 bg-gray-500 text-white'
 }
 
 function folderItemClass(view: FolderViewMode, selected: boolean): string {
@@ -2146,7 +2146,7 @@ export default function FbaShipmentLibrary() {
                         value={progress}
                         disabled={!upload.owned_by_me || Boolean(upload.trashed_at) || savingStatusId === upload.id}
                         title={upload.owned_by_me ? progress : `${progress} (only the owner can change it)`}
-                        className={`w-full min-w-0 max-w-full truncate rounded-lg border bg-white px-2 py-1.5 text-xs font-medium shadow-sm focus:border-[#5b6b3c] focus:outline-none focus:ring-1 focus:ring-[#5b6b3c] disabled:cursor-not-allowed disabled:opacity-80 ${progressStatusClass(progress)}`}
+                        className={`w-full min-w-0 max-w-full truncate rounded-lg border px-2 py-1.5 text-xs font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#5b6b3c] disabled:cursor-not-allowed disabled:opacity-80 ${progressStatusClass(progress)}`}
                         onChange={(event) => {
                           const next = event.target.value as FbaShipmentProgressStatus
                           if (next === progress) return
