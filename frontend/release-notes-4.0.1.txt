@@ -1,0 +1,15 @@
+MSW Overwatch 4.0.1 — desktop and web release
+
+Patch release since 4.0.0. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## FBA Order Checker
+- Status column between Name and Folder: Not Yet Started, Ongoing, All Accounted, All Accounted with Overage
+- Owners can set status by hand; scans and removed units update it automatically
+- Name column keeps full TO numbers visible beside the new Status dropdown
+
+## MAP
+- After upload, offer to add UPCs that are missing from Manage UPCs
+- Friendlier Manage UPCs sync modal instead of the browser confirm
+
+## Upgrade from 4.0.0
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 4.0.1, download it, then prompt to install now or later. Web/PWA users get 4.0.1 on the next deploy/refresh.
