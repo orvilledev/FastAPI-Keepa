@@ -361,6 +361,8 @@ class MaintenanceUpdate(BaseModel):
     scheduled_end_at: Optional[str] = None
     schedule_timezone: Optional[str] = None
     update_schedule: bool = False
+    # Which clients are blocked when maintenance is on (superadmin only).
+    scope: Optional[str] = None
 
 
 class EmailTransportUpdate(BaseModel):
@@ -597,6 +599,12 @@ def update_maintenance_mode(
     current_user: dict = Depends(get_superadmin_user),
 ):
     """Update runtime maintenance mode state (superadmin only)."""
+    scope = (payload.scope or "").strip().lower() or None
+    if scope is not None and scope not in ("web", "electron", "both"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="scope must be web, electron, or both",
+        )
     return set_maintenance_state(
         payload.maintenance_mode,
         payload.message,
@@ -604,6 +612,7 @@ def update_maintenance_mode(
         scheduled_start_at=payload.scheduled_start_at,
         scheduled_end_at=payload.scheduled_end_at,
         schedule_timezone=payload.schedule_timezone,
+        scope=scope,
         update_schedule=bool(payload.update_schedule),
     )
 

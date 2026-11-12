@@ -470,9 +470,11 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
     q: 'What happens when maintenance mode is on?',
     a: (
       <>
-        When a superadmin enables maintenance mode, most users see a maintenance page and cannot use the app.{' '}
-        <strong>Superadmins</strong> stay in. Other accounts on the maintenance access list in{' '}
-        <strong>User Management</strong> can sign in and keep working. Everyone else stays on the maintenance page.
+        A superadmin can put <strong>web only</strong>, <strong>Electron only</strong>, or{' '}
+        <strong>both</strong> into maintenance. Users on those clients see a maintenance page and cannot use
+        the app. <strong>Superadmins</strong> stay in. Other accounts on the maintenance access list in{' '}
+        <strong>User Management</strong> can sign in and keep working. Scheduled Daily Run and Keepa Import
+        off-price processing and emails keep running during maintenance.
       </>
     ),
   },

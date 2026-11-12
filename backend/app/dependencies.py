@@ -1,16 +1,17 @@
 """FastAPI dependencies."""
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from supabase import Client
 from app.database import get_supabase
 from app.config import settings
-from app.maintenance import get_maintenance_state
+from app.maintenance import is_maintenance_active_for_client
 from uuid import UUID
 import httpx
 import logging
 from app.utils.jwt_utils import get_jwt_aal, get_jwt_iat
 from app.force_logout import SIGNED_OUT_BY_ADMIN_DETAIL, token_was_force_logged_out
 from app.constants.warehouse_stations import FLOOR_STATION_EMAILS
+from app.services.audit_log_service import client_type_from_request
 
 logger = logging.getLogger(__name__)
 
@@ -601,20 +602,32 @@ def _is_maintenance_bypass_user(current_user: dict, db: Client) -> bool:
 
 
 def require_app_access(
+    request: Request,
     current_user: dict = Depends(get_current_user),
     db: Client = Depends(get_supabase),
 ) -> dict:
-    """Block non-bypass users while maintenance mode is enabled."""
-    maintenance = get_maintenance_state()
-    if not maintenance.get("maintenance_mode"):
+    """Block non-bypass users while maintenance is enabled for their client.
+
+    Scoped by X-Client-Type (web vs electron). Background schedulers (Daily Run
+    and Keepa Import off-price processing/emails) never use this dependency and
+    keep running during maintenance.
+    """
+    client = client_type_from_request(request)
+    if not is_maintenance_active_for_client(client):
         return current_user
     if _is_maintenance_bypass_user(current_user, db):
         return current_user
+    from app.maintenance import get_maintenance_state
+
+    maintenance = get_maintenance_state()
     raise HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail={
             "message": maintenance.get("message") or settings.maintenance_message,
             "maintenance_mode": True,
+            "maintenance_web": bool(maintenance.get("maintenance_web")),
+            "maintenance_electron": bool(maintenance.get("maintenance_electron")),
+            "scope": maintenance.get("scope") or "both",
             "allowlisted": False,
         },
     )

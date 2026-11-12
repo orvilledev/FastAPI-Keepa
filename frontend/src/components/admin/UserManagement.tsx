@@ -139,13 +139,30 @@ type MaintenanceSuccessNotice = {
   message: string
 }
 
+type MaintenanceScope = 'web' | 'electron' | 'both'
+
 type MaintenanceApiState = {
   maintenance_mode: boolean
+  maintenance_web?: boolean
+  maintenance_electron?: boolean
+  scope?: MaintenanceScope | null
   message: string
   duration_hours?: number | null
   expected_end_at?: string | null
   scheduled_start_at?: string | null
   schedule_timezone?: string | null
+}
+
+function normalizeMaintenanceScope(value: unknown): MaintenanceScope {
+  const raw = String(value || '').trim().toLowerCase()
+  if (raw === 'web' || raw === 'electron' || raw === 'both') return raw
+  return 'both'
+}
+
+function scopeLabel(scope: MaintenanceScope): string {
+  if (scope === 'web') return 'Web only'
+  if (scope === 'electron') return 'Electron only'
+  return 'Web and Electron'
 }
 
 function formatMaintenanceLength(hours: number | null | undefined): string {
@@ -184,10 +201,11 @@ function maintenanceSuccessFromState(
   const end = state.expected_end_at
     ? formatZonedDisplay(state.expected_end_at, tz)
     : 'Until you turn it off'
+  const scope = scopeLabel(normalizeMaintenanceScope(state.scope))
   if (kind === 'scheduled' || scheduled) {
     return {
       title: 'Maintenance scheduled',
-      subtitle: 'The app will enter maintenance automatically for this window.',
+      subtitle: `Affects ${scope}. Those clients will enter maintenance automatically for this window.`,
       status: 'Scheduled',
       start: start || '—',
       end,
@@ -199,7 +217,7 @@ function maintenanceSuccessFromState(
   if (kind === 'enabled') {
     return {
       title: 'Maintenance enabled',
-      subtitle: 'Only superadmin and allowlisted emails can use the app until this ends.',
+      subtitle: `Affects ${scope}. Only superadmin and allowlisted emails can use those clients until this ends.`,
       status: 'Active',
       start,
       end,
@@ -210,7 +228,7 @@ function maintenanceSuccessFromState(
   }
   return {
     title: 'Maintenance details saved',
-    subtitle: 'The active maintenance window now uses these details.',
+    subtitle: `The active maintenance window now uses these details (${scope}).`,
     status: 'Active',
     start,
     end,
@@ -248,6 +266,9 @@ export default function UserManagement() {
   const [removing, setRemoving] = useState<string | null>(null)
   const [showPendingOnly, setShowPendingOnly] = useState(false)
   const [maintenanceMode, setMaintenanceMode] = useState(false)
+  const [maintenanceScope, setMaintenanceScope] = useState<MaintenanceScope>('both')
+  const [maintenanceWeb, setMaintenanceWeb] = useState(false)
+  const [maintenanceElectron, setMaintenanceElectron] = useState(false)
   const [maintenanceMessage, setMaintenanceMessage] = useState('')
   const [maintenanceDurationHours, setMaintenanceDurationHours] = useState<number>(0)
   const [maintenanceExpectedEndAt, setMaintenanceExpectedEndAt] = useState<string | null>(null)
@@ -306,15 +327,12 @@ export default function UserManagement() {
     }
   }
 
-  const applyMaintenanceState = (state: {
-    maintenance_mode: boolean
-    message: string
-    duration_hours?: number | null
-    expected_end_at?: string | null
-    scheduled_start_at?: string | null
-    schedule_timezone?: string | null
-  }) => {
+  const applyMaintenanceState = (state: MaintenanceApiState) => {
     setMaintenanceMode(Boolean(state.maintenance_mode))
+    const scope = normalizeMaintenanceScope(state.scope)
+    setMaintenanceScope(scope)
+    setMaintenanceWeb(Boolean(state.maintenance_web))
+    setMaintenanceElectron(Boolean(state.maintenance_electron))
     setMaintenanceMessage(state.message || '')
     setMaintenanceDurationHours(
       typeof state.duration_hours === 'number' && state.duration_hours > 0 ? state.duration_hours : 0
@@ -510,8 +528,8 @@ export default function UserManagement() {
     const nextMode = !maintenanceMode
     const confirmed = window.confirm(
       nextMode
-        ? 'Enable maintenance mode now? Non-superadmin users will see the maintenance page.'
-        : 'Disable maintenance mode and clear any scheduled start? Normal access will be restored.'
+        ? `Enable maintenance now for ${scopeLabel(maintenanceScope).toLowerCase()}? Non-superadmin users on those clients will see the maintenance page. Scheduled Daily Run and Keepa Import off-price emails keep running.`
+        : 'Disable maintenance mode and clear any scheduled start? Normal access will be restored on web and Electron.'
     )
     if (!confirmed) return
     try {
@@ -519,7 +537,8 @@ export default function UserManagement() {
       const updated = await authApi.updateMaintenanceMode(
         nextMode,
         maintenanceMessage,
-        maintenanceDurationHours > 0 ? maintenanceDurationHours : 0
+        maintenanceDurationHours > 0 ? maintenanceDurationHours : 0,
+        { scope: maintenanceScope }
       )
       applyMaintenanceState(updated)
       notifyMaintenanceScheduleChanged()
@@ -621,6 +640,7 @@ export default function UserManagement() {
           scheduled_end_at: scheduledEndIso,
           schedule_timezone: tz,
           update_schedule: true,
+          scope: maintenanceScope,
         }
       )
       applyMaintenanceState(updated)
@@ -904,7 +924,9 @@ export default function UserManagement() {
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Maintenance Mode</h2>
             <p className="text-sm text-gray-600">
-              When enabled, only superadmins and emails on the maintenance access list can use the app.
+              When enabled, only superadmins and emails on the maintenance access list can use the
+              selected clients. Scheduled Daily Run and Keepa Import off-price processing and emails
+              keep running.
             </p>
           </div>
           <button
@@ -930,9 +952,23 @@ export default function UserManagement() {
           >
             {maintenanceMode ? 'Maintenance ON' : 'Maintenance OFF'}
           </span>
+          <span
+            className={`px-2 py-1 rounded font-medium ${
+              maintenanceWeb ? 'bg-sky-100 text-sky-900' : 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            Web {maintenanceWeb ? 'ON' : 'OFF'}
+          </span>
+          <span
+            className={`px-2 py-1 rounded font-medium ${
+              maintenanceElectron ? 'bg-violet-100 text-violet-900' : 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            Electron {maintenanceElectron ? 'ON' : 'OFF'}
+          </span>
           {!maintenanceMode && maintenanceScheduledStartAt && (
             <span className="px-2 py-1 rounded font-medium bg-amber-100 text-amber-900">
-              Scheduled{' '}
+              Scheduled {scopeLabel(maintenanceScope)}{' '}
               {formatZonedDisplay(maintenanceScheduledStartAt, maintenanceScheduleTimezone)}
               {maintenanceExpectedEndAt
                 ? ` → ${formatZonedDisplay(maintenanceExpectedEndAt, maintenanceScheduleTimezone)}`
@@ -941,6 +977,33 @@ export default function UserManagement() {
             </span>
           )}
         </div>
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium text-gray-700">Apply maintenance to</legend>
+          <div className="flex flex-wrap gap-4 text-sm text-gray-700">
+            {(
+              [
+                { value: 'web', label: 'Web only' },
+                { value: 'electron', label: 'Electron only' },
+                { value: 'both', label: 'Both' },
+              ] as const
+            ).map((option) => (
+              <label key={option.value} className="inline-flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="maintenance-scope"
+                  value={option.value}
+                  checked={maintenanceScope === option.value}
+                  onChange={() => setMaintenanceScope(option.value)}
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500">
+            Changing scope and saving details updates an active window immediately. Enable uses the
+            selection above.
+          </p>
+        </fieldset>
         <label className="block text-sm font-medium text-gray-700">
           Maintenance message
           <input

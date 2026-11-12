@@ -114,7 +114,18 @@ export default function MaintenanceScheduleBanner() {
         return
       }
       const timeZone = (status.schedule_timezone || '').trim() || DEFAULT_TIMEZONE
-      const message = upcomingMaintenanceMessage(startAt, status.expected_end_at, timeZone)
+      let message = upcomingMaintenanceMessage(startAt, status.expected_end_at, timeZone)
+      if (message) {
+        const scope = String(status.scope || 'both').toLowerCase()
+        if (scope === 'web') {
+          message = message.replace('MSW Overwatch will be down', 'The MSW Overwatch web app will be down')
+        } else if (scope === 'electron') {
+          message = message.replace(
+            'MSW Overwatch will be down',
+            'The MSW Overwatch desktop app will be down'
+          )
+        }
+      }
       setNotice(message ? { startAt, message } : null)
     } catch {
       setNotice(null)

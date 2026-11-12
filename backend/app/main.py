@@ -340,9 +340,11 @@ async def health_check():
 
 
 @app.get(f"{settings.api_v1_str}/system/maintenance-status")
-async def maintenance_status():
-    """Public maintenance status for frontend routing."""
-    return get_maintenance_state()
+async def maintenance_status(request: Request):
+    """Public maintenance status for frontend routing (scoped by X-Client-Type)."""
+    from app.services.audit_log_service import client_type_from_request
+
+    return get_maintenance_state(for_client=client_type_from_request(request))
 
 
 @app.get(f"{settings.api_v1_str}/system/force-logout-status")

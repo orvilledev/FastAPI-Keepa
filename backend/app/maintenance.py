@@ -1,11 +1,60 @@
-"""Runtime maintenance mode state."""
+"""Runtime maintenance mode state (web / Electron / both)."""
 from datetime import datetime, timedelta, timezone
+from typing import Literal, Optional
+
 from app.config import settings
 
 _DEFAULT_SCHEDULE_TIMEZONE = "America/Chicago"
+MaintenanceScope = Literal["web", "electron", "both"]
+_VALID_SCOPES = frozenset({"web", "electron", "both"})
 
+
+def _initial_flags() -> tuple[bool, bool]:
+    """Boot flags from env. Legacy MAINTENANCE_MODE=true turns both clients on."""
+    web = bool(getattr(settings, "maintenance_web", False))
+    electron = bool(getattr(settings, "maintenance_electron", False))
+    if bool(settings.maintenance_mode) and not web and not electron:
+        return True, True
+    return web, electron
+
+
+def _scope_from_flags(web: bool, electron: bool) -> MaintenanceScope:
+    if web and electron:
+        return "both"
+    if electron and not web:
+        return "electron"
+    if web and not electron:
+        return "web"
+    return "both"
+
+
+def _normalize_scope(value: str | None, fallback: MaintenanceScope = "both") -> MaintenanceScope:
+    cleaned = str(value or "").strip().lower()
+    if cleaned in _VALID_SCOPES:
+        return cleaned  # type: ignore[return-value]
+    return fallback
+
+
+def _flags_for_scope(scope: MaintenanceScope) -> tuple[bool, bool]:
+    if scope == "web":
+        return True, False
+    if scope == "electron":
+        return False, True
+    return True, True
+
+
+def _scope_includes(scope: MaintenanceScope, client_type: str) -> bool:
+    client = (client_type or "web").strip().lower()
+    if client == "electron":
+        return scope in ("electron", "both")
+    return scope in ("web", "both")
+
+
+_web0, _electron0 = _initial_flags()
 _state = {
-    "maintenance_mode": bool(settings.maintenance_mode),
+    "maintenance_web": _web0,
+    "maintenance_electron": _electron0,
+    "scope": _scope_from_flags(_web0, _electron0),
     "message": settings.maintenance_message,
     "duration_hours": None,
     "expected_end_at": None,
@@ -60,9 +109,19 @@ def _duration_hours_between(start: datetime, end: datetime) -> float:
     return max(0.0, min(168.0, round(hours * 2) / 2))
 
 
+def _apply_scope_flags(scope: MaintenanceScope, *, active: bool) -> None:
+    if not active:
+        _state["maintenance_web"] = False
+        _state["maintenance_electron"] = False
+        return
+    web, electron = _flags_for_scope(scope)
+    _state["maintenance_web"] = web
+    _state["maintenance_electron"] = electron
+
+
 def _maybe_activate_scheduled() -> None:
     """Activate maintenance when a future schedule reaches its start time."""
-    if _state.get("maintenance_mode"):
+    if _state.get("maintenance_web") or _state.get("maintenance_electron"):
         return
     start = _parse_iso_utc(_state.get("scheduled_start_at"))
     if not start:
@@ -70,7 +129,9 @@ def _maybe_activate_scheduled() -> None:
     now = datetime.now(timezone.utc)
     if now < start:
         return
-    _state["maintenance_mode"] = True
+    scope = _normalize_scope(_state.get("scope"), "both")
+    _state["scope"] = scope
+    _apply_scope_flags(scope, active=True)
     # Keep an explicit scheduled end when present; otherwise derive from duration.
     if not _state.get("expected_end_at"):
         hours = _state.get("duration_hours")
@@ -80,19 +141,58 @@ def _maybe_activate_scheduled() -> None:
     _state["scheduled_start_at"] = None
 
 
-def get_maintenance_state() -> dict:
-    """Return current maintenance runtime state."""
+def is_maintenance_active_for_client(client_type: str | None) -> bool:
+    """True when maintenance blocks this client (web or electron)."""
     _maybe_activate_scheduled()
-    maintenance_mode = bool(_state.get("maintenance_mode", False))
+    client = (client_type or "web").strip().lower()
+    if client == "electron":
+        return bool(_state.get("maintenance_electron"))
+    return bool(_state.get("maintenance_web"))
+
+
+def get_maintenance_state(*, for_client: Optional[str] = None) -> dict:
+    """Return current maintenance runtime state.
+
+    When ``for_client`` is ``web`` or ``electron``, ``maintenance_mode`` and
+    schedule fields are scoped to that client. Admin UIs should omit
+    ``for_client`` to see the full unfiltered state.
+
+    Background jobs (Daily Run / Keepa Import off-price processing and emails)
+    do not consult this gate and keep running during maintenance.
+    """
+    _maybe_activate_scheduled()
+    web = bool(_state.get("maintenance_web", False))
+    electron = bool(_state.get("maintenance_electron", False))
+    scope = _normalize_scope(_state.get("scope"), _scope_from_flags(web, electron) if (web or electron) else "both")
     message = str(_state.get("message") or settings.maintenance_message)
     expected_end_at = _state.get("expected_end_at")
     duration_hours = _state.get("duration_hours")
     scheduled_start_at = _state.get("scheduled_start_at")
     schedule_timezone = _normalize_timezone(_state.get("schedule_timezone"))
+    any_on = web or electron
+
+    if for_client:
+        client = (for_client or "web").strip().lower()
+        if client not in ("web", "electron"):
+            client = "web"
+        effective = electron if client == "electron" else web
+        # Hide upcoming schedules that will not affect this client.
+        if not any_on and scheduled_start_at and not _scope_includes(scope, client):
+            scheduled_start_at = None
+            expected_end_at = None
+        maintenance_mode = effective
+    else:
+        maintenance_mode = any_on
+
     return {
         "maintenance_mode": maintenance_mode,
+        "maintenance_web": web,
+        "maintenance_electron": electron,
+        "scope": scope,
         "message": message,
-        "effective_message": _build_effective_message(message, expected_end_at) if maintenance_mode else message,
+        "effective_message": (
+            _build_effective_message(message, expected_end_at) if maintenance_mode else message
+        ),
         "duration_hours": duration_hours,
         "expected_end_at": expected_end_at,
         "scheduled_start_at": scheduled_start_at,
@@ -107,6 +207,7 @@ def set_maintenance_state(
     scheduled_start_at: str | None = None,
     scheduled_end_at: str | None = None,
     schedule_timezone: str | None = None,
+    scope: str | None = None,
     *,
     update_schedule: bool = False,
 ) -> dict:
@@ -119,13 +220,17 @@ def set_maintenance_state(
         _state["duration_hours"] = clamped
     if schedule_timezone is not None:
         _state["schedule_timezone"] = _normalize_timezone(schedule_timezone)
+    if scope is not None:
+        _state["scope"] = _normalize_scope(scope, _normalize_scope(_state.get("scope"), "both"))
 
     hours = _state.get("duration_hours")
     hours_val = float(hours) if isinstance(hours, (int, float)) else None
+    active_scope = _normalize_scope(_state.get("scope"), "both")
 
     if bool(maintenance_mode):
-        # Immediate enable: clear any pending schedule and start now.
-        _state["maintenance_mode"] = True
+        # Immediate enable: clear any pending schedule and start now for the chosen scope.
+        _state["scope"] = active_scope
+        _apply_scope_flags(active_scope, active=True)
         _state["scheduled_start_at"] = None
         now = datetime.now(timezone.utc)
         explicit_end = _parse_iso_utc(scheduled_end_at) if update_schedule else None
@@ -136,8 +241,8 @@ def set_maintenance_state(
             _state["expected_end_at"] = _compute_expected_end(now, hours_val)
         return get_maintenance_state()
 
-    # Disable immediate maintenance.
-    _state["maintenance_mode"] = False
+    # Disable immediate maintenance for all clients.
+    _apply_scope_flags(active_scope, active=False)
 
     if update_schedule:
         start = _parse_iso_utc(scheduled_start_at)
@@ -145,6 +250,7 @@ def set_maintenance_state(
         now = datetime.now(timezone.utc)
         if start and start > now:
             _state["scheduled_start_at"] = _to_iso_z(start)
+            _state["scope"] = active_scope
             if end and end > start:
                 _state["expected_end_at"] = _to_iso_z(end)
                 _state["duration_hours"] = _duration_hours_between(start, end)

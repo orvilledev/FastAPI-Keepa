@@ -177,7 +177,11 @@ class Settings(BaseSettings):
     cli_chat_history_limit: int = 30
 
     # Maintenance mode controls
+    # Legacy: MAINTENANCE_MODE=true turns on both web and Electron when the
+    # specific flags below are unset (false).
     maintenance_mode: bool = False
+    maintenance_web: bool = False
+    maintenance_electron: bool = False
     maintenance_message: str = "App is currently under maintenance. Please try again later."
     # Comma-separated extra emails that bypass maintenance. User Management stores the editable list.
     maintenance_allowlist_emails: str = ""

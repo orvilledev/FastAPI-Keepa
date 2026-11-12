@@ -339,6 +339,9 @@ export const authApi = {
   getMaintenanceMode: async () => {
     const response = await api.get<{
       maintenance_mode: boolean
+      maintenance_web?: boolean
+      maintenance_electron?: boolean
+      scope?: 'web' | 'electron' | 'both'
       message: string
       effective_message: string
       duration_hours?: number | null
@@ -357,10 +360,14 @@ export const authApi = {
       scheduled_end_at?: string | null
       schedule_timezone?: string | null
       update_schedule?: boolean
+      scope?: 'web' | 'electron' | 'both'
     }
   ) => {
     const response = await api.put<{
       maintenance_mode: boolean
+      maintenance_web?: boolean
+      maintenance_electron?: boolean
+      scope?: 'web' | 'electron' | 'both'
       message: string
       effective_message: string
       duration_hours?: number | null
@@ -375,6 +382,7 @@ export const authApi = {
       scheduled_end_at: options?.scheduled_end_at ?? null,
       schedule_timezone: options?.schedule_timezone ?? null,
       update_schedule: Boolean(options?.update_schedule),
+      scope: options?.scope,
     })
     return response.data
   },
@@ -3438,6 +3446,9 @@ export const systemApi = {
   },
   getMaintenanceStatus: async (): Promise<{
     maintenance_mode: boolean
+    maintenance_web?: boolean
+    maintenance_electron?: boolean
+    scope?: 'web' | 'electron' | 'both'
     message: string
     effective_message?: string
     duration_hours?: number | null
