@@ -1,0 +1,14 @@
+MSW Overwatch 4.0.2 — desktop and web release
+
+Patch release since 4.0.1. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## FBA Order Checker
+- Stronger Status dropdown colors so progress is easy to scan at a glance:
+  - Not Yet Started — grey
+  - Ongoing — yellow
+  - All Accounted — green
+  - All Accounted with Overage — red
+- Text stays readable on each strong background
+
+## Upgrade from 4.0.1
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 4.0.2, download it, then prompt to install now or later. Web/PWA users get 4.0.2 on the next deploy/refresh.
