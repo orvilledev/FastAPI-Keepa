@@ -22,7 +22,7 @@ MAX_GROUP_MEMBERS = 50
 PREVIEW_LENGTH = 140
 UNSENT_PREVIEW = "Message unsent"
 # Keep in sync with the team-chat-files bucket limit in create_messenger_chat.sql.
-MAX_FILE_BYTES = 200 * 1024 * 1024
+MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024
 MAX_FILE_NAME_LENGTH = 255
 PREVIEW_LINK_SECONDS = 60 * 60
 DOWNLOAD_LINK_SECONDS = 5 * 60

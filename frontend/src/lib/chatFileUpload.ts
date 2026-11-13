@@ -28,7 +28,7 @@ function storageMessage(xhr: XMLHttpRequest): string {
     message = ''
   }
   if (xhr.status === 413 || /maximum allowed size|payload too large|too large/i.test(message)) {
-    return 'This file is larger than the storage upload limit. An admin needs to raise the Supabase Storage upload limit to at least 200 MB.'
+    return 'This file is larger than the storage upload limit. An admin needs to raise the Supabase Storage upload limit to at least 2 GB.'
   }
   if (/bucket not found/i.test(message)) {
     return 'File sharing is not set up yet. An admin needs to run create_messenger_chat.sql in Supabase.'

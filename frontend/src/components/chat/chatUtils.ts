@@ -2,7 +2,7 @@ import type { ChatAttachment, ChatConversation, ChatMember, ChatMessage } from '
 
 export const MAX_MESSAGE_LENGTH = 4000
 /** Matches MAX_FILE_BYTES in the API and the team-chat-files bucket limit. */
-export const MAX_FILE_BYTES = 200 * 1024 * 1024
+export const MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024
 export const MAX_FILES_PER_SEND = 10
 const INLINE_IMAGE_MAX_BYTES = 25 * 1024 * 1024
 const INLINE_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp', 'image/avif'])

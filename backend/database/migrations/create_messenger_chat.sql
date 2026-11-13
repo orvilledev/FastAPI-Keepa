@@ -59,10 +59,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_messenger_messages_attachment_path
   ON public.messenger_messages (attachment_path)
   WHERE attachment_path IS NOT NULL;
 
--- 200 MB per file. The project-wide "Upload file size limit"
+-- 2 GB per file. The project-wide "Upload file size limit"
 -- (Storage settings in the Supabase dashboard) must be at least this large.
 INSERT INTO storage.buckets (id, name, public, file_size_limit)
-VALUES ('team-chat-files', 'team-chat-files', false, 209715200)
+VALUES ('team-chat-files', 'team-chat-files', false, 2147483648)
 ON CONFLICT (id) DO UPDATE
   SET public = false,
       file_size_limit = EXCLUDED.file_size_limit;
