@@ -15,6 +15,8 @@ import { canAccessNsTool } from '../../lib/nsToolAccess'
 import { canAccessSessionAudit } from '../../lib/sessionAuditAccess'
 import { canWarehouseAccessFnskuLabels } from '../../constants/warehouseAccess'
 import { isLabelCenterAvailable } from '../../lib/privatePath'
+import { useChatUnreadCount } from '../../hooks/useChatUnreadCount'
+import { canAccessTeamChat } from '../../lib/teamChatAccess'
 
 // SVG Icon components that inherit text color via currentColor
 const Icons = {
@@ -110,6 +112,11 @@ const Icons = {
   feedback: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.018c8.836 0 16 8.058 16 9.036v7.964a1 1 0 01-1.618.794L17 21" />
+    </svg>
+  ),
+  teamChat: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
     </svg>
   ),
   mySpace: (
@@ -237,6 +244,8 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
   const canUseDimensioner = canAccessDimensioner(accountEmail, isSuperadmin)
   const canViewSessionAudit = canAccessSessionAudit(accountEmail, isSuperadmin)
   const canUseNsTool = canAccessNsTool(accountEmail, isSuperadmin)
+  const canUseTeamChat = canAccessTeamChat(accountEmail, isSuperadmin)
+  const chatUnread = useChatUnreadCount(Boolean(authUser) && canUseTeamChat)
   const isElectron = Boolean(window.desktop?.isElectron)
   const [desktopVersion, setDesktopVersion] = useState<string | null>(null)
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false)
@@ -331,6 +340,29 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
       onNavigate()
     }
   }
+
+  const teamChatLink = (
+    <Link
+      to="/chat"
+      onMouseEnter={() => setHoveredNav('team-chat')}
+      className={`sidebar-link ${
+        navHighlighted('team-chat', isActive('/chat'))
+          ? 'sidebar-link-active'
+          : 'sidebar-link-inactive'
+      }`}
+    >
+      <span className="shrink-0">{Icons.teamChat}</span>
+      <span className="sidebar-link-label">Team Chat</span>
+      {chatUnread > 0 && (
+        <span
+          className="inline-flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-[#F97316] px-1.5 text-[11px] font-bold leading-none text-white"
+          aria-label={`${chatUnread} unread chat messages`}
+        >
+          {chatUnread > 99 ? '99+' : chatUnread}
+        </span>
+      )}
+    </Link>
+  )
 
   return (
     <aside
@@ -529,6 +561,8 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                 <span className="shrink-0">{Icons.wrench}</span>
                 <span className="sidebar-link-label">FAQ</span>
               </Link>
+
+              {canUseTeamChat && teamChatLink}
 
               <Link
                 to="/feedback"
@@ -898,6 +932,8 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
             <span className="shrink-0">{Icons.wrench}</span>
             <span className="sidebar-link-label">FAQ</span>
           </Link>
+
+          {canUseTeamChat && teamChatLink}
 
           <Link
             to="/feedback"

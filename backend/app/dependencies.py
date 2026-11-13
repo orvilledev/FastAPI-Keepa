@@ -392,6 +392,30 @@ def get_old_skus_user(
     return current_user
 
 
+def is_team_chat_allowed_user(current_user: dict, db: Client) -> bool:
+    """True for superadmin or emails on the Team Chat allowlist (everyone when it is empty)."""
+    allowed = settings.team_chat_allowed_emails_list
+    if not allowed:
+        return True
+    email = (current_user.get("email") or "").strip().lower()
+    if email and email in allowed:
+        return True
+    return is_superadmin_user(current_user, db)
+
+
+def get_team_chat_user(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+) -> dict:
+    """Verify user may use Team Chat."""
+    if not is_team_chat_allowed_user(current_user, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Team Chat is not available for this account yet",
+        )
+    return current_user
+
+
 def is_fba_box_contents_allowed_user(current_user: dict, db: Client) -> bool:
     """True for superadmin or emails on the FBA Box Contents allowlist."""
     if is_superadmin_user(current_user, db):

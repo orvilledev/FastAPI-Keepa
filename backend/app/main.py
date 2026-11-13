@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.database import init_db
-from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, keepa_import_export, analytics, presence, manifest_generator, dnk_all_inventory, freight_class_calculator, audit, catalog_upc_dims, catalog_ship_to, catalog_old_skus, master_sheet, notes, shipments, fnsku_box_pivot, fba_box_contents, fba_upload_compare, fba_shipment_library, product_catalog_formatter, dimensioner
+from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, keepa_import_export, analytics, presence, manifest_generator, dnk_all_inventory, freight_class_calculator, audit, catalog_upc_dims, catalog_ship_to, catalog_old_skus, master_sheet, notes, shipments, fnsku_box_pivot, fba_box_contents, fba_upload_compare, fba_shipment_library, product_catalog_formatter, dimensioner, messenger
 from app.scheduler import (
     setup_scheduler,
     setup_completed_jobs_retention_cleanup,
@@ -16,7 +16,7 @@ from app.scheduler import (
     run_completed_jobs_retention_cleanup,
     run_dimensioner_trash_purge,
 )
-from app.dependencies import get_shipment_manager_user, require_app_access
+from app.dependencies import get_shipment_manager_user, get_team_chat_user, require_app_access
 from app.maintenance import get_maintenance_state
 from app.force_logout import get_force_logout_state
 from app.middleware.audit_logger import AuditLogMiddleware
@@ -371,6 +371,12 @@ app.include_router(sellers.router, prefix=settings.api_v1_str, tags=["sellers"],
 app.include_router(email_recipients.router, prefix=settings.api_v1_str, tags=["email-recipients"], dependencies=[Depends(require_app_access)])
 app.include_router(cli_chat.router, prefix=settings.api_v1_str, tags=["cli-chat"], dependencies=[Depends(require_app_access)])
 app.include_router(feedback.router, prefix=settings.api_v1_str, tags=["feedback"], dependencies=[Depends(require_app_access)])
+app.include_router(
+    messenger.router,
+    prefix=settings.api_v1_str,
+    tags=["team-chat"],
+    dependencies=[Depends(require_app_access), Depends(get_team_chat_user)],
+)
 app.include_router(tracking_scanner.router, prefix=settings.api_v1_str, tags=["tracking-scanner"], dependencies=[Depends(require_app_access)])
 app.include_router(warehouse_products.router, prefix=settings.api_v1_str, tags=["warehouse-products"], dependencies=[Depends(require_app_access)])
 app.include_router(keepa_import_export.router, prefix=settings.api_v1_str, tags=["keepa-import-export"], dependencies=[Depends(require_app_access)])

@@ -53,6 +53,11 @@ _NEVER_LOGGED: Tuple[Pattern[str], ...] = tuple(
         # Automatic side effect of a Tracking Extractor scan, which the client
         # already reports as tracking.scan_browser.
         r"^/api/v1/tracking-scanner/history$",
+        # Team Chat: reading a thread is automatic, and individual messages are
+        # conversation traffic that would bury real actions in the Audit Log.
+        r"^/api/v1/messenger/conversations/[^/]+/read$",
+        r"^/api/v1/messenger/conversations/[^/]+/messages$",
+        r"^/api/v1/messenger/conversations/[^/]+/attachments(/discard)?$",
     )
 )
 
@@ -340,6 +345,12 @@ _ROUTES: Tuple[_Route, ...] = (
     _r("POST", r"^/api/v1/shipments/[^/]+/generate$",
        "shipment.generate", "download", "Compiled a shipment WR SKU Update sheet"),
     _r("POST", r"^/api/v1/cli-chat/turn$", "chat.turn", "tool", "Sent a CLI chat message"),
+    _r("POST", r"^/api/v1/messenger/conversations/[^/]+/leave$",
+       "team_chat.leave", "other", "Left a Team Chat group"),
+    _r("POST", r"^/api/v1/messenger/conversations$",
+       "team_chat.conversation_create", "other", "Started a Team Chat conversation"),
+    _r("DELETE", r"^/api/v1/messenger/messages/[^/]+$",
+       "team_chat.unsend", "other", "Unsent a Team Chat message"),
     _r("POST", r"^/api/v1/dashboard/widgets/order$",
        "dashboard.reorder", "settings", "Rearranged dashboard widgets"),
     _r("POST", r"^/api/v1/quick-access/groups$", "quick_access.group_create", "settings", "Created a shared link category"),

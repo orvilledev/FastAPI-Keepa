@@ -19,6 +19,7 @@ export const WAREHOUSE_ALLOWED_PATHS = new Set([
   '/my-space',
   '/about',
   '/faq',
+  '/chat',
   '/feedback',
 ])
 

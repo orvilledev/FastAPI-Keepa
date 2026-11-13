@@ -78,6 +78,7 @@ const UserManagement = lazy(() => import('./components/admin/UserManagement'))
 const LiveAppSessions = lazy(() => import('./components/admin/LiveAppSessions'))
 const AuditLog = lazy(() => import('./components/admin/AuditLog'))
 const Feedback = lazy(() => import('./components/feedback/Feedback'))
+const TeamChat = lazy(() => import('./components/chat/TeamChat'))
 const OffPriceAnalytics = lazy(() => import('./components/analytics/OffPriceAnalytics'))
 const ShipToAddressesPage = lazy(() => import('./components/catalog/ShipToAddressesPage'))
 const OldSkusCatalogPage = lazy(() => import('./components/catalog/OldSkusCatalogPage'))
@@ -460,6 +461,7 @@ function AppRoutes() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="about" element={<About />} />
           <Route path="feedback" element={<Feedback />} />
+          <Route path="chat" element={<ProtectedRoute requireTeamChatAccess={true}><TeamChat /></ProtectedRoute>} />
           <Route path="dev-md" element={<Navigate to="/dashboard" replace />} />
 
           <Route path="jobs" element={<ProtectedRoute requireKeepaAccess={true}><JobList /></ProtectedRoute>} />

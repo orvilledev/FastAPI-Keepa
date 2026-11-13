@@ -1776,6 +1776,141 @@ export const feedbackApi = {
   },
 }
 
+export interface ChatUser {
+  id: string
+  name: string
+  email: string | null
+  online: boolean
+}
+
+export interface ChatMember extends ChatUser {
+  last_read_at: string | null
+}
+
+export interface ChatAttachment {
+  name: string
+  size: number
+  mime_type: string
+}
+
+export interface ChatMessage {
+  id: string
+  conversation_id: string
+  sender_id: string | null
+  body: string
+  created_at: string
+  deleted: boolean
+  attachment?: ChatAttachment | null
+}
+
+export interface ChatUploadTicket {
+  path: string
+  upload_url: string
+  max_bytes: number
+}
+
+export interface ChatConversation {
+  id: string
+  is_group: boolean
+  title: string | null
+  created_by: string | null
+  created_at: string
+  last_message_at: string | null
+  last_message: { body: string; sender_id: string | null; created_at: string } | null
+  members: ChatMember[]
+  unread_count: number
+}
+
+export const messengerApi = {
+  listUsers: async (): Promise<ChatUser[]> => {
+    const response = await api.get<{ users: ChatUser[] }>('/api/v1/messenger/users')
+    return response.data.users ?? []
+  },
+
+  getUnreadCount: async (): Promise<number> => {
+    const response = await api.get<{ count: number }>('/api/v1/messenger/unread-count')
+    return response.data.count ?? 0
+  },
+
+  listConversations: async (): Promise<ChatConversation[]> => {
+    const response = await api.get<{ conversations: ChatConversation[] }>('/api/v1/messenger/conversations')
+    return response.data.conversations ?? []
+  },
+
+  getConversation: async (conversationId: string): Promise<ChatConversation> => {
+    const response = await api.get<ChatConversation>(`/api/v1/messenger/conversations/${conversationId}`)
+    return response.data
+  },
+
+  createConversation: async (body: { member_ids: string[]; title?: string }): Promise<ChatConversation> => {
+    const response = await api.post<ChatConversation>('/api/v1/messenger/conversations', body)
+    return response.data
+  },
+
+  listMessages: async (
+    conversationId: string,
+    params: { limit?: number; before?: string; after?: string } = {},
+  ): Promise<{ messages: ChatMessage[]; has_more: boolean }> => {
+    const response = await api.get<{ messages: ChatMessage[]; has_more: boolean }>(
+      `/api/v1/messenger/conversations/${conversationId}/messages`,
+      { params },
+    )
+    return { messages: response.data.messages ?? [], has_more: Boolean(response.data.has_more) }
+  },
+
+  sendMessage: async (
+    conversationId: string,
+    body: string,
+    attachment?: { path: string; name: string; mime_type: string },
+  ): Promise<ChatMessage> => {
+    const response = await api.post<ChatMessage>(
+      `/api/v1/messenger/conversations/${conversationId}/messages`,
+      attachment ? { body, attachment } : { body },
+    )
+    return response.data
+  },
+
+  requestUpload: async (
+    conversationId: string,
+    file: { file_name: string; size: number },
+  ): Promise<ChatUploadTicket> => {
+    const response = await api.post<ChatUploadTicket>(
+      `/api/v1/messenger/conversations/${conversationId}/attachments`,
+      file,
+    )
+    return response.data
+  },
+
+  discardUpload: async (conversationId: string, path: string): Promise<void> => {
+    await api.post(`/api/v1/messenger/conversations/${conversationId}/attachments/discard`, { path })
+  },
+
+  getAttachmentLink: async (
+    messageId: string,
+    download = false,
+  ): Promise<{ url: string; expires_in: number }> => {
+    const response = await api.get<{ url: string; expires_in: number }>(
+      `/api/v1/messenger/messages/${messageId}/attachment`,
+      { params: download ? { download: true } : {} },
+    )
+    return response.data
+  },
+
+  markRead: async (conversationId: string): Promise<{ conversation_id: string; last_read_at: string }> => {
+    const response = await api.post(`/api/v1/messenger/conversations/${conversationId}/read`)
+    return response.data
+  },
+
+  leaveConversation: async (conversationId: string): Promise<void> => {
+    await api.post(`/api/v1/messenger/conversations/${conversationId}/leave`)
+  },
+
+  unsendMessage: async (messageId: string): Promise<ChatMessage> => {
+    const response = await api.delete<ChatMessage>(`/api/v1/messenger/messages/${messageId}`)
+    return response.data
+  },
+}
+
 export const notificationsApi = {
   getCatalog: async (): Promise<{
     items: Array<{
