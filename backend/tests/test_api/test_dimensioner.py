@@ -60,14 +60,24 @@ class FakeStore:
                 store.rows.append(saved)
                 return saved
 
-            def list_recent(self, limit, barcode_search=None, *, trashed=False):
+            def list_recent(self, limit, barcode_search=None, *, trashed=False, archived=False):
                 if store.fail_with:
                     raise store.fail_with
                 rows = list(reversed(store.rows))
                 if trashed:
                     rows = [r for r in rows if r.get("trashed_at")]
+                elif archived:
+                    rows = [
+                        r
+                        for r in rows
+                        if not r.get("trashed_at") and r.get("archived_at")
+                    ]
                 else:
-                    rows = [r for r in rows if not r.get("trashed_at")]
+                    rows = [
+                        r
+                        for r in rows
+                        if not r.get("trashed_at") and not r.get("archived_at")
+                    ]
                 if barcode_search:
                     rows = [r for r in rows if barcode_search.lower() in r["barcode"].lower()]
                 return rows[:limit]
@@ -76,7 +86,11 @@ class FakeStore:
                 if store.fail_with:
                     raise store.fail_with
                 for row in store.rows:
-                    if row["id"] == scan_id and not row.get("trashed_at"):
+                    if (
+                        row["id"] == scan_id
+                        and not row.get("trashed_at")
+                        and not row.get("archived_at")
+                    ):
                         row["trashed_at"] = "2026-10-24T00:00:00+00:00"
                         return True
                 return False
@@ -87,8 +101,68 @@ class FakeStore:
                 moved = 0
                 wanted = set(scan_ids)
                 for row in store.rows:
-                    if row["id"] in wanted and not row.get("trashed_at"):
+                    if (
+                        row["id"] in wanted
+                        and not row.get("trashed_at")
+                        and not row.get("archived_at")
+                    ):
                         row["trashed_at"] = "2026-10-24T00:00:00+00:00"
+                        moved += 1
+                return moved
+
+            def archive(self, scan_id):
+                if store.fail_with:
+                    raise store.fail_with
+                for row in store.rows:
+                    if (
+                        row["id"] == scan_id
+                        and not row.get("trashed_at")
+                        and not row.get("archived_at")
+                    ):
+                        row["archived_at"] = "2026-10-24T00:00:00+00:00"
+                        return True
+                return False
+
+            def archive_many(self, scan_ids):
+                if store.fail_with:
+                    raise store.fail_with
+                moved = 0
+                wanted = set(scan_ids)
+                for row in store.rows:
+                    if (
+                        row["id"] in wanted
+                        and not row.get("trashed_at")
+                        and not row.get("archived_at")
+                    ):
+                        row["archived_at"] = "2026-10-24T00:00:00+00:00"
+                        moved += 1
+                return moved
+
+            def unarchive(self, scan_id):
+                if store.fail_with:
+                    raise store.fail_with
+                for row in store.rows:
+                    if (
+                        row["id"] == scan_id
+                        and not row.get("trashed_at")
+                        and row.get("archived_at")
+                    ):
+                        row["archived_at"] = None
+                        return True
+                return False
+
+            def unarchive_many(self, scan_ids):
+                if store.fail_with:
+                    raise store.fail_with
+                moved = 0
+                wanted = set(scan_ids)
+                for row in store.rows:
+                    if (
+                        row["id"] in wanted
+                        and not row.get("trashed_at")
+                        and row.get("archived_at")
+                    ):
+                        row["archived_at"] = None
                         moved += 1
                 return moved
 
@@ -98,6 +172,7 @@ class FakeStore:
                 for row in store.rows:
                     if row["id"] == scan_id and row.get("trashed_at"):
                         row["trashed_at"] = None
+                        row["archived_at"] = None
                         return True
                 return False
 
@@ -384,6 +459,49 @@ def test_delete_unknown_scan_is_a_404(user, store):
 
 def test_delete_with_a_malformed_id_is_a_422(user, store):
     assert user.delete("/api/v1/dimensioner/scans/not-a-uuid").status_code == 422
+
+
+def test_archive_moves_one_scan_out_of_active(user, store):
+    _post(user, {**RECORD, "barcode": "KEEP"})
+    _post(user, {**RECORD, "timestamp": "2026/10/23 14:09:00", "barcode": "TO99_1"})
+    archive_id = next(r["id"] for r in store.rows if r["barcode"] == "TO99_1")
+
+    response = user.post(f"/api/v1/dimensioner/scans/{archive_id}/archive")
+
+    assert response.status_code == 200 and response.json() == {"archived": True}
+    active = user.get("/api/v1/dimensioner/scans").json()["scans"]
+    archived = user.get("/api/v1/dimensioner/scans", params={"archived": True}).json()["scans"]
+    assert [s["barcode"] for s in active] == ["KEEP"]
+    assert [s["barcode"] for s in archived] == ["TO99_1"]
+    assert archived[0]["archived_at"]
+
+
+def test_bulk_archive_and_unarchive(user, store):
+    _post(user, {**RECORD, "barcode": "TO1_1"})
+    _post(user, {**RECORD, "timestamp": "2026/10/23 14:09:00", "barcode": "TO1_2"})
+    _post(user, {**RECORD, "timestamp": "2026/10/23 14:10:00", "barcode": "KEEP"})
+    ids = [r["id"] for r in store.rows if r["barcode"].startswith("TO1_")]
+
+    archived = user.post("/api/v1/dimensioner/scans/archive", json={"ids": ids})
+    assert archived.status_code == 200 and archived.json() == {"archived": 2}
+    assert [s["barcode"] for s in user.get("/api/v1/dimensioner/scans").json()["scans"]] == ["KEEP"]
+
+    restored = user.post("/api/v1/dimensioner/scans/unarchive", json={"ids": ids})
+    assert restored.status_code == 200 and restored.json() == {"unarchived": 2}
+    active = [s["barcode"] for s in user.get("/api/v1/dimensioner/scans").json()["scans"]]
+    assert set(active) == {"KEEP", "TO1_1", "TO1_2"}
+
+
+def test_unarchive_single_scan(user, store):
+    _post(user, {**RECORD, "barcode": "TO2_1"})
+    scan_id = store.rows[0]["id"]
+    assert user.post(f"/api/v1/dimensioner/scans/{scan_id}/archive").status_code == 200
+
+    response = user.post(f"/api/v1/dimensioner/scans/{scan_id}/unarchive")
+
+    assert response.status_code == 200 and response.json() == {"unarchived": True}
+    active = user.get("/api/v1/dimensioner/scans").json()["scans"]
+    assert [s["barcode"] for s in active] == ["TO2_1"]
 
 
 # ---------------------------------------------------------------------------

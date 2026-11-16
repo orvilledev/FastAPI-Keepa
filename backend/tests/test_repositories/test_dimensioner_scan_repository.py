@@ -75,7 +75,10 @@ def test_list_orders_newest_first_and_applies_the_limit():
     rows = DimensionerScanRepository(db).list_recent(25)
 
     assert rows == [{"id": "1"}]
-    table.is_.assert_called_with("trashed_at", "null")
+    assert table.is_.call_args_list == [
+        (("trashed_at", "null"),),
+        (("archived_at", "null"),),
+    ]
     table.order.assert_called_with("received_at", desc=True)
     table.limit.assert_called_with(25)
     table.ilike.assert_not_called()
@@ -88,6 +91,16 @@ def test_list_trash_filters_to_trashed_rows():
 
     table.not_.is_.assert_called_with("trashed_at", "null")
     table.order.assert_called_with("trashed_at", desc=True)
+
+
+def test_list_archive_filters_to_archived_active_rows():
+    db, table = _db()
+
+    DimensionerScanRepository(db).list_recent(10, archived=True)
+
+    table.is_.assert_called_with("trashed_at", "null")
+    table.not_.is_.assert_called_with("archived_at", "null")
+    table.order.assert_called_with("archived_at", desc=True)
 
 
 def test_list_search_matches_literally():
@@ -113,7 +126,10 @@ def test_trash_updates_active_rows_only():
     assert DimensionerScanRepository(db).trash("1") is True
     table.update.assert_called_once()
     table.eq.assert_called_with("id", "1")
-    table.is_.assert_called_with("trashed_at", "null")
+    assert table.is_.call_args_list == [
+        (("trashed_at", "null"),),
+        (("archived_at", "null"),),
+    ]
 
 
 def test_trash_many_returns_how_many_moved():
@@ -122,6 +138,37 @@ def test_trash_many_returns_how_many_moved():
 
     assert DimensionerScanRepository(db).trash_many(["1", "2", ""]) == 2
     table.in_.assert_called_with("id", ["1", "2"])
+
+
+def test_archive_updates_active_rows_only():
+    db, table = _db()
+    table.execute.return_value = MagicMock(data=[{"id": "1"}])
+
+    assert DimensionerScanRepository(db).archive("1") is True
+    table.update.assert_called_once()
+    table.eq.assert_called_with("id", "1")
+    assert table.is_.call_args_list == [
+        (("trashed_at", "null"),),
+        (("archived_at", "null"),),
+    ]
+
+
+def test_archive_many_returns_how_many_moved():
+    db, table = _db()
+    table.execute.return_value = MagicMock(data=[{"id": "1"}, {"id": "2"}])
+
+    assert DimensionerScanRepository(db).archive_many(["1", "2", ""]) == 2
+    table.in_.assert_called_with("id", ["1", "2"])
+
+
+def test_unarchive_clears_archived_at():
+    db, table = _db()
+    table.execute.return_value = MagicMock(data=[{"id": "1"}])
+
+    assert DimensionerScanRepository(db).unarchive("1") is True
+    table.update.assert_called_once_with({"archived_at": None})
+    table.is_.assert_called_with("trashed_at", "null")
+    table.not_.is_.assert_called_with("archived_at", "null")
 
 
 def test_delete_reports_whether_anything_was_removed():

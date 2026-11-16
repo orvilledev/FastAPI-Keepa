@@ -121,11 +121,17 @@ def list_scans(
     limit: int = Query(50, ge=1, le=200),
     search: str | None = Query(None, max_length=128),
     trashed: bool = Query(False),
+    archived: bool = Query(False),
     current_user: dict = Depends(get_dimensioner_user),
     db: Client = Depends(get_supabase),
 ):
-    """Newest scans first, plus what the page needs to explain device setup."""
+    """Newest scans first, plus what the page needs to explain device setup.
+
+    ``trashed`` and ``archived`` are mutually exclusive; trash wins if both are set.
+    """
     _ = current_user
+    if trashed and archived:
+        archived = False
     repo = DimensionerScanRepository(db)
     try:
         # Drop expired trash on the way in so retention works even without the cron.
@@ -133,7 +139,7 @@ def list_scans(
             days = int(getattr(settings, "dimensioner_trash_retention_days", 15) or 0)
             if days > 0:
                 repo.purge_trashed_older_than(days)
-        rows = repo.list_recent(limit, search, trashed=trashed)
+        rows = repo.list_recent(limit, search, trashed=trashed, archived=archived)
     except DimensionerStorageError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {
@@ -189,6 +195,12 @@ class TrashScansBody(BaseModel):
     ids: list[UUID]
 
 
+class ArchiveScansBody(BaseModel):
+    """One or more active scans to move to Archive (or unarchive)."""
+
+    ids: list[UUID]
+
+
 @router.post("/dimensioner/scans/trash")
 @handle_api_errors("trash dimensioner scans")
 def trash_scans(
@@ -210,6 +222,50 @@ def trash_scans(
     return {"trashed": moved}
 
 
+@router.post("/dimensioner/scans/archive")
+@handle_api_errors("archive dimensioner scans")
+def archive_scans(
+    body: ArchiveScansBody,
+    current_user: dict = Depends(get_dimensioner_user),
+    db: Client = Depends(get_supabase),
+):
+    """Move one or more active scans to Archive."""
+    _ = current_user
+    ids = [str(item) for item in (body.ids or [])]
+    if not ids:
+        raise HTTPException(status_code=400, detail="Choose at least one scan to archive.")
+    if len(ids) > 200:
+        raise HTTPException(status_code=400, detail="You can archive at most 200 scans at a time.")
+    try:
+        moved = DimensionerScanRepository(db).archive_many(ids)
+    except DimensionerStorageError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"archived": moved}
+
+
+@router.post("/dimensioner/scans/unarchive")
+@handle_api_errors("unarchive dimensioner scans")
+def unarchive_scans(
+    body: ArchiveScansBody,
+    current_user: dict = Depends(get_dimensioner_user),
+    db: Client = Depends(get_supabase),
+):
+    """Return one or more archived scans to Active."""
+    _ = current_user
+    ids = [str(item) for item in (body.ids or [])]
+    if not ids:
+        raise HTTPException(status_code=400, detail="Choose at least one scan to unarchive.")
+    if len(ids) > 200:
+        raise HTTPException(
+            status_code=400, detail="You can unarchive at most 200 scans at a time."
+        )
+    try:
+        moved = DimensionerScanRepository(db).unarchive_many(ids)
+    except DimensionerStorageError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"unarchived": moved}
+
+
 @router.delete("/dimensioner/scans/{scan_id}")
 @handle_api_errors("delete dimensioner scan")
 def delete_scan(
@@ -226,6 +282,42 @@ def delete_scan(
     if not removed:
         raise HTTPException(status_code=404, detail="Scan not found.")
     return {"deleted": True}
+
+
+@router.post("/dimensioner/scans/{scan_id}/archive")
+@handle_api_errors("archive dimensioner scan")
+def archive_scan(
+    scan_id: UUID,
+    current_user: dict = Depends(get_dimensioner_user),
+    db: Client = Depends(get_supabase),
+):
+    """Move one active scan to Archive."""
+    _ = current_user
+    try:
+        archived = DimensionerScanRepository(db).archive(str(scan_id))
+    except DimensionerStorageError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not archived:
+        raise HTTPException(status_code=404, detail="Scan not found.")
+    return {"archived": True}
+
+
+@router.post("/dimensioner/scans/{scan_id}/unarchive")
+@handle_api_errors("unarchive dimensioner scan")
+def unarchive_scan(
+    scan_id: UUID,
+    current_user: dict = Depends(get_dimensioner_user),
+    db: Client = Depends(get_supabase),
+):
+    """Return one archived scan to the active list."""
+    _ = current_user
+    try:
+        restored = DimensionerScanRepository(db).unarchive(str(scan_id))
+    except DimensionerStorageError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not restored:
+        raise HTTPException(status_code=404, detail="Scan not found in Archive.")
+    return {"unarchived": True}
 
 
 @router.post("/dimensioner/scans/{scan_id}/restore")

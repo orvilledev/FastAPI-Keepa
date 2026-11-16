@@ -250,6 +250,7 @@ def present_scan(row: dict[str, Any]) -> dict[str, Any]:
         "scanned_at": row.get("scanned_at"),
         "received_at": row.get("received_at"),
         "trashed_at": row.get("trashed_at"),
+        "archived_at": row.get("archived_at"),
     }
 
 

@@ -7,18 +7,20 @@ from typing import Any, Dict, List, Optional
 
 from supabase import Client
 
+
 logger = logging.getLogger(__name__)
 
 _TABLE = "dimensioner_scans"
 _MIGRATION_HINT = (
-    "Run backend/database/migrations/create_dimensioner_scans.sql "
-    "and add_dimensioner_scans_trash.sql in the Supabase SQL Editor."
+    "Run backend/database/migrations/create_dimensioner_scans.sql, "
+    "add_dimensioner_scans_trash.sql, and add_dimensioner_scans_archive.sql "
+    "in the Supabase SQL Editor."
 )
 _COLUMNS = (
     "id, device, barcode, length_mm, width_mm, height_mm, weight_g, "
-    "shape, note, attributes, scanned_at, received_at, trashed_at"
+    "shape, note, attributes, scanned_at, received_at, trashed_at, archived_at"
 )
-# Cap bulk trash so one request cannot lock the table for too long.
+# Cap bulk trash/archive so one request cannot lock the table for too long.
 _MAX_BULK = 200
 
 
@@ -47,7 +49,8 @@ def _is_missing_table_error(exc: Exception) -> bool:
 
 def _is_missing_column_error(exc: Exception) -> bool:
     message = _message(exc)
-    return "trashed_at" in message and (
+    missing_col = "trashed_at" in message or "archived_at" in message
+    return missing_col and (
         "does not exist" in message
         or "schema cache" in message
         or "42703" in message
@@ -60,9 +63,7 @@ def _storage_error(action: str, exc: Exception) -> DimensionerStorageError:
         return DimensionerStorageError(f"The {_TABLE} table is missing. {_MIGRATION_HINT}")
     if _is_missing_column_error(exc):
         return DimensionerStorageError(
-            f"The {_TABLE}.trashed_at column is missing. "
-            "Run backend/database/migrations/add_dimensioner_scans_trash.sql "
-            "in the Supabase SQL Editor."
+            f"A required {_TABLE} column is missing. {_MIGRATION_HINT}"
         )
     return DimensionerStorageError(f"Failed to {action}: {exc}")
 
@@ -94,18 +95,29 @@ class DimensionerScanRepository:
         barcode_search: Optional[str] = None,
         *,
         trashed: bool = False,
+        archived: bool = False,
     ) -> List[Dict[str, Any]]:
-        """Newest uploads first, optionally filtered to barcodes containing the term."""
+        """Newest uploads first, optionally filtered to barcodes containing the term.
+
+        Views are mutually exclusive:
+        - Active: not trashed, not archived
+        - Archive: not trashed, archived
+        - Trash: trashed (archived_at ignored)
+        """
         try:
             query = self.db.table(_TABLE).select(_COLUMNS)
             if trashed:
                 query = query.not_.is_("trashed_at", "null")
+                order_col = "trashed_at"
+            elif archived:
+                query = query.is_("trashed_at", "null").not_.is_("archived_at", "null")
+                order_col = "archived_at"
             else:
-                query = query.is_("trashed_at", "null")
+                query = query.is_("trashed_at", "null").is_("archived_at", "null")
+                order_col = "received_at"
             term = (barcode_search or "").strip()
             if term:
                 query = query.ilike("barcode", f"%{_escape_like(term)}%")
-            order_col = "trashed_at" if trashed else "received_at"
             response = query.order(order_col, desc=True).limit(limit).execute()
         except Exception as exc:
             logger.error("Failed to list dimensioner scans: %s", exc)
@@ -121,6 +133,7 @@ class DimensionerScanRepository:
                 .update({"trashed_at": now})
                 .eq("id", scan_id)
                 .is_("trashed_at", "null")
+                .is_("archived_at", "null")
                 .execute()
             )
         except Exception as exc:
@@ -140,6 +153,7 @@ class DimensionerScanRepository:
                 .update({"trashed_at": now})
                 .in_("id", ids)
                 .is_("trashed_at", "null")
+                .is_("archived_at", "null")
                 .execute()
             )
         except Exception as exc:
@@ -147,12 +161,84 @@ class DimensionerScanRepository:
             raise _storage_error("trash the scans", exc) from exc
         return len(getattr(response, "data", None) or [])
 
+    def archive(self, scan_id: str) -> bool:
+        """Move one active scan to Archive. Returns False when it is not an active scan."""
+        now = datetime.now(timezone.utc).isoformat()
+        try:
+            response = (
+                self.db.table(_TABLE)
+                .update({"archived_at": now})
+                .eq("id", scan_id)
+                .is_("trashed_at", "null")
+                .is_("archived_at", "null")
+                .execute()
+            )
+        except Exception as exc:
+            logger.error("Failed to archive dimensioner scan %s: %s", scan_id, exc)
+            raise _storage_error("archive the scan", exc) from exc
+        return bool(getattr(response, "data", None) or [])
+
+    def archive_many(self, scan_ids: List[str]) -> int:
+        """Move many active scans to Archive. Returns how many were moved."""
+        ids = [str(item) for item in scan_ids if item][:_MAX_BULK]
+        if not ids:
+            return 0
+        now = datetime.now(timezone.utc).isoformat()
+        try:
+            response = (
+                self.db.table(_TABLE)
+                .update({"archived_at": now})
+                .in_("id", ids)
+                .is_("trashed_at", "null")
+                .is_("archived_at", "null")
+                .execute()
+            )
+        except Exception as exc:
+            logger.error("Failed to archive dimensioner scans: %s", exc)
+            raise _storage_error("archive the scans", exc) from exc
+        return len(getattr(response, "data", None) or [])
+
+    def unarchive(self, scan_id: str) -> bool:
+        """Return one archived scan to the active list."""
+        try:
+            response = (
+                self.db.table(_TABLE)
+                .update({"archived_at": None})
+                .eq("id", scan_id)
+                .is_("trashed_at", "null")
+                .not_.is_("archived_at", "null")
+                .execute()
+            )
+        except Exception as exc:
+            logger.error("Failed to unarchive dimensioner scan %s: %s", scan_id, exc)
+            raise _storage_error("unarchive the scan", exc) from exc
+        return bool(getattr(response, "data", None) or [])
+
+    def unarchive_many(self, scan_ids: List[str]) -> int:
+        """Return many archived scans to Active. Returns how many were moved."""
+        ids = [str(item) for item in scan_ids if item][:_MAX_BULK]
+        if not ids:
+            return 0
+        try:
+            response = (
+                self.db.table(_TABLE)
+                .update({"archived_at": None})
+                .in_("id", ids)
+                .is_("trashed_at", "null")
+                .not_.is_("archived_at", "null")
+                .execute()
+            )
+        except Exception as exc:
+            logger.error("Failed to unarchive dimensioner scans: %s", exc)
+            raise _storage_error("unarchive the scans", exc) from exc
+        return len(getattr(response, "data", None) or [])
+
     def restore(self, scan_id: str) -> bool:
         """Return one trashed scan to the active list."""
         try:
             response = (
                 self.db.table(_TABLE)
-                .update({"trashed_at": None})
+                .update({"trashed_at": None, "archived_at": None})
                 .eq("id", scan_id)
                 .not_.is_("trashed_at", "null")
                 .execute()

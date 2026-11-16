@@ -3038,6 +3038,7 @@ export type DimensionerScan = {
   scanned_at: string | null
   received_at: string | null
   trashed_at?: string | null
+  archived_at?: string | null
 }
 
 export type DimensionerScanList = {
@@ -3053,6 +3054,7 @@ export const dimensionerApi = {
     limit?: number
     search?: string
     trashed?: boolean
+    archived?: boolean
   }): Promise<DimensionerScanList> => {
     const response = await api.get<DimensionerScanList>('/api/v1/dimensioner/scans', { params })
     return response.data
@@ -3064,6 +3066,26 @@ export const dimensionerApi = {
 
   trashScans: async (ids: string[]): Promise<{ trashed: number }> => {
     const response = await api.post<{ trashed: number }>('/api/v1/dimensioner/scans/trash', { ids })
+    return response.data
+  },
+
+  archiveScan: async (scanId: string): Promise<void> => {
+    await api.post(`/api/v1/dimensioner/scans/${encodeURIComponent(scanId)}/archive`)
+  },
+
+  archiveScans: async (ids: string[]): Promise<{ archived: number }> => {
+    const response = await api.post<{ archived: number }>('/api/v1/dimensioner/scans/archive', { ids })
+    return response.data
+  },
+
+  unarchiveScan: async (scanId: string): Promise<void> => {
+    await api.post(`/api/v1/dimensioner/scans/${encodeURIComponent(scanId)}/unarchive`)
+  },
+
+  unarchiveScans: async (ids: string[]): Promise<{ unarchived: number }> => {
+    const response = await api.post<{ unarchived: number }>('/api/v1/dimensioner/scans/unarchive', {
+      ids,
+    })
     return response.data
   },
 

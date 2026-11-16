@@ -6,9 +6,12 @@ import {
   buildDimensionerScansExcelBlob,
   suggestedDimensionerExportFilename,
 } from '../../utils/dimensionerExport'
+import { groupDimensionerScansByTo } from '../../utils/dimensionerToGroup'
 import { downloadBlob } from '../../utils/downloadLinkedFile'
 import { getApiErrorDetail } from '../../utils/apiErrorMessage'
 import DimensionerCameraTest from './DimensionerCameraTest'
+
+type ListView = 'active' | 'archive' | 'trash'
 
 const REFRESH_MS = 10_000
 const PAGE_SIZE = 100
@@ -80,9 +83,10 @@ export default function DimensionerScans() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
-  const [listView, setListView] = useState<'active' | 'trash'>('active')
+  const [listView, setListView] = useState<ListView>('active')
   const [trashRetentionDays, setTrashRetentionDays] = useState(15)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [collapsedToGroups, setCollapsedToGroups] = useState<Record<string, boolean>>({})
   const [showSetup, setShowSetup] = useState(false)
   const [copied, setCopied] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -111,6 +115,7 @@ export default function DimensionerScans() {
         limit: PAGE_SIZE,
         search: search || undefined,
         trashed: listView === 'trash',
+        archived: listView === 'archive',
       })
       // A newer request (for example a changed search) has started; drop this answer.
       if (mine !== requestSeq.current) return
@@ -165,13 +170,20 @@ export default function DimensionerScans() {
   const endpointUrl = `${getApiBaseUrl()}${receivePath}`
   const pageIds = scans.map((scan) => scan.id)
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id))
-  const showBulkControls = listView === 'active' && scans.length > 0
+  const showBulkControls = (listView === 'active' || listView === 'archive') && scans.length > 0
+  const archiveGroups = listView === 'archive' ? groupDimensionerScansByTo(scans) : []
 
   const downloadExcel = useCallback(() => {
     if (scans.length === 0) return
     const blob = buildDimensionerScansExcelBlob(scans)
     downloadBlob(blob, suggestedDimensionerExportFilename(search))
   }, [scans, search])
+
+  const removeLocalScans = useCallback((ids: string[]) => {
+    const wanted = new Set(ids)
+    setScans((previous) => previous.filter((row) => !wanted.has(row.id)))
+    setSelectedIds((current) => current.filter((id) => !wanted.has(id)))
+  }, [])
 
   const deleteScan = useCallback(
     async (scan: DimensionerScan) => {
@@ -182,8 +194,7 @@ export default function DimensionerScans() {
       setDeletingId(scan.id)
       try {
         await dimensionerApi.deleteScan(scan.id)
-        setScans((previous) => previous.filter((row) => row.id !== scan.id))
-        setSelectedIds((current) => current.filter((id) => id !== scan.id))
+        removeLocalScans([scan.id])
         setError(null)
       } catch (err) {
         setError(getApiErrorDetail(err) || 'Could not delete the scan.')
@@ -191,7 +202,7 @@ export default function DimensionerScans() {
         setDeletingId(null)
       }
     },
-    [trashRetentionDays],
+    [trashRetentionDays, removeLocalScans],
   )
 
   const deleteSelected = useCallback(async () => {
@@ -207,8 +218,7 @@ export default function DimensionerScans() {
     setBulkBusy(true)
     try {
       const result = await dimensionerApi.trashScans(selectedIds)
-      setScans((previous) => previous.filter((row) => !selectedIds.includes(row.id)))
-      setSelectedIds([])
+      removeLocalScans(selectedIds)
       setError(null)
       if (result.trashed === 0) {
         setError('None of the selected scans could be moved to Trash.')
@@ -218,34 +228,110 @@ export default function DimensionerScans() {
     } finally {
       setBulkBusy(false)
     }
-  }, [selectedIds, bulkBusy, trashRetentionDays])
+  }, [selectedIds, bulkBusy, trashRetentionDays, removeLocalScans])
 
-  const restoreScan = useCallback(async (scan: DimensionerScan) => {
-    setDeletingId(scan.id)
-    try {
-      await dimensionerApi.restoreScan(scan.id)
-      setScans((previous) => previous.filter((row) => row.id !== scan.id))
-      setError(null)
-    } catch (err) {
-      setError(getApiErrorDetail(err) || 'Could not restore the scan.')
-    } finally {
-      setDeletingId(null)
-    }
-  }, [])
+  const archiveScan = useCallback(
+    async (scan: DimensionerScan) => {
+      setDeletingId(scan.id)
+      try {
+        await dimensionerApi.archiveScan(scan.id)
+        removeLocalScans([scan.id])
+        setError(null)
+      } catch (err) {
+        setError(getApiErrorDetail(err) || 'Could not archive the scan.')
+      } finally {
+        setDeletingId(null)
+      }
+    },
+    [removeLocalScans],
+  )
 
-  const permanentlyDeleteScan = useCallback(async (scan: DimensionerScan) => {
-    const label = scan.barcode ? `the scan for ${scan.barcode}` : 'this scan'
-    if (!window.confirm(`Permanently delete ${label}? This cannot be undone.`)) return
-    setDeletingId(scan.id)
+  const archiveSelected = useCallback(async () => {
+    if (selectedIds.length === 0 || bulkBusy) return
+    setBulkBusy(true)
     try {
-      await dimensionerApi.permanentlyDeleteScan(scan.id)
-      setScans((previous) => previous.filter((row) => row.id !== scan.id))
+      const result = await dimensionerApi.archiveScans(selectedIds)
+      removeLocalScans(selectedIds)
       setError(null)
+      if (result.archived === 0) {
+        setError('None of the selected scans could be archived.')
+      }
     } catch (err) {
-      setError(getApiErrorDetail(err) || 'Could not permanently delete the scan.')
+      setError(getApiErrorDetail(err) || 'Could not archive the selected scans.')
     } finally {
-      setDeletingId(null)
+      setBulkBusy(false)
     }
+  }, [selectedIds, bulkBusy, removeLocalScans])
+
+  const unarchiveScan = useCallback(
+    async (scan: DimensionerScan) => {
+      setDeletingId(scan.id)
+      try {
+        await dimensionerApi.unarchiveScan(scan.id)
+        removeLocalScans([scan.id])
+        setError(null)
+      } catch (err) {
+        setError(getApiErrorDetail(err) || 'Could not unarchive the scan.')
+      } finally {
+        setDeletingId(null)
+      }
+    },
+    [removeLocalScans],
+  )
+
+  const unarchiveSelected = useCallback(async () => {
+    if (selectedIds.length === 0 || bulkBusy) return
+    setBulkBusy(true)
+    try {
+      const result = await dimensionerApi.unarchiveScans(selectedIds)
+      removeLocalScans(selectedIds)
+      setError(null)
+      if (result.unarchived === 0) {
+        setError('None of the selected scans could be unarchived.')
+      }
+    } catch (err) {
+      setError(getApiErrorDetail(err) || 'Could not unarchive the selected scans.')
+    } finally {
+      setBulkBusy(false)
+    }
+  }, [selectedIds, bulkBusy, removeLocalScans])
+
+  const restoreScan = useCallback(
+    async (scan: DimensionerScan) => {
+      setDeletingId(scan.id)
+      try {
+        await dimensionerApi.restoreScan(scan.id)
+        removeLocalScans([scan.id])
+        setError(null)
+      } catch (err) {
+        setError(getApiErrorDetail(err) || 'Could not restore the scan.')
+      } finally {
+        setDeletingId(null)
+      }
+    },
+    [removeLocalScans],
+  )
+
+  const permanentlyDeleteScan = useCallback(
+    async (scan: DimensionerScan) => {
+      const label = scan.barcode ? `the scan for ${scan.barcode}` : 'this scan'
+      if (!window.confirm(`Permanently delete ${label}? This cannot be undone.`)) return
+      setDeletingId(scan.id)
+      try {
+        await dimensionerApi.permanentlyDeleteScan(scan.id)
+        removeLocalScans([scan.id])
+        setError(null)
+      } catch (err) {
+        setError(getApiErrorDetail(err) || 'Could not permanently delete the scan.')
+      } finally {
+        setDeletingId(null)
+      }
+    },
+    [removeLocalScans],
+  )
+
+  const toggleToGroup = useCallback((key: string) => {
+    setCollapsedToGroups((current) => ({ ...current, [key]: !current[key] }))
   }, [])
 
   const toggleSelected = useCallback((scanId: string) => {
@@ -353,6 +439,18 @@ export default function DimensionerScans() {
             </button>
             <button
               type="button"
+              aria-pressed={listView === 'archive'}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                listView === 'archive'
+                  ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'
+              }`}
+              onClick={() => setListView('archive')}
+            >
+              Archive
+            </button>
+            <button
+              type="button"
               aria-pressed={listView === 'trash'}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 listView === 'trash'
@@ -385,14 +483,34 @@ export default function DimensionerScans() {
               ? `Updated ${lastUpdated.toLocaleTimeString()} · refreshes every ${REFRESH_MS / 1000}s`
               : 'Loading…'}
           </span>
-          {showBulkControls && selectedIds.length > 0 && (
+          {showBulkControls && selectedIds.length > 0 && listView === 'active' && (
+            <>
+              <button
+                type="button"
+                onClick={() => void archiveSelected()}
+                disabled={bulkBusy}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
+              >
+                {bulkBusy ? 'Working…' : `Archive selected (${selectedIds.length})`}
+              </button>
+              <button
+                type="button"
+                onClick={() => void deleteSelected()}
+                disabled={bulkBusy}
+                className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 disabled:opacity-50"
+              >
+                {bulkBusy ? 'Deleting…' : `Delete selected (${selectedIds.length})`}
+              </button>
+            </>
+          )}
+          {showBulkControls && selectedIds.length > 0 && listView === 'archive' && (
             <button
               type="button"
-              onClick={() => void deleteSelected()}
+              onClick={() => void unarchiveSelected()}
               disabled={bulkBusy}
-              className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 disabled:opacity-50"
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
             >
-              {bulkBusy ? 'Deleting…' : `Delete selected (${selectedIds.length})`}
+              {bulkBusy ? 'Working…' : `Unarchive selected (${selectedIds.length})`}
             </button>
           )}
           <button
@@ -410,6 +528,12 @@ export default function DimensionerScans() {
             Items in Trash are removed automatically after {trashRetentionDays} days.
           </p>
         )}
+        {listView === 'archive' && (
+          <p className="border-b border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            Archived scans are grouped by TO (barcode prefix before _1, _2, …). Unarchive to move them
+            back to Active.
+          </p>
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
@@ -424,6 +548,11 @@ export default function DimensionerScans() {
                 <p className="font-medium text-gray-800 dark:text-gray-200">Trash is empty.</p>
                 <p className="mt-1">Deleted scans stay here for {trashRetentionDays} days, then are removed.</p>
               </>
+            ) : listView === 'archive' ? (
+              <>
+                <p className="font-medium text-gray-800 dark:text-gray-200">Archive is empty.</p>
+                <p className="mt-1">Archive finished scans from Active. They stay grouped by TO here.</p>
+              </>
             ) : (
               <>
                 <p className="font-medium text-gray-800 dark:text-gray-200">No scans yet.</p>
@@ -432,6 +561,151 @@ export default function DimensionerScans() {
                 </p>
               </>
             )}
+          </div>
+        ) : listView === 'archive' ? (
+          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+            {archiveGroups.map((group) => {
+              const collapsed = Boolean(collapsedToGroups[group.key])
+              const groupIds = group.scans.map((scan) => scan.id)
+              const groupSelected =
+                groupIds.length > 0 && groupIds.every((id) => selectedIds.includes(id))
+              return (
+                <div key={group.key}>
+                  <div className="flex flex-wrap items-center gap-3 bg-gray-50 px-4 py-2.5 dark:bg-gray-800/40">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select all scans for ${group.key}`}
+                      checked={groupSelected}
+                      onChange={() => {
+                        setSelectedIds((current) => {
+                          if (groupSelected) {
+                            return current.filter((id) => !groupIds.includes(id))
+                          }
+                          return [...new Set([...current, ...groupIds])]
+                        })
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleToGroup(group.key)}
+                      className="inline-flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-gray-900 dark:text-gray-100"
+                      aria-expanded={!collapsed}
+                    >
+                      <svg
+                        className={`h-4 w-4 shrink-0 transition-transform ${collapsed ? '' : 'rotate-90'}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                      <span className="truncate">{group.key}</span>
+                      <span className="font-normal text-gray-500 dark:text-gray-400">
+                        · {group.scans.length} scan{group.scans.length === 1 ? '' : 's'}
+                      </span>
+                    </button>
+                  </div>
+                  {!collapsed && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm">
+                        <thead className="bg-white text-[11px] font-semibold uppercase tracking-wider text-gray-600 dark:bg-surface dark:text-gray-400">
+                          <tr>
+                            <th className="w-10 px-3 py-2" />
+                            <th className="px-3 py-2">Received</th>
+                            <th className="px-3 py-2">Barcode</th>
+                            <th className="px-3 py-2 text-right">Length</th>
+                            <th className="px-3 py-2 text-right">Width</th>
+                            <th className="px-3 py-2 text-right">Height</th>
+                            <th className="px-3 py-2 text-right">Weight (lb)</th>
+                            <th className="px-3 py-2">Shape</th>
+                            <th className="px-3 py-2">Device</th>
+                            <th className="px-3 py-2 text-right">
+                              <span className="sr-only">Actions</span>
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                          {group.scans.map((scan) => {
+                            const extra = detailLine(scan)
+                            const selected = selectedIds.includes(scan.id)
+                            return (
+                              <tr
+                                key={scan.id}
+                                className={`text-gray-900 dark:text-gray-100 ${
+                                  selected ? 'bg-[#81B81D]/10 dark:bg-[#81B81D]/10' : ''
+                                }`}
+                              >
+                                <td className="px-3 py-3">
+                                  <input
+                                    type="checkbox"
+                                    aria-label={`Select scan ${scan.barcode || scan.id}`}
+                                    checked={selected}
+                                    onChange={() => toggleSelected(scan.id)}
+                                  />
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-3 text-gray-700 dark:text-gray-300">
+                                  {formatWhen(scan.received_at)}
+                                </td>
+                                <td className="px-3 py-3">
+                                  <div className="font-medium">{scan.barcode || '—'}</div>
+                                  {extra && (
+                                    <div
+                                      className="mt-0.5 max-w-xs truncate text-xs text-gray-500 dark:text-gray-400"
+                                      title={extra}
+                                    >
+                                      {extra}
+                                    </div>
+                                  )}
+                                </td>
+                                <td
+                                  className="px-3 py-3 text-right tabular-nums"
+                                  title={millimetreTitle(scan)}
+                                >
+                                  {formatInches(scan.length_in)}
+                                </td>
+                                <td
+                                  className="px-3 py-3 text-right tabular-nums"
+                                  title={millimetreTitle(scan)}
+                                >
+                                  {formatInches(scan.width_in)}
+                                </td>
+                                <td
+                                  className="px-3 py-3 text-right tabular-nums"
+                                  title={millimetreTitle(scan)}
+                                >
+                                  {formatInches(scan.height_in)}
+                                </td>
+                                <td className="px-3 py-3 text-right tabular-nums">
+                                  {formatPounds(scan.weight_lb)}
+                                </td>
+                                <td className="px-3 py-3 text-gray-700 dark:text-gray-300">
+                                  {scan.shape || '—'}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-3 font-mono text-xs text-gray-600 dark:text-gray-400">
+                                  {scan.device || '—'}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-3 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => void unarchiveScan(scan)}
+                                    disabled={deletingId === scan.id}
+                                    className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                                    aria-label={`Unarchive scan ${scan.barcode || scan.id}`}
+                                  >
+                                    Unarchive
+                                  </button>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -535,15 +809,26 @@ export default function DimensionerScans() {
                             </button>
                           </div>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => void deleteScan(scan)}
-                            disabled={deletingId === scan.id}
-                            className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-red-950/30"
-                            aria-label={`Delete scan ${scan.barcode || scan.id}`}
-                          >
-                            Delete
-                          </button>
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => void archiveScan(scan)}
+                              disabled={deletingId === scan.id}
+                              className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                              aria-label={`Archive scan ${scan.barcode || scan.id}`}
+                            >
+                              Archive
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void deleteScan(scan)}
+                              disabled={deletingId === scan.id}
+                              className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-red-950/30"
+                              aria-label={`Delete scan ${scan.barcode || scan.id}`}
+                            >
+                              Delete
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
