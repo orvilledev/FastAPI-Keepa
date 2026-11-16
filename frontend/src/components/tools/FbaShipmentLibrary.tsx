@@ -406,6 +406,7 @@ export default function FbaShipmentLibrary() {
   const [file, setFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -1466,14 +1467,7 @@ export default function FbaShipmentLibrary() {
     setError(null)
     try {
       const result = await fbaShipmentLibraryApi.downloadReport(upload.id)
-      const url = URL.createObjectURL(result.blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = result.filename
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
+      downloadBlob(result.blob, result.filename)
     } catch (err) {
       const data = (err as { response?: { data?: unknown } })?.response?.data
       if (data instanceof Blob) {
@@ -1486,6 +1480,30 @@ export default function FbaShipmentLibrary() {
         }
       }
       setError(errorMessage(err, 'Failed to download the accounting report.'))
+    }
+  }
+
+  const handleDownloadTemplate = async () => {
+    if (downloadingTemplate) return
+    setDownloadingTemplate(true)
+    setError(null)
+    try {
+      const result = await fbaShipmentLibraryApi.downloadTemplate()
+      downloadBlob(result.blob, result.filename)
+    } catch (err) {
+      const data = (err as { response?: { data?: unknown } })?.response?.data
+      if (data instanceof Blob) {
+        try {
+          const parsed = JSON.parse(await data.text()) as { detail?: string }
+          setError(parsed.detail || 'Failed to download the template.')
+          return
+        } catch {
+          /* fall through */
+        }
+      }
+      setError(errorMessage(err, 'Failed to download the template.'))
+    } finally {
+      setDownloadingTemplate(false)
     }
   }
 
@@ -1511,18 +1529,28 @@ export default function FbaShipmentLibrary() {
 
   return (
     <div className="w-full min-w-0 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">FBA Order Checker</h1>
-        <p className="mt-2 max-w-3xl text-sm text-gray-600">
-          Upload the official FBA shipment <strong>.tsv</strong>. The tool stores the yellow fields only:{' '}
-          <strong>Shipment ID</strong>, <strong>Merchant SKU</strong>, <strong>external-id</strong>, and{' '}
-          <strong>Shipped</strong>, plus the <strong>Name</strong> from the top of the file. Open a shipment to
-          fill in a Name that was not saved. The owner can lock a shipment or share it with everyone or with chosen people.
-          Shipments that are already shared stay open to everyone until the owner changes that.
-          Counts are shared: everyone who opens a shipment sees the same scans. Download report is on each shipment. Anyone the shipment is shared with can archive it into a folder at any time, including before counting starts, and it then shows in
-          Completed shipments. Remove sends a shipment to Trash, where it
-          stays until it is removed for good or Trash is emptied.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">FBA Order Checker</h1>
+          <p className="mt-2 max-w-3xl text-sm text-gray-600">
+            Upload the official FBA shipment <strong>.tsv</strong>. The tool stores the yellow fields only:{' '}
+            <strong>Shipment ID</strong>, <strong>Merchant SKU</strong>, <strong>external-id</strong>, and{' '}
+            <strong>Shipped</strong>, plus the <strong>Name</strong> from the top of the file. Open a shipment to
+            fill in a Name that was not saved. The owner can lock a shipment or share it with everyone or with chosen people.
+            Shipments that are already shared stay open to everyone until the owner changes that.
+            Counts are shared: everyone who opens a shipment sees the same scans. Download report is on each shipment. Anyone the shipment is shared with can archive it into a folder at any time, including before counting starts, and it then shows in
+            Completed shipments. Remove sends a shipment to Trash, where it
+            stays until it is removed for good or Trash is emptied.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleDownloadTemplate()}
+          disabled={downloadingTemplate}
+          className="shrink-0 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100 disabled:opacity-50"
+        >
+          {downloadingTemplate ? 'Downloading…' : 'Download Template'}
+        </button>
       </div>
 
       {error && (

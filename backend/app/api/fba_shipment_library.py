@@ -1,10 +1,11 @@
 """FBA Order Checker — store yellow fields from the official shipment TSV."""
 import logging
+from pathlib import Path
 from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from supabase import Client
 
 from app.database import get_supabase
@@ -72,6 +73,10 @@ router = APIRouter()
 
 _MAX_BYTES = 15 * 1024 * 1024
 _ALLOWED_SUFFIXES = (".tsv", ".txt", ".csv")
+TEMPLATE_FILENAME = "FBA ORDER CHECKER TEMPLATE 11.16.26.xlsx"
+_TEMPLATE_PATH = (
+    Path(__file__).resolve().parent.parent / "static" / "fba_order_checker" / TEMPLATE_FILENAME
+)
 
 
 def _validate_name(file: UploadFile) -> None:
@@ -244,6 +249,21 @@ def _refresh_progress(
         except ValueError:
             logger.warning("FBA shipment status was not saved for %s", upload_id, exc_info=True)
     return FbaShipmentProgressResult(fully_accounted=is_fully_accounted(pairs), progress_status=status)
+
+
+@router.get("/fba-shipment-library/template")
+@handle_api_errors("download FBA Order Checker template")
+def download_fba_order_checker_template(
+    current_user: dict = Depends(get_fba_order_checker_user),
+):
+    _ = current_user
+    if not _TEMPLATE_PATH.is_file():
+        raise HTTPException(status_code=404, detail="FBA Order Checker template file is missing.")
+    return FileResponse(
+        _TEMPLATE_PATH,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=TEMPLATE_FILENAME,
+    )
 
 
 @router.get("/fba-shipment-library", response_model=FbaShipmentUploadListResponse)

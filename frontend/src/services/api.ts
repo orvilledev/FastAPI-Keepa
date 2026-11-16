@@ -3569,6 +3569,17 @@ export const fbaShipmentLibraryApi = {
       filename: match?.[1] || 'Accounting.xlsx',
     }
   },
+  downloadTemplate: async (): Promise<{ blob: Blob; filename: string }> => {
+    const response = await api.get('/api/v1/fba-shipment-library/template', {
+      responseType: 'blob',
+    })
+    const header = String(response.headers['content-disposition'] || '')
+    const match = /filename="([^"]+)"/.exec(header)
+    return {
+      blob: response.data as Blob,
+      filename: match?.[1] || 'FBA ORDER CHECKER TEMPLATE 11.16.26.xlsx',
+    }
+  },
 }
 
 export const systemApi = {
