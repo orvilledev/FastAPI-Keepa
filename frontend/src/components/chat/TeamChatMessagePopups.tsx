@@ -99,20 +99,28 @@ export default function TeamChatMessagePopups({ myId, enabled }: Props) {
     }
   }, [])
 
+  const armDismiss = useCallback(
+    (id: string) => {
+      const existing = dismissTimersRef.current.get(id)
+      if (existing !== undefined) window.clearTimeout(existing)
+      dismissTimersRef.current.set(
+        id,
+        window.setTimeout(() => dismissToast(id), TOAST_MS),
+      )
+    },
+    [dismissToast],
+  )
+
   const pushToast = useCallback(
     (toast: ToastItem) => {
       setToasts((prev) => {
         const withoutSameThread = prev.filter((item) => item.conversationId !== toast.conversationId)
         return [toast, ...withoutSameThread].slice(0, MAX_TOASTS)
       })
-      const existing = dismissTimersRef.current.get(toast.id)
-      if (existing !== undefined) window.clearTimeout(existing)
-      dismissTimersRef.current.set(
-        toast.id,
-        window.setTimeout(() => dismissToast(toast.id), TOAST_MS),
-      )
+      // Don't burn the 8s while the tab is hidden — start the clock when they look.
+      if (!isDocumentHidden()) armDismiss(toast.id)
     },
-    [dismissToast],
+    [armDismiss],
   )
 
   const ensureConversations = useCallback(async (): Promise<Map<string, ChatConversation>> => {
@@ -213,21 +221,8 @@ export default function TeamChatMessagePopups({ myId, enabled }: Props) {
         const osTitle = displayName(senderName)
         const osBody = isGroup ? `${conversationLabel}\n${preview}` : preview
 
-        const payload = {
-          messageId: row.id,
-          conversationId: row.conversation_id,
-          title: osTitle,
-          body: osBody,
-        }
-
-        const windowUnfocused =
-          typeof document.hasFocus === 'function' ? !document.hasFocus() : false
-
-        if (isDocumentHidden()) {
-          await showTeamChatOsNotification(payload, (clicked) => openChat(clicked.conversationId))
-          return
-        }
-
+        // Always show the Messenger-style chathead on the page. The Windows/browser
+        // system toast is only a backup when this tab is not visible at all.
         pushToast({
           id: row.id,
           conversationId: row.conversation_id,
@@ -238,9 +233,16 @@ export default function TeamChatMessagePopups({ myId, enabled }: Props) {
           senderId: row.sender_id || row.conversation_id,
         })
 
-        // Window open but behind another app — also fire a browser popup.
-        if (windowUnfocused) {
-          await showTeamChatOsNotification(payload, (clicked) => openChat(clicked.conversationId))
+        if (isDocumentHidden()) {
+          await showTeamChatOsNotification(
+            {
+              messageId: row.id,
+              conversationId: row.conversation_id,
+              title: osTitle,
+              body: osBody,
+            },
+            (clicked) => openChat(clicked.conversationId),
+          )
         }
       })()
     })
@@ -251,6 +253,20 @@ export default function TeamChatMessagePopups({ myId, enabled }: Props) {
       dismissTimersRef.current.clear()
     }
   }, [enabled, myId, openChat, pushToast, resolveConversation])
+
+  // When the user comes back to the tab, give any waiting chatheads a full display window.
+  useEffect(() => {
+    if (!enabled) return undefined
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      setToasts((prev) => {
+        for (const toast of prev) armDismiss(toast.id)
+        return prev
+      })
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [enabled, armDismiss])
 
   // Drop toasts for the thread the user just opened.
   useEffect(() => {
