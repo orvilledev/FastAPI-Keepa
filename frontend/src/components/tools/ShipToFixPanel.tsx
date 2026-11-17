@@ -45,6 +45,29 @@ function isImageFile(file: File): boolean {
   return file.type.startsWith('image/') || /\.(png|jpe?g|webp|bmp|gif)$/i.test(file.name)
 }
 
+/**
+ * Screenshots from Win+Shift+S / Snipping Tool / Print Screen usually arrive as
+ * clipboard *items* (image/png), not as `files`. Prefer items, then fall back.
+ */
+function imagesFromClipboard(data: DataTransfer | null | undefined): File[] {
+  if (!data) return []
+  const fromItems: File[] = []
+  for (const item of Array.from(data.items ?? [])) {
+    if (item.kind !== 'file' || !item.type.startsWith('image/')) continue
+    const file = item.getAsFile()
+    if (file) fromItems.push(file)
+  }
+  const raw = fromItems.length > 0 ? fromItems : Array.from(data.files ?? []).filter(isImageFile)
+  return raw.map((file, index) => {
+    if (file.name?.trim()) return file
+    const subtype = (file.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
+    const suffix = index === 0 ? '' : `-${index + 1}`
+    return new File([file], `pasted-screenshot${suffix}.${subtype}`, {
+      type: file.type || `image/${subtype}`,
+    })
+  })
+}
+
 function isCsvFile(file: File): boolean {
   return file.name.toLowerCase().endsWith('.csv')
 }
@@ -225,14 +248,15 @@ export default function ShipToFixPanel({ open }: { open: boolean }) {
   useEffect(() => {
     if (!open) return undefined
     const onPaste = (event: globalThis.ClipboardEvent) => {
-      const images = Array.from(event.clipboardData?.files ?? []).filter(isImageFile)
+      if (reading || running) return
+      const images = imagesFromClipboard(event.clipboardData)
       if (images.length === 0) return
       event.preventDefault()
       void addScreenshots(images)
     }
     document.addEventListener('paste', onPaste)
     return () => document.removeEventListener('paste', onPaste)
-  }, [open, addScreenshots])
+  }, [open, addScreenshots, reading, running])
 
   const dropHandlers = (onFiles: (files: File[]) => void) => ({
     onDragOver: (event: DragEvent<HTMLElement>) => {
