@@ -18,6 +18,37 @@ function gitCommitShort(): string {
   }
 }
 
+function emitBuildIdPlugin() {
+  const commit = gitCommitShort()
+  const payload = JSON.stringify({
+    commit,
+    version: appVersion,
+    builtAt: new Date().toISOString(),
+  })
+  return {
+    name: 'emit-build-id',
+    // Dev server: so local polling does not 404.
+    configureServer(server: { middlewares: { use: (...args: unknown[]) => void } }) {
+      server.middlewares.use((req: { url?: string }, res: { setHeader: (k: string, v: string) => void; end: (b: string) => void }, next: () => void) => {
+        if (req.url && req.url.split('?')[0] === '/build.json') {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Cache-Control', 'no-store')
+          res.end(payload)
+          return
+        }
+        next()
+      })
+    },
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'build.json',
+        source: payload,
+      })
+    },
+  }
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   base: mode === 'electron' ? './' : '/',
@@ -25,7 +56,7 @@ export default defineConfig(({ mode }) => ({
     __GIT_COMMIT_SHORT__: JSON.stringify(gitCommitShort()),
     __APP_VERSION__: JSON.stringify(appVersion),
   },
-  plugins: [react()],
+  plugins: [react(), emitBuildIdPlugin()],
   server: {
     host: '0.0.0.0', // Listen on all network interfaces (IPv4 and IPv6)
     port: 5173,
