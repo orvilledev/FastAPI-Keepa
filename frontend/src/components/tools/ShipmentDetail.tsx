@@ -122,29 +122,90 @@ export default function ShipmentDetail() {
   }, [load])
 
   const handleUpload = useCallback(
-    async (incoming: File | null | undefined) => {
+    async (incoming: FileList | File[] | File | null | undefined) => {
       if (!incoming || !shipmentId || uploading) return
-      const name = incoming.name.toLowerCase()
-      if (!VALID_SUFFIXES.some((suffix) => name.endsWith(suffix))) {
-        setError('Upload the FBA shipment export as a .csv or .xlsx file.')
+      const files = Array.isArray(incoming)
+        ? incoming
+        : incoming instanceof File
+          ? [incoming]
+          : Array.from(incoming)
+      if (files.length === 0) return
+
+      const valid: File[] = []
+      const rejected: string[] = []
+      for (const file of files) {
+        const name = file.name.toLowerCase()
+        if (VALID_SUFFIXES.some((suffix) => name.endsWith(suffix))) {
+          valid.push(file)
+        } else {
+          rejected.push(file.name)
+        }
+      }
+      if (valid.length === 0) {
+        setError(
+          rejected.length === 1
+            ? 'Upload the FBA shipment export as a .csv or .xlsx file.'
+            : 'Upload FBA shipment exports as .csv or .xlsx files.',
+        )
+        if (fileInputRef.current) fileInputRef.current.value = ''
         return
       }
+
       setUploading(true)
       setError(null)
       setMessage(null)
+      const summaries: string[] = []
+      let lastUniqueUpcCount: number | null = null
+      let totalRowsAdded = 0
+      let totalDupes = 0
+      const failed: string[] = []
+
       try {
-        const result = await shipmentsApi.addUpload(shipmentId, incoming)
-        const parts = [`Added ${result.rows_added} row(s) from ${incoming.name}.`]
-        if (result.duplicates_against_shipment > 0) {
-          parts.push(
-            `${result.duplicates_against_shipment} share a UPC already in this shipment and will not appear twice in the sheet.`,
+        for (const file of valid) {
+          try {
+            const result = await shipmentsApi.addUpload(shipmentId, file)
+            totalRowsAdded += result.rows_added
+            totalDupes += result.duplicates_against_shipment
+            lastUniqueUpcCount = result.unique_upc_count
+            summaries.push(file.name)
+          } catch (err) {
+            failed.push(
+              `${file.name}: ${errorDetail(err, 'Could not add this file to the shipment.')}`,
+            )
+          }
+        }
+
+        if (summaries.length > 0) {
+          const parts =
+            summaries.length === 1
+              ? [`Added ${totalRowsAdded} row(s) from ${summaries[0]}.`]
+              : [
+                  `Added ${summaries.length} files (${totalRowsAdded} row(s) from ${summaries.join(', ')}).`,
+                ]
+          if (totalDupes > 0) {
+            parts.push(
+              `${totalDupes} share a UPC already in this shipment and will not appear twice in the sheet.`,
+            )
+          }
+          if (lastUniqueUpcCount != null) {
+            parts.push(`${lastUniqueUpcCount} unique UPC(s) collected so far.`)
+          }
+          setMessage(parts.join(' '))
+          await load()
+        }
+
+        const notices: string[] = []
+        if (rejected.length > 0) {
+          notices.push(
+            `Skipped ${rejected.length} unsupported file${rejected.length === 1 ? '' : 's'}: ${rejected.join(', ')}.`,
           )
         }
-        parts.push(`${result.unique_upc_count} unique UPC(s) collected so far.`)
-        setMessage(parts.join(' '))
-        await load()
-      } catch (err) {
-        setError(errorDetail(err, 'Could not add this file to the shipment.'))
+        if (failed.length > 0) {
+          notices.push(failed.join(' '))
+        }
+        if (notices.length > 0) {
+          setError(notices.join(' '))
+        }
       } finally {
         setUploading(false)
         if (fileInputRef.current) fileInputRef.current.value = ''
@@ -158,7 +219,7 @@ export default function ShipmentDetail() {
       e.preventDefault()
       e.stopPropagation()
       setIsDragging(false)
-      void handleUpload(e.dataTransfer.files?.[0])
+      void handleUpload(e.dataTransfer.files)
     },
     [handleUpload],
   )
@@ -852,7 +913,7 @@ export default function ShipmentDetail() {
         onDrop={handleDrop}
       >
         <p className="text-sm text-gray-600">
-          Drag and drop your FBA shipment export here, or
+          Drag and drop your FBA shipment exports here, or
         </p>
         <button
           type="button"
@@ -860,14 +921,15 @@ export default function ShipmentDetail() {
           onClick={() => fileInputRef.current?.click()}
           className="mt-2 inline-flex items-center rounded-md bg-[#404040] px-4 py-2 text-sm font-medium text-white hover:bg-black disabled:opacity-50"
         >
-          {uploading ? 'Uploading…' : 'Add my file'}
+          {uploading ? 'Uploading…' : 'Add files'}
         </button>
         <input
           ref={fileInputRef}
           type="file"
           accept={ACCEPTED}
+          multiple
           className="hidden"
-          onChange={(e) => void handleUpload(e.target.files?.[0])}
+          onChange={(e) => void handleUpload(e.target.files)}
         />
       </section>
 
