@@ -1,4 +1,4 @@
-const SW_VERSION = 'v17'
+const SW_VERSION = 'v18'
 const STATIC_CACHE = `msw-overwatch-static-${SW_VERSION}`
 const RUNTIME_CACHE = `msw-overwatch-runtime-${SW_VERSION}`
 // Do NOT precache index.html / "/" — hashed asset URLs change every deploy.
