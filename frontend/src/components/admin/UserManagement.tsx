@@ -281,6 +281,8 @@ export default function UserManagement() {
   const [maintenanceSaving, setMaintenanceSaving] = useState(false)
   const [forceLogoutSaving, setForceLogoutSaving] = useState(false)
   const [forceLogoutMessage, setForceLogoutMessage] = useState<string | null>(null)
+  const [forceReloadSaving, setForceReloadSaving] = useState(false)
+  const [forceReloadMessage, setForceReloadMessage] = useState<string | null>(null)
   const [maintenanceSuccess, setMaintenanceSuccess] = useState<MaintenanceSuccessNotice | null>(null)
   const [emailTransport, setEmailTransport] = useState<'auto' | 'graph' | 'smtp'>('auto')
   const [emailEffectiveTransport, setEmailEffectiveTransport] = useState<'graph' | 'smtp'>('smtp')
@@ -572,6 +574,27 @@ export default function UserManagement() {
       setForceLogoutMessage(typeof msg === 'string' ? msg : 'Failed to sign out users')
     } finally {
       setForceLogoutSaving(false)
+    }
+  }
+
+  const handleForceReload = async () => {
+    const confirmed = window.confirm(
+      'Refresh every other open browser session? Users stay signed in and their tabs reload within about 10 seconds.'
+    )
+    if (!confirmed) return
+    try {
+      setForceReloadSaving(true)
+      setForceReloadMessage(null)
+      const result = await authApi.forceReloadUsers()
+      setForceReloadMessage(result.message)
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined
+      setForceReloadMessage(typeof msg === 'string' ? msg : 'Failed to refresh clients')
+    } finally {
+      setForceReloadSaving(false)
     }
   }
 
@@ -1218,6 +1241,29 @@ export default function UserManagement() {
             </>
           )}
         </div>
+      </div>
+
+      <div className="card p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Refresh all clients</h2>
+            <p className="text-sm text-gray-600">
+              Reloads every other open browser tab so users pick up the latest web app. They stay signed
+              in. Your tab is not refreshed.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleForceReload()}
+            disabled={forceReloadSaving}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-[#404040] hover:bg-black disabled:opacity-50"
+          >
+            {forceReloadSaving ? 'Refreshing...' : 'Refresh all clients'}
+          </button>
+        </div>
+        {forceReloadMessage && (
+          <p className="text-sm text-gray-700">{forceReloadMessage}</p>
+        )}
       </div>
 
       <div className="card p-4 space-y-3">

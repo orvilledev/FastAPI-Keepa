@@ -328,6 +328,14 @@ export const authApi = {
     }>('/api/v1/auth/users/force-logout')
     return response.data
   },
+  forceReloadUsers: async () => {
+    const response = await api.post<{
+      forced_at: number
+      exempt_user_id: string
+      message: string
+    }>('/api/v1/auth/users/force-reload')
+    return response.data
+  },
   updateUserKeepaAccess: async (userId: string, hasKeepaAccess: boolean) => {
     const response = await api.put<{ user_id: string; has_keepa_access: boolean; message: string }>(`/api/v1/auth/users/${userId}/keepa-access`, { has_keepa_access: hasKeepaAccess })
     return response.data
@@ -3610,6 +3618,13 @@ export const systemApi = {
     exempt_user_id: string | null
   }> => {
     const response = await api.get('/api/v1/system/force-logout-status')
+    return response.data
+  },
+  getForceReloadStatus: async (): Promise<{
+    forced_at: number | null
+    exempt_user_id: string | null
+  }> => {
+    const response = await api.get('/api/v1/system/force-reload-status')
     return response.data
   },
   getMaintenanceStatus: async (): Promise<{

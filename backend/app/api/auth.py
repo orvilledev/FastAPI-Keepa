@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from app.maintenance import get_maintenance_state, set_maintenance_state
 from app.force_logout import set_force_logout
+from app.force_reload import set_force_reload
 from app.email_transport import get_email_transport_state, set_email_transport
 from fastapi.security import HTTPAuthorizationCredentials
 from app.services.upc_dnk_print_id_allowlist import (
@@ -578,6 +579,31 @@ def force_logout_users(
         "sessions_revoked": sessions_revoked,
         "sessions_removed": sessions_removed,
         "message": message,
+    }
+
+
+@router.post("/users/force-reload")
+@limiter.limit(RateLimits.ADMIN_OPERATIONS)
+@handle_api_errors("force reload clients")
+def force_reload_users(
+    request: Request,
+    current_user: dict = Depends(get_superadmin_user),
+):
+    """Ask every open browser to reload, except the superadmin who clicked."""
+    exempt_user_id = str(current_user.get("id") or "")
+    if not exempt_user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing user id")
+
+    state = set_force_reload(exempt_user_id)
+    logger.info(
+        "Superadmin %s forced client reload (forced_at=%s)",
+        current_user.get("email"),
+        state.get("forced_at"),
+    )
+    return {
+        "forced_at": state["forced_at"],
+        "exempt_user_id": exempt_user_id,
+        "message": "Open browsers will refresh shortly. Your session stays as-is.",
     }
 
 

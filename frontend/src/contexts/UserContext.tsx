@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, Re
 import { signOutThisBrowser, supabase } from '../lib/supabase'
 import { authApi, invalidateAuthTokenCache, systemApi } from '../services/api'
 import { signOutIfForceLoggedOut } from '../lib/forceLogout'
+import { reloadIfForceReloadRequested } from '../lib/forceReload'
 import { clearMfaActivity, getMfaExemptEmails, isMfaAuthRoute, isMfaExemptEmail, redirectForIncompleteMfa } from '../lib/mfa'
 import { recordWebAuditEvent } from '../lib/auditEvents'
 import { DEV_BYPASS_AUTH_USER, DEV_BYPASS_USER_INFO, isDevAuthBypass } from '../lib/devAuth'
@@ -226,20 +227,32 @@ function UserProviderAuthenticated({ children }: UserProviderProps) {
     let cancelled = false
     const tick = async () => {
       try {
-        const status = await systemApi.getForceLogoutStatus()
+        const [logoutStatus, reloadStatus] = await Promise.all([
+          systemApi.getForceLogoutStatus(),
+          systemApi.getForceReloadStatus(),
+        ])
         if (cancelled) return
-        await signOutIfForceLoggedOut(status)
+        await signOutIfForceLoggedOut(logoutStatus)
+        if (cancelled) return
+        reloadIfForceReloadRequested(reloadStatus, authUser.id || userInfo?.id)
       } catch {
         // A later poll or the next API call still applies the cutoff.
       }
     }
     void tick()
     const interval = window.setInterval(() => void tick(), 10_000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void tick()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
     return () => {
       cancelled = true
       window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
     }
-  }, [authUser])
+  }, [authUser, userInfo?.id])
 
   const signOut = async () => {
     await recordWebAuditEvent('logout')

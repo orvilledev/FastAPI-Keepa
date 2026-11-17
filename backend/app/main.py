@@ -19,6 +19,7 @@ from app.scheduler import (
 from app.dependencies import get_shipment_manager_user, get_team_chat_user, require_app_access
 from app.maintenance import get_maintenance_state
 from app.force_logout import get_force_logout_state
+from app.force_reload import get_force_reload_state
 from app.middleware.audit_logger import AuditLogMiddleware
 from app.middleware.rate_limiter import limiter, log_rate_limit_exceeded, RATE_LIMIT_ERROR_MESSAGE
 import logging
@@ -351,6 +352,12 @@ async def maintenance_status(request: Request):
 async def force_logout_status():
     """Public cutoff so open browsers can sign themselves out."""
     return get_force_logout_state()
+
+
+@app.get(f"{settings.api_v1_str}/system/force-reload-status")
+async def force_reload_status():
+    """Public signal so open browsers can reload after a superadmin refresh."""
+    return get_force_reload_state()
 
 
 # Include API routers
