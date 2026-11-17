@@ -1,0 +1,11 @@
+MSW Overwatch 4.0.3 — desktop and web release
+
+Patch release since 4.0.2. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Dimensioner
+- Archive finished scans from Active (single or bulk)
+- Archive view groups scans by TO (barcode prefix before _1, _2, …)
+- Unarchive back to Active without changing Trash, device uploads, or other tools
+
+## Upgrade from 4.0.2
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 4.0.3, download it, then prompt to install now or later. Web/PWA users get 4.0.3 on the next deploy/refresh.
