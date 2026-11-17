@@ -16,14 +16,16 @@ import { conversationTitle, initials, avatarColor } from './chatUtils'
 type ToastItem = {
   id: string
   conversationId: string
-  title: string
-  body: string
+  /** Conversation title for context (group name or DM title). */
+  conversationLabel: string
+  isGroup: boolean
+  preview: string
   senderName: string
   senderId: string
 }
 
 const MAX_TOASTS = 3
-const TOAST_MS = 7_000
+const TOAST_MS = 8_000
 const DEDUPE_TTL_MS = 60_000
 const PREVIEW_MAX = 120
 
@@ -31,6 +33,12 @@ function truncate(text: string, max = PREVIEW_MAX): string {
   const trimmed = text.trim()
   if (trimmed.length <= max) return trimmed
   return `${trimmed.slice(0, max - 1).trimEnd()}…`
+}
+
+function displayName(fullName: string): string {
+  const trimmed = fullName.trim()
+  if (!trimmed) return 'Someone'
+  return trimmed.split(/\s+/)[0] || trimmed
 }
 
 function previewFromRow(row: RealtimeMessageRow): string {
@@ -193,24 +201,23 @@ export default function TeamChatMessagePopups({ myId, enabled }: Props) {
       void (async () => {
         const conversation = await resolveConversation(row.conversation_id)
         const me = myIdRef.current
-        const title = conversation
+        const conversationLabel = conversation
           ? conversationTitle(conversation, me)
           : 'Team Chat'
+        const isGroup = Boolean(conversation?.is_group)
         const sender =
           (row.sender_id && conversation?.members.find((member) => member.id === row.sender_id)) ||
           null
         const senderName = sender?.name || 'Someone'
         const preview = previewFromRow(row)
-        const body =
-          conversation?.is_group || !sender
-            ? `${senderName}: ${preview}`
-            : preview
+        const osTitle = displayName(senderName)
+        const osBody = isGroup ? `${conversationLabel}\n${preview}` : preview
 
         const payload = {
           messageId: row.id,
           conversationId: row.conversation_id,
-          title,
-          body,
+          title: osTitle,
+          body: osBody,
         }
 
         const windowUnfocused =
@@ -224,8 +231,9 @@ export default function TeamChatMessagePopups({ myId, enabled }: Props) {
         pushToast({
           id: row.id,
           conversationId: row.conversation_id,
-          title,
-          body,
+          conversationLabel,
+          isGroup,
+          preview,
           senderName,
           senderId: row.sender_id || row.conversation_id,
         })
@@ -255,44 +263,72 @@ export default function TeamChatMessagePopups({ myId, enabled }: Props) {
 
   return (
     <div
-      className="pointer-events-none fixed bottom-4 right-4 z-[70] flex w-[min(100vw-2rem,22rem)] flex-col gap-2"
+      className="pointer-events-none fixed bottom-5 right-5 z-[70] flex w-[min(100vw-1.5rem,21rem)] flex-col items-end gap-3"
       aria-live="polite"
     >
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className="pointer-events-auto flex w-full items-start gap-3 rounded-2xl bg-white p-3 shadow-lg ring-1 ring-gray-200/80 dark:bg-surface dark:ring-border"
-        >
-          <button
-            type="button"
-            onClick={() => openChat(toast.conversationId)}
-            className="flex min-w-0 flex-1 items-start gap-3 text-left transition hover:opacity-90"
-          >
-            <span
-              className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ${avatarColor(toast.senderId)}`}
-              aria-hidden="true"
+      {toasts.map((toast) => {
+        const name = displayName(toast.senderName)
+        return (
+          <div key={toast.id} className="chathead-toast pointer-events-auto relative w-full">
+            <button
+              type="button"
+              onClick={() => openChat(toast.conversationId)}
+              className="group flex w-full items-end gap-3 text-left"
             >
-              {initials(toast.senderName)}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-[#404040] dark:text-slate-100">
-                {toast.title}
+              {/* Chathead */}
+              <span className="relative shrink-0 self-end pb-0.5">
+                <span
+                  className={`chathead-avatar-ring flex h-14 w-14 items-center justify-center rounded-full text-base font-bold text-white shadow-[0_8px_24px_rgba(0,0,0,0.18)] ring-[3px] ring-white dark:ring-slate-900 ${avatarColor(toast.senderId)}`}
+                  aria-hidden="true"
+                >
+                  {initials(toast.senderName)}
+                </span>
+                <span
+                  className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-[#81B81D] ring-2 ring-white dark:ring-slate-900"
+                  aria-hidden="true"
+                />
               </span>
-              <span className="mt-0.5 block line-clamp-2 text-xs text-gray-500 dark:text-slate-400">
-                {toast.body}
+
+              {/* Speech bubble */}
+              <span className="relative min-w-0 flex-1 rounded-[1.35rem] rounded-bl-md bg-white px-3.5 py-3 shadow-[0_12px_40px_rgba(15,23,42,0.16)] ring-1 ring-black/[0.06] transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_44px_rgba(15,23,42,0.2)] dark:bg-surface dark:ring-border">
+                <span
+                  className="absolute -left-1.5 bottom-3 h-3 w-3 rotate-45 bg-white shadow-[-2px_2px_2px_rgba(15,23,42,0.04)] ring-1 ring-black/[0.04] dark:bg-surface dark:ring-border"
+                  aria-hidden="true"
+                />
+                <span className="relative block">
+                  <span className="flex items-start justify-between gap-2">
+                    <span className="min-w-0">
+                      <span className="block truncate text-[15px] font-semibold tracking-tight text-[#2f2f2f] dark:text-slate-100">
+                        {name}
+                      </span>
+                      {toast.isGroup ? (
+                        <span className="mt-0.5 block truncate text-[11px] font-medium text-gray-400 dark:text-slate-500">
+                          in {toast.conversationLabel}
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="mt-0.5 shrink-0 rounded-full bg-[#81B81D]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#5a8a12]">
+                      New
+                    </span>
+                  </span>
+                  <span className="mt-2 block rounded-2xl rounded-tl-md bg-gray-100 px-3 py-2 text-[13px] leading-snug text-[#404040] dark:bg-surface-muted dark:text-slate-200">
+                    <span className="line-clamp-3">{toast.preview}</span>
+                  </span>
+                </span>
               </span>
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => dismissToast(toast.id)}
-            className="rounded-full px-1.5 py-0.5 text-xs text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-surface-muted"
-            aria-label="Dismiss"
-          >
-            ×
-          </button>
-        </div>
-      ))}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => dismissToast(toast.id)}
+              className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-[#404040] text-sm leading-none text-white shadow-md transition hover:bg-black dark:bg-slate-600 dark:hover:bg-slate-500"
+              aria-label="Dismiss"
+            >
+              ×
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }

@@ -684,6 +684,36 @@ code {
   animation: fadeIn 0.3s ease-out;
 }
 
+/* Team Chat Messenger-style chathead toasts */
+@keyframes chatheadIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(18px, 12px, 0) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes chatheadPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(129, 184, 29, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(129, 184, 29, 0);
+  }
+}
+
+.chathead-toast {
+  animation: chatheadIn 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.chathead-avatar-ring {
+  animation: chatheadPulse 1.8s ease-out 1;
+}
+
 @layer utilities {
   .h-app-screen {
     height: calc(100vh / var(--app-zoom));
