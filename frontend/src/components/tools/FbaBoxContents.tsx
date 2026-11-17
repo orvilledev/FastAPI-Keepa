@@ -30,8 +30,6 @@ type GenerateSummary = {
 
 type ToolPanelProps = {
   title: string
-  description: ReactNode
-  expectedInput: ReactNode
   defaultFilename: string
   generate: (file: File) => Promise<{
     blob: Blob
@@ -47,8 +45,6 @@ type ToolPanelProps = {
 
 function ToolPanel({
   title,
-  description,
-  expectedInput,
   defaultFilename,
   generate,
   children,
@@ -170,8 +166,6 @@ function ToolPanel({
 
       {open && (
       <div className="space-y-4 border-t border-gray-200 p-5">
-      <p className="text-sm text-gray-600">{description}</p>
-
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {error}
@@ -275,9 +269,6 @@ function ToolPanel({
         </div>
       </div>
 
-      <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm text-gray-600">
-        {expectedInput}
-      </div>
       {children}
       </div>
       )}
@@ -287,13 +278,12 @@ function ToolPanel({
 
 type FileSlotProps = {
   label: string
-  hint: string
   file: File | null
   onFile: (file: File | null) => void
   onInvalid?: (message: string) => void
 }
 
-function FileSlot({ label, hint, file, onFile, onInvalid }: FileSlotProps) {
+function FileSlot({ label, file, onFile, onInvalid }: FileSlotProps) {
   const [isDragging, setIsDragging] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -323,10 +313,7 @@ function FileSlot({ label, hint, file, onFile, onInvalid }: FileSlotProps) {
 
   return (
     <div className="space-y-2">
-      <div>
-        <h4 className="text-sm font-semibold text-gray-900">{label}</h4>
-        <p className="text-xs text-gray-500">{hint}</p>
-      </div>
+      <h4 className="text-sm font-semibold text-gray-900">{label}</h4>
       <div
         className={`rounded-xl border-2 border-dashed p-5 text-center transition-colors ${
           isDragging
@@ -517,14 +504,7 @@ function Tool2CartonNumbers() {
 
   return (
     <div className="space-y-4 border-t border-gray-200 pt-6">
-      <div>
-        <h3 className="text-base font-semibold text-gray-900">Carton Numbers</h3>
-        <p className="mt-1 text-sm text-gray-600">
-          Upload one or more carton files, or a <strong>.zip</strong> of them. Each shipment becomes
-          its own sheet in one <strong>Carton Numbers</strong> workbook, and every{' '}
-          <code>Carton#:</code> barcode is numbered as Box Number 1, 2, 3… in the order it appears.
-        </p>
-      </div>
+      <h3 className="text-base font-semibold text-gray-900">Carton Numbers</h3>
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -665,27 +645,6 @@ function Tool2CartonNumbers() {
           )}
         </div>
       </div>
-
-      <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm text-gray-600">
-        <h4 className="font-semibold text-gray-900">How it works</h4>
-        <ul className="mt-2 list-disc space-y-1 pl-5">
-          <li>
-            Use the same carton files as the Output above (first row <code>PO#:</code> and the FBA
-            shipment id, then <code>Carton#:</code> blocks). Upload several at once, or one zip.
-          </li>
-          <li>
-            One sheet per shipment, named by its FBA id. Columns: <code>Original Carton</code>{' '}
-            (<code>Carton#:</code>), the carton barcode kept as text, and <code>Box Number</code>.
-          </li>
-          <li>
-            Sheets follow the order of your files. Each shipment can be uploaded once, and its box
-            count must match the file&apos;s <code>Total Ctns</code> footer.
-          </li>
-          <li>
-            Download named <code>Carton Numbers.xlsx</code>.
-          </li>
-        </ul>
-      </div>
     </div>
   )
 }
@@ -760,15 +719,7 @@ function Tool2ManifestCompare() {
 
   return (
     <div className="space-y-4 border-t border-gray-200 pt-6">
-      <div>
-        <h3 className="text-base font-semibold text-gray-900">Manifest Compare &amp; Correct</h3>
-        <p className="mt-1 text-sm text-gray-600">
-          Upload the NFA and SMW <strong>Output</strong> file and the Amazon Seller Central{' '}
-          <strong>manifest</strong> (source of truth). Missing quantities are added to the{' '}
-          <strong>last box</strong>, highlighted in <span className="bg-yellow-200 px-1">yellow</span>,
-          and a corrected workbook is downloaded.
-        </p>
-      </div>
+      <h3 className="text-base font-semibold text-gray-900">Manifest Compare &amp; Correct</h3>
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -792,7 +743,6 @@ function Tool2ManifestCompare() {
       <div className="grid gap-4 sm:grid-cols-2">
         <FileSlot
           label="1. Output"
-          hint="NFA and SMW Output.xlsx (Box Contents + Dimensions)"
           file={outputFile}
           onFile={(f) => {
             clearResult()
@@ -802,7 +752,6 @@ function Tool2ManifestCompare() {
         />
         <FileSlot
           label="2. Manifest"
-          hint="Seller Central Box packing information.xlsx"
           file={manifestFile}
           onFile={(f) => {
             clearResult()
@@ -840,29 +789,6 @@ function Tool2ManifestCompare() {
             Clear
           </button>
         )}
-      </div>
-
-      <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm text-gray-600">
-        <h4 className="font-semibold text-gray-900">How it works</h4>
-        <ul className="mt-2 list-disc space-y-1 pl-5">
-          <li>
-            The <strong>manifest</strong> expected quantities and SKUs are the source of truth.
-          </li>
-          <li>
-            Output rows are kept as packed. Missing SKUs / shortfall quantities are appended as new
-            rows in the <strong>last box</strong>, highlighted yellow, and listed in the E–G summary
-            (shipment id, Box #, Qty); the Sum of QTY pivot moves to column I.
-          </li>
-          <li>
-            UPCs that map to an Old SKU on the manifest (via the catalog) are remapped and
-            highlighted yellow. Units the manifest does not expect are removed.
-          </li>
-          <li>Dimensions are copied unchanged from the Output.</li>
-          <li>
-            Download named <code>{'{shipment_id} - Corrected.xlsx'}</code>, for example{' '}
-            <code>FBA19RL0N7D1 - Corrected.xlsx</code>.
-          </li>
-        </ul>
       </div>
     </div>
   )
@@ -1040,15 +966,7 @@ function DnkToolPanel() {
         <div className="space-y-8 border-t border-gray-200 p-5">
           {/* --- CCL converter --- */}
           <div className="space-y-4">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900">Carton Contents List</h3>
-              <p className="mt-1 text-sm text-gray-600">
-                Upload a DNK Carton Contents List (<code>… CCL.xlsx</code>). Each carton marker like{' '}
-                <code>1 of 2</code> becomes a box number, and each item line becomes a row. Downloads{' '}
-                <strong>Contents</strong> (Box Number, UPC, Quantity plus a Sum of Quantity pivot) and{' '}
-                <strong>Dimensions</strong>.
-              </p>
-            </div>
+            <h3 className="text-base font-semibold text-gray-900">Carton Contents List</h3>
 
             {cclError && (
               <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -1143,45 +1061,13 @@ function DnkToolPanel() {
                 )}
               </div>
             </div>
-
-            <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm text-gray-600">
-              <h4 className="font-semibold text-gray-900">Expected input</h4>
-              <p className="mt-1">
-                DNK CCL workbook with a <code>Contents</code> sheet (title{' '}
-                <code>Carton Contents</code>, shipment id, then Carton / UPC / Quantity columns) and a{' '}
-                <code>Dimensions</code> sheet. Cartons start with markers like <code>1 of 2</code>;{' '}
-                <code>Carton Total</code> rows are skipped.
-              </p>
-              <ul className="mt-2 list-disc space-y-1 pl-5">
-                <li>
-                  <code>Contents</code>: Box Number and Quantity as numbers, UPC as text, Sum of
-                  Quantity pivot by UPC (rows) and box (columns).
-                </li>
-                <li>
-                  <code>Dimensions</code>: Order, Carton, Weight, Length, Width, Height — Weight and
-                  dimensions stay numbers (integers when whole).
-                </li>
-                <li>
-                  Download named <code>{'{shipment_id} Box Contents.xlsx'}</code>, for example{' '}
-                  <code>FBA19QRSWGPN Box Contents.xlsx</code>.
-                </li>
-              </ul>
-            </div>
           </div>
 
           {/* --- Manifest compare / correct --- */}
           <div className="space-y-4 border-t border-gray-200 pt-6">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900">
-                Manifest Compare &amp; Correct
-              </h3>
-              <p className="mt-1 text-sm text-gray-600">
-                Upload the DNK <strong>Box Contents</strong> file and the Amazon Seller Central{' '}
-                <strong>manifest</strong> (source of truth). Remaps Old SKUs from the catalog, tops up
-                missing quantities in the <strong>last box</strong>, highlights adjustments in{' '}
-                <span className="bg-yellow-200 px-1">yellow</span>, and downloads a corrected workbook.
-              </p>
-            </div>
+            <h3 className="text-base font-semibold text-gray-900">
+              Manifest Compare &amp; Correct
+            </h3>
 
             {compareError && (
               <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -1209,7 +1095,6 @@ function DnkToolPanel() {
             <div className="grid gap-4 sm:grid-cols-2">
               <FileSlot
                 label="1. Box Contents"
-                hint="DNK Box Contents.xlsx (Contents + Dimensions)"
                 file={boxFile}
                 onFile={(f) => {
                   setCompareError(null)
@@ -1221,7 +1106,6 @@ function DnkToolPanel() {
               />
               <FileSlot
                 label="2. Manifest"
-                hint="Seller Central Box packing information.xlsx"
                 file={manifestFile}
                 onFile={(f) => {
                   setCompareError(null)
@@ -1262,26 +1146,6 @@ function DnkToolPanel() {
                 </button>
               )}
             </div>
-
-            <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm text-gray-600">
-              <h4 className="font-semibold text-gray-900">How it works</h4>
-              <ul className="mt-2 list-disc space-y-1 pl-5">
-                <li>
-                  The <strong>manifest</strong> expected quantities and SKUs are the source of truth.
-                </li>
-                <li>
-                  UPCs in Box Contents that map to an Old SKU in the catalog (and appear as that Old
-                  SKU on the manifest) are remapped and highlighted yellow.
-                </li>
-                <li>
-                  Missing SKUs / shortfall quantities are appended to the <strong>last box</strong>,
-                  highlighted yellow, and listed in the E–G summary next to the Contents table.
-                </li>
-                <li>
-                  Download named <code>{'{shipment_id} Box Contents - corrected.xlsx'}</code>.
-                </li>
-              </ul>
-            </div>
           </div>
         </div>
       )}
@@ -1316,90 +1180,21 @@ export default function FbaBoxContents() {
     <div className="mx-auto max-w-3xl space-y-8">
       <header>
         <h1 className="text-2xl font-bold text-gray-900">FBA Box Contents</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Choose a tool to upload a carton file and download a Box Contents workbook.
-        </p>
       </header>
 
       {/* Tool #1 kept in code but hidden from the UI for now. */}
       {false && (
         <ToolPanel
           title="Tool #1"
-          description={
-            <>
-              Upload an FBA Carton Detail report. Numbers each carton as Box # 1, 2, 3… and downloads a
-              workbook with <strong>Box Contents</strong> (UPC, Box #, QTY plus a quantity pivot) and{' '}
-              <strong>Dimensions</strong> (Box #, weight rounded up from item weights, length, width,
-              height).
-            </>
-          }
           defaultFilename="FBA Box Contents Output.xlsx"
           generate={fbaBoxContentsApi.generate}
-          expectedInput={
-            <>
-              <h3 className="font-semibold text-gray-900">Expected input</h3>
-              <p className="mt-1">
-                Amazon FBA Carton Detail export (first row “FBA Carton Detail”). Each carton starts with{' '}
-                <code>Carton#:</code>, followed by item lines and a Total row.
-              </p>
-              <ul className="mt-2 list-disc space-y-1 pl-5">
-                <li>
-                  <code>Box Contents</code>: UPC as Excel text, Box # and QTY as numbers, plus a Sum of
-                  QTY pivot by UPC (rows) and box (columns).
-                </li>
-                <li>
-                  <code>Dimensions</code>: Box #, Weight (item weights rounded up to 1 decimal), Length,
-                  Width, Height — all numbers.
-                </li>
-                <li>
-                  Download named <code>{'{filename} Output.xlsx'}</code>.
-                </li>
-              </ul>
-            </>
-          }
         />
       )}
 
       <ToolPanel
         title="NFA and SMW Tool"
-        description={
-          <>
-            Upload a spaced-column carton dump (starts with <code>PO#:</code>). Numbers each carton as
-            Box Number 1, 2, 3… and downloads <strong>Box Contents</strong> (UPC, Box Number, QTY plus
-            pivot) and <strong>Dimensions</strong> (Box Number, Weight from each carton Total row as
-            text, Length, Width, Height). Zero values are given a suggested value from the most similar
-            carton, highlighted in <span className="bg-yellow-200 px-1">yellow</span>, with the reason
-            in a <strong>Zero Correction</strong> column.
-          </>
-        }
         defaultFilename="FBA Box Contents Output.xlsx"
         generate={fbaBoxContentsApi.generateTool2}
-        expectedInput={
-          <>
-            <h3 className="font-semibold text-gray-900">Expected input</h3>
-            <p className="mt-1">
-              Carton export whose first row is <code>PO#:</code> / shipment id, with blank spacer
-              columns between Sku, UPC, Qty, Weight, and carton dimensions. Each carton starts with{' '}
-              <code>Carton#:</code>, then item lines, then a Total row.
-            </p>
-            <ul className="mt-2 list-disc space-y-1 pl-5">
-              <li>
-                <code>Box Contents</code>: UPC (text), Box Number and QTY (numbers), Sum of QTY pivot —
-                no Total QTY footer.
-              </li>
-              <li>
-                <code>Dimensions</code>: Box Number, Weight (copied from the Total row, often with a
-                leading space), Length, Width, Height. If a value is zero (e.g. <code>0.00</code>), a
-                suggestion is filled in, the row is highlighted yellow, and a{' '}
-                <code>Zero Correction</code> column after Height explains the reason.
-              </li>
-              <li>
-                Download named <code>{'{filename} Output.xlsx'}</code>, for example{' '}
-                <code>FBA19PLBV097 Output.xlsx</code>.
-              </li>
-          </ul>
-          </>
-        }
       >
         <Tool2ManifestCompare />
         <Tool2CartonNumbers />
@@ -1407,39 +1202,8 @@ export default function FbaBoxContents() {
 
       <ToolPanel
         title="OBZ Tool"
-        description={
-          <>
-            Upload an Oboz Packing Slip by Carton. Each <code>Carton</code> becomes a box number,
-            and each item line becomes a row. Downloads <strong>Box Contents</strong> (Box Number,
-            UPC, Qty, a Total formula, and a Sum of Qty pivot).
-          </>
-        }
         defaultFilename="Box Contents.xlsx"
         generate={fbaBoxContentsApi.generateObz}
-        expectedInput={
-          <>
-            <h3 className="font-semibold text-gray-900">Expected input</h3>
-            <p className="mt-1">
-              Oboz packing slip whose sheet is titled Packing Slip. Each carton starts with{' '}
-              <code>Carton</code> and a carton number, then a header row of <code>PO</code>,{' '}
-              <code>UPC/GTIN</code>, and <code>Qty</code>, then one line per item.
-            </p>
-            <ul className="mt-2 list-disc space-y-1 pl-5">
-              <li>
-                <code>Box Number</code> and <code>Qty</code> are numbers. <code>UPC</code> is text,
-                with leading zeros removed from the GTIN.
-              </li>
-              <li>
-                The Qty column ends with <code>Total</code> and <code>=SUM(...)</code>. The pivot
-                sums qty by UPC and carton.
-              </li>
-              <li>
-                Download named <code>{'{PO} Box Contents.xlsx'}</code>, for example{' '}
-                <code>FBA19PZSB42B Box Contents.xlsx</code>.
-              </li>
-            </ul>
-          </>
-        }
       />
 
       <DnkToolPanel />
