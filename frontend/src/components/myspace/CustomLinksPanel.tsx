@@ -29,12 +29,21 @@ const fieldClass =
   'w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none ring-[#81B81D]/30 placeholder:text-gray-400 focus:ring-2 dark:border-border dark:bg-surface dark:text-slate-100'
 
 const LINK_VIEW_KEY = 'myspace-custom-links-view'
+const LINK_SORT_KEY = 'myspace-custom-links-sort'
 type LinkView = 'cards' | 'list' | 'compact'
+type LinkSort = 'newest' | 'oldest' | 'name-asc' | 'name-desc'
 
 const LINK_VIEWS: { id: LinkView; label: string }[] = [
   { id: 'cards', label: 'Cards' },
   { id: 'list', label: 'List' },
   { id: 'compact', label: 'Compact' },
+]
+
+const LINK_SORTS: { id: LinkSort; label: string }[] = [
+  { id: 'newest', label: 'Newest first' },
+  { id: 'oldest', label: 'Oldest first' },
+  { id: 'name-asc', label: 'Name A–Z' },
+  { id: 'name-desc', label: 'Name Z–A' },
 ]
 
 function readLinkView(): LinkView {
@@ -45,6 +54,57 @@ function readLinkView(): LinkView {
     /* private browsing can block storage */
   }
   return 'cards'
+}
+
+function readLinkSort(): LinkSort {
+  try {
+    const stored = window.localStorage.getItem(LINK_SORT_KEY)
+    if (stored === 'newest' || stored === 'oldest' || stored === 'name-asc' || stored === 'name-desc') {
+      return stored
+    }
+  } catch {
+    /* private browsing can block storage */
+  }
+  return 'newest'
+}
+
+function formatCreatedAt(iso: string | null | undefined): string {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  } catch {
+    return iso
+  }
+}
+
+function formatCreatedAtFull(iso: string | null | undefined): string {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  } catch {
+    return iso
+  }
+}
+
+function linkTime(iso: string | null | undefined): number {
+  if (!iso) return 0
+  const value = new Date(iso).getTime()
+  return Number.isFinite(value) ? value : 0
+}
+
+function sortLinks(links: QuickAccessLink[], sort: LinkSort): QuickAccessLink[] {
+  const rows = [...links]
+  rows.sort((a, b) => {
+    if (sort === 'name-asc' || sort === 'name-desc') {
+      const byName = a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
+      if (byName !== 0) return sort === 'name-asc' ? byName : -byName
+      return linkTime(b.created_at) - linkTime(a.created_at)
+    }
+    const byDate = linkTime(a.created_at) - linkTime(b.created_at)
+    if (byDate !== 0) return sort === 'oldest' ? byDate : -byDate
+    return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
+  })
+  return rows
 }
 
 type Props = {
@@ -81,6 +141,7 @@ export default function CustomLinksPanel({
   const [selectedEmails, setSelectedEmails] = useState<string[]>([])
   const [shareError, setShareError] = useState('')
   const [linkView, setLinkView] = useState<LinkView>(readLinkView)
+  const [linkSort, setLinkSort] = useState<LinkSort>(readLinkSort)
 
   const chooseLinkView = (next: LinkView) => {
     setLinkView(next)
@@ -90,6 +151,21 @@ export default function CustomLinksPanel({
       /* keep the choice for this visit */
     }
   }
+
+  const chooseLinkSort = (next: LinkSort) => {
+    setLinkSort(next)
+    try {
+      window.localStorage.setItem(LINK_SORT_KEY, next)
+    } catch {
+      /* keep the choice for this visit */
+    }
+  }
+
+  const sortedPersonalLinks = useMemo(() => sortLinks(personalLinks, linkSort), [personalLinks, linkSort])
+  const sortedGroups = useMemo(
+    () => groups.map((group) => ({ ...group, links: sortLinks(group.links, linkSort) })),
+    [groups, linkSort],
+  )
 
   const refreshPersonal = async () => {
     const rows = await quickAccessApi.getLinks()
@@ -280,29 +356,46 @@ export default function CustomLinksPanel({
   return (
     <section className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div
-          role="group"
-          aria-label="Link view"
-          className="inline-flex rounded-full bg-white p-1 shadow-sm ring-1 ring-gray-200 dark:bg-surface dark:ring-border"
-        >
-          {LINK_VIEWS.map((option) => {
-            const selected = linkView === option.id
-            return (
-              <button
-                key={option.id}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => chooseLinkView(option.id)}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-                  selected
-                    ? 'bg-[#404040] text-white'
-                    : 'text-gray-500 hover:text-[#404040] dark:hover:text-slate-100'
-                }`}
-              >
-                {option.label}
-              </button>
-            )
-          })}
+        <div className="flex flex-wrap items-center gap-2">
+          <div
+            role="group"
+            aria-label="Link view"
+            className="inline-flex rounded-full bg-white p-1 shadow-sm ring-1 ring-gray-200 dark:bg-surface dark:ring-border"
+          >
+            {LINK_VIEWS.map((option) => {
+              const selected = linkView === option.id
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => chooseLinkView(option.id)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                    selected
+                      ? 'bg-[#404040] text-white'
+                      : 'text-gray-500 hover:text-[#404040] dark:hover:text-slate-100'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
+          <label className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs shadow-sm ring-1 ring-gray-200 dark:bg-surface dark:ring-border">
+            <span className="font-medium text-gray-400">Sort</span>
+            <select
+              value={linkSort}
+              onChange={(event) => chooseLinkSort(event.target.value as LinkSort)}
+              aria-label="Sort links"
+              className="bg-transparent text-xs font-semibold text-[#404040] outline-none dark:text-slate-100"
+            >
+              {LINK_SORTS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         <div className="flex flex-wrap items-center gap-2">
         <button
@@ -395,13 +488,13 @@ export default function CustomLinksPanel({
         </div>
       ) : (
         <div className="space-y-6">
-          {personalLinks.length > 0 && (
+          {sortedPersonalLinks.length > 0 && (
             <CategoryBlock title="Personal" subtitle="Only you can see these">
-              <LinkGrid links={personalLinks} busyKey={busyKey} onEdit={startEdit} onRemove={removeLink} view={linkView} />
+              <LinkGrid links={sortedPersonalLinks} busyKey={busyKey} onEdit={startEdit} onRemove={removeLink} view={linkView} />
             </CategoryBlock>
           )}
 
-          {groups.map((group) => (
+          {sortedGroups.map((group) => (
             <CategoryBlock
               key={group.id}
               title={group.title}
@@ -623,6 +716,7 @@ function LinkGrid({
       <ul className="divide-y divide-gray-100 overflow-hidden rounded-2xl bg-gray-50 ring-1 ring-gray-100 dark:divide-border dark:bg-surface-muted dark:ring-border">
         {links.map((link) => {
           const mark = toolMark(link.title)
+          const createdLabel = formatCreatedAt(link.created_at)
           return (
             <li key={link.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
               <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold ${mark.tile}`}>
@@ -637,6 +731,15 @@ function LinkGrid({
                 {link.title}
               </a>
               <p className="min-w-0 max-w-full flex-[2] truncate font-mono text-[11px] text-gray-400 sm:max-w-md">{link.url}</p>
+              {createdLabel && (
+                <time
+                  dateTime={link.created_at}
+                  title={formatCreatedAtFull(link.created_at)}
+                  className="shrink-0 text-[11px] tabular-nums text-gray-400"
+                >
+                  {createdLabel}
+                </time>
+              )}
               {showAuthor && (link.added_by_name || link.added_by_email) && (
                 <p className="shrink-0 text-[11px] text-gray-400">{link.added_by_name || link.added_by_email}</p>
               )}
@@ -653,6 +756,8 @@ function LinkGrid({
     <ul className={compact ? 'grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid gap-3 sm:grid-cols-2'}>
       {links.map((link) => {
         const mark = toolMark(link.title)
+        const createdLabel = formatCreatedAt(link.created_at)
+        const author = showAuthor ? link.added_by_name || link.added_by_email : null
         return (
           <li key={link.id} className={`rounded-2xl bg-gray-50 ring-1 ring-gray-100 dark:bg-surface-muted dark:ring-border ${compact ? 'p-3' : 'p-4'}`}>
             <div className="flex items-start gap-3">
@@ -669,8 +774,16 @@ function LinkGrid({
                   {link.title}
                 </a>
                 <p className="mt-0.5 truncate font-mono text-[11px] text-gray-400">{link.url}</p>
-                {showAuthor && (link.added_by_name || link.added_by_email) && (
-                  <p className="mt-1 text-[11px] text-gray-400">Added by {link.added_by_name || link.added_by_email}</p>
+                {(createdLabel || author) && (
+                  <p className="mt-1 text-[11px] text-gray-400">
+                    {createdLabel && (
+                      <time dateTime={link.created_at} title={formatCreatedAtFull(link.created_at)}>
+                        {createdLabel}
+                      </time>
+                    )}
+                    {createdLabel && author ? ' · ' : null}
+                    {author ? `Added by ${author}` : null}
+                  </p>
                 )}
                 {!compact && (
                   <div className="mt-3">
