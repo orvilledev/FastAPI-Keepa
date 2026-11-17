@@ -22,6 +22,7 @@ import {
   type RealtimeMessageRow,
 } from '../../lib/messengerRealtime'
 import { ChatUploadError, uploadChatFile } from '../../lib/chatFileUpload'
+import { ensureTeamChatNotificationPermission } from '../../lib/teamChatNotify'
 import AttachmentView, { FileCard } from './ChatAttachment'
 import ChatAvatar, { GroupAvatar } from './ChatAvatar'
 import NewChatModal from './NewChatModal'
@@ -312,6 +313,11 @@ export default function TeamChat() {
 
   const draft = activeId ? drafts[activeId] ?? '' : ''
   const stagedFiles = useMemo(() => (activeId ? staged[activeId] ?? [] : []), [activeId, staged])
+
+  // Ask once while the user is on Team Chat so background OS popups can work on the web.
+  useEffect(() => {
+    void ensureTeamChatNotificationPermission()
+  }, [])
 
   const selectConversation = useCallback(
     (conversationId: string | null, replace = false) => {

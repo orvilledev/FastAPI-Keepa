@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
+import TeamChatMessagePopups from '../chat/TeamChatMessagePopups'
+import { useUser } from '../../contexts/UserContext'
+import { canAccessTeamChat } from '../../lib/teamChatAccess'
 import MaintenanceScheduleBanner from './MaintenanceScheduleBanner'
 import Navbar from './Navbar'
 import Sidebar from './Sidebar'
@@ -17,6 +20,9 @@ export default function Layout() {
     }
   })
   const location = useLocation()
+  const { authUser, userInfo, isSuperadmin } = useUser()
+  const myId = userInfo?.id || authUser?.id || ''
+  const canUseTeamChat = Boolean(authUser) && canAccessTeamChat(userInfo?.email || authUser?.email, isSuperadmin)
 
   const closeMobileNav = () => setMobileNavOpen(false)
 
@@ -93,6 +99,7 @@ export default function Layout() {
         </main>
       </div>
       </div>
+      <TeamChatMessagePopups myId={myId} enabled={canUseTeamChat} />
     </div>
   )
 }

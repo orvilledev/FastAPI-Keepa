@@ -1,4 +1,4 @@
-const SW_VERSION = 'v15'
+const SW_VERSION = 'v16'
 const STATIC_CACHE = `msw-overwatch-static-${SW_VERSION}`
 const RUNTIME_CACHE = `msw-overwatch-runtime-${SW_VERSION}`
 // Do NOT precache index.html / "/" — hashed asset URLs change every deploy.
@@ -149,18 +149,23 @@ self.addEventListener('fetch', (event) => {
   )
 })
 
-// Daily Run T-30 capybara reminders: focus open PWA and tell the page to show the modal.
+// OS notification clicks: Daily Run reminders + Team Chat message alerts.
 self.addEventListener('notificationclick', (event) => {
   const data = event.notification?.data || {}
   event.notification?.close()
-  if (data.type !== 'daily-run-reminder') return
 
-  const targetUrl = data.url || '/'
+  const isDailyRun = data.type === 'daily-run-reminder'
+  const isTeamChat = data.type === 'team-chat'
+  if (!isDailyRun && !isTeamChat) return
+
+  const targetUrl = data.url || (isTeamChat && data.conversationId ? `/chat?c=${data.conversationId}` : '/')
+  const messageType = isTeamChat ? 'TEAM_CHAT_NOTIFY_CLICK' : 'DAILY_RUN_REMINDER_CLICK'
+
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if ('focus' in client) {
-          client.postMessage({ type: 'DAILY_RUN_REMINDER_CLICK', payload: data })
+          client.postMessage({ type: messageType, payload: data })
           return client.focus()
         }
       }
