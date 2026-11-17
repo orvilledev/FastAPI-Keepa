@@ -6,14 +6,16 @@ Update sheet is compiled, so removing one upload never disturbs another's rows.
 The PO Import and Order Import sheets are built per upload instead of merged,
 because one purchase order covers one FBA shipment.
 """
+import base64
 import io
+import json
 import logging
 import zipfile
 from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
 from supabase import Client
 
 from app.api.auth import _ensure_profile_row
@@ -49,6 +51,7 @@ from app.constants.shipment_checklists import (
     normalize_checklist,
     resolve_checklist_steps,
 )
+from app.models.shipment_ship_to_fix import ShipToFixFileResult, ShipToFixResponse
 from app.repositories.catalog_ship_to_repository import CatalogShipToRepository
 from app.repositories.shipment_checklist_template_repository import (
     ShipmentChecklistTemplateRepository,
@@ -78,6 +81,15 @@ from app.services.shipment_manager import (
     ship_to_code,
     stored_rows_to_sku_rows,
 )
+from app.services.shipment_ship_to_fix import (
+    STATUS_ALREADY_CORRECT,
+    STATUS_CORRECTED,
+    STATUS_ERROR,
+    STATUS_UNMATCHED,
+    ShipToFixError,
+    correct_exports,
+    parse_entries,
+)
 from app.utils.error_handler import handle_api_errors
 from app.utils.user_display_name import resolve_user_display_name
 
@@ -86,6 +98,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _MAX_BYTES = 15 * 1024 * 1024
+# Correcting Ship to values is a read-and-rewrite of files nothing is stored for, so it
+# gets its own, more forgiving, limit than the storing uploads.
+_SHIP_TO_FIX_LIMIT = "60/hour"
 _ACCEPTED_SUFFIXES = INPUT_SUFFIXES
 _XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 _ZIP_MEDIA_TYPE = "application/zip"
@@ -472,6 +487,107 @@ def create_shipment(
         unique_upc_count=0,
         can_delete=True,
         created_by_name=_person_name(names, current_user["id"], current_user.get("email")),
+    )
+
+
+def _catalog_presence(db: Client, codes: set[str]) -> dict[str, Optional[bool]]:
+    """Whether each Ship to code is in the Ship To Address Catalog (None if it cannot be checked)."""
+    presence: dict[str, Optional[bool]] = {}
+    repo = CatalogShipToRepository(db)
+    for code in codes:
+        try:
+            presence[code] = repo.get_by_code(code) is not None
+        except Exception:  # noqa: BLE001 - a catalog hiccup must never block the correction
+            logger.debug("ship-to catalog lookup failed for %s", code, exc_info=True)
+            presence[code] = None
+    return presence
+
+
+@router.post("/shipments/ship-to-fix", response_model=ShipToFixResponse)
+@limiter.limit(_SHIP_TO_FIX_LIMIT)
+@handle_api_errors("correct shipment ship to")
+async def correct_shipment_ship_to(
+    request: Request,
+    files: List[UploadFile] = File(...),
+    entries: str = Form(...),
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Rewrite each FBA export's Ship to line with the code Seller Central shows.
+
+    `entries` is a JSON list of {shipment_id, ship_to} read from Seller Central.
+    Each export is matched to an entry by Shipment ID and returned as a corrected
+    CSV. Nothing is stored — this only transforms the files it is given.
+    """
+    try:
+        payload = json.loads(entries)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=400, detail="The Seller Central shipments could not be read."
+        ) from exc
+    try:
+        parsed_entries = parse_entries(payload)
+    except ShipToFixError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if not files:
+        raise HTTPException(status_code=400, detail="Upload at least one FBA export (.csv).")
+
+    uploaded: list[tuple[str, bytes]] = []
+    for file in files:
+        raw = await file.read()
+        if len(raw) > _MAX_BYTES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{file.filename or 'A file'} is too large (max 15 MB).",
+            )
+        uploaded.append((file.filename or "shipment.csv", raw))
+
+    try:
+        outcomes = correct_exports(uploaded, parsed_entries)
+    except ShipToFixError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    presence = _catalog_presence(
+        db, {item.new_ship_to for item in outcomes if item.new_ship_to}
+    )
+    results = [
+        ShipToFixFileResult(
+            filename=item.filename,
+            output_filename=item.output_filename,
+            status=item.status,
+            message=item.message,
+            shipment_id=item.shipment_id,
+            old_ship_to=item.old_ship_to,
+            new_ship_to=item.new_ship_to,
+            matched_shipment_id=item.matched_shipment_id,
+            match_kind=item.match_kind,
+            ship_to_in_catalog=presence.get(item.new_ship_to) if item.new_ship_to else None,
+            content_base64=(
+                base64.b64encode(item.content).decode("ascii") if item.content else ""
+            ),
+        )
+        for item in outcomes
+    ]
+
+    def _count(status_value: str) -> int:
+        return sum(1 for item in outcomes if item.status == status_value)
+
+    logger.info(
+        "Ship to fix by %s: %s file(s), %s corrected, %s already correct, %s unmatched, %s error(s)",
+        current_user.get("email"),
+        len(outcomes),
+        _count(STATUS_CORRECTED),
+        _count(STATUS_ALREADY_CORRECT),
+        _count(STATUS_UNMATCHED),
+        _count(STATUS_ERROR),
+    )
+    return ShipToFixResponse(
+        results=results,
+        corrected_count=_count(STATUS_CORRECTED),
+        already_correct_count=_count(STATUS_ALREADY_CORRECT),
+        unmatched_count=_count(STATUS_UNMATCHED),
+        error_count=_count(STATUS_ERROR),
     )
 
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import JSZip from 'jszip'
 import { shipmentsApi } from '../../services/api'
 import { useAuth } from '../../hooks/useAuth'
 import { SHIPMENT_VENDORS, shipmentVendorLabel } from '../../constants/shipmentVendors'
@@ -16,11 +17,36 @@ import {
 import type { ShipmentDetail as ShipmentDetailRecord, ShipmentUpload } from '../../types'
 
 const ACCEPTED =
-  '.csv,.txt,.tsv,.xlsx,.xlsm,text/csv,' +
+  '.csv,.txt,.tsv,.xlsx,.xlsm,.zip,text/csv,' +
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,' +
-  'application/vnd.ms-excel.sheet.macroEnabled.12'
+  'application/vnd.ms-excel.sheet.macroEnabled.12,' +
+  'application/zip,application/x-zip-compressed'
 
 const VALID_SUFFIXES = ['.csv', '.txt', '.tsv', '.xlsx', '.xlsm']
+const EXPORT_SUFFIX = /\.(csv|txt|tsv|xlsx|xlsm)$/i
+
+function isZipFile(file: File): boolean {
+  return (
+    /\.zip$/i.test(file.name) ||
+    file.type === 'application/zip' ||
+    file.type === 'application/x-zip-compressed'
+  )
+}
+
+/** Unpack a .zip of FBA exports into loose files the existing upload path already accepts. */
+async function extractExportsFromZip(zipFile: File): Promise<File[]> {
+  const zip = await JSZip.loadAsync(await zipFile.arrayBuffer())
+  const extracted: File[] = []
+  for (const [path, entry] of Object.entries(zip.files)) {
+    if (entry.dir) continue
+    const baseName = path.split('/').pop() ?? path
+    if (!baseName || baseName.startsWith('.') || path.includes('__MACOSX/')) continue
+    if (!EXPORT_SUFFIX.test(baseName)) continue
+    const blob = await entry.async('blob')
+    extracted.push(new File([blob], baseName))
+  }
+  return extracted
+}
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
@@ -131,36 +157,58 @@ export default function ShipmentDetail() {
           : Array.from(incoming)
       if (files.length === 0) return
 
-      const valid: File[] = []
-      const rejected: string[] = []
-      for (const file of files) {
-        const name = file.name.toLowerCase()
-        if (VALID_SUFFIXES.some((suffix) => name.endsWith(suffix))) {
-          valid.push(file)
-        } else {
-          rejected.push(file.name)
-        }
-      }
-      if (valid.length === 0) {
-        setError(
-          rejected.length === 1
-            ? 'Upload the FBA shipment export as a .csv or .xlsx file.'
-            : 'Upload FBA shipment exports as .csv or .xlsx files.',
-        )
-        if (fileInputRef.current) fileInputRef.current.value = ''
-        return
-      }
-
       setUploading(true)
       setError(null)
       setMessage(null)
-      const summaries: string[] = []
-      let lastUniqueUpcCount: number | null = null
-      let totalRowsAdded = 0
-      let totalDupes = 0
-      const failed: string[] = []
+
+      const valid: File[] = []
+      const rejected: string[] = []
+      const notices: string[] = []
 
       try {
+        for (const file of files) {
+          if (isZipFile(file)) {
+            try {
+              const inner = await extractExportsFromZip(file)
+              if (inner.length === 0) {
+                notices.push(`No supported FBA export files found inside "${file.name}".`)
+              } else {
+                valid.push(...inner)
+              }
+            } catch {
+              notices.push(`Could not read zip file "${file.name}".`)
+            }
+            continue
+          }
+          const name = file.name.toLowerCase()
+          if (VALID_SUFFIXES.some((suffix) => name.endsWith(suffix))) {
+            valid.push(file)
+          } else {
+            rejected.push(file.name)
+          }
+        }
+
+        if (valid.length === 0) {
+          const parts = [...notices]
+          if (rejected.length > 0) {
+            parts.push(
+              rejected.length === 1
+                ? 'Upload the FBA shipment export as a .csv, .xlsx, or .zip file.'
+                : 'Upload FBA shipment exports as .csv, .xlsx, or .zip files.',
+            )
+          } else if (parts.length === 0) {
+            parts.push('Upload the FBA shipment export as a .csv, .xlsx, or .zip file.')
+          }
+          setError(parts.join(' '))
+          return
+        }
+
+        const summaries: string[] = []
+        let lastUniqueUpcCount: number | null = null
+        let totalRowsAdded = 0
+        let totalDupes = 0
+        const failed: string[] = []
+
         for (const file of valid) {
           try {
             const result = await shipmentsApi.addUpload(shipmentId, file)
@@ -194,7 +242,6 @@ export default function ShipmentDetail() {
           await load()
         }
 
-        const notices: string[] = []
         if (rejected.length > 0) {
           notices.push(
             `Skipped ${rejected.length} unsupported file${rejected.length === 1 ? '' : 's'}: ${rejected.join(', ')}.`,
@@ -913,7 +960,7 @@ export default function ShipmentDetail() {
         onDrop={handleDrop}
       >
         <p className="text-sm text-gray-600">
-          Drag and drop your FBA shipment exports here, or
+          Drag and drop your FBA shipment exports here (.csv, .xlsx, or a .zip of them), or
         </p>
         <button
           type="button"

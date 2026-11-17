@@ -11,6 +11,7 @@ import {
   type ShipmentStatusValue,
 } from '../../constants/shipmentStatuses'
 import type { ShipmentFolder, ShipmentRecord } from '../../types'
+import ShipToFixPanel from './ShipToFixPanel'
 
 const STARRED_SECTION_ID = '__starred__'
 const ARCHIVE_SECTION_ID = '__archive__'
@@ -147,6 +148,7 @@ export default function ShipmentManager() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
+  const [showShipToFix, setShowShipToFix] = useState(false)
   const [name, setName] = useState('')
   const [notes, setNotes] = useState('')
   const [vendorPreset, setVendorPreset] = useState<string>(SHIPMENT_VENDORS[0].code)
@@ -1337,6 +1339,14 @@ export default function ShipmentManager() {
           >
             {showFolderForm ? 'Cancel' : 'Create group'}
           </button>
+          <button
+            type="button"
+            onClick={() => setShowShipToFix((open) => !open)}
+            aria-expanded={showShipToFix}
+            className="rounded-md border border-emerald-600 bg-white px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
+          >
+            {showShipToFix ? 'Close Ship to fix' : 'Fix Ship to'}
+          </button>
         </div>
       </header>
 
@@ -1350,6 +1360,8 @@ export default function ShipmentManager() {
           {message}
         </div>
       )}
+
+      <ShipToFixPanel open={showShipToFix} />
 
       {showForm && (
         <form

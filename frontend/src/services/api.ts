@@ -2684,6 +2684,29 @@ async function rethrowShipmentDownloadError(err: unknown): Promise<never> {
   throw err
 }
 
+/** One FBA export run through the Ship to correction. */
+export type ShipToFixFileResult = {
+  filename: string
+  output_filename: string
+  status: 'corrected' | 'already_correct' | 'unmatched' | 'error'
+  message: string
+  shipment_id: string
+  old_ship_to: string
+  new_ship_to: string
+  matched_shipment_id: string
+  match_kind: '' | 'exact' | 'fuzzy'
+  ship_to_in_catalog: boolean | null
+  content_base64: string
+}
+
+export type ShipToFixResponse = {
+  results: ShipToFixFileResult[]
+  corrected_count: number
+  already_correct_count: number
+  unmatched_count: number
+  error_count: number
+}
+
 export const shipmentsApi = {
   list: async (): Promise<ShipmentRecord[]> => {
     const response = await api.get<ShipmentRecord[]>('/api/v1/shipments')
@@ -2841,6 +2864,22 @@ export const shipmentsApi = {
       form,
       { timeout: 180_000 },
     )
+    return response.data
+  },
+  /**
+   * Rewrite each FBA export's Ship to line with the code Seller Central shows.
+   * Nothing is stored; the corrected CSVs come back in the response.
+   */
+  fixShipTo: async (
+    files: File[],
+    entries: Array<{ shipment_id: string; ship_to: string }>,
+  ): Promise<ShipToFixResponse> => {
+    const form = new FormData()
+    for (const file of files) form.append('files', file, file.name)
+    form.append('entries', JSON.stringify(entries))
+    const response = await api.post<ShipToFixResponse>('/api/v1/shipments/ship-to-fix', form, {
+      timeout: 180_000,
+    })
     return response.data
   },
   removeUpload: async (shipmentId: string, uploadId: string): Promise<void> => {
