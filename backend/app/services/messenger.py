@@ -29,8 +29,6 @@ DOWNLOAD_LINK_SECONDS = 5 * 60
 _LEGACY_SUPERADMIN_EMAIL = "orvillebarba@gmail.com"
 _MIME_PATTERN = re.compile(r"^[\w.+-]+/[\w.+-]+$")
 _CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]")
-
-
 class MessengerError(Exception):
     """A request the caller can fix (bad input, not a member, ...)."""
 
@@ -42,6 +40,62 @@ class MessengerError(Exception):
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def normalize_reaction_emoji(value: str) -> str:
+    """Keep reactions to a short emoji token — reject plain text and whitespace."""
+    emoji = (value or "").strip()
+    if (
+        not emoji
+        or len(emoji) > 16
+        or _CONTROL_CHARS.search(emoji)
+        or any(ch.isspace() for ch in emoji)
+        or all(ord(ch) < 128 and ch.isalnum() for ch in emoji)
+    ):
+        raise MessengerError(400, "Pick a single emoji reaction.")
+    return emoji
+
+
+def aggregate_reactions(
+    rows: Iterable[Dict[str, Any]],
+    *,
+    viewer_id: str,
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Group active reaction rows by message_id into API-shaped summaries."""
+    by_message: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for row in rows:
+        if row.get("removed_at"):
+            continue
+        message_id = str(row.get("message_id") or "")
+        emoji = str(row.get("emoji") or "")
+        user_id = str(row.get("user_id") or "")
+        if not message_id or not emoji or not user_id:
+            continue
+        bucket = by_message.setdefault(message_id, {})
+        entry = bucket.get(emoji)
+        if not entry:
+            entry = {"emoji": emoji, "count": 0, "reacted_by_me": False, "user_ids": []}
+            bucket[emoji] = entry
+        entry["count"] += 1
+        entry["user_ids"].append(user_id)
+        if user_id == viewer_id:
+            entry["reacted_by_me"] = True
+
+    out: Dict[str, List[Dict[str, Any]]] = {}
+    for message_id, emoji_map in by_message.items():
+        summaries = sorted(
+            (
+                {
+                    "emoji": item["emoji"],
+                    "count": item["count"],
+                    "reacted_by_me": item["reacted_by_me"],
+                }
+                for item in emoji_map.values()
+            ),
+            key=lambda item: (-int(item["count"]), str(item["emoji"])),
+        )
+        out[message_id] = summaries
+    return out
 
 
 def parse_ts(value: Any) -> Optional[datetime]:
@@ -127,7 +181,11 @@ def _format_size(size: int) -> str:
     return f"{size / (1024 * 1024):.0f} MB"
 
 
-def serialize_message(row: Dict[str, Any]) -> Dict[str, Any]:
+def serialize_message(
+    row: Dict[str, Any],
+    *,
+    reactions: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
     deleted = bool(row.get("deleted_at"))
     attachment = None
     if not deleted and row.get("attachment_path"):
@@ -144,6 +202,7 @@ def serialize_message(row: Dict[str, Any]) -> Dict[str, Any]:
         "created_at": row.get("created_at"),
         "deleted": deleted,
         "attachment": attachment,
+        "reactions": [] if deleted else list(reactions or []),
     }
 
 
@@ -439,8 +498,18 @@ class MessengerService:
         rows = rows[:limit]
         if not after:
             rows = list(reversed(rows))
+        reaction_map = aggregate_reactions(
+            self.repo.list_reactions_for_messages([str(row.get("id")) for row in rows]),
+            viewer_id=str(current_user_id),
+        )
         return {
-            "messages": [serialize_message(row) for row in rows],
+            "messages": [
+                serialize_message(
+                    row,
+                    reactions=reaction_map.get(str(row.get("id")), []),
+                )
+                for row in rows
+            ],
             "has_more": has_more,
         }
 
@@ -479,7 +548,7 @@ class MessengerService:
         )
         # Sending implies you have read everything up to your own message.
         self.repo.set_last_read(conversation_id, me, created_at)
-        return serialize_message(saved)
+        return serialize_message(saved, reactions=[])
 
     def unsend_message(self, message_id: str, current_user_id: str) -> Dict[str, Any]:
         me = str(current_user_id)
@@ -491,7 +560,7 @@ class MessengerService:
         if str(row.get("sender_id") or "") != me:
             raise MessengerError(403, "You can only unsend your own messages.")
         if row.get("deleted_at"):
-            return serialize_message(row)
+            return serialize_message(row, reactions=[])
 
         patch = {
             "body": "",
@@ -511,7 +580,53 @@ class MessengerService:
                 conversation_id,
                 {"last_message_preview": UNSENT_PREVIEW, "updated_at": utcnow().isoformat()},
             )
-        return serialize_message(updated)
+        return serialize_message(updated, reactions=[])
+
+    def toggle_reaction(
+        self,
+        message_id: str,
+        current_user_id: str,
+        emoji: str,
+    ) -> Dict[str, Any]:
+        """Add or remove one emoji reaction; returns the updated message payload."""
+        me = str(current_user_id)
+        emoji = normalize_reaction_emoji(emoji)
+        row = self.repo.get_message(message_id)
+        if not row:
+            raise MessengerError(404, "Message not found")
+        if row.get("deleted_at"):
+            raise MessengerError(400, "You cannot react to an unsent message.")
+        conversation_id = str(row.get("conversation_id"))
+        self.require_membership(conversation_id, me)
+
+        existing = self.repo.get_reaction(message_id, me, emoji)
+        now = utcnow().isoformat()
+        if existing and not existing.get("removed_at"):
+            self.repo.upsert_reaction(
+                {
+                    "message_id": message_id,
+                    "user_id": me,
+                    "emoji": emoji,
+                    "created_at": existing.get("created_at") or now,
+                    "removed_at": now,
+                }
+            )
+        else:
+            self.repo.upsert_reaction(
+                {
+                    "message_id": message_id,
+                    "user_id": me,
+                    "emoji": emoji,
+                    "created_at": (existing or {}).get("created_at") or now,
+                    "removed_at": None,
+                }
+            )
+
+        reaction_map = aggregate_reactions(
+            self.repo.list_reactions_for_messages([message_id]),
+            viewer_id=me,
+        )
+        return serialize_message(row, reactions=reaction_map.get(message_id, []))
 
     # --- Files ----------------------------------------------------------------
 

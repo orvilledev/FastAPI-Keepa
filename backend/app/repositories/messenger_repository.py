@@ -15,12 +15,17 @@ logger = logging.getLogger(__name__)
 CONVERSATIONS = "messenger_conversations"
 MEMBERS = "messenger_members"
 MESSAGES = "messenger_messages"
+REACTIONS = "messenger_message_reactions"
 _TABLES = (CONVERSATIONS, MEMBERS, MESSAGES)
 FILES_BUCKET = "team-chat-files"
 
 MIGRATION_HINT = (
     "Team Chat is not set up yet (or is missing its latest update). Run "
     "backend/database/migrations/create_messenger_chat.sql in the Supabase SQL Editor."
+)
+REACTIONS_HINT = (
+    "Message reactions are not set up yet. Run "
+    "backend/database/migrations/add_messenger_message_reactions.sql in the Supabase SQL Editor."
 )
 FILES_HINT = (
     "File sharing is not set up yet. Run backend/database/migrations/create_messenger_chat.sql "
@@ -376,6 +381,86 @@ class MessengerRepository:
             logger.error("Team Chat: failed to count unread messages: %s", exc)
             raise _storage_error("count unread messages", exc) from exc
         return out
+
+    # --- Reactions ------------------------------------------------------------
+
+    def list_reactions_for_messages(self, message_ids: Iterable[str]) -> List[Dict[str, Any]]:
+        """Active reactions only (``removed_at`` is null). Empty if the table is not migrated yet."""
+        ids = [str(mid) for mid in message_ids if mid]
+        if not ids:
+            return []
+        out: List[Dict[str, Any]] = []
+        try:
+            for chunk in _chunks(ids):
+                response = (
+                    self.db.table(REACTIONS)
+                    .select("message_id, user_id, emoji, created_at, removed_at")
+                    .in_("message_id", chunk)
+                    .is_("removed_at", "null")
+                    .execute()
+                )
+                out.extend(_rows(response))
+        except Exception as exc:
+            if REACTIONS in _message(exc) and (
+                "does not exist" in _message(exc)
+                or "schema cache" in _message(exc)
+                or "pgrst205" in _message(exc)
+                or "42p01" in _message(exc)
+                or "could not find the table" in _message(exc)
+            ):
+                logger.warning("Team Chat: reactions table missing; returning none. %s", REACTIONS_HINT)
+                return []
+            logger.error("Team Chat: failed to list reactions: %s", exc)
+            raise _storage_error("load reactions", exc) from exc
+        return out
+
+    def get_reaction(self, message_id: str, user_id: str, emoji: str) -> Optional[Dict[str, Any]]:
+        try:
+            response = (
+                self.db.table(REACTIONS)
+                .select("message_id, user_id, emoji, created_at, removed_at")
+                .eq("message_id", message_id)
+                .eq("user_id", user_id)
+                .eq("emoji", emoji)
+                .limit(1)
+                .execute()
+            )
+        except Exception as exc:
+            if REACTIONS in _message(exc) and (
+                "does not exist" in _message(exc)
+                or "schema cache" in _message(exc)
+                or "pgrst205" in _message(exc)
+                or "42p01" in _message(exc)
+                or "could not find the table" in _message(exc)
+            ):
+                raise MessengerStorageError(REACTIONS_HINT, missing_tables=True) from exc
+            logger.error("Team Chat: failed to load reaction: %s", exc)
+            raise _storage_error("load the reaction", exc) from exc
+        rows = _rows(response)
+        return rows[0] if rows else None
+
+    def upsert_reaction(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            response = (
+                self.db.table(REACTIONS)
+                .upsert(row, on_conflict="message_id,user_id,emoji")
+                .execute()
+            )
+        except Exception as exc:
+            if REACTIONS in _message(exc) and (
+                "does not exist" in _message(exc)
+                or "schema cache" in _message(exc)
+                or "pgrst205" in _message(exc)
+                or "42p01" in _message(exc)
+                or "could not find the table" in _message(exc)
+            ):
+                raise MessengerStorageError(REACTIONS_HINT, missing_tables=True) from exc
+            logger.error("Team Chat: failed to save reaction: %s", exc)
+            raise _storage_error("save the reaction", exc) from exc
+        rows = _rows(response)
+        if not rows:
+            raise MessengerStorageError("Failed to save the reaction: no row returned")
+        return rows[0]
 
 
 class MessengerFileStore:

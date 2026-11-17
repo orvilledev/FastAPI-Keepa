@@ -41,6 +41,7 @@ class FakeChatStore:
         self.conversations: dict[str, dict] = {}
         self.members: list[dict] = []
         self.messages: list[dict] = []
+        self.reactions: list[dict] = []
         self.clock = datetime(2026, 11, 13, 12, 0, tzinfo=timezone.utc)
         self.fail_with: Exception | None = None
         self.race_direct = False
@@ -185,6 +186,37 @@ class FakeChatStore:
                     and m["sender_id"] != exclude_sender_id
                     and (since_iso is None or m["created_at"] > since_iso)
                 ]
+
+            def list_reactions_for_messages(self, message_ids):
+                wanted = {str(mid) for mid in message_ids}
+                return [
+                    dict(r)
+                    for r in store.reactions
+                    if str(r["message_id"]) in wanted and not r.get("removed_at")
+                ]
+
+            def get_reaction(self, message_id, user_id, emoji):
+                for r in store.reactions:
+                    if (
+                        r["message_id"] == message_id
+                        and r["user_id"] == user_id
+                        and r["emoji"] == emoji
+                    ):
+                        return dict(r)
+                return None
+
+            def upsert_reaction(self, row):
+                for r in store.reactions:
+                    if (
+                        r["message_id"] == row["message_id"]
+                        and r["user_id"] == row["user_id"]
+                        and r["emoji"] == row["emoji"]
+                    ):
+                        r.update(row)
+                        return dict(r)
+                saved = dict(row)
+                store.reactions.append(saved)
+                return dict(saved)
 
         return FakeRepository
 
@@ -437,6 +469,40 @@ def test_outsiders_cannot_read_or_post(alice, store):
     assert outsider.post(f"{base}/messages", json={"body": "hi"}).status_code == 404
     assert outsider.post(f"{base}/read").status_code == 404
     assert outsider.get(base).status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Reactions
+# ---------------------------------------------------------------------------
+
+
+def test_members_can_toggle_emoji_reactions(alice, bob):
+    conv = _start_direct(alice, BOB)
+    message = _send(alice, conv["id"], "hello")
+    assert message["reactions"] == []
+
+    added = alice.post(
+        f"/api/v1/messenger/messages/{message['id']}/reactions", json={"emoji": "👍"}
+    )
+    assert added.status_code == 200, added.text
+    assert added.json()["reactions"] == [{"emoji": "👍", "count": 1, "reacted_by_me": True}]
+
+    bob_view = bob.post(
+        f"/api/v1/messenger/messages/{message['id']}/reactions", json={"emoji": "👍"}
+    ).json()
+    assert bob_view["reactions"] == [{"emoji": "👍", "count": 2, "reacted_by_me": True}]
+
+    listed = bob.get(f"/api/v1/messenger/conversations/{conv['id']}/messages").json()["messages"]
+    assert listed[0]["reactions"] == [{"emoji": "👍", "count": 2, "reacted_by_me": True}]
+
+    removed = alice.post(
+        f"/api/v1/messenger/messages/{message['id']}/reactions", json={"emoji": "👍"}
+    ).json()
+    assert removed["reactions"] == [{"emoji": "👍", "count": 1, "reacted_by_me": False}]
+
+    assert alice.post(
+        f"/api/v1/messenger/messages/{message['id']}/reactions", json={"emoji": "nope"}
+    ).status_code == 400
 
 
 # ---------------------------------------------------------------------------

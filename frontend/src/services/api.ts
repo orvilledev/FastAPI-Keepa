@@ -1801,6 +1801,12 @@ export interface ChatAttachment {
   mime_type: string
 }
 
+export interface ChatReaction {
+  emoji: string
+  count: number
+  reacted_by_me: boolean
+}
+
 export interface ChatMessage {
   id: string
   conversation_id: string
@@ -1809,6 +1815,7 @@ export interface ChatMessage {
   created_at: string
   deleted: boolean
   attachment?: ChatAttachment | null
+  reactions?: ChatReaction[]
 }
 
 export interface ChatUploadTicket {
@@ -1915,6 +1922,13 @@ export const messengerApi = {
 
   unsendMessage: async (messageId: string): Promise<ChatMessage> => {
     const response = await api.delete<ChatMessage>(`/api/v1/messenger/messages/${messageId}`)
+    return response.data
+  },
+
+  toggleReaction: async (messageId: string, emoji: string): Promise<ChatMessage> => {
+    const response = await api.post<ChatMessage>(`/api/v1/messenger/messages/${messageId}/reactions`, {
+      emoji,
+    })
     return response.data
   },
 }

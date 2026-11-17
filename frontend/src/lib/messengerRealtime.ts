@@ -22,9 +22,19 @@ export interface RealtimeMemberRow {
   last_read_at: string | null
 }
 
+/** Raw `messenger_message_reactions` row as delivered by Supabase Realtime. */
+export interface RealtimeReactionRow {
+  message_id: string
+  user_id: string
+  emoji: string
+  created_at?: string
+  removed_at?: string | null
+}
+
 export type MessengerRealtimeEvent =
   | { kind: 'message'; eventType: 'INSERT' | 'UPDATE'; row: RealtimeMessageRow | null }
   | { kind: 'member'; eventType: 'INSERT' | 'UPDATE'; row: RealtimeMemberRow | null }
+  | { kind: 'reaction'; eventType: 'INSERT' | 'UPDATE'; row: RealtimeReactionRow | null }
 
 type EventListener = (event: MessengerRealtimeEvent) => void
 type StatusListener = (connected: boolean) => void
@@ -73,6 +83,20 @@ function ensureChannel() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messenger_members' }, (payload) => {
         emit({ kind: 'member', eventType: 'UPDATE', row: rowOf<RealtimeMemberRow>(payload.new) })
       })
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messenger_message_reactions' },
+        (payload) => {
+          emit({ kind: 'reaction', eventType: 'INSERT', row: rowOf<RealtimeReactionRow>(payload.new) })
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messenger_message_reactions' },
+        (payload) => {
+          emit({ kind: 'reaction', eventType: 'UPDATE', row: rowOf<RealtimeReactionRow>(payload.new) })
+        },
+      )
       .subscribe((status) => {
         setConnected(status === 'SUBSCRIBED')
       })

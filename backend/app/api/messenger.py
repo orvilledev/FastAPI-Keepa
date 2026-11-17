@@ -56,6 +56,10 @@ class DiscardUploadBody(BaseModel):
     path: str = Field(..., min_length=1, max_length=300)
 
 
+class ReactionBody(BaseModel):
+    emoji: str = Field(..., min_length=1, max_length=16)
+
+
 def _service(db: Client) -> MessengerService:
     return MessengerService(MessengerRepository(db), MessengerFileStore())
 
@@ -244,3 +248,19 @@ def unsend_message(
 ):
     with _errors("unsend the message"):
         return _service(db).unsend_message(str(message_id), current_user["id"])
+
+
+@router.post("/messages/{message_id}/reactions")
+def toggle_message_reaction(
+    message_id: UUID,
+    payload: ReactionBody,
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    """Add or remove one emoji reaction on a message (toggle)."""
+    with _errors("react to the message"):
+        return _service(db).toggle_reaction(
+            str(message_id),
+            current_user["id"],
+            payload.emoji,
+        )

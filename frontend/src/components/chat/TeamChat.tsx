@@ -12,7 +12,7 @@ import {
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useUser } from '../../contexts/UserContext'
-import { messengerApi, type ChatConversation, type ChatMessage, type ChatUser } from '../../services/api'
+import { messengerApi, type ChatConversation, type ChatMessage, type ChatReaction, type ChatUser } from '../../services/api'
 import { getApiErrorDetail, getApiErrorStatus } from '../../utils/apiErrorMessage'
 import {
   joinTypingChannel,
@@ -20,11 +20,13 @@ import {
   subscribeMessengerRealtime,
   type MessengerRealtimeEvent,
   type RealtimeMessageRow,
+  type RealtimeReactionRow,
 } from '../../lib/messengerRealtime'
 import { ChatUploadError, uploadChatFile } from '../../lib/chatFileUpload'
 import { ensureTeamChatNotificationPermission } from '../../lib/teamChatNotify'
 import AttachmentView, { FileCard } from './ChatAttachment'
 import ChatAvatar, { GroupAvatar } from './ChatAvatar'
+import EmojiPicker, { QUICK_REACTIONS } from './EmojiPicker'
 import NewChatModal from './NewChatModal'
 import {
   GROUP_WINDOW_MS,
@@ -126,7 +128,14 @@ function sortMessages(messages: UiMessage[]): UiMessage[] {
 function mergeMessages(existing: UiMessage[], incoming: ChatMessage[]): UiMessage[] {
   const byId = new Map(existing.map((m) => [m.id, m]))
   for (const message of incoming) {
-    byId.set(message.id, { ...message, pending: false, failed: false })
+    const prev = byId.get(message.id)
+    byId.set(message.id, {
+      ...prev,
+      ...message,
+      reactions: message.reactions ?? prev?.reactions ?? [],
+      pending: false,
+      failed: false,
+    })
   }
   return sortMessages([...byId.values()])
 }
@@ -148,7 +157,51 @@ function fromRealtimeRow(row: RealtimeMessageRow): ChatMessage {
             mime_type: row.attachment_type || 'application/octet-stream',
           }
         : null,
+    reactions: [],
   }
+}
+
+function applyReactionRow(
+  reactions: ChatReaction[] | undefined,
+  row: RealtimeReactionRow,
+  myId: string,
+): ChatReaction[] {
+  const emoji = String(row.emoji || '')
+  const userId = String(row.user_id || '')
+  if (!emoji || !userId) return reactions ?? []
+  const removed = Boolean(row.removed_at)
+  const mine = userId === myId
+  const current = [...(reactions ?? [])]
+  const index = current.findIndex((item) => item.emoji === emoji)
+
+  if (removed) {
+    if (index < 0) return current
+    const item = current[index]
+    const nextCount = Math.max(0, item.count - 1)
+    if (nextCount === 0) {
+      current.splice(index, 1)
+      return current
+    }
+    current[index] = {
+      ...item,
+      count: nextCount,
+      reacted_by_me: mine ? false : item.reacted_by_me,
+    }
+    return current
+  }
+
+  if (index < 0) {
+    current.push({ emoji, count: 1, reacted_by_me: mine })
+  } else {
+    const item = current[index]
+    if (mine && item.reacted_by_me) return current
+    current[index] = {
+      emoji,
+      count: item.count + 1,
+      reacted_by_me: item.reacted_by_me || mine,
+    }
+  }
+  return current.sort((a, b) => b.count - a.count || a.emoji.localeCompare(b.emoji))
 }
 
 function isDesktopWidth(): boolean {
@@ -244,6 +297,11 @@ const ICONS = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
     </svg>
   ),
+  emoji: (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
   close: (
     <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
@@ -284,6 +342,8 @@ export default function TeamChat() {
   const [leaving, setLeaving] = useState(false)
   const [staged, setStaged] = useState<Record<string, StagedFile[]>>({})
   const [dragActive, setDragActive] = useState(false)
+  const [composerEmojiOpen, setComposerEmojiOpen] = useState(false)
+  const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null)
 
   const activeIdRef = useRef<string | null>(activeId)
   const threadRef = useRef<ThreadState>(thread)
@@ -778,13 +838,82 @@ export default function TeamChat() {
       setThread((t) => ({
         ...t,
         messages: t.messages.map((m) =>
-          m.id === updated.id ? { ...m, body: '', deleted: true, attachment: null } : m,
+          m.id === updated.id
+            ? { ...m, body: '', deleted: true, attachment: null, reactions: [] }
+            : m,
         ),
       }))
       scheduleListRefresh()
     } catch (err) {
       setActionError(errorText(err, 'Could not unsend the message.'))
     }
+  }
+
+  const toggleReaction = async (message: UiMessage, emoji: string) => {
+    if (message.deleted || isLocal(message)) return
+    setReactionPickerFor(null)
+    const previous = message.reactions ?? []
+    // Optimistic update so the chip feels instant.
+    const existing = previous.find((item) => item.emoji === emoji)
+    const mine = Boolean(existing?.reacted_by_me)
+    let optimistic: ChatReaction[]
+    if (mine && existing) {
+      optimistic = previous
+        .map((item) =>
+          item.emoji === emoji
+            ? { ...item, count: item.count - 1, reacted_by_me: false }
+            : item,
+        )
+        .filter((item) => item.count > 0)
+    } else if (existing) {
+      optimistic = previous.map((item) =>
+        item.emoji === emoji ? { ...item, count: item.count + 1, reacted_by_me: true } : item,
+      )
+    } else {
+      optimistic = [...previous, { emoji, count: 1, reacted_by_me: true }].sort(
+        (a, b) => b.count - a.count || a.emoji.localeCompare(b.emoji),
+      )
+    }
+    setThread((t) => ({
+      ...t,
+      messages: t.messages.map((m) => (m.id === message.id ? { ...m, reactions: optimistic } : m)),
+    }))
+    try {
+      const updated = await messengerApi.toggleReaction(message.id, emoji)
+      setThread((t) => ({
+        ...t,
+        messages: t.messages.map((m) =>
+          m.id === updated.id ? { ...m, reactions: updated.reactions ?? [] } : m,
+        ),
+      }))
+    } catch (err) {
+      setThread((t) => ({
+        ...t,
+        messages: t.messages.map((m) => (m.id === message.id ? { ...m, reactions: previous } : m)),
+      }))
+      setActionError(errorText(err, 'Could not update the reaction.'))
+    }
+  }
+
+  const insertComposerEmoji = (emoji: string) => {
+    const el = textareaRef.current
+    if (!activeId) {
+      setDraft(`${draft}${emoji}`)
+      return
+    }
+    if (!el) {
+      setDraft(`${draft}${emoji}`)
+      return
+    }
+    const start = el.selectionStart ?? draft.length
+    const end = el.selectionEnd ?? draft.length
+    const next = `${draft.slice(0, start)}${emoji}${draft.slice(end)}`
+    setDraft(next)
+    requestAnimationFrame(() => {
+      const pos = start + emoji.length
+      el.focus()
+      el.setSelectionRange(pos, pos)
+    })
   }
 
   const leaveGroup = async (conversation: ChatConversation) => {
@@ -985,6 +1114,8 @@ export default function TeamChat() {
     setShowNewPill(false)
     setActionError(null)
     setDragActive(false)
+    setComposerEmojiOpen(false)
+    setReactionPickerFor(null)
     dragDepthRef.current = 0
     nearBottomRef.current = true
     if (!activeId) {
@@ -1029,7 +1160,13 @@ export default function TeamChat() {
                   ...t,
                   messages: t.messages.map((m) =>
                     m.id === message.id
-                      ? { ...m, body: message.body, deleted: message.deleted, attachment: message.attachment }
+                      ? {
+                          ...m,
+                          body: message.body,
+                          deleted: message.deleted,
+                          attachment: message.attachment,
+                          reactions: message.deleted ? [] : m.reactions,
+                        }
                       : m,
                   ),
                 }
@@ -1038,6 +1175,20 @@ export default function TeamChat() {
         }
       }
       scheduleListRefresh()
+      return
+    }
+    if (event.kind === 'reaction' && event.row) {
+      const row = event.row
+      // Own toggles are already applied optimistically from the API response.
+      if (row.user_id === myId) return
+      setThread((t) => ({
+        ...t,
+        messages: t.messages.map((m) =>
+          m.id === row.message_id
+            ? { ...m, reactions: applyReactionRow(m.reactions, row, myId) }
+            : m,
+        ),
+      }))
       return
     }
     if (event.kind === 'member' && event.row) {
@@ -1661,7 +1812,7 @@ export default function TeamChat() {
                             {ICONS.unsend}
                           </button>
                         )}
-                        <div className={`flex max-w-[78%] flex-col gap-1 ${mine ? 'items-end' : 'items-start'} sm:max-w-[65%]`}>
+                        <div className={`relative flex max-w-[78%] flex-col gap-1 ${mine ? 'items-end' : 'items-start'} sm:max-w-[65%]`}>
                           {message.deleted ? (
                             <div
                               className={`rounded-2xl border border-dashed border-gray-300 px-3.5 py-2 text-sm italic text-gray-400 dark:border-slate-600 dark:text-slate-500 ${corner}`}
@@ -1671,6 +1822,46 @@ export default function TeamChat() {
                             </div>
                           ) : (
                             <>
+                              {!isLocal(message) && (
+                                <div
+                                  className={`absolute -top-3 z-10 flex items-center gap-0.5 rounded-full border border-gray-200 bg-white p-0.5 shadow-sm transition-opacity focus-within:opacity-100 group-hover:opacity-100 dark:border-border dark:bg-surface ${
+                                    reactionPickerFor === message.id ? 'opacity-100' : 'opacity-0'
+                                  } ${mine ? 'left-0 -translate-x-1' : 'right-0 translate-x-1'}`}
+                                >
+                                  {QUICK_REACTIONS.map((emoji) => (
+                                    <button
+                                      key={emoji}
+                                      type="button"
+                                      className="flex h-7 w-7 items-center justify-center rounded-full text-sm hover:bg-gray-100 dark:hover:bg-surface-hover"
+                                      onClick={() => void toggleReaction(message, emoji)}
+                                      aria-label={`React with ${emoji}`}
+                                      title={emoji}
+                                    >
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                  <button
+                                    type="button"
+                                    className="flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-surface-hover"
+                                    onClick={() =>
+                                      setReactionPickerFor((id) => (id === message.id ? null : message.id))
+                                    }
+                                    aria-label="More reactions"
+                                    title="More"
+                                  >
+                                    +
+                                  </button>
+                                  {reactionPickerFor === message.id && (
+                                    <EmojiPicker
+                                      open
+                                      placement="above"
+                                      className={mine ? 'left-0' : 'right-0'}
+                                      onClose={() => setReactionPickerFor(null)}
+                                      onPick={(emoji) => void toggleReaction(message, emoji)}
+                                    />
+                                  )}
+                                </div>
+                              )}
                               {message.attachment &&
                                 (isLocal(message) ? (
                                   <div className={message.failed ? 'rounded-2xl opacity-70 ring-2 ring-red-400' : ''}>
@@ -1714,6 +1905,27 @@ export default function TeamChat() {
                                   title={formatFullTimestamp(message.created_at)}
                                 >
                                   <MessageText text={message.body} />
+                                </div>
+                              )}
+                              {(message.reactions?.length ?? 0) > 0 && (
+                                <div className={`flex flex-wrap gap-1 ${mine ? 'justify-end' : 'justify-start'}`}>
+                                  {message.reactions!.map((reaction) => (
+                                    <button
+                                      key={reaction.emoji}
+                                      type="button"
+                                      onClick={() => void toggleReaction(message, reaction.emoji)}
+                                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors ${
+                                        reaction.reacted_by_me
+                                          ? 'border-[#81B81D] bg-[#81B81D]/15 text-gray-800 dark:text-slate-100'
+                                          : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-border dark:bg-surface dark:text-slate-200 dark:hover:bg-surface-hover'
+                                      }`}
+                                      aria-label={`${reaction.emoji} ${reaction.count}${reaction.reacted_by_me ? ', including you' : ''}`}
+                                      title={reaction.reacted_by_me ? 'Remove your reaction' : 'Add this reaction'}
+                                    >
+                                      <span>{reaction.emoji}</span>
+                                      <span className="font-semibold tabular-nums">{reaction.count}</span>
+                                    </button>
+                                  ))}
                                 </div>
                               )}
                             </>
@@ -1860,6 +2072,26 @@ export default function TeamChat() {
             >
               {ICONS.attach}
             </button>
+            <div className="relative mb-0.5">
+              <button
+                type="button"
+                onClick={() => setComposerEmojiOpen((open) => !open)}
+                disabled={composerDisabled}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-400 dark:hover:bg-surface-hover dark:hover:text-slate-100"
+                aria-label="Insert emoji"
+                title="Emoji"
+                aria-expanded={composerEmojiOpen}
+              >
+                {ICONS.emoji}
+              </button>
+              <EmojiPicker
+                open={composerEmojiOpen}
+                placement="above"
+                className="left-0"
+                onClose={() => setComposerEmojiOpen(false)}
+                onPick={insertComposerEmoji}
+              />
+            </div>
             <textarea
               ref={textareaRef}
               value={draft}
