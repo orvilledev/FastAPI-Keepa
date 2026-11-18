@@ -1033,7 +1033,7 @@ export function buildWarehouseLabelBatchPdfBlob(
 }
 
 /** Convert the thresholded label canvas into a ZPL ^GFA raster payload. */
-function canvasToZplGraphic(canvas: HTMLCanvasElement): {
+export function canvasToZplGraphic(canvas: HTMLCanvasElement): {
   hex: string
   totalBytes: number
   bytesPerRow: number

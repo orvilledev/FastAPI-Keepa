@@ -37,6 +37,11 @@ CLIENT_ACTIONS: Dict[str, tuple[str, str]] = {
     "label_station.download_pdf": ("download", "Downloaded a warehouse label PDF"),
     "label_station.download_pdf_queue": ("download", "Downloaded a warehouse label queue PDF"),
     "label_station.template_download": ("download", "Downloaded the warehouse products template"),
+    "label_station_2.print": ("tool", "Printed a Label Station II label"),
+    "label_station_2.print_queue": ("tool", "Printed a Label Station II label queue"),
+    "label_station_2.download_pdf": ("download", "Downloaded a Label Station II label PDF"),
+    "label_station_2.download_pdf_queue": ("download", "Downloaded a Label Station II label queue PDF"),
+    "label_station_2.template_download": ("download", "Downloaded the Label Station II catalog template"),
     "manifest.template_download": ("download", "Downloaded the Manifest Generator template"),
     "fnsku_box_pivot.template_download": ("download", "Downloaded the FNSKU Pack Station template"),
 }

@@ -514,6 +514,31 @@ export interface WarehouseProductImportResult {
   total_in_file: number
 }
 
+export interface LabelStation2Lookup {
+  upc: string
+  external_id: string
+  description: string
+  vendor_name: string
+  size: string
+  color: string
+  mpn: string
+  /** Looked up from the Label Station catalog by UPC; empty when not found there. */
+  fnsku: string
+}
+
+export interface LabelStation2Product extends LabelStation2Lookup {
+  id: string
+  created_at: string
+  updated_at: string
+}
+
+export interface LabelStation2ImportResult {
+  imported: number
+  invalid: number
+  total_in_file: number
+  missing_fnsku: number
+}
+
 export interface WarehouseSkuCheckResult {
   blob: Blob
   filename: string

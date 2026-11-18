@@ -43,6 +43,7 @@ function buildSearchItems(
   if (isWarehouseOnly) {
     const warehouseItems: SearchItem[] = [
       { label: 'Label Station', path: '/label-station', section: 'Warehouse Tools' },
+      { label: 'Label Station II', path: '/label-station-2', section: 'Warehouse Tools' },
     ]
     if (showLabelCenter) {
       warehouseItems.unshift({ label: 'Label Center', path: '/label-center', section: 'Warehouse Tools' })
@@ -119,6 +120,7 @@ function buildSearchItems(
       items.push({ label: 'Label Center', path: '/label-center', section: 'Warehouse Tools' })
     }
     items.push({ label: 'Label Station', path: '/label-station', section: 'Warehouse Tools' })
+    items.push({ label: 'Label Station II', path: '/label-station-2', section: 'Warehouse Tools' })
   }
 
   items.push(

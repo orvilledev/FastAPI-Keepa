@@ -25,6 +25,11 @@ export type ClientAuditAction =
   | 'label_station.download_pdf'
   | 'label_station.download_pdf_queue'
   | 'label_station.template_download'
+  | 'label_station_2.print'
+  | 'label_station_2.print_queue'
+  | 'label_station_2.download_pdf'
+  | 'label_station_2.download_pdf_queue'
+  | 'label_station_2.template_download'
   | 'manifest.template_download'
   | 'fnsku_box_pivot.template_download'
 

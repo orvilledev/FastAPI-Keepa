@@ -279,6 +279,10 @@ _ROUTES: Tuple[_Route, ...] = (
        "warehouse.check_skus", "tool", "Checked bulk SKUs against the Label Station catalog"),
     _r("DELETE", r"^/api/v1/warehouse-products/[^/]+$",
        "warehouse.delete", "data", "Deleted a warehouse product"),
+    _r("POST", r"^/api/v1/label-station-2/products/import$",
+       "label_station_2.import", "upload", "Imported the Label Station II catalog spreadsheet"),
+    _r("DELETE", r"^/api/v1/label-station-2/products/[^/]+$",
+       "label_station_2.delete", "data", "Deleted a Label Station II product"),
 
     # --- Account / admin -------------------------------------------------------
     _r("POST", r"^/api/v1/auth/users/[^/]+/deactivate$",
@@ -513,6 +517,11 @@ def _enrich_label(
         if upc:
             return f"Deleted warehouse product {upc}"
 
+    if action == "label_station_2.delete":
+        upc = _last_path_segment(path)
+        if upc:
+            return f"Deleted Label Station II product {upc}"
+
     if vendor and action.startswith("analytics."):
         return f"{base_label} ({vendor})"
 
@@ -566,6 +575,7 @@ def category_for(action: str, fallback: str = "other") -> Optional[str]:
         "fnsku": "tool",
         "tracking": "tool",
         "label_station": "tool",
+        "label_station_2": "tool",
         "analytics": "analytics",
         "keepa": "tool",
         "auth": "auth",

@@ -430,6 +430,19 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                 <span className="sidebar-link-label">Label Station</span>
               </Link>
 
+              <Link
+                to="/label-station-2"
+                onMouseEnter={() => setHoveredNav('label-station-2')}
+                className={`sidebar-link ${
+                  navHighlighted('label-station-2', isActive('/label-station-2'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.barcode}</span>
+                <span className="sidebar-link-label">Label Station II</span>
+              </Link>
+
               {canUseFnskuLabels && (
                 <Link
                   to="/fnsku-labels"
@@ -777,6 +790,21 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
               >
                 <span className="shrink-0">{Icons.scanner}</span>
                 <span className="sidebar-link-label">Label Station</span>
+              </Link>
+            )}
+
+            {hasKeepaAccess && (
+              <Link
+                to="/label-station-2"
+                onMouseEnter={() => setHoveredNav('label-station-2')}
+                className={`sidebar-link ${
+                  navHighlighted('label-station-2', isActive('/label-station-2'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.scanner}</span>
+                <span className="sidebar-link-label">Label Station II</span>
               </Link>
             )}
 

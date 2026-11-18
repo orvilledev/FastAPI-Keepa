@@ -14,6 +14,7 @@ const FBA_ORDER_CHECKER_PATH = '/fba-shipment-library'
 /** In-app routes warehouse accounts may open (sidebar + direct links). */
 export const WAREHOUSE_ALLOWED_PATHS = new Set([
   WAREHOUSE_HOME_PATH,
+  '/label-station-2',
   '/label-center',
   '/fnsku-pack-station',
   '/my-space',

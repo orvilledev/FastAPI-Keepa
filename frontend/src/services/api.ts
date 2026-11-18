@@ -8,6 +8,7 @@ import type {
   ManualEmailDraft,
   ManualEmailDraftOpenResult,
   WarehouseProductLookup, WarehouseProductImportResult, WarehouseProduct, WarehouseSkuCheckResult,
+  LabelStation2Product, LabelStation2Lookup, LabelStation2ImportResult,
   CatalogShipToListResponse, CatalogShipToImportResult, CatalogShipToImportPreview, CatalogOldSkusListResponse, CatalogOldSkusImportResult, MySpaceNote,
   ShipmentRecord, ShipmentDetail, ShipmentUploadResult, ShipmentFolder } from '../types'
 
@@ -3311,6 +3312,42 @@ export const warehouseProductsApi = {
   },
   delete: async (upc: string): Promise<void> => {
     await api.delete(`/api/v1/warehouse-products/${encodeURIComponent(upc.trim())}`)
+  },
+}
+
+export const labelStation2Api = {
+  lookup: async (scan: string): Promise<LabelStation2Lookup> => {
+    const response = await api.get<LabelStation2Lookup>('/api/v1/label-station-2/products/lookup', {
+      params: { scan: scan.trim() },
+    })
+    return response.data
+  },
+  getCount: async (): Promise<{ count: number }> => {
+    const response = await api.get<{ count: number }>('/api/v1/label-station-2/products/count')
+    return response.data
+  },
+  list: async (
+    limit = 50,
+    offset = 0,
+    search?: string
+  ): Promise<{ items: LabelStation2Product[]; total: number; limit: number; offset: number }> => {
+    const response = await api.get('/api/v1/label-station-2/products', {
+      params: { limit, offset, search: search || undefined },
+    })
+    return response.data
+  },
+  importFile: async (file: File): Promise<LabelStation2ImportResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    const response = await api.post<LabelStation2ImportResult>(
+      '/api/v1/label-station-2/products/import',
+      form,
+      { timeout: 120_000 }
+    )
+    return response.data
+  },
+  delete: async (upc: string): Promise<void> => {
+    await api.delete(`/api/v1/label-station-2/products/${encodeURIComponent(upc.trim())}`)
   },
 }
 

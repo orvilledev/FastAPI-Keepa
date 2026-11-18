@@ -76,6 +76,7 @@ const FreightClassCalculator = lazy(() => import('./components/tools/FreightClas
 const DimensionerScans = lazy(() => import('./components/tools/DimensionerScans'))
 const LabelCenter = lazy(() => import('./components/scanner/LabelCenter'))
 const LabelStation = lazy(() => import('./components/scanner/LabelStation'))
+const LabelStation2 = lazy(() => import('./components/scanner/LabelStation2'))
 const Notifications = lazy(() => import('./components/notifications/Notifications'))
 const UserManagement = lazy(() => import('./components/admin/UserManagement'))
 const LiveAppSessions = lazy(() => import('./components/admin/LiveAppSessions'))
@@ -612,6 +613,10 @@ function AppRoutes() {
           <Route
             path="label-station"
             element={<ProtectedRoute requireLabelStationAccess={true}><LabelStation /></ProtectedRoute>}
+          />
+          <Route
+            path="label-station-2"
+            element={<ProtectedRoute requireLabelStationAccess={true}><LabelStation2 /></ProtectedRoute>}
           />
           {/* Assistant chat UI hidden for now — deep links go to dashboard */}
           <Route path="assistant" element={<Navigate to="/dashboard" replace />} />

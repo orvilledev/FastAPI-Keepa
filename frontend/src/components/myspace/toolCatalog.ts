@@ -25,6 +25,7 @@ export const BOOKMARKABLE_TOOLS: BookmarkableTool[] = [
   { path: '/dnk-all-inventory', label: 'DNK AllInventory', group: 'Tools' },
   { path: '/label-center', label: 'Label Center', group: 'Tools' },
   { path: '/label-station', label: 'Label Station', group: 'Tools' },
+  { path: '/label-station-2', label: 'Label Station II', group: 'Tools' },
   { path: '/fba-box-contents', label: 'FBA Box Contents', group: 'BC Tools' },
   { path: '/fba-shipment-library', label: 'FBA Order Checker', group: 'BC Tools' },
   { path: '/fba-upload-compare', label: 'FBA Upload Compare', group: 'BC Tools' },
