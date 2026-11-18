@@ -2,7 +2,6 @@ import JsBarcode from 'jsbarcode'
 import { jsPDF } from 'jspdf'
 import XLSX from 'xlsx-js-style'
 import {
-  canvasToZplGraphic,
   DEFAULT_LABEL_DPI,
   DEFAULT_LABEL_PRINT_MODE,
   LABEL_PRINT_MODES,
@@ -30,7 +29,12 @@ import {
  */
 
 const BASE_DPI = 203
-const MONO_THRESHOLD = 150
+/**
+ * Canvas text is anti-aliased (soft gray edges). A higher threshold turns those
+ * gray edges solid black before the Zebra raster, so letters stay thick instead
+ * of turning into jagged stairs on thermal stock.
+ */
+const MONO_THRESHOLD = 200
 const FONT_FAMILY = 'Helvetica, Arial, sans-serif'
 
 export const LS2_LABEL_WIDTH_IN = 2.25
@@ -41,27 +45,28 @@ const PAGE_W_PT = 162
 const PAGE_H_PT = 90
 
 const LAYOUT = {
-  pad: 14,
-  lineGap: 5,
-  vendor: { max: 18, min: 11, bold: false, maxLines: 1, wrapBelow: 0 },
+  pad: 10,
+  lineGap: 3,
+  vendor: { max: 26, min: 15, bold: false, maxLines: 1, wrapBelow: 0 },
   /** Wraps onto a second line rather than shrinking below `wrapBelow`. */
-  description: { max: 24, min: 13, bold: true, maxLines: 2, wrapBelow: 18 },
-  color: { max: 19, min: 11, bold: true, maxLines: 1, wrapBelow: 0 },
-  mpn: { max: 17, min: 11, bold: false, maxLines: 1, wrapBelow: 0 },
-  wrapLineGap: 3,
-  sizeMaxFont: 46,
-  sizeMinFont: 20,
+  description: { max: 36, min: 18, bold: true, maxLines: 2, wrapBelow: 26 },
+  color: { max: 30, min: 16, bold: true, maxLines: 1, wrapBelow: 0 },
+  mpn: { max: 26, min: 15, bold: false, maxLines: 1, wrapBelow: 0 },
+  /** Extra space between wrapped description lines, as a fraction of that line's font. */
+  wrapLineGapRatio: 0.38,
+  sizeMaxFont: 68,
+  sizeMinFont: 30,
   /** Size column never takes more than this share of the inner width. */
-  sizeMaxShare: 0.42,
-  gapTextSize: 12,
-  gapTextBarcode: 10,
-  barcodeHeight: 66,
+  sizeMaxShare: 0.4,
+  gapTextSize: 10,
+  gapTextBarcode: 6,
+  barcodeHeight: 52,
   /** Barcode gives up height (down to this) when a wrapped description needs the room. */
-  barcodeMinHeight: 40,
+  barcodeMinHeight: 34,
   /** Barcode may use up to this share of the inner width. */
-  barcodeMaxShare: 0.78,
-  gapBarcodeUpc: 5,
-  upcFont: 18,
+  barcodeMaxShare: 0.82,
+  gapBarcodeUpc: 4,
+  upcFont: 24,
 }
 
 export type LabelStation2LabelProduct = {
@@ -83,6 +88,27 @@ function normalizeDpi(dpi: number | undefined): LabelDpi {
 
 function setFont(ctx: CanvasRenderingContext2D, px: number, bold: boolean) {
   ctx.font = `${bold ? 'bold ' : ''}${px}px ${FONT_FAMILY}`
+}
+
+/**
+ * Fill + light stroke so soft anti-aliased edges become solid black. Thermal
+ * printers only print pure black; gray canvas AA otherwise becomes jagged.
+ */
+function drawCrispText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  fontPx: number
+): void {
+  const stroke = Math.max(1, Math.round(fontPx * 0.04))
+  ctx.lineJoin = 'round'
+  ctx.miterLimit = 2
+  ctx.lineWidth = stroke
+  ctx.strokeStyle = '#000000'
+  ctx.fillStyle = '#000000'
+  ctx.strokeText(text, x, y)
+  ctx.fillText(text, x, y)
 }
 
 /** Shrink to fit `maxWidth` (down to `minFont`), then ellipsize if still too wide. */
@@ -131,8 +157,8 @@ function wrapWords(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
 type LineSpec = { max: number; min: number; bold: boolean; maxLines: number; wrapBelow: number }
 
 /**
- * One line, shrunk to fit. Specs with `maxLines > 1` wrap instead once a single
- * line would need a font smaller than `wrapBelow`; the last line is ellipsized.
+ * Prefer one line at `max`–`wrapBelow`. If that needs a smaller font or would
+ * ellipsize, wrap onto up to `maxLines` instead (last line ellipsized).
  */
 function fitBlock(
   ctx: CanvasRenderingContext2D,
@@ -144,14 +170,12 @@ function fitBlock(
   const maxFont = d(spec.max)
   const minFont = d(spec.min)
   const wrapBelow = d(spec.wrapBelow)
-  setFont(ctx, maxFont, spec.bold)
-  const width = ctx.measureText(text).width
-  const singleFont = width > 0 ? Math.floor((maxFont * maxWidth) / width) : maxFont
-  if (spec.maxLines <= 1 || singleFont >= wrapBelow) {
-    const single = fitLine(ctx, text, maxWidth, maxFont, minFont, spec.bold)
+  const single = fitLine(ctx, text, maxWidth, maxFont, minFont, spec.bold)
+  const fitsOneCleanLine = single.text === text && single.font >= wrapBelow
+  if (spec.maxLines <= 1 || fitsOneCleanLine || wrapBelow <= 0) {
     return { lines: [single.text], font: single.font }
   }
-  for (let font = wrapBelow; font >= minFont; font -= 1) {
+  for (let font = Math.min(wrapBelow, maxFont); font >= minFont; font -= 1) {
     setFont(ctx, font, spec.bold)
     const lines = wrapWords(ctx, text, maxWidth)
     if (lines.length <= spec.maxLines && lines.every((l) => ctx.measureText(l).width <= maxWidth)) {
@@ -162,7 +186,11 @@ function fitBlock(
   const wrapped = wrapWords(ctx, text, maxWidth)
   const lines = wrapped.slice(0, spec.maxLines)
   const last = lines.length - 1
-  lines[last] = ellipsize(ctx, wrapped.length > spec.maxLines ? `${lines[last]}…` : lines[last], maxWidth)
+  lines[last] = ellipsize(
+    ctx,
+    wrapped.length > spec.maxLines ? `${lines[last]}…` : lines[last],
+    maxWidth
+  )
   for (let i = 0; i < last; i += 1) lines[i] = ellipsize(ctx, lines[i], maxWidth)
   return { lines, font: minFont }
 }
@@ -212,9 +240,10 @@ export function renderLabelStation2Canvas(
   const canvas = document.createElement('canvas')
   canvas.width = W
   canvas.height = H
-  const ctx = canvas.getContext('2d')
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return canvas
 
+  ctx.imageSmoothingEnabled = false
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, W, H)
 
@@ -253,15 +282,16 @@ export function renderLabelStation2Canvas(
     { value: product.color, spec: LAYOUT.color },
     { value: product.mpn, spec: LAYOUT.mpn },
   ]
-  const wrapGap = d(LAYOUT.wrapLineGap)
   const blocks = specs
     .map(({ value, spec }) => ({ value: (value || '').trim(), spec }))
     .filter((block) => block.value)
     .map(({ value, spec }) => {
       const fit = fitBlock(ctx, value, textWidth, spec, d)
+      const wrapGap = Math.max(2, Math.round(fit.font * LAYOUT.wrapLineGapRatio))
       return {
         ...fit,
         bold: spec.bold,
+        wrapGap,
         height: fit.font * fit.lines.length + wrapGap * (fit.lines.length - 1),
       }
     })
@@ -287,7 +317,9 @@ export function renderLabelStation2Canvas(
   const barcodeBlockH = code ? barcodeH + d(LAYOUT.gapBarcodeUpc) + upcFont : 0
   const contentH = topBlockH + gapMiddle + barcodeBlockH
 
-  const top = Math.max(pad, Math.round((H - contentH) / 2))
+  // Prefer a top-biased pack so short catalogs leave spare room under the
+  // barcode instead of a large empty band between the text and barcode.
+  const top = Math.max(pad, Math.min(pad + d(4), Math.round((H - contentH) / 2)))
 
   // Left column: vendor, description, color, MPN.
   ctx.textAlign = 'left'
@@ -296,9 +328,9 @@ export function renderLabelStation2Canvas(
     if (index > 0) y += d(LAYOUT.lineGap)
     setFont(ctx, block.font, block.bold)
     block.lines.forEach((text, lineIndex) => {
-      if (lineIndex > 0) y += wrapGap
+      if (lineIndex > 0) y += block.wrapGap
       y += block.font
-      ctx.fillText(text, pad, y)
+      drawCrispText(ctx, text, pad, y, block.font)
     })
   })
 
@@ -307,7 +339,7 @@ export function renderLabelStation2Canvas(
     ctx.textAlign = 'right'
     setFont(ctx, sizeFit.font, true)
     const baseline = top + Math.round(topBlockH / 2 + sizeFit.font * 0.36)
-    ctx.fillText(sizeFit.text, W - pad, baseline)
+    drawCrispText(ctx, sizeFit.text, W - pad, baseline, sizeFit.font)
   }
 
   // Barcode (left-aligned with the text) and the UPC centred beneath it.
@@ -320,13 +352,13 @@ export function renderLabelStation2Canvas(
     }
     by += barcodeH + d(LAYOUT.gapBarcodeUpc) + upcFont
     ctx.textAlign = 'center'
-    const upcFit = fitLine(ctx, code, innerWidth, upcFont, d(11), false)
+    const upcFit = fitLine(ctx, code, innerWidth, upcFont, d(14), false)
     setFont(ctx, upcFit.font, false)
     const centre = Math.min(
       Math.max(pad + barcodeW / 2, pad + ctx.measureText(upcFit.text).width / 2),
       W - pad - ctx.measureText(upcFit.text).width / 2
     )
-    ctx.fillText(upcFit.text, centre, by)
+    drawCrispText(ctx, upcFit.text, centre, by, upcFit.font)
   }
 
   const image = ctx.getImageData(0, 0, W, H)
@@ -353,20 +385,207 @@ function clampCopies(copies: number): number {
   return Math.max(1, Math.min(Number.isFinite(copies) ? copies : 1, 99))
 }
 
+/** ZPL field data cannot contain ^ ~ \\. */
+function zplEscape(text: string): string {
+  return (text || '').replace(/[\^~\\]/g, ' ').trim()
+}
+
+/** Approximate ^A0 character width — close enough for fit-to-width. */
+function zplTextWidth(text: string, font: number): number {
+  return Math.ceil(Math.max(1, text.length) * font * 0.56)
+}
+
+function zplFitLine(
+  text: string,
+  maxWidth: number,
+  maxFont: number,
+  minFont: number
+): { text: string; font: number } {
+  if (!text) return { text: '', font: maxFont }
+  if (zplTextWidth(text, maxFont) <= maxWidth) return { text, font: maxFont }
+  const font = Math.max(minFont, Math.floor((maxFont * maxWidth) / zplTextWidth(text, maxFont)))
+  if (zplTextWidth(text, font) <= maxWidth) return { text, font }
+  let cut = text
+  while (cut && zplTextWidth(`${cut}…`, font) > maxWidth) cut = cut.slice(0, -1)
+  return { text: `${cut.trimEnd()}…`, font }
+}
+
+function zplFitBlock(
+  text: string,
+  maxWidth: number,
+  spec: LineSpec,
+  scale: number
+): { lines: string[]; font: number } {
+  const maxFont = Math.round(spec.max * scale)
+  const minFont = Math.round(spec.min * scale)
+  const wrapBelow = Math.round(spec.wrapBelow * scale)
+  const single = zplFitLine(text, maxWidth, maxFont, minFont)
+  const fitsOneCleanLine = single.text === text && single.font >= wrapBelow
+  if (spec.maxLines <= 1 || fitsOneCleanLine || wrapBelow <= 0) {
+    return { lines: [single.text], font: single.font }
+  }
+  for (let font = Math.min(wrapBelow, maxFont); font >= minFont; font -= 1) {
+    const words = text.split(/\s+/).filter(Boolean)
+    const lines: string[] = []
+    let current = ''
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word
+      if (!current || zplTextWidth(candidate, font) <= maxWidth) {
+        current = candidate
+      } else {
+        lines.push(current)
+        current = word
+      }
+    }
+    if (current) lines.push(current)
+    if (lines.length <= spec.maxLines && lines.every((l) => zplTextWidth(l, font) <= maxWidth)) {
+      return { lines, font }
+    }
+  }
+  const font = minFont
+  const words = text.split(/\s+/).filter(Boolean)
+  const wrapped: string[] = []
+  let current = ''
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word
+    if (!current || zplTextWidth(candidate, font) <= maxWidth) current = candidate
+    else {
+      wrapped.push(current)
+      current = word
+    }
+  }
+  if (current) wrapped.push(current)
+  const lines = wrapped.slice(0, spec.maxLines)
+  const last = lines.length - 1
+  if (wrapped.length > spec.maxLines || zplTextWidth(lines[last], font) > maxWidth) {
+    let cut = lines[last]
+    while (cut && zplTextWidth(`${cut}…`, font) > maxWidth) cut = cut.slice(0, -1)
+    lines[last] = `${cut.trimEnd()}…`
+  }
+  return { lines, font }
+}
+
+/**
+ * Native Zebra fonts + Code 128 — sharp on thermal stock. Canvas rasters look
+ * stair-stepped at 203 dpi; ^A0 does not.
+ */
 export function buildLabelStation2Zpl(
   product: LabelStation2LabelProduct,
   copies = 1,
   dpi: number = DEFAULT_LABEL_DPI
 ): string {
-  const canvas = renderLabelStation2Canvas(product, dpi)
-  const { hex, totalBytes, bytesPerRow } = canvasToZplGraphic(canvas)
-  return `^XA
-^LH0,0
-^PW${canvas.width}
-^LL${canvas.height}
-^FO0,0^GFA,${totalBytes},${totalBytes},${bytesPerRow},${hex}^FS
-^PQ${clampCopies(copies)},0,0,N
-^XZ`
+  const targetDpi = normalizeDpi(dpi)
+  const scale = targetDpi / BASE_DPI
+  const W = Math.round(BASE_W * scale)
+  const H = Math.round(BASE_H * scale)
+  const pad = Math.round(LAYOUT.pad * scale)
+  const innerWidth = W - pad * 2
+  const lineGap = Math.round(LAYOUT.lineGap * scale)
+
+  const sizeText = zplEscape((product.size || '').trim())
+  let sizeFit: { text: string; font: number } | null = null
+  let sizeWidth = 0
+  if (sizeText) {
+    sizeFit = zplFitLine(
+      sizeText,
+      Math.round(innerWidth * LAYOUT.sizeMaxShare),
+      Math.round(LAYOUT.sizeMaxFont * scale),
+      Math.round(LAYOUT.sizeMinFont * scale)
+    )
+    sizeWidth = zplTextWidth(sizeFit.text, sizeFit.font)
+  }
+  const textWidth = sizeFit
+    ? innerWidth - sizeWidth - Math.round(LAYOUT.gapTextSize * scale)
+    : innerWidth
+
+  const fieldSpecs: { value: string; spec: LineSpec }[] = [
+    { value: product.vendor_name, spec: LAYOUT.vendor },
+    { value: product.description, spec: LAYOUT.description },
+    { value: product.color, spec: LAYOUT.color },
+    { value: product.mpn, spec: LAYOUT.mpn },
+  ]
+  const blocks = fieldSpecs
+    .map(({ value, spec }) => ({ value: zplEscape((value || '').trim()), spec }))
+    .filter((block) => block.value)
+    .map(({ value, spec }) => {
+      const fit = zplFitBlock(value, textWidth, spec, scale)
+      const wrapGap = Math.max(2, Math.round(fit.font * LAYOUT.wrapLineGapRatio))
+      return {
+        ...fit,
+        wrapGap,
+        height: fit.font * fit.lines.length + wrapGap * (fit.lines.length - 1),
+      }
+    })
+
+  const textBlockH =
+    blocks.reduce((sum, block) => sum + block.height, 0) +
+    Math.max(0, blocks.length - 1) * lineGap
+  const sizeBlockH = sizeFit ? sizeFit.font : 0
+  const topBlockH = Math.max(textBlockH, sizeBlockH)
+
+  const code = zplEscape(barcodeValue(product))
+  const upcFont = Math.round(LAYOUT.upcFont * scale)
+  const gapMiddle = topBlockH > 0 && code ? Math.round(LAYOUT.gapTextBarcode * scale) : 0
+  const barcodeRoom =
+    H - pad * 2 - topBlockH - gapMiddle - Math.round(LAYOUT.gapBarcodeUpc * scale) - upcFont
+  const barcodeH = Math.max(
+    Math.round(LAYOUT.barcodeMinHeight * scale),
+    Math.min(Math.round(LAYOUT.barcodeHeight * scale), barcodeRoom)
+  )
+  const barcodeBlockH = code ? barcodeH + Math.round(LAYOUT.gapBarcodeUpc * scale) + upcFont : 0
+  const contentH = topBlockH + gapMiddle + barcodeBlockH
+  const top = Math.max(pad, Math.min(pad + Math.round(4 * scale), Math.round((H - contentH) / 2)))
+
+  const cmds: string[] = [
+    '^XA',
+    '^LH0,0',
+    `^PW${W}`,
+    `^LL${H}`,
+    // Thin label border.
+    `^FO0,0^GB${W},${H},2^FS`,
+  ]
+
+  let y = top
+  const textTop = top + Math.round((topBlockH - textBlockH) / 2)
+  y = textTop
+  for (let i = 0; i < blocks.length; i += 1) {
+    if (i > 0) y += lineGap
+    const block = blocks[i]
+    for (let lineIndex = 0; lineIndex < block.lines.length; lineIndex += 1) {
+      if (lineIndex > 0) y += block.wrapGap
+      // ^FO is top of the character cell; our canvas used alphabetic baseline.
+      cmds.push(`^FO${pad},${y}^A0N,${block.font},${block.font}^FD${block.lines[lineIndex]}^FS`)
+      y += block.font
+    }
+  }
+
+  if (sizeFit) {
+    const sizeY = top + Math.round((topBlockH - sizeFit.font) / 2)
+    const sizeX = Math.max(pad, W - pad - zplTextWidth(sizeFit.text, sizeFit.font))
+    cmds.push(`^FO${sizeX},${sizeY}^A0N,${sizeFit.font},${sizeFit.font}^FD${sizeFit.text}^FS`)
+  }
+
+  if (code) {
+    let by = top + topBlockH + gapMiddle
+    const modules = 11 * Math.max(1, code.length) + 35
+    const maxBarcodeW = Math.round(innerWidth * LAYOUT.barcodeMaxShare)
+    const module = Math.max(1, Math.min(4, Math.floor(maxBarcodeW / modules)))
+    const barcodeW = modules * module
+    cmds.push(`^FO${pad},${by}^BY${module},2,${barcodeH}^BCN,${barcodeH},N,N,N^FD${code}^FS`)
+    by += barcodeH + Math.round(LAYOUT.gapBarcodeUpc * scale)
+    const upcFit = zplFitLine(code, innerWidth, upcFont, Math.round(14 * scale))
+    const upcW = zplTextWidth(upcFit.text, upcFit.font)
+    const upcX = Math.round(
+      Math.min(
+        Math.max(pad + barcodeW / 2 - upcW / 2, pad),
+        W - pad - upcW
+      )
+    )
+    cmds.push(`^FO${upcX},${by}^A0N,${upcFit.font},${upcFit.font}^FD${upcFit.text}^FS`)
+  }
+
+  cmds.push(`^PQ${clampCopies(copies)},0,0,N`, '^XZ')
+  return cmds.join('\n')
 }
 
 export function buildLabelStation2BatchZpl(

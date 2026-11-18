@@ -73,7 +73,12 @@ function LabelPreview({ product }: { product: LabelStation2LabelProduct }) {
     <canvas
       ref={canvasRef}
       className="w-full bg-white"
-      style={{ aspectRatio: `${LS2_LABEL_WIDTH_IN} / ${LS2_LABEL_HEIGHT_IN}` }}
+      style={{
+        aspectRatio: `${LS2_LABEL_WIDTH_IN} / ${LS2_LABEL_HEIGHT_IN}`,
+        // Nearest-neighbour upscale so the on-screen proof matches the thermal
+        // print (no soft browser anti-alias that looks pixelated on paper).
+        imageRendering: 'pixelated',
+      }}
     />
   )
 }
@@ -884,7 +889,8 @@ export default function LabelStation2() {
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-sm font-semibold text-gray-800">Label</h2>
           <p className="text-xs text-gray-500">
-            Prints on 2.25&quot; × 1.25&quot; stock, the same stock as Label Station&apos;s Medium size.
+            Prints on 2.25&quot; × 1.25&quot; stock, the same stock as Label Station&apos;s Medium size. Zebra
+            print uses native printer fonts so text stays sharp; the on-screen proof is a bitmap.
           </p>
         </div>
         <div className="max-w-sm rounded-lg border-2 border-[#404040] bg-gray-50 p-2 ring-1 ring-[#404040]">
