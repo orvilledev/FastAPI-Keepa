@@ -1,6 +1,4 @@
 """OBZ / SMW FBA INV splitter API — inventory ledger → two Excel workbooks."""
-from __future__ import annotations
-
 import csv
 import io
 import logging
