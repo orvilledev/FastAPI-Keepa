@@ -2486,6 +2486,56 @@ export const productCatalogFormatterApi = {
     postProductCatalog('/api/v1/product-catalog-formatter/format-wr-sku', files),
 }
 
+export type ObzSmwFbaInvResult = {
+  blob: Blob
+  zipFilename: string
+  weeklyFilename: string
+  masterFilename: string
+  ledgerDate: string
+  sourceRows: number
+  obzRows: number
+  smwRows: number
+  droppedAmznRows: number
+  skippedOtherRows: number
+}
+
+export const obzSmwFbaInvApi = {
+  generate: async (file: File): Promise<ObzSmwFbaInvResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    try {
+      const response = await api.post<Blob>('/api/v1/obz-smw-fba-inv/generate', form, {
+        responseType: 'blob',
+        timeout: 300_000,
+      })
+      const headers = response.headers || {}
+      const disposition = headers['content-disposition'] as string | undefined
+      let zipFilename =
+        (typeof headers['x-obz-smw-zip-filename'] === 'string' &&
+          headers['x-obz-smw-zip-filename'].trim()) ||
+        'OBZ_SMW FBA INV.zip'
+      if (disposition) {
+        const match = /filename="?([^";]+)"?/i.exec(disposition)
+        if (match?.[1]) zipFilename = match[1]
+      }
+      return {
+        blob: response.data,
+        zipFilename,
+        weeklyFilename: String(headers['x-obz-smw-weekly-filename'] || ''),
+        masterFilename: String(headers['x-obz-smw-master-filename'] || ''),
+        ledgerDate: String(headers['x-obz-smw-ledger-date'] || ''),
+        sourceRows: Number(headers['x-obz-smw-source-rows'] || 0),
+        obzRows: Number(headers['x-obz-smw-obz-rows'] || 0),
+        smwRows: Number(headers['x-obz-smw-smw-rows'] || 0),
+        droppedAmznRows: Number(headers['x-obz-smw-dropped-amzn-rows'] || 0),
+        skippedOtherRows: Number(headers['x-obz-smw-skipped-other-rows'] || 0),
+      }
+    } catch (err: unknown) {
+      return readBlobError(err)
+    }
+  },
+}
+
 export type FbaUploadCompareResult = {
   blob: Blob
   filename: string

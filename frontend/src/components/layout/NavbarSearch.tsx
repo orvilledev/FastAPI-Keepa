@@ -148,6 +148,7 @@ function buildSearchItems(
     items.push(
       { label: 'FBA Upload Compare', path: '/fba-upload-compare', section: 'BC Tools' },
       { label: 'Product Catalog Formatter', path: '/product-catalog-formatter', section: 'BC Tools' },
+      { label: 'OBZ / SMW FBA INV', path: '/obz-smw-fba-inv', section: 'BC Tools' },
     )
   }
   if (showNsTool) {
