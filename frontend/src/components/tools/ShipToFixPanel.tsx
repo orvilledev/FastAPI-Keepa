@@ -117,7 +117,7 @@ const STATUS_STYLE: Record<ShipToFixFileResult['status'], { label: string; class
 const inputClass =
   'rounded-md border px-2 py-1.5 text-sm font-mono uppercase focus:outline-none focus:ring-1'
 
-export default function ShipToFixPanel({ open }: { open: boolean }) {
+export default function ShipToFixPanel() {
   const [rows, setRows] = useState<Row[]>([])
   const [screenshots, setScreenshots] = useState<Screenshot[]>([])
   const [csvFiles, setCsvFiles] = useState<File[]>([])
@@ -243,10 +243,9 @@ export default function ShipToFixPanel({ open }: { open: boolean }) {
     if (files.length > 0) addCsvFiles(files)
   }
 
-  // A pasted screenshot (Ctrl+V) is read anywhere on the page while the panel is open.
+  // A pasted screenshot (Ctrl+V) is read anywhere on this page.
   // Only pasted images are taken; pasting text into the fields works as normal.
   useEffect(() => {
-    if (!open) return undefined
     const onPaste = (event: globalThis.ClipboardEvent) => {
       if (reading || running) return
       const images = imagesFromClipboard(event.clipboardData)
@@ -256,7 +255,7 @@ export default function ShipToFixPanel({ open }: { open: boolean }) {
     }
     document.addEventListener('paste', onPaste)
     return () => document.removeEventListener('paste', onPaste)
-  }, [open, addScreenshots, reading, running])
+  }, [addScreenshots, reading, running])
 
   const dropHandlers = (onFiles: (files: File[]) => void) => ({
     onDragOver: (event: DragEvent<HTMLElement>) => {
@@ -378,7 +377,7 @@ export default function ShipToFixPanel({ open }: { open: boolean }) {
 
   return (
     <section
-      className={open ? 'space-y-5 rounded-xl border border-gray-200 bg-white p-4' : 'hidden'}
+      className="space-y-5 rounded-xl border border-gray-200 bg-white p-4"
       aria-label="Fix Ship to"
     >
       <div>

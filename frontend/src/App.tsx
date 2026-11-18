@@ -68,6 +68,8 @@ const FbaUploadCompare = lazy(() => import('./components/tools/FbaUploadCompare'
 const FbaShipmentLibrary = lazy(() => import('./components/tools/FbaShipmentLibrary'))
 const DnkAllInventory = lazy(() => import('./components/tools/DnkAllInventory'))
 const ShipmentManager = lazy(() => import('./components/tools/ShipmentManager'))
+const RegisterShipmentPage = lazy(() => import('./components/tools/RegisterShipmentPage'))
+const ShipToFixPage = lazy(() => import('./components/tools/ShipToFixPage'))
 const ShipmentDetail = lazy(() => import('./components/tools/ShipmentDetail'))
 const FreightClassCalculator = lazy(() => import('./components/tools/FreightClassCalculator'))
 const DimensionerScans = lazy(() => import('./components/tools/DimensionerScans'))
@@ -545,6 +547,22 @@ function AppRoutes() {
             element={
               <ProtectedRoute requireShipmentManagerAccess={true}>
                 <ShipmentManager />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="shipment-manager/register"
+            element={
+              <ProtectedRoute requireShipmentManagerAccess={true}>
+                <RegisterShipmentPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="shipment-manager/fix-ship-to"
+            element={
+              <ProtectedRoute requireShipmentManagerAccess={true}>
+                <ShipToFixPage />
               </ProtectedRoute>
             }
           />
