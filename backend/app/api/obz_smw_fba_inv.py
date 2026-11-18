@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from supabase import Client
 
-from app.dependencies import get_db
+from app.database import get_supabase
 from app.middleware.rate_limiter import RateLimits, limiter
 from app.repositories.catalog_old_skus_repository import CatalogOldSkusRepository
 from app.services.obz_smw_fba_inv import (
@@ -94,7 +94,7 @@ def _zip_response(result: GenerateResult) -> Response:
 async def generate_obz_smw_fba_inv(
     request: Request,
     file: UploadFile = File(..., description="Amazon inventory ledger .csv or .zip"),
-    db: Client = Depends(get_db),
+    db: Client = Depends(get_supabase),
 ):
     """Split an Amazon inventory ledger into OBZ weekly + SMW masterfile FBA INV workbooks."""
     name = file.filename or "upload"
