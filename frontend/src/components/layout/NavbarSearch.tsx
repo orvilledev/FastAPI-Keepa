@@ -12,6 +12,7 @@ import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
 import { canAccessDimensioner } from '../../lib/dimensionerAccess'
 import { canAccessNsTool } from '../../lib/nsToolAccess'
 import { canAccessSessionAudit } from '../../lib/sessionAuditAccess'
+import { canAccessObzSmwFbaInv } from '../../lib/obzSmwFbaInvAccess'
 import { canWarehouseAccessFnskuLabels } from '../../constants/warehouseAccess'
 import { isLabelCenterAvailable } from '../../lib/privatePath'
 
@@ -37,6 +38,7 @@ function buildSearchItems(
   showLabelCenter: boolean,
   showNsTool: boolean,
   showSessionAudit: boolean,
+  showObzSmwFbaInv: boolean,
 ): SearchItem[] {
   if (isWarehouseOnly) {
     const warehouseItems: SearchItem[] = [
@@ -148,8 +150,10 @@ function buildSearchItems(
     items.push(
       { label: 'FBA Upload Compare', path: '/fba-upload-compare', section: 'BC Tools' },
       { label: 'Product Catalog Formatter', path: '/product-catalog-formatter', section: 'BC Tools' },
-      { label: 'OBZ / SMW FBA INV', path: '/obz-smw-fba-inv', section: 'BC Tools' },
     )
+    if (showObzSmwFbaInv) {
+      items.push({ label: 'OBZ / SMW FBA INV', path: '/obz-smw-fba-inv', section: 'BC Tools' })
+    }
   }
   if (showNsTool) {
     items.push({ label: 'NS Tool', path: '/ns-tool', section: 'BC Tools' })
@@ -217,6 +221,7 @@ export default function NavbarSearch() {
   const showLabelCenter = isLabelCenterAvailable(accountEmail)
   const showNsTool = canAccessNsTool(accountEmail, isSuperadmin)
   const showSessionAudit = canAccessSessionAudit(accountEmail, isSuperadmin)
+  const showObzSmwFbaInv = canAccessObzSmwFbaInv(isSuperadmin)
 
   const searchItems = useMemo(
     () =>
@@ -236,8 +241,9 @@ export default function NavbarSearch() {
         showLabelCenter,
         showNsTool,
         showSessionAudit,
+        showObzSmwFbaInv,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showFbaBoxContents, showOldSkus, showBcTools, showShipmentManager, showFreightClass, showDimensioner, showFbaOrderChecker, showFnskuLabels, showLabelCenter, showNsTool, showSessionAudit],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showFbaBoxContents, showOldSkus, showBcTools, showShipmentManager, showFreightClass, showDimensioner, showFbaOrderChecker, showFnskuLabels, showLabelCenter, showNsTool, showSessionAudit, showObzSmwFbaInv],
   )
 
   const results = useMemo(() => {

@@ -10,6 +10,7 @@ import { canAccessDimensioner } from '../../lib/dimensionerAccess'
 import { canAccessNsTool } from '../../lib/nsToolAccess'
 import { canAccessSessionAudit } from '../../lib/sessionAuditAccess'
 import { canAccessTeamChat } from '../../lib/teamChatAccess'
+import { canAccessObzSmwFbaInv } from '../../lib/obzSmwFbaInvAccess'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -25,6 +26,7 @@ interface ProtectedRouteProps {
   requireNsToolAccess?: boolean
   requireSessionAuditAccess?: boolean
   requireTeamChatAccess?: boolean
+  requireObzSmwFbaInvAccess?: boolean
 }
 
 export default function ProtectedRoute({
@@ -41,6 +43,7 @@ export default function ProtectedRoute({
   requireNsToolAccess = false,
   requireSessionAuditAccess = false,
   requireTeamChatAccess = false,
+  requireObzSmwFbaInvAccess = false,
 }: ProtectedRouteProps) {
   const {
     hasKeepaAccess,
@@ -137,6 +140,12 @@ export default function ProtectedRoute({
   if (requireTeamChatAccess) {
     const email = userInfo.email || authUser?.email || null
     if (!canAccessTeamChat(email, isSuperadmin)) {
+      return <Navigate to={isWarehouseOnly ? '/label-station' : '/dashboard'} replace />
+    }
+  }
+
+  if (requireObzSmwFbaInvAccess) {
+    if (!canAccessObzSmwFbaInv(isSuperadmin)) {
       return <Navigate to={isWarehouseOnly ? '/label-station' : '/dashboard'} replace />
     }
   }

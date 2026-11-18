@@ -534,7 +534,14 @@ function AppRoutes() {
           />
           <Route path="manifest-generator" element={<ManifestGenerator />} />
           <Route path="product-catalog-formatter" element={<ProductCatalogFormatter />} />
-          <Route path="obz-smw-fba-inv" element={<ObzSmwFbaInv />} />
+          <Route
+            path="obz-smw-fba-inv"
+            element={
+              <ProtectedRoute requireObzSmwFbaInvAccess={true}>
+                <ObzSmwFbaInv />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="ns-tool"
             element={

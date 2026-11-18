@@ -9,6 +9,7 @@ from fastapi.responses import Response
 from supabase import Client
 
 from app.database import get_supabase
+from app.dependencies import get_superadmin_user
 from app.middleware.rate_limiter import RateLimits, limiter
 from app.repositories.catalog_old_skus_repository import CatalogOldSkusRepository
 from app.services.obz_smw_fba_inv import (
@@ -93,8 +94,12 @@ async def generate_obz_smw_fba_inv(
     request: Request,
     file: UploadFile = File(..., description="Amazon inventory ledger .csv or .zip"),
     db: Client = Depends(get_supabase),
+    _superadmin: dict = Depends(get_superadmin_user),
 ):
-    """Split an Amazon inventory ledger into OBZ weekly + SMW masterfile FBA INV workbooks."""
+    """Split an Amazon inventory ledger into OBZ weekly + SMW masterfile FBA INV workbooks.
+
+    Superadmin only for now.
+    """
     name = file.filename or "upload"
     if not name.lower().endswith(_ACCEPTED_SUFFIXES):
         raise HTTPException(

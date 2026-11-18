@@ -875,7 +875,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                   <span className="sidebar-link-label">Product Catalog Formatter</span>
                 </Link>
               )}
-              {canUseBcTools && (
+              {canUseBcTools && isSuperadmin && (
                 <Link
                   to="/obz-smw-fba-inv"
                   onMouseEnter={() => setHoveredNav('obz-smw-fba-inv')}
