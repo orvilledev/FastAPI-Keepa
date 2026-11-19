@@ -1,0 +1,25 @@
+MSW Overwatch 4.0.4 — desktop and web release
+
+Patch release since 4.0.3. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Label Station II
+- New FNSKU scan-and-print station with its own catalog
+- Sharper Zebra print using native fonts and larger type
+
+## Team Chat
+- Messenger-style chathead toasts on the page (Windows toasts only when the tab/app is hidden)
+- Emoji reactions and a composer emoji picker
+
+## Shipments & BC Tools
+- Ship to fix from Seller Central screenshots (including zip uploads and Windows clipboard paste)
+- Register shipment and Fix Ship to moved to their own pages
+- Bulk FBA export uploads in Shipment Manager
+- OBZ / SMW FBA INV splitter for Amazon inventory ledgers (superadmin for now)
+
+## Other
+- Custom link created dates plus sort by date or name
+- Superadmin Refresh all clients to reload open web sessions
+- Auto-reload open web tabs when a new frontend deploy is live
+
+## Upgrade from 4.0.3
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 4.0.4, download it, then prompt to install now or later. Web/PWA users get 4.0.4 on the next deploy/refresh.
