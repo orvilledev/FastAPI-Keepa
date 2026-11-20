@@ -8,6 +8,7 @@ import { canAccessShipmentManager } from '../../lib/shipmentManagerAccess'
 import { canAccessDimensioner } from '../../lib/dimensionerAccess'
 import { canAccessNsTool } from '../../lib/nsToolAccess'
 import { canAccessObzSmwFbaInv } from '../../lib/obzSmwFbaInvAccess'
+import { canAccessBcTools } from '../../lib/bcToolsAccess'
 import { useUser } from '../../contexts/UserContext'
 import CustomLinksPanel from './CustomLinksPanel'
 import NoteContent from './NoteContent'
@@ -79,6 +80,7 @@ export default function MySpacePage() {
   const dimensionerAvailable = canAccessDimensioner(accountEmail, isSuperadmin)
   const nsToolAvailable = canAccessNsTool(accountEmail, isSuperadmin)
   const obzSmwFbaInvAvailable = canAccessObzSmwFbaInv(isSuperadmin)
+  const labelFormatCheckerAvailable = canAccessBcTools(accountEmail, isSuperadmin)
   const [tab, setTab] = useState<TabId>('bookmarks')
   const [links, setLinks] = useState<QuickAccessLink[]>([])
   const [groupedLinkCount, setGroupedLinkCount] = useState(0)
@@ -130,10 +132,11 @@ export default function MySpacePage() {
         (t.path !== '/dimensioner' || dimensionerAvailable) &&
         (t.path !== '/ns-tool' || nsToolAvailable) &&
         (t.path !== '/obz-smw-fba-inv' || obzSmwFbaInvAvailable) &&
+        (t.path !== '/label-format-checker' || labelFormatCheckerAvailable) &&
         (t.label.toLowerCase().includes(toolSearchQuery) ||
           t.path.toLowerCase().includes(toolSearchQuery)),
     )
-  }, [toolSearchQuery, labelCenterAvailable, shipmentManagerAvailable, dimensionerAvailable, nsToolAvailable, obzSmwFbaInvAvailable])
+  }, [toolSearchQuery, labelCenterAvailable, shipmentManagerAvailable, dimensionerAvailable, nsToolAvailable, obzSmwFbaInvAvailable, labelFormatCheckerAvailable])
 
   const toolsByGroup = useMemo(() => {
     const map = new Map<string, BookmarkableTool[]>()

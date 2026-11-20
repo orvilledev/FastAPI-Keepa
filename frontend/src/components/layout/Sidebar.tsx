@@ -178,6 +178,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h10M17 14l4 4m0-4v4h-4" />
     </svg>
   ),
+  labelFormatChecker: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3h7l5 5v13H7a1 1 0 01-1-1V4a1 1 0 011-1zm7 0v5h5M9 14l2 2 4-4" />
+    </svg>
+  ),
   nsTool: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6m4 6V7m4 10v-3M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z" />
@@ -915,6 +920,20 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                 >
                   <span className="shrink-0">{Icons.obzSmwFbaInv}</span>
                   <span className="sidebar-link-label">OBZ / SMW FBA INV</span>
+                </Link>
+              )}
+              {canUseBcTools && (
+                <Link
+                  to="/label-format-checker"
+                  onMouseEnter={() => setHoveredNav('label-format-checker')}
+                  className={`sidebar-link ${
+                    navHighlighted('label-format-checker', isActive('/label-format-checker'))
+                      ? 'sidebar-link-active'
+                      : 'sidebar-link-inactive'
+                  }`}
+                >
+                  <span className="shrink-0">{Icons.labelFormatChecker}</span>
+                  <span className="sidebar-link-label">Label Format Checker</span>
                 </Link>
               )}
               {canUseNsTool && (

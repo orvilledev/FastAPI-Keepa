@@ -2537,6 +2537,81 @@ export const obzSmwFbaInvApi = {
   },
 }
 
+export type LabelCheckStatus = 'pass' | 'warn' | 'fail'
+export type LabelFileStatus = 'pass' | 'review' | 'fail'
+
+export type LabelFormatCheck = {
+  id: string
+  label: string
+  status: LabelCheckStatus
+  detail: string
+  page: number | null
+}
+
+export type LabelFormatBox = {
+  index: number
+  box_page: number
+  ups_page: number | null
+  fields: {
+    box_id?: string
+    shipment_name?: string
+    box_number?: number
+    box_total?: number
+    weight_lb?: number
+    ship_from?: string
+    ship_to_name?: string
+    ship_to_address?: string
+    fulfillment_center?: string
+    created?: string
+    contents?: string
+    sku?: string
+    qty?: number
+    pack_group_box?: string
+    ups_image_px?: string
+    ups_match?: number
+  }
+  checks: LabelFormatCheck[]
+}
+
+export type LabelFormatFile = {
+  name: string
+  path: string
+  size_bytes: number
+  page_count: number
+  status: LabelFileStatus
+  box_count: number
+  box_id: string
+  shipment_name: string
+  checks: LabelFormatCheck[]
+  boxes: LabelFormatBox[]
+  thumbnails: { page: number; kind: 'box' | 'ups'; src: string }[]
+  failed_checks: number
+  warning_checks: number
+  total_checks: number
+}
+
+export type LabelFormatCheckResult = {
+  source_name: string
+  source_kind: 'pdf' | 'zip'
+  checked_at: string
+  summary: { total: number; passed: number; review: number; failed: number; skipped: number }
+  files: LabelFormatFile[]
+  skipped: { name: string; reason: string }[]
+  report_filename: string
+  report_xlsx_base64: string
+}
+
+export const labelFormatCheckerApi = {
+  check: async (file: File): Promise<LabelFormatCheckResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    const response = await api.post<LabelFormatCheckResult>('/api/v1/label-format-checker/check', form, {
+      timeout: 300_000,
+    })
+    return response.data
+  },
+}
+
 export type FbaUploadCompareResult = {
   blob: Blob
   filename: string

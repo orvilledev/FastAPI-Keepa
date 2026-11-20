@@ -62,6 +62,7 @@ const FNSKULabelGenerator = lazy(() => import('./components/scanner/FNSKULabelGe
 const ManifestGenerator = lazy(() => import('./components/tools/ManifestGenerator'))
 const ProductCatalogFormatter = lazy(() => import('./components/tools/ProductCatalogFormatter'))
 const ObzSmwFbaInv = lazy(() => import('./components/tools/ObzSmwFbaInv'))
+const LabelFormatChecker = lazy(() => import('./components/tools/LabelFormatChecker'))
 const NsTool = lazy(() => import('./components/tools/NsTool'))
 const FnskuBoxPivot = lazy(() => import('./components/tools/FnskuBoxPivot'))
 const FbaBoxContents = lazy(() => import('./components/tools/FbaBoxContents'))
@@ -540,6 +541,14 @@ function AppRoutes() {
             element={
               <ProtectedRoute requireObzSmwFbaInvAccess={true}>
                 <ObzSmwFbaInv />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="label-format-checker"
+            element={
+              <ProtectedRoute requireBcToolsAccess={true}>
+                <LabelFormatChecker />
               </ProtectedRoute>
             }
           />

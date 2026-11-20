@@ -156,6 +156,7 @@ function buildSearchItems(
     if (showObzSmwFbaInv) {
       items.push({ label: 'OBZ / SMW FBA INV', path: '/obz-smw-fba-inv', section: 'BC Tools' })
     }
+    items.push({ label: 'Label Format Checker', path: '/label-format-checker', section: 'BC Tools' })
   }
   if (showNsTool) {
     items.push({ label: 'NS Tool', path: '/ns-tool', section: 'BC Tools' })

@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.database import init_db
-from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, label_station2_products, keepa_import_export, analytics, presence, manifest_generator, dnk_all_inventory, freight_class_calculator, audit, catalog_upc_dims, catalog_ship_to, catalog_old_skus, master_sheet, notes, shipments, fnsku_box_pivot, fba_box_contents, fba_upload_compare, fba_shipment_library, product_catalog_formatter, obz_smw_fba_inv, dimensioner, messenger
+from app.api import auth, jobs, batches, reports, upcs, scheduler, tools, quick_access, dashboard, map, notifications, sellers, email_recipients, cli_chat, public, feedback, tracking_scanner, warehouse_products, label_station2_products, keepa_import_export, analytics, presence, manifest_generator, dnk_all_inventory, freight_class_calculator, audit, catalog_upc_dims, catalog_ship_to, catalog_old_skus, master_sheet, notes, shipments, fnsku_box_pivot, fba_box_contents, fba_upload_compare, fba_shipment_library, product_catalog_formatter, obz_smw_fba_inv, label_format_checker, dimensioner, messenger
 from app.scheduler import (
     setup_scheduler,
     setup_completed_jobs_retention_cleanup,
@@ -400,6 +400,7 @@ app.include_router(keepa_import_export.router, prefix=settings.api_v1_str, tags=
 app.include_router(manifest_generator.router, prefix=settings.api_v1_str, tags=["manifest-generator"], dependencies=[Depends(require_app_access)])
 app.include_router(product_catalog_formatter.router, prefix=settings.api_v1_str, tags=["product-catalog-formatter"], dependencies=[Depends(require_app_access)])
 app.include_router(obz_smw_fba_inv.router, prefix=settings.api_v1_str, tags=["obz-smw-fba-inv"], dependencies=[Depends(require_app_access)])
+app.include_router(label_format_checker.router, prefix=settings.api_v1_str, tags=["label-format-checker"], dependencies=[Depends(require_app_access)])
 app.include_router(fnsku_box_pivot.router, prefix=settings.api_v1_str, tags=["fnsku-pack-station"], dependencies=[Depends(require_app_access)])
 app.include_router(fba_box_contents.router, prefix=settings.api_v1_str, tags=["fba-box-contents"], dependencies=[Depends(require_app_access)])
 app.include_router(fba_upload_compare.router, prefix=settings.api_v1_str, tags=["fba-upload-compare"], dependencies=[Depends(require_app_access)])

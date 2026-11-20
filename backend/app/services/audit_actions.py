@@ -241,6 +241,8 @@ _ROUTES: Tuple[_Route, ...] = (
        "catalog_formatter.format_wr_sku", "tool", "Formatted a product catalog from a WR SKU Update"),
     _r("POST", r"^/api/v1/obz-smw-fba-inv/generate$",
        "obz_smw_fba_inv.generate", "tool", "Generated OBZ/SMW FBA INV reports from an inventory ledger"),
+    _r("POST", r"^/api/v1/label-format-checker/check$",
+       "label_format_checker.check", "tool", "Checked box label PDFs against the Amazon label format"),
     _r("POST", r"^/api/v1/fnsku-pack-station/generate$",
        "fnsku_box_pivot.generate", "tool", "Generated an FNSKU Pack Station workbook"),
     _r("POST", r"^/api/v1/fnsku-box-pivot/generate$",
