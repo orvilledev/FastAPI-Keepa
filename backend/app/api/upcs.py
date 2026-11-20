@@ -9,7 +9,7 @@ from app.repositories.upc_repository import UPCRepository
 from app.utils.error_handler import handle_api_errors
 from app.utils.vendor_code import validate_vendor_code
 from supabase import Client
-import csv
+from openpyxl import Workbook
 import io
 import logging
 from datetime import datetime, timezone
@@ -39,13 +39,53 @@ def _parse_categories_csv(categories: Optional[str]) -> Optional[List[str]]:
 def _upc_export_filename(categories: Optional[List[str]]) -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d")
     if not categories:
-        return f"upcs_all_vendors_{stamp}.csv"
+        return f"upcs_all_vendors_{stamp}.xlsx"
     if len(categories) == 1:
-        return f"upcs_{categories[0]}_{stamp}.csv"
+        return f"upcs_{categories[0]}_{stamp}.xlsx"
     joined = "_".join(categories[:6])
     if len(categories) > 6:
         joined += f"_plus{len(categories) - 6}"
-    return f"upcs_{joined}_{stamp}.csv"
+    return f"upcs_{joined}_{stamp}.xlsx"
+
+
+def _write_upc_export_workbook(
+    rows: List[dict],
+    *,
+    single_vendor: bool,
+) -> bytes:
+    """
+    Build an .xlsx workbook with UPC values forced as Excel text.
+
+    Plain CSV lets Excel coerce 12-digit UPCs into scientific notation (e.g. 6.73E+11).
+    Text format (@) keeps the full code visible with no + / hidden digits.
+    """
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "UPCs"
+
+    if single_vendor:
+        ws.append(["upc"])
+        for row in rows:
+            ws.append([str(row["upc"])])
+    else:
+        ws.append(["upc", "category"])
+        for row in rows:
+            ws.append([str(row["upc"]), row["category"]])
+
+    # Column A is always UPC — lock as text (skip header row).
+    for cell in ws["A"][1:]:
+        if cell.value is None:
+            continue
+        cell.number_format = "@"
+        cell.value = str(cell.value)
+
+    ws.column_dimensions["A"].width = 18
+    if not single_vendor:
+        ws.column_dimensions["B"].width = 12
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
 
 
 @router.post("/upcs", response_model=dict, status_code=201)
@@ -171,31 +211,22 @@ def export_upcs(
     ),
 ):
     """
-    Download UPCs as CSV for all vendors or a selected subset.
+    Download UPCs as Excel (.xlsx) for all vendors or a selected subset.
 
-    Multi-vendor files include a header row: upc,category.
-    Single-vendor files are one UPC per line (matches the Add UPCs paste format).
+    Multi-vendor files include columns: upc, category.
+    Single-vendor files include a single upc column.
+    UPC cells are text-formatted so Excel does not show scientific notation.
     """
     parsed = _parse_categories_csv(categories)
     upc_repo = UPCRepository(db)
     rows = upc_repo.get_all_upcs_for_export(categories=parsed)
 
-    buf = io.StringIO()
-    writer = csv.writer(buf)
     single_vendor = parsed is not None and len(parsed) == 1
-    if single_vendor:
-        for row in rows:
-            writer.writerow([row["upc"]])
-    else:
-        writer.writerow(["upc", "category"])
-        for row in rows:
-            writer.writerow([row["upc"], row["category"]])
-
-    csv_bytes = buf.getvalue().encode("utf-8")
+    xlsx_bytes = _write_upc_export_workbook(rows, single_vendor=single_vendor)
     filename = _upc_export_filename(parsed)
     return StreamingResponse(
-        io.BytesIO(csv_bytes),
-        media_type="text/csv",
+        io.BytesIO(xlsx_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 

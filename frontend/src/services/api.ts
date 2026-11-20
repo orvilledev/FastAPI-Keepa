@@ -822,7 +822,7 @@ export const upcsApi = {
     return response.data
   },
 
-  /** Download UPCs CSV. Pass categories for a subset; omit/empty for all vendors. */
+  /** Download UPCs Excel (.xlsx). Pass categories for a subset; omit/empty for all vendors. */
   exportUPCs: async (categories?: string[]) => {
     const params: Record<string, string> = {}
     if (categories?.length) {

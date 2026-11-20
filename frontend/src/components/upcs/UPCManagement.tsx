@@ -294,7 +294,7 @@ export default function UPCManagement() {
       const { blob, filename } = parseMicroToolDownloadResponse(
         response.data,
         response.headers as Record<string, string | undefined>,
-        `upcs_${category}.csv`,
+        `upcs_${category}.xlsx`,
       )
       downloadBlob(blob, filename)
       setSuccess(`Downloaded ${category.toUpperCase()} UPCs`)

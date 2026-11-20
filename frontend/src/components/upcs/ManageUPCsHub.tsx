@@ -49,7 +49,7 @@ export default function ManageUPCsHub() {
       const { blob, filename } = parseMicroToolDownloadResponse(
         response.data,
         response.headers as Record<string, string | undefined>,
-        allSelected ? 'upcs_all_vendors.csv' : `upcs_${selected.join('_')}.csv`,
+        allSelected ? 'upcs_all_vendors.xlsx' : `upcs_${selected.join('_')}.xlsx`,
       )
       downloadBlob(blob, filename)
       setShowDownloadModal(false)
@@ -111,7 +111,7 @@ export default function ManageUPCsHub() {
       <VendorDownloadModal
         open={showDownloadModal}
         title="Download UPCs"
-        description="Choose vendors to include in the CSV export. Select all for every vendor, or pick a subset."
+        description="Choose vendors to include in the Excel export. Select all for every vendor, or pick a subset."
         vendors={vendorOptions}
         selection={downloadSelection}
         downloading={downloading}
