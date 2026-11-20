@@ -35,7 +35,17 @@ def client():
 
 
 def _post(client: TestClient, name: str, data: bytes, content_type: str = "application/octet-stream"):
-    return client.post("/api/v1/label-format-checker/check", files={"file": (name, data, content_type)})
+    return client.post(
+        "/api/v1/label-format-checker/check",
+        files=[("files", (name, data, content_type))],
+    )
+
+
+def _post_files(client: TestClient, uploads: list[tuple[str, bytes, str]]):
+    return client.post(
+        "/api/v1/label-format-checker/check",
+        files=[("files", (name, data, content_type)) for name, data, content_type in uploads],
+    )
 
 
 def test_single_pdf_returns_preview_and_report(client):
@@ -66,6 +76,46 @@ def test_zip_returns_all_files(client):
     assert body["summary"]["total"] == 2
     assert body["summary"]["passed"] == 2
     assert body["summary"]["skipped"] == 1
+
+
+def test_multiple_pdfs_are_checked_together(client):
+    res = _post_files(
+        client,
+        [
+            (MIXED.name, MIXED.read_bytes(), "application/pdf"),
+            (SINGLE.name, SINGLE.read_bytes(), "application/pdf"),
+        ],
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["source_kind"] == "batch"
+    assert body["summary"]["total"] == 2
+    assert body["summary"]["passed"] == 2
+    assert {f["name"] for f in body["files"]} == {MIXED.name, SINGLE.name}
+
+
+def test_multiple_zips_are_checked_together(client):
+    def _zip_bytes(*paths: Path) -> bytes:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            for path in paths:
+                zf.write(path, path.name)
+        return buf.getvalue()
+
+    res = _post_files(
+        client,
+        [
+            ("batch-a.zip", _zip_bytes(MIXED), "application/zip"),
+            ("batch-b.zip", _zip_bytes(SINGLE), "application/zip"),
+        ],
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["source_kind"] == "batch"
+    assert body["summary"]["total"] == 2
+    assert body["summary"]["passed"] == 2
+    assert any(f["path"].startswith("batch-a.zip/") for f in body["files"])
+    assert any(f["path"].startswith("batch-b.zip/") for f in body["files"])
 
 
 @pytest.mark.parametrize(

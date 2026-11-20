@@ -126,6 +126,32 @@ def test_single_pdf_upload():
     assert run.summary() == {"total": 1, "passed": 1, "review": 0, "failed": 0, "skipped": 0}
 
 
+def test_multiple_pdf_uploads_are_checked_as_one_batch():
+    run = lfc.check_uploads(
+        [
+            (MIXED.name, _bytes(MIXED)),
+            (SINGLE.name, _bytes(SINGLE)),
+        ]
+    )
+    assert run.source_kind == "batch"
+    assert run.summary() == {"total": 2, "passed": 2, "review": 0, "failed": 0, "skipped": 0}
+    assert {f.name for f in run.files} == {MIXED.name, SINGLE.name}
+    assert MIXED.name in run.source_name and SINGLE.name in run.source_name
+
+
+def test_multiple_uploads_flag_duplicate_box_ids_across_files():
+    run = lfc.check_uploads(
+        [
+            ("first.pdf", _bytes(MIXED)),
+            ("second.pdf", _bytes(MIXED)),
+        ]
+    )
+    by_path = {f.path: f for f in run.files}
+    assert by_path["first.pdf"].status == lfc.FILE_PASS
+    assert by_path["second.pdf"].status == lfc.FILE_REVIEW
+    assert "file.duplicate" in _warned_ids(by_path["second.pdf"])
+
+
 def test_zip_upload_checks_every_pdf_and_skips_the_rest():
     raw = _zip_of(
         {

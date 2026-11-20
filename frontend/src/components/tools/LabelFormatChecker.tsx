@@ -150,7 +150,7 @@ function FileDetails({ file }: { file: LabelFormatFile }) {
 }
 
 export default function LabelFormatChecker() {
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -176,7 +176,7 @@ export default function LabelFormatChecker() {
     return () => observer.disconnect()
   }, [result])
 
-  const runCheck = useCallback(async (incoming: File) => {
+  const runCheck = useCallback(async (incoming: File[]) => {
     const id = ++runId.current
     setChecking(true)
     setError(null)
@@ -202,14 +202,18 @@ export default function LabelFormatChecker() {
   }, [])
 
   const setUpload = useCallback(
-    (incoming: File | null) => {
-      if (!incoming) return
-      if (!isSupported(incoming)) {
-        setError('Only a single .pdf box label or a .zip containing .pdf labels is supported.')
+    (incoming: FileList | File[] | null) => {
+      const list = incoming ? Array.from(incoming) : []
+      if (!list.length) return
+      const unsupported = list.filter((f) => !isSupported(f))
+      if (unsupported.length) {
+        setError(
+          `Only .pdf and .zip are supported. Unsupported: ${unsupported.map((f) => f.name).join(', ')}`,
+        )
         return
       }
-      setFile(incoming)
-      void runCheck(incoming)
+      setFiles(list)
+      void runCheck(list)
     },
     [runCheck],
   )
@@ -219,14 +223,14 @@ export default function LabelFormatChecker() {
       e.preventDefault()
       e.stopPropagation()
       setIsDragging(false)
-      setUpload(e.dataTransfer.files?.[0] || null)
+      setUpload(e.dataTransfer.files)
     },
     [setUpload],
   )
 
   const reset = useCallback(() => {
     runId.current += 1
-    setFile(null)
+    setFiles([])
     setError(null)
     setResult(null)
     setChecking(false)
@@ -283,9 +287,10 @@ export default function LabelFormatChecker() {
       <header>
         <h1 className="text-2xl font-bold text-gray-900">Label Format Checker</h1>
         <p className="mt-1 text-sm text-gray-600">
-          Upload a box label <strong>.pdf</strong> or a <strong>.zip</strong> of them. Each PDF is checked
-          against the Amazon <strong>Thermal Printing - 4x6 inches</strong> box label format: the Amazon box
-          label on page 1 and the UPS label on page 2. Review the results below, then download the report.
+          Upload one or more box label <strong>.pdf</strong> files or <strong>.zip</strong> archives of them.
+          Each PDF is checked against the Amazon <strong>Thermal Printing - 4x6 inches</strong> box label
+          format: the Amazon box label on page 1 and the UPS label on page 2. Review the results below, then
+          download the report.
         </p>
       </header>
 
@@ -312,16 +317,17 @@ export default function LabelFormatChecker() {
         onDrop={handleDrop}
       >
         <p className="text-sm text-gray-600">
-          Drag and drop a box label <strong>.pdf</strong> or a <strong>.zip</strong> here, or upload it. The
-          check starts automatically.
+          Drag and drop box label <strong>.pdf</strong> or <strong>.zip</strong> files here, or upload them.
+          The check starts automatically.
         </p>
         <input
           ref={fileInputRef}
           type="file"
           accept={ACCEPTED}
+          multiple
           className="hidden"
           onChange={(e) => {
-            setUpload(e.target.files?.[0] || null)
+            setUpload(e.target.files)
             if (fileInputRef.current) fileInputRef.current.value = ''
           }}
         />
@@ -342,7 +348,7 @@ export default function LabelFormatChecker() {
           >
             Download report
           </button>
-          {file && (
+          {files.length > 0 && (
             <button
               type="button"
               onClick={reset}
@@ -354,15 +360,26 @@ export default function LabelFormatChecker() {
           )}
         </div>
 
-        {file ? (
-          <div className="mx-auto mt-5 max-w-lg rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-left text-sm text-gray-800">
-            <span className="block truncate" title={file.name}>
-              {file.name}
-            </span>
-            <span className="text-xs text-gray-500">{formatSize(file.size)}</span>
+        {files.length > 0 ? (
+          <div className="mx-auto mt-5 max-w-lg space-y-2 text-left">
+            {files.length > 1 && (
+              <p className="text-xs font-medium text-gray-500">
+                {files.length} files selected · {formatSize(files.reduce((sum, f) => sum + f.size, 0))}
+              </p>
+            )}
+            <ul className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800">
+              {files.map((f) => (
+                <li key={`${f.name}-${f.size}-${f.lastModified}`} className="min-w-0">
+                  <span className="block truncate" title={f.name}>
+                    {f.name}
+                  </span>
+                  <span className="text-xs text-gray-500">{formatSize(f.size)}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         ) : (
-          <p className="mt-4 text-xs text-gray-400">No file selected</p>
+          <p className="mt-4 text-xs text-gray-400">No files selected</p>
         )}
         {checking && (
           <p className="mt-3 flex items-center justify-center gap-2 text-sm text-gray-600" role="status">

@@ -213,7 +213,7 @@ class SkippedItem:
 @dataclass
 class CheckRun:
     source_name: str
-    source_kind: str  # "pdf" | "zip"
+    source_kind: str  # "pdf" | "zip" | "batch"
     files: list[FileResult]
     skipped: list[SkippedItem]
     checked_at: datetime
@@ -1075,8 +1075,11 @@ def _is_hidden_zip_member(path: str) -> bool:
     return any(p.startswith("._") or p == "__MACOSX" or p == ".DS_Store" for p in parts)
 
 
-def check_upload(filename: str, raw: bytes) -> CheckRun:
-    """Check an uploaded ``.pdf`` or a ``.zip`` containing PDFs."""
+def _check_one_upload(filename: str, raw: bytes) -> tuple[str, str, list[FileResult], list[SkippedItem]]:
+    """Validate one ``.pdf`` / ``.zip`` and return ``(name, kind, files, skipped)``.
+
+    Does not flag cross-file duplicate Box IDs — callers do that once on the full set.
+    """
     name = (filename or "upload").strip() or "upload"
     lower = name.lower()
     if not raw:
@@ -1093,9 +1096,9 @@ def check_upload(filename: str, raw: bytes) -> CheckRun:
         if not raw.lstrip()[:5] == b"%PDF-":
             raise LabelFormatCheckerError(f'"{name}" is not a PDF file.')
         files.append(check_pdf_bytes(PurePosixPath(name.replace("\\", "/")).name, raw, path=name))
-        kind = "pdf"
-    elif lower.endswith(".zip"):
-        kind = "zip"
+        return name, "pdf", files, skipped
+
+    if lower.endswith(".zip"):
         try:
             zf = zipfile.ZipFile(io.BytesIO(raw))
         except zipfile.BadZipFile as exc:
@@ -1140,17 +1143,93 @@ def check_upload(filename: str, raw: bytes) -> CheckRun:
                 if not preview_all and checked.status != FILE_PASS:
                     add_thumbnails(checked, data)
                 files.append(checked)
-    else:
-        raise LabelFormatCheckerError(
-            f'"{name}" is not supported. Upload a single .pdf label or a .zip containing .pdf labels.'
-        )
+        return name, "zip", files, skipped
 
+    raise LabelFormatCheckerError(
+        f'"{name}" is not supported. Upload .pdf label files or .zip archives containing .pdf labels.'
+    )
+
+
+def _prefix_batch_paths(
+    source_name: str, kind: str, files: list[FileResult], skipped: list[SkippedItem]
+) -> None:
+    """Make paths unique across a multi-file upload by prefixing with the source filename."""
+    for f in files:
+        if kind == "zip":
+            f.path = f"{source_name}/{f.path}"
+        else:
+            f.path = source_name
+    for item in skipped:
+        item.name = f"{source_name}/{item.name}" if kind == "zip" else f"{source_name}: {item.name}"
+
+
+def _trim_batch_thumbnails(files: list[FileResult]) -> None:
+    """Drop page previews for passing files when the batch is large."""
+    if len(files) <= THUMBNAIL_ALL_LIMIT:
+        return
+    for f in files:
+        if f.status == FILE_PASS:
+            f.thumbnails = []
+
+
+def check_upload(filename: str, raw: bytes) -> CheckRun:
+    """Check an uploaded ``.pdf`` or a ``.zip`` containing PDFs."""
+    name, kind, files, skipped = _check_one_upload(filename, raw)
     _flag_duplicate_box_ids(files)
     return CheckRun(
         source_name=name,
         source_kind=kind,
         files=files,
         skipped=skipped,
+        checked_at=datetime.now().replace(microsecond=0),
+    )
+
+
+def check_uploads(items: list[tuple[str, bytes]]) -> CheckRun:
+    """Check one or more uploaded ``.pdf`` / ``.zip`` files as a single run."""
+    if not items:
+        raise LabelFormatCheckerError("No files were uploaded.")
+    if len(items) == 1:
+        return check_upload(items[0][0], items[0][1])
+
+    total_bytes = sum(len(raw) for _, raw in items)
+    if total_bytes > MAX_ZIP_UNCOMPRESSED_BYTES:
+        raise LabelFormatCheckerError(
+            f"The selected files are too large together "
+            f"(max {MAX_ZIP_UNCOMPRESSED_BYTES // (1024 * 1024)} MB)."
+        )
+
+    all_files: list[FileResult] = []
+    all_skipped: list[SkippedItem] = []
+    names: list[str] = []
+
+    for filename, raw in items:
+        name, kind, files, skipped = _check_one_upload(filename, raw)
+        _prefix_batch_paths(name, kind, files, skipped)
+        names.append(name)
+        all_files.extend(files)
+        all_skipped.extend(skipped)
+
+    if not all_files and not all_skipped:
+        raise LabelFormatCheckerError("No PDF labels were found in the uploaded files.")
+    if len(all_files) > MAX_PDF_FILES:
+        raise LabelFormatCheckerError(
+            f"The upload has {len(all_files)} PDFs; the limit is {MAX_PDF_FILES} per check."
+        )
+
+    _trim_batch_thumbnails(all_files)
+    _flag_duplicate_box_ids(all_files)
+
+    if len(names) <= 3:
+        source_name = ", ".join(names)
+    else:
+        source_name = f"{names[0]} (+{len(names) - 1} more)"
+
+    return CheckRun(
+        source_name=source_name,
+        source_kind="batch",
+        files=all_files,
+        skipped=all_skipped,
         checked_at=datetime.now().replace(microsecond=0),
     )
 

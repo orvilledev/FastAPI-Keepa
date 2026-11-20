@@ -2592,7 +2592,7 @@ export type LabelFormatFile = {
 
 export type LabelFormatCheckResult = {
   source_name: string
-  source_kind: 'pdf' | 'zip'
+  source_kind: 'pdf' | 'zip' | 'batch'
   checked_at: string
   summary: { total: number; passed: number; review: number; failed: number; skipped: number }
   files: LabelFormatFile[]
@@ -2602,9 +2602,12 @@ export type LabelFormatCheckResult = {
 }
 
 export const labelFormatCheckerApi = {
-  check: async (file: File): Promise<LabelFormatCheckResult> => {
+  check: async (files: File | File[]): Promise<LabelFormatCheckResult> => {
+    const list = Array.isArray(files) ? files : [files]
     const form = new FormData()
-    form.append('file', file)
+    for (const file of list) {
+      form.append('files', file)
+    }
     const response = await api.post<LabelFormatCheckResult>('/api/v1/label-format-checker/check', form, {
       timeout: 300_000,
     })
