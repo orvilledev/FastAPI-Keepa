@@ -21,6 +21,7 @@ from app.services.daily_run_completion import (
     uploaded_daily_run_in_progress,
 )
 from app.utils.error_handler import handle_api_errors
+from app.services.uploaded_report_price_validation import validate_uploaded_price_coverage
 from datetime import datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
@@ -435,6 +436,27 @@ def _process_uploaded_report_in_background(report_id: str, filename: str, raw: b
                 continue
             seen_upcs.add(u)
             upcs.append(u)
+
+        try:
+            validate_uploaded_price_coverage(compact_rows)
+        except ValueError as price_err:
+            # Keep counts so the Daily Run UI can show what was found, but do not
+            # store unusable parsed_rows (scheduler only runs completed parses).
+            logger.warning(
+                "Uploaded report %s failed price-coverage validation: %s",
+                report_id,
+                price_err,
+            )
+            db.table("scheduler_uploaded_reports").update({
+                "upcs": upcs,
+                "parsed_rows": [],
+                "upc_count": len(upcs),
+                "row_count": len(parsed_rows),
+                "parse_status": "failed",
+                "parse_error": str(price_err),
+                "parsed_at": datetime.utcnow().isoformat(),
+            }).eq("id", report_id).execute()
+            return
 
         db.table("scheduler_uploaded_reports").update({
             "upcs": upcs,

@@ -1024,7 +1024,9 @@ export default function VendorDailyRun({ vendor }: VendorDailyRunProps) {
                 {latestUpload.row_count ? ` | Parsed rows: ${latestUpload.row_count}` : ''}
               </p>
               {latestUpload.parse_error && (
-                <p className="text-xs text-red-700 mt-1">{latestUpload.parse_error}</p>
+                <p className="mt-1 text-xs font-medium leading-relaxed text-red-700 whitespace-pre-wrap">
+                  {latestUpload.parse_error}
+                </p>
               )}
               <div className="mt-3">
                 <button

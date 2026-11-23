@@ -170,7 +170,9 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
       <>
         Common causes are: uploaded file parse not completed yet, no overlap between uploaded UPCs and Manage UPCs, missing
         MAP entries for those UPCs, or seller exclusion filters. Check uploaded report status first, then confirm overlap
-        and MAP coverage.
+        and MAP coverage. Import Mode also rejects files where almost no UPCs have a numeric price in column H (parse
+        status FAILED) — full Keepa product exports are not supported; use A=UPC, C=Title, F=Seller, H=Price, L=ASIN,
+        U=Amazon link.
       </>
     ),
   },
