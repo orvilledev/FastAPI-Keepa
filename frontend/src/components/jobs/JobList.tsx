@@ -282,8 +282,10 @@ export default function JobList() {
   }
 
 
+  const totalPages = Math.max(1, Math.ceil(stats.total / JOBS_PER_PAGE))
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pb-6 lg:space-y-6 lg:pb-0">
       <div className="app-page-header flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100 sm:text-3xl">Express Jobs</h1>
@@ -305,24 +307,34 @@ export default function JobList() {
             type="button"
             onClick={() => void handleClearCompletedJobs()}
             disabled={completedCount === 0 || clearingCompleted}
-            className="inline-flex items-center rounded-lg border border-red-600 bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-red-700 disabled:cursor-not-allowed disabled:border-red-300 disabled:bg-red-300 disabled:text-white dark:disabled:border-red-900 dark:disabled:bg-red-950"
+            className="inline-flex items-center rounded-lg border border-red-600 bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-red-700 disabled:cursor-not-allowed disabled:border-red-300 disabled:bg-red-300 disabled:text-white dark:disabled:border-red-900 dark:disabled:bg-red-950 max-lg:flex-1 max-lg:justify-center max-lg:px-3"
             title={
               completedCount === 0
                 ? 'No completed runs to clear'
                 : 'Clear every completed Express and Daily Run at once. Analytics archives are kept.'
             }
           >
-            {clearingCompleted
-              ? 'Clearing…'
-              : completedCount > 0
-                ? `Clear all completed runs (${completedCount})`
-                : 'Clear all completed runs'}
+            <span className="hidden lg:inline">
+              {clearingCompleted
+                ? 'Clearing…'
+                : completedCount > 0
+                  ? `Clear all completed runs (${completedCount})`
+                  : 'Clear all completed runs'}
+            </span>
+            <span className="lg:hidden">
+              {clearingCompleted
+                ? 'Clearing…'
+                : completedCount > 0
+                  ? `Clear completed (${completedCount})`
+                  : 'Clear completed'}
+            </span>
           </button>
           <Link
             to="/jobs/new"
-            className="btn-primary"
+            className="btn-primary max-lg:flex-1 max-lg:px-3 max-lg:text-center"
           >
-            + Create New Job
+            <span className="hidden lg:inline">+ Create New Job</span>
+            <span className="lg:hidden">+ New Job</span>
           </Link>
         </div>
       </div>
@@ -330,32 +342,32 @@ export default function JobList() {
       <KeepaTokenBatteries />
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="stat-card">
-          <div className="text-sm font-medium text-gray-500 dark:text-slate-400 mb-1">Total Jobs</div>
-          <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">{stats.total}</div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
+        <div className="stat-card max-lg:p-3">
+          <div className="text-xs lg:text-sm font-medium text-gray-500 dark:text-slate-400 mb-1">Total Jobs</div>
+          <div className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-slate-100">{stats.total}</div>
         </div>
-        <div className="stat-card border-blue-200/50 bg-gradient-to-br from-blue-50/50 to-white dark:border-blue-500/30 dark:from-blue-500/15 dark:to-surface">
-          <div className="text-sm font-medium text-gray-500 dark:text-slate-400 mb-1">Processing</div>
-          <div className="text-3xl font-bold text-[#81B81D] dark:text-accent-bright">{stats.processing}</div>
+        <div className="stat-card max-lg:p-3 border-blue-200/50 bg-gradient-to-br from-blue-50/50 to-white dark:border-blue-500/30 dark:from-blue-500/15 dark:to-surface">
+          <div className="text-xs lg:text-sm font-medium text-gray-500 dark:text-slate-400 mb-1">Processing</div>
+          <div className="text-2xl lg:text-3xl font-bold text-[#81B81D] dark:text-accent-bright">{stats.processing}</div>
         </div>
-        <div className="stat-card border-green-200/50 bg-gradient-to-br from-green-50/50 to-white dark:border-green-500/30 dark:from-green-500/15 dark:to-surface">
-          <div className="text-sm font-medium text-gray-500 dark:text-slate-400 mb-1">Completed</div>
-          <div className="text-3xl font-bold text-green-600 dark:text-green-400">{stats.completed}</div>
+        <div className="stat-card max-lg:p-3 border-green-200/50 bg-gradient-to-br from-green-50/50 to-white dark:border-green-500/30 dark:from-green-500/15 dark:to-surface">
+          <div className="text-xs lg:text-sm font-medium text-gray-500 dark:text-slate-400 mb-1">Completed</div>
+          <div className="text-2xl lg:text-3xl font-bold text-green-600 dark:text-green-400">{stats.completed}</div>
           {completedCount > 0 && (
             <button
               type="button"
               onClick={() => void handleClearCompletedJobs()}
               disabled={clearingCompleted}
-              className="mt-2 text-xs font-semibold text-red-700 underline-offset-2 hover:underline disabled:opacity-50 dark:text-red-400"
+              className="mt-2 text-xs font-semibold text-red-700 underline-offset-2 hover:underline disabled:opacity-50 dark:text-red-400 max-lg:hidden"
             >
               {clearingCompleted ? 'Clearing completed runs…' : `Clear all ${completedCount} completed runs`}
             </button>
           )}
         </div>
-        <div className="stat-card border-red-200/50 bg-gradient-to-br from-red-50/50 to-white dark:border-red-500/30 dark:from-red-500/15 dark:to-surface">
-          <div className="text-sm font-medium text-gray-500 dark:text-slate-400 mb-1">Failed</div>
-          <div className="text-3xl font-bold text-red-600 dark:text-red-400">{stats.failed}</div>
+        <div className="stat-card max-lg:p-3 border-red-200/50 bg-gradient-to-br from-red-50/50 to-white dark:border-red-500/30 dark:from-red-500/15 dark:to-surface">
+          <div className="text-xs lg:text-sm font-medium text-gray-500 dark:text-slate-400 mb-1">Failed</div>
+          <div className="text-2xl lg:text-3xl font-bold text-red-600 dark:text-red-400">{stats.failed}</div>
         </div>
       </div>
 
@@ -482,38 +494,71 @@ export default function JobList() {
         </div>
 
         {/* Mobile card list — stacked fields instead of cramped table columns */}
-        <div className="divide-y divide-gray-100 dark:divide-border lg:hidden">
+        <div className="lg:hidden">
+          <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/70 px-4 py-2.5 dark:border-border dark:bg-surface-muted/60">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Runs</h2>
+            {!loading && jobs.length > 0 && (
+              <span className="text-xs text-gray-500 dark:text-slate-400">
+                {totalPages > 1 ? `Page ${currentPage + 1} of ${totalPages} • ` : ''}
+                {jobs.length} shown
+              </span>
+            )}
+          </div>
+
+          <div className="divide-y divide-gray-100 dark:divide-border">
           {loading ? (
-            <div className="px-4 py-8 text-center text-sm text-gray-500">Loading jobs...</div>
+            Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className="animate-pulse space-y-3 p-4">
+                <div className="h-4 w-3/4 rounded bg-gray-200 dark:bg-surface-muted" />
+                <div className="h-3 w-1/2 rounded bg-gray-100 dark:bg-surface-muted" />
+                <div className="h-12 rounded-lg bg-gray-100 dark:bg-surface-muted" />
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="h-10 rounded-lg bg-gray-100 dark:bg-surface-muted" />
+                  <div className="h-10 rounded-lg bg-gray-100 dark:bg-surface-muted" />
+                  <div className="h-10 rounded-lg bg-gray-100 dark:bg-surface-muted" />
+                </div>
+              </div>
+            ))
           ) : jobs.map((job) => {
             const { isSynthetic, displayStatus, isImportRun } = getJobRowMeta(job)
+            const progressPct =
+              job.total_batches > 0
+                ? Math.min(100, Math.round((job.completed_batches / job.total_batches) * 100))
+                : 0
+            const progressBarClass =
+              job.status === 'completed'
+                ? 'bg-green-500'
+                : job.status === 'failed'
+                  ? 'bg-red-500'
+                  : job.status === 'processing'
+                    ? 'bg-[#81B81D] animate-pulse'
+                    : 'bg-gray-400 dark:bg-slate-500'
             return (
               <div
                 key={job.id}
-                className={`space-y-3 p-4 ${isSynthetic ? 'bg-amber-50/30 dark:bg-amber-500/10' : ''}`}
+                className={`relative p-4 pl-5 ${isSynthetic ? 'bg-amber-50/40 dark:bg-amber-500/10' : ''}`}
               >
-                <div>
-                  <div className={`text-sm font-semibold break-words ${isImportRun ? 'text-[#2F6F0F] dark:text-green-400' : 'text-[#0B3D91] dark:text-blue-400'}`}>
-                    {job.job_name}
-                  </div>
-                  <div className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-slate-400">
-                    UPCs: {job.total_upcs.toLocaleString()} • By: {job.initiated_by || 'Unknown'}
-                  </div>
-                  <div className="mt-0.5 text-xs text-gray-500 dark:text-slate-400">
-                    Done: {job.completed_at ? new Date(job.completed_at).toLocaleDateString() : '-'} • Duration:{' '}
-                    {isSynthetic ? '-' : formatRunDuration(job.created_at, job.completed_at)}
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${
+                    isSynthetic ? 'bg-amber-400' : isImportRun ? 'bg-[#81B81D]' : 'bg-[#0B3D91] dark:bg-blue-400'
+                  }`}
+                />
+
+                <h3 className={`text-[15px] font-semibold leading-snug break-words ${isImportRun ? 'text-[#2F6F0F] dark:text-green-400' : 'text-[#0B3D91] dark:text-blue-400'}`}>
+                  {job.job_name}
+                </h3>
+
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   <span
-                    className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                    className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       isSynthetic ? SCHEDULED_STATUS_CLASS : getStatusColor(job.status)
                     }`}
                   >
                     {displayStatus}
                   </span>
                   <span
-                    className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                    className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       isImportRun
                         ? 'bg-[#81B81D]/20 text-[#111827] dark:bg-[#81B81D]/25 dark:text-green-200'
                         : 'bg-blue-100 text-[#81B81D] dark:bg-blue-500/20 dark:text-blue-300'
@@ -521,20 +566,57 @@ export default function JobList() {
                   >
                     {isImportRun ? 'Import Mode' : 'API Mode'}
                   </span>
+                  <span className="text-xs text-gray-500 dark:text-slate-400">
+                    by {job.initiated_by || 'Unknown'}
+                  </span>
                 </div>
-                <div className="text-sm text-gray-600 dark:text-slate-300">
-                  {isSynthetic
-                    ? 'Waiting for countdown'
-                    : `${job.completed_batches} / ${job.total_batches} batches`}
-                </div>
-                <div className="text-sm font-medium">
-                  {isSynthetic ? (
-                    <span className="text-xs text-amber-700 dark:text-amber-300">Auto-run placeholder</span>
-                  ) : (
-                    <div className="flex flex-wrap items-center gap-4">
+
+                <dl className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-gray-50 px-3 py-2 dark:bg-surface-muted/60">
+                  <div className="min-w-0">
+                    <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-slate-500">UPCs</dt>
+                    <dd className="truncate text-sm font-semibold text-gray-900 dark:text-slate-100">
+                      {job.total_upcs.toLocaleString()}
+                    </dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-slate-500">Done</dt>
+                    <dd className="truncate text-sm font-semibold text-gray-900 dark:text-slate-100">
+                      {job.completed_at ? new Date(job.completed_at).toLocaleDateString() : '-'}
+                    </dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-slate-500">Duration</dt>
+                    <dd className="truncate text-sm font-semibold text-gray-900 dark:text-slate-100">
+                      {isSynthetic ? '-' : formatRunDuration(job.created_at, job.completed_at)}
+                    </dd>
+                  </div>
+                </dl>
+
+                {isSynthetic ? (
+                  <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+                    Waiting for countdown • Auto-run placeholder
+                  </p>
+                ) : (
+                  <>
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between text-xs text-gray-600 dark:text-slate-300">
+                        <span>Batches</span>
+                        <span className="font-semibold">
+                          {job.completed_batches} / {job.total_batches}
+                        </span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-slate-700">
+                        <div
+                          className={`h-full rounded-full transition-all ${progressBarClass}`}
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
                       <Link
                         to={`/jobs/${job.id}`}
-                        className="text-[#404040] hover:text-[#3B3B3B] font-semibold hover:underline transition-colors dark:text-slate-200"
+                        className="inline-flex min-h-[2.75rem] items-center justify-center rounded-lg bg-[#404040] px-2 font-semibold text-white shadow-sm transition-colors hover:bg-[#3B3B3B]"
                       >
                         View →
                       </Link>
@@ -542,11 +624,7 @@ export default function JobList() {
                         type="button"
                         onClick={() => setEmailDraftJob({ id: job.id, name: job.job_name })}
                         disabled={job.status !== 'completed'}
-                        className={`font-semibold text-[#0B3D91] transition-colors dark:text-blue-400 ${
-                          job.status !== 'completed'
-                            ? 'opacity-50 cursor-not-allowed'
-                            : 'hover:underline hover:text-[#092E6E] dark:hover:text-blue-300'
-                        }`}
+                        className="inline-flex min-h-[2.75rem] items-center justify-center rounded-lg border border-blue-200 bg-white px-2 font-semibold text-[#0B3D91] transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white dark:border-blue-500/40 dark:bg-surface dark:text-blue-400 dark:hover:bg-blue-500/10"
                         title={
                           job.status !== 'completed'
                             ? 'The report email is only available once the run has completed'
@@ -558,21 +636,18 @@ export default function JobList() {
                       <button
                         onClick={() => handleDeleteJob(job.id, job.job_name)}
                         disabled={job.status === 'processing'}
-                        className={`text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium transition-colors ${
-                          job.status === 'processing'
-                            ? 'opacity-50 cursor-not-allowed'
-                            : 'hover:underline'
-                        }`}
+                        className="inline-flex min-h-[2.75rem] items-center justify-center rounded-lg border border-red-200 bg-white px-2 font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white dark:border-red-500/40 dark:bg-surface dark:text-red-400 dark:hover:bg-red-500/10"
                         title={job.status === 'processing' ? 'Cannot delete a job that is currently processing' : 'Delete job'}
                       >
                         Delete
                       </button>
                     </div>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
             )
           })}
+          </div>
         </div>
 
         {jobs.length === 0 && !loading && (
@@ -580,20 +655,26 @@ export default function JobList() {
         )}
       </div>
 
-      {/* Pagination Controls */}
+      {/* Pagination Controls — hidden on mobile when everything fits on one page */}
       {jobs.length > 0 && (
-        <div className="card px-4 py-4 sm:px-6">
+        <div className={`card px-4 py-4 sm:px-6 ${totalPages <= 1 ? 'max-lg:hidden' : ''}`}>
           <div className="app-pagination-bar flex items-center justify-between">
-            <div className="text-sm text-gray-600 dark:text-slate-400">
-              Page <span className="font-semibold text-gray-900 dark:text-slate-100">{currentPage + 1}</span> • Showing {currentPage * JOBS_PER_PAGE + 1}-
-              {currentPage * JOBS_PER_PAGE + jobs.length} job{jobs.length !== 1 ? 's' : ''}
+            <div className="text-sm text-gray-600 dark:text-slate-400 max-lg:text-center">
+              <span className="hidden lg:inline">
+                Page <span className="font-semibold text-gray-900 dark:text-slate-100">{currentPage + 1}</span> • Showing {currentPage * JOBS_PER_PAGE + 1}-
+                {currentPage * JOBS_PER_PAGE + jobs.length} job{jobs.length !== 1 ? 's' : ''}
+              </span>
+              <span className="lg:hidden">
+                Page <span className="font-semibold text-gray-900 dark:text-slate-100">{currentPage + 1}</span> of{' '}
+                <span className="font-semibold text-gray-900 dark:text-slate-100">{totalPages}</span>
+              </span>
             </div>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={handlePreviousPage}
                 disabled={currentPage === 0 || loading}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                className={`px-4 py-2 max-lg:py-3 text-sm font-medium rounded-lg transition-all ${
                   currentPage === 0 || loading
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                     : 'btn-secondary'
@@ -605,7 +686,7 @@ export default function JobList() {
                 type="button"
                 onClick={handleNextPage}
                 disabled={(currentPage + 1) * JOBS_PER_PAGE >= stats.total || loading}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                className={`px-4 py-2 max-lg:py-3 text-sm font-medium rounded-lg transition-all ${
                   (currentPage + 1) * JOBS_PER_PAGE >= stats.total || loading
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                     : 'btn-secondary'
