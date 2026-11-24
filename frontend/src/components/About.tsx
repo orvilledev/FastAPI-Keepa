@@ -50,36 +50,19 @@ export default function About() {
             {APP_GIT_COMMIT_SHORT}
           </code>
         </p>
-        <p className="mt-3 text-gray-600 max-w-4xl">
-          {APP_NAME} is MetroShoe Warehouse&apos;s workspace for Keepa-based pricing compliance and
-          day-to-day operational tools. The sidebar is organized into{' '}
-          <span className="font-semibold">Menu</span> (monitoring, project tracking, and shared data),{' '}
-          <span className="font-semibold">Tools</span> (document, shipment, and label utilities), and{' '}
-          <span className="font-semibold">General</span> (about, FAQ, and feedback). Use the top-bar{' '}
-          <span className="font-semibold">search</span> to jump to any page, the{' '}
-          <span className="font-semibold">notifications</span> bell for completed runs, and the{' '}
-          <span className="font-semibold">theme toggle</span> (moon/sun) for light or dark mode. Warehouse
-          station accounts open <span className="font-semibold">Label Station</span>,{' '}
-          <span className="font-semibold">FNSKU Pack Station</span>, and{' '}
-          <span className="font-semibold">Freight Class</span>, plus General pages.
-        </p>
-        <p className="mt-2 text-sm text-gray-600 max-w-4xl">
-          <span className="font-semibold">Keepa access</span> unlocks the full Menu and Label Station in
-          Tools. <span className="font-semibold">Warehouse-only</span> accounts see Label Station, FNSKU Pack
-          Station, Freight Class, and General. <span className="font-semibold">Superadmins</span> also get User Management,
-          catalog tools, and maintenance controls. <span className="font-semibold">Live App Sessions</span> and the{' '}
-          <span className="font-semibold">Audit Log</span> are available to superadmins, Stephanie, and Sunshine. Most staff accounts use{' '}
-          <span className="font-semibold">two-factor authentication</span> (authenticator app) at sign-in;
-          shared warehouse stations are exempt. After MFA, idle sessions ask for a fresh code after{' '}
-          <span className="font-semibold">48 hours</span> without activity.
+        <p className="mt-3 text-gray-600 max-w-3xl">
+          {APP_NAME} is MetroShoe Warehouse&apos;s workspace for Keepa pricing compliance and
+          warehouse tools. The sidebar has <span className="font-semibold">Menu</span>,{' '}
+          <span className="font-semibold">Tools</span>, and <span className="font-semibold">General</span>.
+          Use top-bar search, notifications, and the theme toggle as needed. What you see depends on
+          account type (Keepa, warehouse-only, or superadmin). Most staff use MFA; warehouse stations
+          are exempt.
         </p>
 
         {!isElectron && (
-          <p className="mt-2 text-sm text-gray-600 max-w-4xl">
-            In the browser, use <span className="font-semibold">Download app</span> in the top bar to install
-            the Windows desktop client. The desktop app includes Label Station Zebra printing and checks for
-            updates automatically. You can also use <span className="font-semibold">Check for Updates</span>{' '}
-            in About.
+          <p className="mt-2 text-sm text-gray-600 max-w-3xl">
+            Use <span className="font-semibold">Download app</span> in the top bar for the Windows
+            desktop client (Zebra printing and auto-updates).
           </p>
         )}
 
@@ -107,146 +90,87 @@ export default function About() {
 
       <div className="card p-8">
         <h2 className="text-2xl font-semibold text-gray-900">Menu</h2>
-        <p className="mt-3 text-gray-700">
-          Core pages for monitoring vendor runs, managing compliance data, and preparing report output.
-        </p>
+        <p className="mt-3 text-gray-700">Monitoring, compliance data, and report prep.</p>
         <ul className="mt-4 list-disc space-y-2 pl-6 text-gray-700">
           <li>
-            <span className="font-semibold">Dashboard:</span> Live overview of vendor daily runs with countdown timers,
-            grouped into active and inactive runs.
+            <span className="font-semibold">Dashboard:</span> Live vendor daily runs with countdown timers.
           </li>
           <li>
-            <span className="font-semibold">Notifications:</span> Team feed of completed express and daily runs. Open
-            from the bell icon in the top bar; mark items read or clear the list.
+            <span className="font-semibold">Notifications:</span> Completed express and daily runs (bell icon).
           </li>
           <li>
-            <span className="font-semibold">Express Jobs:</span> On-demand Keepa checks against managed UPCs, with
-            recipient selection and report output in API Mode or Import Mode. Finished jobs can be deleted when no
-            longer needed.
+            <span className="font-semibold">Express Jobs:</span> On-demand Keepa checks with email report output.
           </li>
           <li>
-            <span className="font-semibold">Daily Runs:</span> Scheduled monitoring per vendor category (DNK, CLK, OBZ,
-            REF, BOR, SFF, TEV, CHA, JFS). Each vendor can run in API Mode (live Keepa data) or Import Mode (uploaded Keepa
-            report files).
+            <span className="font-semibold">Daily Runs:</span> Scheduled monitoring per vendor (API or Import Mode).
           </li>
           <li>
-            <span className="font-semibold">Manage UPCs:</span> Add, search, and maintain UPC lists by vendor category
-            used in scheduled and on-demand processing.
+            <span className="font-semibold">Manage UPCs:</span> UPC lists by vendor category.
           </li>
           <li>
-            <span className="font-semibold">Manage MAP:</span> Maintain minimum advertised price (MAP) values by UPC and
-            vendor for pricing compliance checks.
+            <span className="font-semibold">Manage MAP:</span> Minimum advertised prices by UPC and vendor.
           </li>
           <li>
-            <span className="font-semibold">Seller List:</span> Maintain Amazon seller IDs and display names referenced in
-            report output.
+            <span className="font-semibold">Seller List:</span> Amazon seller IDs and display names.
           </li>
           <li>
-            <span className="font-semibold">Email List:</span> Shared directory of named email recipients for express jobs
-            and daily runs.
+            <span className="font-semibold">Email List:</span> Named recipients for jobs and daily runs.
           </li>
           <li>
-            <span className="font-semibold">Ship To Addresses:</span> Catalog of Amazon FC ship-to codes and addresses.
-            Download a template, then upload a matching workbook to add new codes or replace existing ones (replacements
-            are confirmed first).
+            <span className="font-semibold">Ship To Addresses:</span> Amazon FC codes — download template, then upload.
           </li>
           <li>
-            <span className="font-semibold">Analytics:</span> Off-price hit trends by vendor, seller, and period, with
-            Excel download and email report. Hit Alert flags any vendor whose daily off-price listings jump by 100 or
-            more versus that vendor’s last daily run (shown in red). Available in the browser and the desktop app.
-            Warehouse station accounts do not see this page.
+            <span className="font-semibold">Analytics:</span> Off-price hit trends with Excel/email export and Hit Alert.
           </li>
         </ul>
-        <p className="mt-4 text-sm text-gray-600">
-          Express Jobs, Daily Runs, Manage UPCs, Manage MAP, Seller List, Email List, Ship To Addresses, and Analytics
-          require Keepa access on your account.
-        </p>
+        <p className="mt-4 text-sm text-gray-600">Most Menu pages require Keepa access.</p>
       </div>
 
       <div className="card p-8">
         <h2 className="text-2xl font-semibold text-gray-900">Tools</h2>
-        <p className="mt-3 text-gray-700">
-          Standalone utilities for common warehouse and operations tasks.
-        </p>
+        <p className="mt-3 text-gray-700">Warehouse and operations utilities.</p>
         <ul className="mt-4 list-disc space-y-2 pl-6 text-gray-700">
           <li>
-            <span className="font-semibold">Micro Tools:</span> Team shortcuts to external utilities and links. Signed-in
-            users can browse shared entries and add or edit tools they created.
+            <span className="font-semibold">Micro Tools:</span> Shared team shortcuts to external links.
           </li>
           <li>
-            <span className="font-semibold">Tracking Extractor:</span> Upload carrier PDFs or ZIP archives to extract
-            tracking numbers into an Excel file, with scan history for past uploads.
+            <span className="font-semibold">Tracking Extractor:</span> Pull tracking numbers from carrier PDFs/ZIPs into Excel.
           </li>
           <li>
-            <span className="font-semibold">FNSKU Labels:</span> Parse FBA shipment spreadsheets and generate FNSKU label
-            PDFs or workbooks for warehouse labeling. Past runs are kept in history; you can delete individual entries
-            or clear the full history.
+            <span className="font-semibold">FNSKU Labels:</span> Build FNSKU label PDFs or workbooks from FBA sheets.
           </li>
           <li>
-            <span className="font-semibold">FNSKU Pack Station:</span> Upload an FNSKU + BOX# scan sheet. Each FNSKU is
-            looked up in the warehouse product catalog, then the download includes a scanned-data sheet and a quantity
-            pivot by merchant SKU and box.
+            <span className="font-semibold">FNSKU Pack Station:</span> Match scan sheets to the catalog; export quantity pivots.
           </li>
           <li>
-            <span className="font-semibold">FBA Box Contents:</span> Upload an FBA Carton Detail report and download a
-            workbook with Box Contents (UPC, Box #, QTY, and a quantity pivot) and Dimensions. UPCs stay text; quantities
-            and dimensions stay numbers. Visible for now to Superadmin, Stephanie, Sunshine, Paolo, and John Bernard.
+            <span className="font-semibold">FBA Box Contents:</span> Turn Carton Detail reports into box-contents workbooks.
           </li>
           <li>
-            <span className="font-semibold">Manifest Generator:</span> Turn a packing sheet into Amazon STA pack-group ZIP
-            files for outbound shipments.
+            <span className="font-semibold">Manifest Generator:</span> Packing sheet → Amazon STA pack-group ZIPs.
           </li>
           <li>
-            <span className="font-semibold">Product Catalog Formatter:</span> Upload one or more Amazon shipment-plan
-            files, or one or more WR SKU Update files, and download one catalog workbook (UPC, SKU, fnsku, STYLE
-            NAME, Condition) with duplicate UPCs removed. Listed under BC Tools for allowlisted accounts.
+            <span className="font-semibold">Product Catalog Formatter:</span> Merge shipment-plan or WR SKU files into one catalog.
           </li>
           <li>
-            <span className="font-semibold">DNK AllInventory:</span> Upload a PMSH01 available-inventory export and build
-            one worksheet per PONumber, with quantities and UPCs stored as numbers (not text).
+            <span className="font-semibold">DNK AllInventory:</span> Split PMSH01 inventory exports by PONumber.
           </li>
           <li>
-            <span className="font-semibold">Shipment Manager:</span> Register a shipment, let teammates upload FBA exports
-            into it, then compile one WR SKU Update sheet with duplicates removed. Shipments stay listed until deleted.
-            Available to every signed-in user except the Warehouse1 and Hello station accounts.
+            <span className="font-semibold">Shipment Manager:</span> Collect FBA uploads and compile a WR SKU Update sheet.
           </li>
           <li>
-            <span className="font-semibold">Freight Class Calculator:</span> Estimate NMFC freight class from density
-            (XPO-compatible logic). Enter dimensions manually or bulk-upload a workbook from the template. Available to
-            every signed-in user except hello@warehouserepublic.com, including other warehouse station accounts.
+            <span className="font-semibold">Freight Class Calculator:</span> Estimate NMFC class from density (manual or bulk).
           </li>
           <li>
-            <span className="font-semibold">Dimensioner:</span> Shows measurements sent by the warehouse QBOID M2 as
-            soon as someone taps Save on the device, in inches and pounds. Download the visible (filtered) scans as
-            Excel. Same access as Freight Class.
+            <span className="font-semibold">Dimensioner:</span> Live QBOID M2 measurements; download filtered scans as Excel.
           </li>
           <li>
-            <span className="font-semibold">Label Station:</span> Scan a product UPC, look up the warehouse catalog, and
-            print a Zebra label (desktop app) or download a PDF (web). Choose{' '}
-            <span className="font-semibold">Auto-print</span> or <span className="font-semibold">Queue mode</span>{' '}
-            (scan into a list, then Print all). Catalog managers can import products from Excel.
-            Staff always scan the UPC barcode. Use <span className="font-semibold">Print ID</span>:{' '}
-            <span className="font-semibold">Short SKU (Amazon)</span> is the default for everyone and prints a short
-            catalog SKU (7 numeric digits or fewer) under the barcode when present;{' '}
-            <span className="font-semibold">UPC (DNK)</span> always prints the retail UPC for carton match and is limited
-            to emails on the allowlist in User Management. Barcode stays FNSKU in both modes. Choose label size (small,
-            medium, or large on 2.25&quot; × 1.25&quot; stock; Custom on 3&quot; × 3&quot; or 3&quot; × 2&quot; with
-            sold-as-set notice;
-            Apparel on 3&quot; × 2&quot; with a return-eligibility notice) and printer resolution (203 or 300 dpi).
-            On-screen preview matches the physical label.
+            <span className="font-semibold">Label Station:</span> Scan UPC → catalog lookup → Zebra print (desktop) or PDF (web).
+            Auto-print or Queue mode; Print ID Short SKU or UPC (DNK); multiple label sizes and dpi.
           </li>
         </ul>
         <p className="mt-4 text-sm text-gray-600">
-          Label Station requires Keepa access or a warehouse-only account. FNSKU Pack Station is available to all
-          signed-in users, including warehouse-only stations; Freight Class is available to every signed-in user except
-          hello@warehouserepublic.com. FNSKU Labels is also available to the floor stations
-          (warehouse1, label1–label8, and pack1–pack6), cameron@pmshoesinc.com,
-          corp1997@pmshoesinc.com, ap@pmshoesinc.com, and brittany@metroshoewarehouse.com. Micro Tools,
-          Tracking Extractor, FNSKU Labels, Manifest Generator, and DNK
-          AllInventory are available to all signed-in non-warehouse users. Product Catalog Formatter
-          appears under BC Tools for Superadmin and allowlisted BC Tools accounts. Shipment Manager is available to
-          every signed-in user except the floor stations (warehouse1, label1–label8, pack1–pack6) and Hello.
-          Freight Class appears for signed-in users who are allowed that tool.
+          Access varies by account. Warehouse stations see Label Station, FNSKU Pack Station, and Freight Class;
+          other tools follow Keepa, BC Tools, or allowlist rules.
         </p>
       </div>
 
@@ -254,56 +178,39 @@ export default function About() {
         <h2 className="text-2xl font-semibold text-gray-900">Appearance &amp; sign-in</h2>
         <ul className="mt-4 list-disc space-y-2 pl-6 text-gray-700">
           <li>
-            <span className="font-semibold">Dark mode:</span> Click the moon/sun button in the top bar (or on the landing
-            and login pages) to switch between light and dark presentation. Your choice is saved on this device and applies
-            across every page.
+            <span className="font-semibold">Dark mode:</span> Moon/sun toggle in the top bar; saved on this device.
           </li>
           <li>
-            <span className="font-semibold">Quick search:</span> Use the search box in the top bar to jump to Dashboard,
-            tools, and General pages without scrolling the sidebar.
+            <span className="font-semibold">Quick search:</span> Jump to any page from the top bar.
           </li>
           <li>
-            <span className="font-semibold">Two-factor authentication:</span> After password sign-in, enter a 6-digit code
-            from your authenticator app (Google Authenticator, Authy, 1Password, etc.). Use{' '}
-            <span className="font-semibold">Reset authenticator</span> in the profile menu to enroll a new device. After
-            you are fully signed in, <span className="font-semibold">48 hours</span> without activity asks for a fresh
-            TOTP code (warehouse-only stations remain MFA-exempt).
+            <span className="font-semibold">Two-factor authentication:</span> Authenticator app after password sign-in.
+            Idle sessions re-prompt after 48 hours (warehouse stations exempt).
           </li>
         </ul>
       </div>
 
       <div className="card p-8">
         <h2 className="text-2xl font-semibold text-gray-900">General</h2>
-        <p className="mt-3 text-gray-700">
-          Shared pages available from the bottom of the sidebar.
-        </p>
+        <p className="mt-3 text-gray-700">Shared pages at the bottom of the sidebar.</p>
         <ul className="mt-4 list-disc space-y-2 pl-6 text-gray-700">
           <li>
-            <span className="font-semibold">About:</span> This page — app version, feature overview, and desktop update
-            controls.
+            <span className="font-semibold">About:</span> Version, overview, and desktop updates.
           </li>
           <li>
-            <span className="font-semibold">FAQ:</span> Common questions about Menu, Tools, General, dark mode, and
-            account access — aligned with this About page.
+            <span className="font-semibold">FAQ:</span> Common questions on Menu, Tools, and access.
           </li>
           <li>
-            <span className="font-semibold">Feedback From Users:</span> Submit suggestions or issues. Admins can review
-            all feedback; everyone else sees their own submissions.
+            <span className="font-semibold">Feedback From Users:</span> Submit suggestions or issues.
           </li>
           <li>
-            <span className="font-semibold">User Management:</span> Superadmin only — manage accounts, permissions,
-            maintenance mode (web, Electron, or both), the maintenance access list (who may use the app while
-            maintenance is on), and the{' '}
-            <span className="font-semibold">Label Station — UPC (DNK) Print ID</span> email allowlist (who may switch
-            Print ID to UPC for DNK carton labels).
+            <span className="font-semibold">User Management:</span> Superadmin — accounts, permissions, maintenance.
           </li>
           <li>
-            <span className="font-semibold">Live App Sessions:</span> Superadmin, Stephanie, and Sunshine — who is
-            signed in on the web app and the desktop app, including idle windows that are still open.
+            <span className="font-semibold">Live App Sessions:</span> Who is signed in (superadmin / Stephanie / Sunshine).
           </li>
           <li>
-            <span className="font-semibold">Audit Log:</span> Superadmin, Stephanie, and Sunshine — sign-in, sign-out,
-            Keepa file actions, and other mutating requests and downloads.
+            <span className="font-semibold">Audit Log:</span> Sign-in and mutating actions (superadmin / Stephanie / Sunshine).
           </li>
         </ul>
       </div>
@@ -320,11 +227,10 @@ export default function About() {
           Senior Developer: <span className="font-semibold">Orville Barba</span>
         </p>
         <p className="mt-2 text-gray-700">
-          QA (Quality Assurance) Testers:{' '}
+          QA:{' '}
           <span className="font-semibold">Stephanie Roque / Sunshine Gale Ocampo</span>
         </p>
       </div>
     </div>
   )
 }
-
