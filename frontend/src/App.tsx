@@ -538,7 +538,7 @@ function AppRoutes() {
           <Route
             path="label-format-checker"
             element={
-              <ProtectedRoute requireBcToolsAccess={true}>
+              <ProtectedRoute requireLabelFormatCheckerAccess={true}>
                 <LabelFormatChecker />
               </ProtectedRoute>
             }

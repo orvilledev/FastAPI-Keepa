@@ -16,7 +16,7 @@ from app.scheduler import (
     run_completed_jobs_retention_cleanup,
     run_dimensioner_trash_purge,
 )
-from app.dependencies import get_shipment_manager_user, get_team_chat_user, require_app_access
+from app.dependencies import get_label_format_checker_user, get_shipment_manager_user, get_team_chat_user, require_app_access
 from app.maintenance import get_maintenance_state
 from app.force_logout import get_force_logout_state
 from app.force_reload import get_force_reload_state
@@ -400,7 +400,12 @@ app.include_router(keepa_import_export.router, prefix=settings.api_v1_str, tags=
 app.include_router(manifest_generator.router, prefix=settings.api_v1_str, tags=["manifest-generator"], dependencies=[Depends(require_app_access)])
 app.include_router(product_catalog_formatter.router, prefix=settings.api_v1_str, tags=["product-catalog-formatter"], dependencies=[Depends(require_app_access)])
 app.include_router(obz_smw_fba_inv.router, prefix=settings.api_v1_str, tags=["obz-smw-fba-inv"], dependencies=[Depends(require_app_access)])
-app.include_router(label_format_checker.router, prefix=settings.api_v1_str, tags=["label-format-checker"], dependencies=[Depends(require_app_access)])
+app.include_router(
+    label_format_checker.router,
+    prefix=settings.api_v1_str,
+    tags=["label-format-checker"],
+    dependencies=[Depends(require_app_access), Depends(get_label_format_checker_user)],
+)
 app.include_router(fnsku_box_pivot.router, prefix=settings.api_v1_str, tags=["fnsku-pack-station"], dependencies=[Depends(require_app_access)])
 app.include_router(fba_box_contents.router, prefix=settings.api_v1_str, tags=["fba-box-contents"], dependencies=[Depends(require_app_access)])
 app.include_router(fba_shipment_library.router, prefix=settings.api_v1_str, tags=["fba-shipment-library"], dependencies=[Depends(require_app_access)])

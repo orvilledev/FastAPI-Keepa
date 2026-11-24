@@ -7,6 +7,7 @@ import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 import { canAccessBcTools } from '../../lib/bcToolsAccess'
+import { canAccessLabelFormatChecker } from '../../lib/labelFormatCheckerAccess'
 import { canAccessShipmentManager } from '../../lib/shipmentManagerAccess'
 import { canAccessFbaOrderChecker } from '../../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
@@ -235,6 +236,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     isSuperadmin,
   )
   const accountEmail = userInfo?.email || authUser?.email
+  const canUseLabelFormatChecker = canAccessLabelFormatChecker(accountEmail)
   const canUseFnskuLabels = canWarehouseAccessFnskuLabels(accountEmail)
   const canUseShipmentManager = canAccessShipmentManager(accountEmail)
   const canUseFbaOrderChecker = canAccessFbaOrderChecker(
@@ -497,6 +499,21 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                 >
                   <span className="shrink-0">{Icons.freightClassCalculator}</span>
                   <span className="sidebar-link-label">Freight Class</span>
+                </Link>
+              )}
+
+              {canUseLabelFormatChecker && (
+                <Link
+                  to="/label-format-checker"
+                  onMouseEnter={() => setHoveredNav('label-format-checker')}
+                  className={`sidebar-link ${
+                    navHighlighted('label-format-checker', isActive('/label-format-checker'))
+                      ? 'sidebar-link-active'
+                      : 'sidebar-link-inactive'
+                  }`}
+                >
+                  <span className="shrink-0">{Icons.labelFormatChecker}</span>
+                  <span className="sidebar-link-label">Label Format Checker</span>
                 </Link>
               )}
 
@@ -837,6 +854,21 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
               </Link>
             )}
 
+            {canUseLabelFormatChecker && (
+              <Link
+                to="/label-format-checker"
+                onMouseEnter={() => setHoveredNav('label-format-checker')}
+                className={`sidebar-link ${
+                  navHighlighted('label-format-checker', isActive('/label-format-checker'))
+                    ? 'sidebar-link-active'
+                    : 'sidebar-link-inactive'
+                }`}
+              >
+                <span className="shrink-0">{Icons.labelFormatChecker}</span>
+                <span className="sidebar-link-label">Label Format Checker</span>
+              </Link>
+            )}
+
             {canUseDimensioner && (
               <Link
                 to="/dimensioner"
@@ -900,20 +932,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                 >
                   <span className="shrink-0">{Icons.obzSmwFbaInv}</span>
                   <span className="sidebar-link-label">OBZ / SMW FBA INV</span>
-                </Link>
-              )}
-              {canUseBcTools && (
-                <Link
-                  to="/label-format-checker"
-                  onMouseEnter={() => setHoveredNav('label-format-checker')}
-                  className={`sidebar-link ${
-                    navHighlighted('label-format-checker', isActive('/label-format-checker'))
-                      ? 'sidebar-link-active'
-                      : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="shrink-0">{Icons.labelFormatChecker}</span>
-                  <span className="sidebar-link-label">Label Format Checker</span>
                 </Link>
               )}
               {canUseNsTool && (

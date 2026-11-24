@@ -6,6 +6,7 @@ import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 import { canAccessBcTools } from '../../lib/bcToolsAccess'
+import { canAccessLabelFormatChecker } from '../../lib/labelFormatCheckerAccess'
 import { canAccessShipmentManager } from '../../lib/shipmentManagerAccess'
 import { canAccessFbaOrderChecker } from '../../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
@@ -39,6 +40,7 @@ function buildSearchItems(
   showNsTool: boolean,
   showSessionAudit: boolean,
   showObzSmwFbaInv: boolean,
+  showLabelFormatChecker: boolean,
 ): SearchItem[] {
   if (isWarehouseOnly) {
     const warehouseItems: SearchItem[] = [
@@ -65,6 +67,13 @@ function buildSearchItems(
       warehouseItems.push({
         label: 'Freight Class Calculator',
         path: '/freight-class-calculator',
+        section: 'Warehouse Tools',
+      })
+    }
+    if (showLabelFormatChecker) {
+      warehouseItems.push({
+        label: 'Label Format Checker',
+        path: '/label-format-checker',
         section: 'Warehouse Tools',
       })
     }
@@ -141,6 +150,13 @@ function buildSearchItems(
       section: 'Warehouse Tools',
     })
   }
+  if (showLabelFormatChecker) {
+    items.push({
+      label: 'Label Format Checker',
+      path: '/label-format-checker',
+      section: 'Warehouse Tools',
+    })
+  }
   if (showDimensioner) {
     items.push({ label: 'Dimensioner', path: '/dimensioner', section: 'Warehouse Tools' })
   }
@@ -155,7 +171,6 @@ function buildSearchItems(
     if (showObzSmwFbaInv) {
       items.push({ label: 'OBZ / SMW FBA INV', path: '/obz-smw-fba-inv', section: 'BC Tools' })
     }
-    items.push({ label: 'Label Format Checker', path: '/label-format-checker', section: 'BC Tools' })
   }
   if (showNsTool) {
     items.push({ label: 'NS Tool', path: '/ns-tool', section: 'BC Tools' })
@@ -224,6 +239,7 @@ export default function NavbarSearch() {
   const showNsTool = canAccessNsTool(accountEmail, isSuperadmin)
   const showSessionAudit = canAccessSessionAudit(accountEmail, isSuperadmin)
   const showObzSmwFbaInv = canAccessObzSmwFbaInv(isSuperadmin)
+  const showLabelFormatChecker = canAccessLabelFormatChecker(accountEmail)
 
   const searchItems = useMemo(
     () =>
@@ -244,8 +260,9 @@ export default function NavbarSearch() {
         showNsTool,
         showSessionAudit,
         showObzSmwFbaInv,
+        showLabelFormatChecker,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showFbaBoxContents, showOldSkus, showBcTools, showShipmentManager, showFreightClass, showDimensioner, showFbaOrderChecker, showFnskuLabels, showLabelCenter, showNsTool, showSessionAudit, showObzSmwFbaInv],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showFbaBoxContents, showOldSkus, showBcTools, showShipmentManager, showFreightClass, showDimensioner, showFbaOrderChecker, showFnskuLabels, showLabelCenter, showNsTool, showSessionAudit, showObzSmwFbaInv, showLabelFormatChecker],
   )
 
   const results = useMemo(() => {

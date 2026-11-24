@@ -447,6 +447,13 @@ _SHIPMENT_MANAGER_BLOCKED = frozenset(
     }
 )
 
+_LABEL_FORMAT_CHECKER_BLOCKED = frozenset(
+    {
+        "hello@warehouserepublic.com",
+        *FLOOR_STATION_EMAILS,
+    }
+)
+
 
 def is_shipment_manager_allowed_user(current_user: dict) -> bool:
     """True for every signed-in account except Hello and the floor stations."""
@@ -462,6 +469,24 @@ def get_shipment_manager_user(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Shipment Manager is not available for this account",
+        )
+    return current_user
+
+
+def is_label_format_checker_allowed_user(current_user: dict) -> bool:
+    """True for every signed-in account except Hello and the floor stations."""
+    email = (current_user.get("email") or "").strip().lower()
+    return bool(email) and email not in _LABEL_FORMAT_CHECKER_BLOCKED
+
+
+def get_label_format_checker_user(
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """Verify user may use Label Format Checker."""
+    if not is_label_format_checker_allowed_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Label Format Checker is not available for this account",
         )
     return current_user
 

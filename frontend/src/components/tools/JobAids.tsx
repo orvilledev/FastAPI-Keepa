@@ -199,11 +199,12 @@ const FAQ_ITEMS: { q: string; a: ReactNode }[] = [
       <>
         Tools includes <strong>Micro Tools</strong>, <strong>Tracking Extractor</strong>, <strong>FNSKU Labels</strong>,{' '}
         <strong>FNSKU Pack Station</strong>, <strong>Manifest Generator</strong>, <strong>DNK AllInventory</strong>, and{' '}
-        <strong>Label Station</strong>.         <strong>BC Tools</strong> holds <strong>FBA Box Contents</strong>,{' '}
+        <strong>Label Station</strong>, plus <strong>Label Format Checker</strong> for every signed-in user except the floor
+        stations (warehouse1, label1–label8, pack1–pack6) and Hello.{' '}
+        <strong>BC Tools</strong> holds <strong>FBA Box Contents</strong>,{' '}
         <strong>FBA Order Checker</strong>,{' '}
         <strong>Product Catalog Formatter</strong>, and{' '}
-        <strong>Shipment Manager</strong> for every signed-in user except the floor stations (warehouse1, label1–label8,
-        pack1–pack6) and Hello, plus{' '}
+        <strong>Shipment Manager</strong> for every signed-in user except those same floor stations and Hello, plus{' '}
         <strong>Freight Class</strong> for signed-in users who are allowed that tool.{' '}
         <strong>Label Station</strong> requires Keepa access or a warehouse-only account. Warehouse-only accounts also get{' '}
         <strong>FNSKU Pack Station</strong> and <strong>Freight Class</strong> (except hello@warehouserepublic.com).{' '}

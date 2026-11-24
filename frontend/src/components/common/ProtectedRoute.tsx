@@ -11,7 +11,7 @@ import { canAccessNsTool } from '../../lib/nsToolAccess'
 import { canAccessSessionAudit } from '../../lib/sessionAuditAccess'
 import { canAccessTeamChat } from '../../lib/teamChatAccess'
 import { canAccessObzSmwFbaInv } from '../../lib/obzSmwFbaInvAccess'
-import { canAccessBcTools } from '../../lib/bcToolsAccess'
+import { canAccessLabelFormatChecker } from '../../lib/labelFormatCheckerAccess'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -28,7 +28,7 @@ interface ProtectedRouteProps {
   requireSessionAuditAccess?: boolean
   requireTeamChatAccess?: boolean
   requireObzSmwFbaInvAccess?: boolean
-  requireBcToolsAccess?: boolean
+  requireLabelFormatCheckerAccess?: boolean
 }
 
 export default function ProtectedRoute({
@@ -46,7 +46,7 @@ export default function ProtectedRoute({
   requireSessionAuditAccess = false,
   requireTeamChatAccess = false,
   requireObzSmwFbaInvAccess = false,
-  requireBcToolsAccess = false,
+  requireLabelFormatCheckerAccess = false,
 }: ProtectedRouteProps) {
   const {
     hasKeepaAccess,
@@ -153,9 +153,9 @@ export default function ProtectedRoute({
     }
   }
 
-  if (requireBcToolsAccess) {
+  if (requireLabelFormatCheckerAccess) {
     const email = userInfo.email || authUser?.email || null
-    if (!canAccessBcTools(email, isSuperadmin)) {
+    if (!canAccessLabelFormatChecker(email)) {
       return <Navigate to={isWarehouseOnly ? '/label-station' : '/dashboard'} replace />
     }
   }

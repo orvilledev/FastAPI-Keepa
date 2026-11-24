@@ -2,6 +2,7 @@ import { FLOOR_STATION_EMAILS } from './warehouseStations'
 import { canAccessDimensioner } from '../lib/dimensionerAccess'
 import { canAccessFbaOrderChecker } from '../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../lib/freightClassAccess'
+import { canAccessLabelFormatChecker } from '../lib/labelFormatCheckerAccess'
 
 /** Default landing page for warehouse-only accounts. */
 export const WAREHOUSE_HOME_PATH = '/label-station'
@@ -10,6 +11,7 @@ const FREIGHT_CLASS_PATH = '/freight-class-calculator'
 /** QBOID M2 scans. Every signed-in user except Hello@warehouserepublic. */
 const DIMENSIONER_PATH = '/dimensioner'
 const FBA_ORDER_CHECKER_PATH = '/fba-shipment-library'
+const LABEL_FORMAT_CHECKER_PATH = '/label-format-checker'
 
 /** In-app routes warehouse accounts may open (sidebar + direct links). */
 export const WAREHOUSE_ALLOWED_PATHS = new Set([
@@ -47,6 +49,9 @@ export function isWarehouseAllowedPath(pathname: string, email?: string | null):
   }
   if (pathname === FBA_ORDER_CHECKER_PATH) {
     return canAccessFbaOrderChecker(email)
+  }
+  if (pathname === LABEL_FORMAT_CHECKER_PATH) {
+    return canAccessLabelFormatChecker(email)
   }
   if (WAREHOUSE_ALLOWED_PATHS.has(pathname)) return true
   return pathname === FNSKU_LABELS_PATH && canWarehouseAccessFnskuLabels(email)
