@@ -285,7 +285,7 @@ export default function LabelFormatChecker() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <header>
-        <h1 className="text-2xl font-bold text-gray-900">Label Format Checker</h1>
+        <h1 className="text-2xl font-bold text-gray-900">SPD Label Format Checker</h1>
         <p className="mt-1 text-sm text-gray-600">
           Upload one or more box label <strong>.pdf</strong> files or <strong>.zip</strong> archives of them.
           Each PDF is checked against the Amazon <strong>Thermal Printing - 4x6 inches</strong> box label

@@ -3,6 +3,7 @@ import { canAccessDimensioner } from '../lib/dimensionerAccess'
 import { canAccessFbaOrderChecker } from '../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../lib/freightClassAccess'
 import { canAccessLabelFormatChecker } from '../lib/labelFormatCheckerAccess'
+import { canAccessLtlLabelFormatChecker } from '../lib/ltlLabelFormatCheckerAccess'
 
 /** Default landing page for warehouse-only accounts. */
 export const WAREHOUSE_HOME_PATH = '/label-station'
@@ -51,8 +52,11 @@ export function isWarehouseAllowedPath(pathname: string, email?: string | null):
   if (pathname === FBA_ORDER_CHECKER_PATH) {
     return canAccessFbaOrderChecker(email)
   }
-  if (pathname === LABEL_FORMAT_CHECKER_PATH || pathname === LTL_LABEL_FORMAT_CHECKER_PATH) {
+  if (pathname === LABEL_FORMAT_CHECKER_PATH) {
     return canAccessLabelFormatChecker(email)
+  }
+  if (pathname === LTL_LABEL_FORMAT_CHECKER_PATH) {
+    return canAccessLtlLabelFormatChecker(email)
   }
   if (WAREHOUSE_ALLOWED_PATHS.has(pathname)) return true
   return pathname === FNSKU_LABELS_PATH && canWarehouseAccessFnskuLabels(email)

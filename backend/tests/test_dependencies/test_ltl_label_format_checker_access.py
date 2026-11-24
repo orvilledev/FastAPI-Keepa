@@ -1,0 +1,23 @@
+"""LTL Label Format Checker is limited to superadmin + Paolo, Stephanie, JB, Sunshine."""
+
+
+def test_ltl_label_format_checker_allowlist(monkeypatch):
+    monkeypatch.setattr("app.dependencies.is_superadmin_user", lambda user, db: False)
+    from app.dependencies import is_ltl_label_format_checker_allowed_user
+
+    db = object()
+    assert is_ltl_label_format_checker_allowed_user({"email": "sunshine@metroshoewarehouse.com"}, db) is True
+    assert is_ltl_label_format_checker_allowed_user({"email": "Stephanie@MetroShoeWarehouse.com"}, db) is True
+    assert is_ltl_label_format_checker_allowed_user({"email": "paolo@metroshoewarehouse.com"}, db) is True
+    assert is_ltl_label_format_checker_allowed_user({"email": "paulo@metroshoewarehouse.com"}, db) is True
+    assert is_ltl_label_format_checker_allowed_user({"email": "johnbernard@metroshoewarehouse.com"}, db) is True
+    assert is_ltl_label_format_checker_allowed_user({"email": "cameron@pmshoesinc.com"}, db) is False
+    assert is_ltl_label_format_checker_allowed_user({"email": "warehouse1@metroshoewarehouse.com"}, db) is False
+    assert is_ltl_label_format_checker_allowed_user({"email": ""}, db) is False
+
+
+def test_ltl_label_format_checker_allowlist_includes_superadmin(monkeypatch):
+    monkeypatch.setattr("app.dependencies.is_superadmin_user", lambda user, db: True)
+    from app.dependencies import is_ltl_label_format_checker_allowed_user
+
+    assert is_ltl_label_format_checker_allowed_user({"email": "anyone@example.com"}, object()) is True

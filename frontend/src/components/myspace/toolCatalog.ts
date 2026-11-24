@@ -33,7 +33,7 @@ export const BOOKMARKABLE_TOOLS: BookmarkableTool[] = [
   { path: '/ns-tool', label: 'NS Tool', group: 'BC Tools' },
   { path: '/shipment-manager', label: 'Shipment Manager', group: 'BC Tools' },
   { path: '/freight-class-calculator', label: 'Freight Class Calculator', group: 'Tools' },
-  { path: '/label-format-checker', label: 'Label Format Checker', group: 'Tools' },
+  { path: '/label-format-checker', label: 'SPD Label Format Checker', group: 'Tools' },
   { path: '/ltl-label-format-checker', label: 'LTL Label Format Checker', group: 'Tools' },
   { path: '/dimensioner', label: 'Dimensioner', group: 'Tools' },
   { path: '/about', label: 'About', group: 'General' },

@@ -8,6 +8,7 @@ import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 import { canAccessBcTools } from '../../lib/bcToolsAccess'
 import { canAccessLabelFormatChecker } from '../../lib/labelFormatCheckerAccess'
+import { canAccessLtlLabelFormatChecker } from '../../lib/ltlLabelFormatCheckerAccess'
 import { canAccessShipmentManager } from '../../lib/shipmentManagerAccess'
 import { canAccessFbaOrderChecker } from '../../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
@@ -242,6 +243,10 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
   )
   const accountEmail = userInfo?.email || authUser?.email
   const canUseLabelFormatChecker = canAccessLabelFormatChecker(accountEmail)
+  const canUseLtlLabelFormatChecker = canAccessLtlLabelFormatChecker(
+    accountEmail,
+    isSuperadmin,
+  )
   const canUseFnskuLabels = canWarehouseAccessFnskuLabels(accountEmail)
   const canUseShipmentManager = canAccessShipmentManager(accountEmail)
   const canUseFbaOrderChecker = canAccessFbaOrderChecker(
@@ -518,11 +523,11 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                   }`}
                 >
                   <span className="shrink-0">{Icons.labelFormatChecker}</span>
-                  <span className="sidebar-link-label">Label Format Checker</span>
+                  <span className="sidebar-link-label">SPD Label Format Checker</span>
                 </Link>
               )}
 
-              {canUseLabelFormatChecker && (
+              {canUseLtlLabelFormatChecker && (
                 <Link
                   to="/ltl-label-format-checker"
                   onMouseEnter={() => setHoveredNav('ltl-label-format-checker')}
@@ -885,11 +890,11 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                 }`}
               >
                 <span className="shrink-0">{Icons.labelFormatChecker}</span>
-                <span className="sidebar-link-label">Label Format Checker</span>
+                <span className="sidebar-link-label">SPD Label Format Checker</span>
               </Link>
             )}
 
-            {canUseLabelFormatChecker && (
+            {canUseLtlLabelFormatChecker && (
               <Link
                 to="/ltl-label-format-checker"
                 onMouseEnter={() => setHoveredNav('ltl-label-format-checker')}

@@ -368,7 +368,7 @@ def test_report_workbook_has_summary_results_and_details():
 
 def test_report_filename_is_safe():
     run = lfc.check_upload("FBADNK17112026.zip", _zip_of({"a.pdf": _bytes(MIXED)}))
-    assert lfc.report_filename(run) == "Label Format Check - FBADNK17112026.xlsx"
+    assert lfc.report_filename(run) == "SPD Label Format Check - FBADNK17112026.xlsx"
 
 
 def test_result_json_is_serialisable():

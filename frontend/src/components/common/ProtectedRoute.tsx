@@ -12,6 +12,7 @@ import { canAccessSessionAudit } from '../../lib/sessionAuditAccess'
 import { canAccessTeamChat } from '../../lib/teamChatAccess'
 import { canAccessObzSmwFbaInv } from '../../lib/obzSmwFbaInvAccess'
 import { canAccessLabelFormatChecker } from '../../lib/labelFormatCheckerAccess'
+import { canAccessLtlLabelFormatChecker } from '../../lib/ltlLabelFormatCheckerAccess'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -29,6 +30,7 @@ interface ProtectedRouteProps {
   requireTeamChatAccess?: boolean
   requireObzSmwFbaInvAccess?: boolean
   requireLabelFormatCheckerAccess?: boolean
+  requireLtlLabelFormatCheckerAccess?: boolean
 }
 
 export default function ProtectedRoute({
@@ -47,6 +49,7 @@ export default function ProtectedRoute({
   requireTeamChatAccess = false,
   requireObzSmwFbaInvAccess = false,
   requireLabelFormatCheckerAccess = false,
+  requireLtlLabelFormatCheckerAccess = false,
 }: ProtectedRouteProps) {
   const {
     hasKeepaAccess,
@@ -156,6 +159,13 @@ export default function ProtectedRoute({
   if (requireLabelFormatCheckerAccess) {
     const email = userInfo.email || authUser?.email || null
     if (!canAccessLabelFormatChecker(email)) {
+      return <Navigate to={isWarehouseOnly ? '/label-station' : '/dashboard'} replace />
+    }
+  }
+
+  if (requireLtlLabelFormatCheckerAccess) {
+    const email = userInfo.email || authUser?.email || null
+    if (!canAccessLtlLabelFormatChecker(email, isSuperadmin)) {
       return <Navigate to={isWarehouseOnly ? '/label-station' : '/dashboard'} replace />
     }
   }

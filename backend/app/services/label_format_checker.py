@@ -1298,7 +1298,7 @@ def build_report_xlsx(run: CheckRun) -> bytes:
 
     ws = wb.active
     ws.title = "Summary"
-    ws.append(["Label Format Checker"])
+    ws.append(["SPD Label Format Checker"])
     ws["A1"].font = Font(bold=True, size=14)
     ws.append([])
     rows = [
@@ -1387,4 +1387,4 @@ def build_report_xlsx(run: CheckRun) -> bytes:
 def report_filename(run: CheckRun) -> str:
     stem = PurePosixPath(run.source_name.replace("\\", "/")).stem or "labels"
     stem = re.sub(r'[\\/:*?"<>|\r\n]+', "_", stem).strip() or "labels"
-    return f"Label Format Check - {stem}.xlsx"
+    return f"SPD Label Format Check - {stem}.xlsx"

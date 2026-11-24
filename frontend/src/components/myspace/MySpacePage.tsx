@@ -9,6 +9,7 @@ import { canAccessDimensioner } from '../../lib/dimensionerAccess'
 import { canAccessNsTool } from '../../lib/nsToolAccess'
 import { canAccessObzSmwFbaInv } from '../../lib/obzSmwFbaInvAccess'
 import { canAccessLabelFormatChecker } from '../../lib/labelFormatCheckerAccess'
+import { canAccessLtlLabelFormatChecker } from '../../lib/ltlLabelFormatCheckerAccess'
 import { useUser } from '../../contexts/UserContext'
 import CustomLinksPanel from './CustomLinksPanel'
 import NoteContent from './NoteContent'
@@ -81,6 +82,10 @@ export default function MySpacePage() {
   const nsToolAvailable = canAccessNsTool(accountEmail, isSuperadmin)
   const obzSmwFbaInvAvailable = canAccessObzSmwFbaInv(isSuperadmin)
   const labelFormatCheckerAvailable = canAccessLabelFormatChecker(accountEmail)
+  const ltlLabelFormatCheckerAvailable = canAccessLtlLabelFormatChecker(
+    accountEmail,
+    isSuperadmin,
+  )
   const [tab, setTab] = useState<TabId>('bookmarks')
   const [links, setLinks] = useState<QuickAccessLink[]>([])
   const [groupedLinkCount, setGroupedLinkCount] = useState(0)
@@ -133,11 +138,11 @@ export default function MySpacePage() {
         (t.path !== '/ns-tool' || nsToolAvailable) &&
         (t.path !== '/obz-smw-fba-inv' || obzSmwFbaInvAvailable) &&
         (t.path !== '/label-format-checker' || labelFormatCheckerAvailable) &&
-        (t.path !== '/ltl-label-format-checker' || labelFormatCheckerAvailable) &&
+        (t.path !== '/ltl-label-format-checker' || ltlLabelFormatCheckerAvailable) &&
         (t.label.toLowerCase().includes(toolSearchQuery) ||
           t.path.toLowerCase().includes(toolSearchQuery)),
     )
-  }, [toolSearchQuery, labelCenterAvailable, shipmentManagerAvailable, dimensionerAvailable, nsToolAvailable, obzSmwFbaInvAvailable, labelFormatCheckerAvailable])
+  }, [toolSearchQuery, labelCenterAvailable, shipmentManagerAvailable, dimensionerAvailable, nsToolAvailable, obzSmwFbaInvAvailable, labelFormatCheckerAvailable, ltlLabelFormatCheckerAvailable])
 
   const toolsByGroup = useMemo(() => {
     const map = new Map<string, BookmarkableTool[]>()

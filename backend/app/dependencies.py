@@ -482,11 +482,35 @@ def is_label_format_checker_allowed_user(current_user: dict) -> bool:
 def get_label_format_checker_user(
     current_user: dict = Depends(get_current_user),
 ) -> dict:
-    """Verify user may use Label Format Checker."""
+    """Verify user may use SPD Label Format Checker."""
     if not is_label_format_checker_allowed_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Label Format Checker is not available for this account",
+            detail="SPD Label Format Checker is not available for this account",
+        )
+    return current_user
+
+
+def is_ltl_label_format_checker_allowed_user(current_user: dict, db: Client) -> bool:
+    """True for superadmin or emails on the LTL Label Format Checker allowlist."""
+    if is_superadmin_user(current_user, db):
+        return True
+    email = (current_user.get("email") or "").strip().lower()
+    if not email:
+        return False
+    allowed = set(settings.ltl_label_format_checker_allowed_emails_list)
+    return email in allowed
+
+
+def get_ltl_label_format_checker_user(
+    current_user: dict = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+) -> dict:
+    """Verify user may use LTL Label Format Checker."""
+    if not is_ltl_label_format_checker_allowed_user(current_user, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="LTL Label Format Checker is restricted to authorized users",
         )
     return current_user
 

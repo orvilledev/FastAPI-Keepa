@@ -16,7 +16,13 @@ from app.scheduler import (
     run_completed_jobs_retention_cleanup,
     run_dimensioner_trash_purge,
 )
-from app.dependencies import get_label_format_checker_user, get_shipment_manager_user, get_team_chat_user, require_app_access
+from app.dependencies import (
+    get_label_format_checker_user,
+    get_ltl_label_format_checker_user,
+    get_shipment_manager_user,
+    get_team_chat_user,
+    require_app_access,
+)
 from app.maintenance import get_maintenance_state
 from app.force_logout import get_force_logout_state
 from app.force_reload import get_force_reload_state
@@ -416,7 +422,7 @@ app.include_router(
     ltl_label_format_checker.router,
     prefix=settings.api_v1_str,
     tags=["ltl-label-format-checker"],
-    dependencies=[Depends(require_app_access), Depends(get_label_format_checker_user)],
+    dependencies=[Depends(require_app_access), Depends(get_ltl_label_format_checker_user)],
 )
 app.include_router(fnsku_box_pivot.router, prefix=settings.api_v1_str, tags=["fnsku-pack-station"], dependencies=[Depends(require_app_access)])
 app.include_router(fba_box_contents.router, prefix=settings.api_v1_str, tags=["fba-box-contents"], dependencies=[Depends(require_app_access)])

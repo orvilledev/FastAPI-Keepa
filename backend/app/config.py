@@ -269,6 +269,15 @@ class Settings(BaseSettings):
         "johnbernard@metroshoewarehouse.com"
     )
 
+    # Comma-separated emails allowed to use LTL Label Format Checker (plus superadmin).
+    ltl_label_format_checker_allowed_emails: str = (
+        "sunshine@metroshoewarehouse.com,"
+        "stephanie@metroshoewarehouse.com,"
+        "paolo@metroshoewarehouse.com,"
+        "paulo@metroshoewarehouse.com,"
+        "johnbernard@metroshoewarehouse.com"
+    )
+
     # Report: comma-separated substrings matched case-insensitively (after removing
     # spaces/punctuation) against resolved seller display text. Rows for matching
     # sellers are omitted from off-price Excel/CSV. Default drops MetroShoe variants.
@@ -389,6 +398,14 @@ class Settings(BaseSettings):
     def team_chat_allowed_emails_list(self) -> List[str]:
         """Normalized emails allowed to use Team Chat. Empty means everyone."""
         raw = (self.team_chat_allowed_emails or "").strip()
+        if not raw:
+            return []
+        return [email.strip().lower() for email in raw.split(",") if email.strip()]
+
+    @property
+    def ltl_label_format_checker_allowed_emails_list(self) -> List[str]:
+        """Normalized emails allowed to use LTL Label Format Checker."""
+        raw = (self.ltl_label_format_checker_allowed_emails or "").strip()
         if not raw:
             return []
         return [email.strip().lower() for email in raw.split(",") if email.strip()]

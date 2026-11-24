@@ -547,7 +547,7 @@ function AppRoutes() {
           <Route
             path="ltl-label-format-checker"
             element={
-              <ProtectedRoute requireLabelFormatCheckerAccess={true}>
+              <ProtectedRoute requireLtlLabelFormatCheckerAccess={true}>
                 <LtlLabelFormatChecker />
               </ProtectedRoute>
             }

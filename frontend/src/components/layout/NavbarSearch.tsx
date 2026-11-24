@@ -7,6 +7,7 @@ import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
 import { canAccessBcTools } from '../../lib/bcToolsAccess'
 import { canAccessLabelFormatChecker } from '../../lib/labelFormatCheckerAccess'
+import { canAccessLtlLabelFormatChecker } from '../../lib/ltlLabelFormatCheckerAccess'
 import { canAccessShipmentManager } from '../../lib/shipmentManagerAccess'
 import { canAccessFbaOrderChecker } from '../../lib/fbaOrderCheckerAccess'
 import { canAccessFreightClassCalculator } from '../../lib/freightClassAccess'
@@ -41,6 +42,7 @@ function buildSearchItems(
   showSessionAudit: boolean,
   showObzSmwFbaInv: boolean,
   showLabelFormatChecker: boolean,
+  showLtlLabelFormatChecker: boolean,
 ): SearchItem[] {
   if (isWarehouseOnly) {
     const warehouseItems: SearchItem[] = [
@@ -72,10 +74,12 @@ function buildSearchItems(
     }
     if (showLabelFormatChecker) {
       warehouseItems.push({
-        label: 'Label Format Checker',
+        label: 'SPD Label Format Checker',
         path: '/label-format-checker',
         section: 'Warehouse Tools',
       })
+    }
+    if (showLtlLabelFormatChecker) {
       warehouseItems.push({
         label: 'LTL Label Format Checker',
         path: '/ltl-label-format-checker',
@@ -157,10 +161,12 @@ function buildSearchItems(
   }
   if (showLabelFormatChecker) {
     items.push({
-      label: 'Label Format Checker',
+      label: 'SPD Label Format Checker',
       path: '/label-format-checker',
       section: 'Warehouse Tools',
     })
+  }
+  if (showLtlLabelFormatChecker) {
     items.push({
       label: 'LTL Label Format Checker',
       path: '/ltl-label-format-checker',
@@ -250,6 +256,10 @@ export default function NavbarSearch() {
   const showSessionAudit = canAccessSessionAudit(accountEmail, isSuperadmin)
   const showObzSmwFbaInv = canAccessObzSmwFbaInv(isSuperadmin)
   const showLabelFormatChecker = canAccessLabelFormatChecker(accountEmail)
+  const showLtlLabelFormatChecker = canAccessLtlLabelFormatChecker(
+    accountEmail,
+    isSuperadmin,
+  )
 
   const searchItems = useMemo(
     () =>
@@ -271,8 +281,9 @@ export default function NavbarSearch() {
         showSessionAudit,
         showObzSmwFbaInv,
         showLabelFormatChecker,
+        showLtlLabelFormatChecker,
       ),
-    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showFbaBoxContents, showOldSkus, showBcTools, showShipmentManager, showFreightClass, showDimensioner, showFbaOrderChecker, showFnskuLabels, showLabelCenter, showNsTool, showSessionAudit, showObzSmwFbaInv, showLabelFormatChecker],
+    [hasKeepaAccess, isWarehouseOnly, isSuperadmin, showAnalytics, showFbaBoxContents, showOldSkus, showBcTools, showShipmentManager, showFreightClass, showDimensioner, showFbaOrderChecker, showFnskuLabels, showLabelCenter, showNsTool, showSessionAudit, showObzSmwFbaInv, showLabelFormatChecker, showLtlLabelFormatChecker],
   )
 
   const results = useMemo(() => {
