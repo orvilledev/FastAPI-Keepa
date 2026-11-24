@@ -2615,6 +2615,101 @@ export const labelFormatCheckerApi = {
   },
 }
 
+export type LtlBoxOrderEntry = {
+  page: number
+  box_id: string
+  box_tag: string
+  pack_group: string
+  found: number | null
+  expected: number
+  ok: boolean | null
+}
+
+export type LtlBoxOrder = {
+  status: LabelCheckStatus
+  mode: 'sequence' | 'pack_group'
+  expected_start: number
+  out_of_order: number
+  missing: number[]
+  duplicates: number[]
+  unreadable_pages: number[]
+  entries: LtlBoxOrderEntry[]
+}
+
+export type LtlLabelBox = {
+  index: number
+  page: number
+  status: LabelCheckStatus
+  fields: {
+    box_id?: string
+    shipment_id?: string
+    shipment_name?: string
+    ship_from?: string
+    ship_to_name?: string
+    ship_to_address?: string
+    created?: string
+    contents?: string
+    sku?: string
+    qty?: number
+    box_tag?: string
+    pack_group?: string
+    box_number?: number
+    expected_box_number?: number
+    mixed_badge?: boolean
+  }
+  checks: LabelFormatCheck[]
+}
+
+export type LtlLabelFile = {
+  name: string
+  path: string
+  size_bytes: number
+  page_count: number
+  status: LabelFileStatus
+  box_count: number
+  shipment_id: string
+  shipment_name: string
+  box_order: LtlBoxOrder | null
+  checks: LabelFormatCheck[]
+  boxes: LtlLabelBox[]
+  thumbnails: { page: number; box_tag: string; status: LabelCheckStatus; src: string }[]
+  failed_checks: number
+  warning_checks: number
+  total_checks: number
+}
+
+export type LtlLabelFormatCheckResult = {
+  source_name: string
+  source_kind: 'pdf' | 'zip' | 'batch'
+  checked_at: string
+  summary: {
+    total: number
+    passed: number
+    review: number
+    failed: number
+    skipped: number
+    out_of_order: number
+  }
+  files: LtlLabelFile[]
+  skipped: { name: string; reason: string }[]
+  report_filename: string
+  report_xlsx_base64: string
+}
+
+export const ltlLabelFormatCheckerApi = {
+  check: async (files: File | File[]): Promise<LtlLabelFormatCheckResult> => {
+    const list = Array.isArray(files) ? files : [files]
+    const form = new FormData()
+    for (const file of list) {
+      form.append('files', file)
+    }
+    const response = await api.post<LtlLabelFormatCheckResult>('/api/v1/ltl-label-format-checker/check', form, {
+      timeout: 300_000,
+    })
+    return response.data
+  },
+}
+
 export type DnkAllInventoryResult = {
   blob: Blob
   filename: string

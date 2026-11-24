@@ -12,6 +12,7 @@ const FREIGHT_CLASS_PATH = '/freight-class-calculator'
 const DIMENSIONER_PATH = '/dimensioner'
 const FBA_ORDER_CHECKER_PATH = '/fba-shipment-library'
 const LABEL_FORMAT_CHECKER_PATH = '/label-format-checker'
+const LTL_LABEL_FORMAT_CHECKER_PATH = '/ltl-label-format-checker'
 
 /** In-app routes warehouse accounts may open (sidebar + direct links). */
 export const WAREHOUSE_ALLOWED_PATHS = new Set([
@@ -50,7 +51,7 @@ export function isWarehouseAllowedPath(pathname: string, email?: string | null):
   if (pathname === FBA_ORDER_CHECKER_PATH) {
     return canAccessFbaOrderChecker(email)
   }
-  if (pathname === LABEL_FORMAT_CHECKER_PATH) {
+  if (pathname === LABEL_FORMAT_CHECKER_PATH || pathname === LTL_LABEL_FORMAT_CHECKER_PATH) {
     return canAccessLabelFormatChecker(email)
   }
   if (WAREHOUSE_ALLOWED_PATHS.has(pathname)) return true

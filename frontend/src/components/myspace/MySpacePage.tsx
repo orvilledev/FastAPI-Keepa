@@ -133,6 +133,7 @@ export default function MySpacePage() {
         (t.path !== '/ns-tool' || nsToolAvailable) &&
         (t.path !== '/obz-smw-fba-inv' || obzSmwFbaInvAvailable) &&
         (t.path !== '/label-format-checker' || labelFormatCheckerAvailable) &&
+        (t.path !== '/ltl-label-format-checker' || labelFormatCheckerAvailable) &&
         (t.label.toLowerCase().includes(toolSearchQuery) ||
           t.path.toLowerCase().includes(toolSearchQuery)),
     )

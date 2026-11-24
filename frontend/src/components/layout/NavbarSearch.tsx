@@ -76,6 +76,11 @@ function buildSearchItems(
         path: '/label-format-checker',
         section: 'Warehouse Tools',
       })
+      warehouseItems.push({
+        label: 'LTL Label Format Checker',
+        path: '/ltl-label-format-checker',
+        section: 'Warehouse Tools',
+      })
     }
     if (showDimensioner) {
       warehouseItems.push({
@@ -154,6 +159,11 @@ function buildSearchItems(
     items.push({
       label: 'Label Format Checker',
       path: '/label-format-checker',
+      section: 'Warehouse Tools',
+    })
+    items.push({
+      label: 'LTL Label Format Checker',
+      path: '/ltl-label-format-checker',
       section: 'Warehouse Tools',
     })
   }
