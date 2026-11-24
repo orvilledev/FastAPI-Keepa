@@ -932,6 +932,163 @@ def add_thumbnails(result: LtlFileResult, raw: bytes) -> None:
         doc.close()
 
 
+# =========================================================================== reorder
+_PACK_GROUP_RE = re.compile(r"^P(\d+)$")
+
+
+@dataclass
+class ReorderResult:
+    pdf_bytes: bytes
+    filename: str
+    page_order: list[int]  # source page numbers (1-based) in their new order
+    moved_pages: int
+    first_box: Optional[int]
+    last_box: Optional[int]
+    missing: list[int]
+
+
+def extract_pdf_from_upload(filename: str, raw: bytes, member: Optional[str] = None) -> tuple[str, bytes]:
+    """Return ``(name, pdf_bytes)`` for an uploaded ``.pdf``, or for ``member`` of an uploaded ``.zip``."""
+    name = (filename or "upload").strip() or "upload"
+    if not raw:
+        raise LtlLabelFormatCheckerError(f'"{name}" is empty.')
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise LtlLabelFormatCheckerError(f'"{name}" is too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB).')
+    lower = name.lower()
+    if lower.endswith(".pdf"):
+        if not raw.lstrip()[:5] == b"%PDF-":
+            raise LtlLabelFormatCheckerError(f'"{name}" is not a PDF file.')
+        return PurePosixPath(name.replace("\\", "/")).name, raw
+    if lower.endswith(".zip"):
+        if not member:
+            raise LtlLabelFormatCheckerError(f'Choose which PDF inside "{name}" to reorder.')
+        try:
+            zf = zipfile.ZipFile(io.BytesIO(raw))
+        except zipfile.BadZipFile as exc:
+            raise LtlLabelFormatCheckerError(f'"{name}" is not a valid ZIP file.') from exc
+        with zf:
+            info = next(
+                (m for m in zf.infolist() if m.filename == member and not m.is_dir()),
+                None,
+            )
+            if info is None or lfc._is_hidden_zip_member(info.filename) or not info.filename.lower().endswith(".pdf"):
+                raise LtlLabelFormatCheckerError(f'"{member}" was not found in "{name}".')
+            if info.file_size > MAX_PDF_BYTES:
+                raise LtlLabelFormatCheckerError(
+                    f'"{member}" is larger than {MAX_PDF_BYTES // (1024 * 1024)} MB.'
+                )
+            try:
+                data = zf.read(info)
+            except Exception as exc:  # noqa: BLE001 — encrypted / corrupt member
+                raise LtlLabelFormatCheckerError(f'"{member}" could not be extracted ({exc}).') from exc
+        if not data.lstrip()[:5] == b"%PDF-":
+            raise LtlLabelFormatCheckerError(f'"{member}" is not a PDF file.')
+        return PurePosixPath(info.filename.replace("\\", "/")).name, data
+    raise LtlLabelFormatCheckerError(f'"{name}" is not supported. Upload a .pdf label file or a .zip of them.')
+
+
+def reordered_filename(name: str) -> str:
+    stem = PurePosixPath((name or "labels").replace("\\", "/")).stem or "labels"
+    stem = re.sub(r'[\\/:*?"<>|\r\n]+', "_", stem).strip() or "labels"
+    return f"{stem}-reordered.pdf"
+
+
+def reorder_page_indices(order: BoxOrder) -> list[int]:
+    """0-based source page indices in B-number order (pack group first when numbering restarts per group)."""
+    first_seen: dict[str, int] = {}
+    for idx, e in enumerate(order.entries):
+        first_seen.setdefault(e["pack_group"], idx)
+
+    def group_rank(group: str) -> tuple[int, int]:
+        m = _PACK_GROUP_RE.match(group or "")
+        return (0, int(m.group(1))) if m else (1, first_seen.get(group, 0))
+
+    indexed = list(enumerate(order.entries))
+    if order.mode == "pack_group":
+        indexed.sort(key=lambda item: (group_rank(item[1]["pack_group"]), item[1]["found"], item[0]))
+    else:
+        indexed.sort(key=lambda item: (item[1]["found"], item[0]))
+    return [idx for idx, _ in indexed]
+
+
+def _page_signature(page) -> tuple:
+    """Text, vector and image content of a page — used to prove a page was moved, not changed."""
+    return (
+        round(page.rect.width, 2),
+        round(page.rect.height, 2),
+        page.rotation,
+        page.get_text("text"),
+        len(page.get_drawings()),
+        tuple(tuple(round(v, 2) for v in im["bbox"]) for im in page.get_image_info()),
+    )
+
+
+def reorder_pdf_by_box_number(name: str, raw: bytes) -> ReorderResult:
+    """Rearrange the pages of an LTL label PDF so the box tags run B1, B2, B3, ...
+
+    Pages are only moved: every page keeps its original content objects, so nothing on any
+    label changes. Refuses (``LtlLabelFormatCheckerError``) when the right order cannot be
+    decided — a B number that cannot be read, or the same B number on two pages.
+    """
+    import fitz  # PyMuPDF
+
+    result = check_pdf_bytes(name, raw, thumbnails=False)
+    blocking = next((c for c in result.checks if c.id in ("file.readable", "file.pages") and c.status == FAIL), None)
+    if blocking is not None:
+        raise LtlLabelFormatCheckerError(f'"{name}" cannot be reordered: {blocking.detail}')
+    order = result.box_order
+    if order is None or not result.boxes:
+        raise LtlLabelFormatCheckerError(f'"{name}" has no box label pages to reorder.')
+    if order.unreadable_pages:
+        raise LtlLabelFormatCheckerError(
+            "Cannot reorder: the box tag B number could not be read on page(s) "
+            + ", ".join(str(p) for p in order.unreadable_pages[:10])
+            + ", so their position is unknown."
+        )
+    if order.duplicates:
+        details = []
+        for dup in order.duplicates[:5]:
+            pages = [str(e["page"]) for e in order.entries if e["found"] == dup]
+            details.append(f"B{dup} (pages {', '.join(pages)})")
+        raise LtlLabelFormatCheckerError(
+            "Cannot reorder: the same box number is on more than one page — "
+            + "; ".join(details)
+            + ". Remove the extra label first."
+        )
+
+    new_order = reorder_page_indices(order)
+
+    src = fitz.open(stream=raw, filetype="pdf")
+    try:
+        if src.page_count != len(new_order):
+            raise LtlLabelFormatCheckerError(f'"{name}" changed while it was being read; please try again.')
+        expected = [_page_signature(src[i]) for i in new_order]
+        src.select(new_order)
+        pdf_bytes = src.tobytes()
+    finally:
+        src.close()
+
+    out = fitz.open(stream=pdf_bytes, filetype="pdf")
+    try:
+        if out.page_count != len(new_order) or any(
+            _page_signature(out[i]) != expected[i] for i in range(out.page_count)
+        ):
+            raise LtlLabelFormatCheckerError("The reordered PDF did not match the original pages; nothing was produced.")
+    finally:
+        out.close()
+
+    numbers = [order.entries[i]["found"] for i in new_order]
+    return ReorderResult(
+        pdf_bytes=pdf_bytes,
+        filename=reordered_filename(name),
+        page_order=[i + 1 for i in new_order],
+        moved_pages=sum(1 for pos, idx in enumerate(new_order) if pos != idx),
+        first_box=numbers[0] if numbers else None,
+        last_box=numbers[-1] if numbers else None,
+        missing=list(order.missing),
+    )
+
+
 # =========================================================================== uploads
 def _check_one_upload(filename: str, raw: bytes) -> tuple[str, str, list[LtlFileResult], list[SkippedItem]]:
     """Validate one ``.pdf`` / ``.zip`` and return ``(name, kind, files, skipped)``."""

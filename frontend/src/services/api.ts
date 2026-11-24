@@ -2696,6 +2696,25 @@ export type LtlLabelFormatCheckResult = {
   report_xlsx_base64: string
 }
 
+export type LtlReorderResult = {
+  blob: Blob
+  filename: string
+  pages: number
+  moved: number
+  firstBox: number | null
+  lastBox: number | null
+  missing: number[]
+}
+
+function decodeHeader(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) return ''
+  try {
+    return decodeURIComponent(value.trim())
+  } catch {
+    return value.trim()
+  }
+}
+
 export const ltlLabelFormatCheckerApi = {
   check: async (files: File | File[]): Promise<LtlLabelFormatCheckResult> => {
     const list = Array.isArray(files) ? files : [files]
@@ -2707,6 +2726,37 @@ export const ltlLabelFormatCheckerApi = {
       timeout: 300_000,
     })
     return response.data
+  },
+  /** Re-save one PDF (or `member`, a PDF inside a ZIP) with its pages in B1, B2, B3, … order. */
+  reorder: async (file: File, member?: string): Promise<LtlReorderResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    if (member) form.append('member', member)
+    try {
+      const response = await api.post<Blob>('/api/v1/ltl-label-format-checker/reorder', form, {
+        responseType: 'blob',
+        timeout: 300_000,
+      })
+      const headers = response.headers || {}
+      const toBox = (v: unknown) => {
+        const n = Number(v)
+        return v !== undefined && v !== '' && Number.isFinite(n) && n > 0 ? n : null
+      }
+      return {
+        blob: response.data,
+        filename: decodeHeader(headers['x-ltl-reorder-filename']) || 'labels-reordered.pdf',
+        pages: Number(headers['x-ltl-reorder-pages'] || 0),
+        moved: Number(headers['x-ltl-reorder-moved'] || 0),
+        firstBox: toBox(headers['x-ltl-reorder-first-box']),
+        lastBox: toBox(headers['x-ltl-reorder-last-box']),
+        missing: String(headers['x-ltl-reorder-missing'] || '')
+          .split(',')
+          .map((s) => Number(s.trim()))
+          .filter((n) => Number.isFinite(n) && n > 0),
+      }
+    } catch (err: unknown) {
+      return readBlobError(err)
+    }
   },
 }
 

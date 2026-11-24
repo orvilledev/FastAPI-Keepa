@@ -3,9 +3,10 @@
 # turns ``UploadFile`` into a ForwardRef and FastAPI crashes on boot (see commit 9a23c05).
 import base64
 import logging
-from typing import List
+from typing import List, Optional
+from urllib.parse import quote
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from app.middleware.rate_limiter import RateLimits, limiter
@@ -14,6 +15,8 @@ from app.services.ltl_label_format_checker import (
     LtlLabelFormatCheckerError,
     build_report_xlsx,
     check_uploads,
+    extract_pdf_from_upload,
+    reorder_pdf_by_box_number,
     report_filename,
 )
 from app.utils.error_handler import handle_api_errors
@@ -75,3 +78,46 @@ async def check_ltl_label_formats(
     payload["report_filename"] = report_filename(run)
     payload["report_xlsx_base64"] = base64.b64encode(report).decode("ascii")
     return payload
+
+
+@router.post("/ltl-label-format-checker/reorder", response_model=None)
+@limiter.limit(RateLimits.FILE_UPLOAD)
+@handle_api_errors("reorder LTL label PDF")
+async def reorder_ltl_label_pdf(
+    request: Request,
+    file: UploadFile = File(..., description="The LTL label .pdf, or the .zip that contains it"),
+    member: Optional[str] = Form(None, description="Path of the PDF inside the .zip"),
+):
+    """Return the PDF with its pages rearranged so the box tags run B1, B2, B3, ...
+
+    Pages are moved, never redrawn, so the content and layout of every label is unchanged.
+    """
+    name = file.filename or "upload"
+    if not name.lower().endswith(_ACCEPTED_SUFFIXES):
+        raise HTTPException(
+            status_code=400,
+            detail=f'"{name}" is not supported. Upload a .pdf label file or a .zip of them.',
+        )
+    raw = await file.read()
+    try:
+        pdf_name, pdf_bytes = await run_in_threadpool(extract_pdf_from_upload, name, raw, member)
+        result = await run_in_threadpool(reorder_pdf_by_box_number, pdf_name, pdf_bytes)
+    except LtlLabelFormatCheckerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    ascii_name = result.filename.encode("ascii", "replace").decode("ascii").replace("?", "_").replace('"', "")
+    return Response(
+        content=result.pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(result.filename)}'
+            ),
+            "X-Ltl-Reorder-Filename": quote(result.filename),
+            "X-Ltl-Reorder-Pages": str(len(result.page_order)),
+            "X-Ltl-Reorder-Moved": str(result.moved_pages),
+            "X-Ltl-Reorder-First-Box": str(result.first_box or ""),
+            "X-Ltl-Reorder-Last-Box": str(result.last_box or ""),
+            "X-Ltl-Reorder-Missing": ",".join(str(m) for m in result.missing),
+        },
+    )

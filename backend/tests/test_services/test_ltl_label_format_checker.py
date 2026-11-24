@@ -292,6 +292,113 @@ def test_password_protected_pdf_fails():
     assert "password" in result.checks[0].detail
 
 
+# --------------------------------------------------------------------------- reorder
+def _assert_pages_unchanged(src_raw: bytes, out_raw: bytes, page_order: list[int]) -> None:
+    """Every output page is byte- and pixel-identical to its source page."""
+    src = fitz.open(stream=src_raw, filetype="pdf")
+    out = fitz.open(stream=out_raw, filetype="pdf")
+    assert out.page_count == src.page_count == len(page_order)
+    for i in range(out.page_count):
+        s, o = src[page_order[i] - 1], out[i]
+        assert s.read_contents() == o.read_contents(), f"content stream differs on output page {i + 1}"
+        assert s.mediabox == o.mediabox and s.rotation == o.rotation
+        assert s.get_pixmap(dpi=100).samples == o.get_pixmap(dpi=100).samples, f"render differs on page {i + 1}"
+
+
+def test_reorder_wrong_order_pdf_into_b1_to_b63():
+    raw = WRONG.read_bytes()
+    res = ltl.reorder_pdf_by_box_number("FBA19WBXZVZZ-wrong order.pdf", raw)
+    assert res.filename == "FBA19WBXZVZZ-wrong order-reordered.pdf"
+    assert (res.first_box, res.last_box, res.missing) == (1, 63, [])
+    assert res.moved_pages == 61
+    # B1 is on source page 17, B2 on page 1, B3 on page 21 ...
+    assert res.page_order[:3] == [17, 1, 21]
+    assert sorted(res.page_order) == list(range(1, 64))
+    _assert_pages_unchanged(raw, res.pdf_bytes, res.page_order)
+
+    check = ltl.check_pdf_bytes(res.filename, res.pdf_bytes, thumbnails=False)
+    assert check.status == ltl.FILE_PASS, [(c.id, c.page, c.detail) for c in check.all_checks if c.status != ltl.PASS]
+    assert [e["found"] for e in check.box_order.entries] == list(range(1, 64))
+
+
+def test_reorder_already_ordered_pdf_keeps_every_page_in_place():
+    raw = CORRECT.read_bytes()
+    res = ltl.reorder_pdf_by_box_number(CORRECT.name, raw)
+    assert res.page_order == list(range(1, 30))
+    assert res.moved_pages == 0
+    _assert_pages_unchanged(raw, res.pdf_bytes, res.page_order)
+
+
+def test_reorder_with_a_missing_box_keeps_the_gap():
+    raw = _pages(CORRECT, [4, 0, 3, 1])  # B5, B1, B4, B2
+    res = ltl.reorder_pdf_by_box_number("gap.pdf", raw)
+    assert res.page_order == [2, 4, 3, 1]
+    assert res.missing == [3]
+    check = ltl.check_pdf_bytes("gap.pdf", res.pdf_bytes, thumbnails=False)
+    assert [e["found"] for e in check.box_order.entries] == [1, 2, 4, 5]
+
+
+def test_reorder_later_part_of_a_split_shipment_starts_at_its_lowest_box():
+    raw = _pages(CORRECT, [12, 10, 11])  # B13, B11, B12
+    res = ltl.reorder_pdf_by_box_number("part2.pdf", raw)
+    assert (res.first_box, res.last_box) == (11, 13)
+    assert res.page_order == [2, 3, 1]
+
+
+def test_reorder_refuses_repeated_box_numbers():
+    with pytest.raises(ltl.LtlLabelFormatCheckerError, match=r"B2 \(pages 2, 3\)"):
+        ltl.reorder_pdf_by_box_number("dupe.pdf", _pages(CORRECT, [0, 1, 1, 2]))
+
+
+def test_reorder_refuses_unreadable_box_numbers():
+    doc = fitz.open(CORRECT)
+    _replace_text(doc, 2, "P1 - B3", "BOX THREE")
+    with pytest.raises(ltl.LtlLabelFormatCheckerError, match="could not be read on page"):
+        ltl.reorder_pdf_by_box_number("unreadable.pdf", doc.tobytes())
+
+
+def test_reorder_refuses_unreadable_pdf():
+    with pytest.raises(ltl.LtlLabelFormatCheckerError, match="cannot be reordered"):
+        ltl.reorder_pdf_by_box_number("bad.pdf", b"%PDF-1.4 garbage")
+
+
+def _order_of(mode: str, tags: list[tuple[str, int]]) -> "ltl.BoxOrder":
+    order = ltl.BoxOrder(mode=mode)
+    order.entries = [
+        {"page": i + 1, "box_id": "", "box_tag": "", "pack_group": g, "found": n, "expected": 0, "ok": False}
+        for i, (g, n) in enumerate(tags)
+    ]
+    return order
+
+
+def test_reorder_indices_sort_by_box_number():
+    order = _order_of("sequence", [("P1", 3), ("P1", 1), ("P2", 4), ("P1", 2)])
+    assert ltl.reorder_page_indices(order) == [1, 3, 0, 2]
+
+
+def test_reorder_indices_for_pack_groups_restarting_at_b1():
+    order = _order_of("pack_group", [("P2", 1), ("P10", 1), ("P1", 2), ("P1", 1), ("P2", 2)])
+    ranked = [order.entries[i] for i in ltl.reorder_page_indices(order)]
+    assert [(e["pack_group"], e["found"]) for e in ranked] == [
+        ("P1", 1), ("P1", 2), ("P2", 1), ("P2", 2), ("P10", 1),
+    ]
+
+
+def test_extract_pdf_from_zip_member():
+    raw = _zip_of({"labels/a.pdf": WRONG.read_bytes(), "notes.txt": b"x"})
+    name, data = ltl.extract_pdf_from_upload("batch.zip", raw, "labels/a.pdf")
+    assert name == "a.pdf" and data == WRONG.read_bytes()
+    with pytest.raises(ltl.LtlLabelFormatCheckerError, match="was not found"):
+        ltl.extract_pdf_from_upload("batch.zip", raw, "labels/missing.pdf")
+    with pytest.raises(ltl.LtlLabelFormatCheckerError, match="Choose which PDF"):
+        ltl.extract_pdf_from_upload("batch.zip", raw, None)
+
+
+def test_reordered_filename_is_safe():
+    assert ltl.reordered_filename("dir/FBA19WBXZVZZ.pdf") == "FBA19WBXZVZZ-reordered.pdf"
+    assert ltl.reordered_filename('bad:"name".pdf') == "bad_name_-reordered.pdf"
+
+
 # --------------------------------------------------------------------------- previews
 def test_thumbnails_prefer_out_of_order_pages():
     order = list(range(29))

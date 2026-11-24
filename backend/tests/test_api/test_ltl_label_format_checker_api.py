@@ -88,3 +88,63 @@ def test_bad_uploads_get_a_400_with_a_helpful_message(client, name, data, fragme
     res = _post(client, [(name, data, "application/octet-stream")])
     assert res.status_code == 400
     assert fragment in res.json()["detail"]
+
+
+def _reorder(client: TestClient, name: str, data: bytes, member: str | None = None):
+    return client.post(
+        "/api/v1/ltl-label-format-checker/reorder",
+        files={"file": (name, data, "application/octet-stream")},
+        data={"member": member} if member is not None else None,
+    )
+
+
+def test_reorder_returns_pdf_in_b1_to_bn_order(client):
+    import fitz
+
+    res = _reorder(client, "FBA19WBXZVZZ-wrong order.pdf", WRONG.read_bytes())
+    assert res.status_code == 200, res.text
+    assert res.headers["content-type"] == "application/pdf"
+    assert "FBA19WBXZVZZ-wrong%20order-reordered.pdf" in res.headers["content-disposition"]
+    assert res.headers["x-ltl-reorder-filename"] == "FBA19WBXZVZZ-wrong%20order-reordered.pdf"
+    assert res.headers["x-ltl-reorder-pages"] == "63"
+    assert res.headers["x-ltl-reorder-moved"] == "61"
+    assert res.headers["x-ltl-reorder-first-box"] == "1"
+    assert res.headers["x-ltl-reorder-last-box"] == "63"
+    assert res.headers["x-ltl-reorder-missing"] == ""
+
+    out = fitz.open(stream=res.content, filetype="pdf")
+    assert out.page_count == 63
+    tags = [next(l for l in out[i].get_text().splitlines() if " - B" in l) for i in range(63)]
+    assert tags == [f"FBA19WBXZVZZ - B{n}" for n in range(1, 64)]
+
+    check = _post(client, [("fixed.pdf", res.content, "application/pdf")]).json()
+    assert check["files"][0]["box_order"]["status"] == "pass"
+
+
+def test_reorder_pdf_inside_zip(client):
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("set/wrong.pdf", WRONG.read_bytes())
+    res = _reorder(client, "labels.zip", buf.getvalue(), "set/wrong.pdf")
+    assert res.status_code == 200, res.text
+    assert res.headers["x-ltl-reorder-filename"] == "wrong-reordered.pdf"
+
+    res = _reorder(client, "labels.zip", buf.getvalue(), "set/other.pdf")
+    assert res.status_code == 400
+    assert "was not found" in res.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "name,data,fragment",
+    [
+        ("labels.png", b"x", "not supported"),
+        ("labels.pdf", b"", "empty"),
+        ("labels.pdf", b"not a pdf", "not a PDF"),
+    ],
+)
+def test_reorder_bad_uploads_get_a_400(client, name, data, fragment):
+    res = _reorder(client, name, data)
+    assert res.status_code == 400
+    assert fragment in res.json()["detail"]

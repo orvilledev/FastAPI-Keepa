@@ -7,7 +7,11 @@ import {
   type LtlBoxOrder,
   type LtlLabelFile,
   type LtlLabelFormatCheckResult,
+  type LtlReorderResult,
 } from '../../services/api'
+
+/** The uploaded file a result came from; `member` is the PDF's path inside a ZIP. */
+type ReorderSource = { file: File; member?: string }
 
 const ACCEPTED = '.pdf,.zip,application/pdf,application/zip,application/x-zip-compressed'
 const ALLOWED_SUFFIXES = ['.pdf', '.zip']
@@ -39,6 +43,25 @@ function downloadBase64Xlsx(base64: string, filename: string) {
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+function errorMessage(err: unknown, fallback: string) {
+  const msg =
+    (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data?.detail ||
+    (err as { message?: string })?.message ||
+    fallback
+  return typeof msg === 'string' ? msg : fallback
 }
 
 const FILE_STATUS_META: Record<LabelFileStatus, { label: string; badge: string }> = {
@@ -108,7 +131,87 @@ function CheckList({ title, checks }: { title: string; checks: LabelFormatCheck[
   )
 }
 
-function BoxOrderPanel({ order }: { order: LtlBoxOrder }) {
+function ReorderAction({ order, source }: { order: LtlBoxOrder; source: ReorderSource | null }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState<LtlReorderResult | null>(null)
+
+  const numbers = order.entries.map((e) => e.found).filter((n): n is number => n !== null)
+  const range =
+    order.mode === 'pack_group'
+      ? 'B1 → … in each pack group'
+      : numbers.length > 0
+        ? `B${Math.min(...numbers)} → B${Math.max(...numbers)}`
+        : ''
+
+  let blocked: string | null = null
+  if (order.unreadable_pages.length > 0) {
+    blocked = `It can't be reordered automatically because the B number could not be read on page ${order.unreadable_pages.join(', ')}.`
+  } else if (order.duplicates.length > 0) {
+    blocked = `It can't be reordered automatically because the same box number is on more than one page (${order.duplicates
+      .map((d) => `B${d}`)
+      .join(', ')}). Remove the extra label first.`
+  } else if (!source) {
+    blocked = 'Upload this PDF on its own to download a reordered copy.'
+  }
+
+  const run = async () => {
+    if (!source || busy) return
+    setBusy(true)
+    setError(null)
+    setDone(null)
+    try {
+      const res = await ltlLabelFormatCheckerApi.reorder(source.file, source.member)
+      downloadBlob(res.blob, res.filename)
+      setDone(res)
+    } catch (err: unknown) {
+      setError(errorMessage(err, 'Failed to reorder the PDF.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="min-w-0 flex-1">
+          <strong className="text-gray-900">Fix the order.</strong> Download one PDF with the same pages sorted{' '}
+          {range ? <strong>{range}</strong> : 'by box number'}. Pages are only moved — nothing on any label is
+          changed.
+        </p>
+        <button
+          type="button"
+          onClick={() => void run()}
+          disabled={busy || blocked !== null}
+          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {busy && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+          {busy ? 'Reordering…' : 'Download reordered PDF'}
+        </button>
+      </div>
+      {blocked && <p className="mt-2 text-xs text-amber-800">{blocked}</p>}
+      {error && (
+        <p role="alert" className="mt-2 text-xs text-red-700">
+          {error}
+        </p>
+      )}
+      {done && (
+        <p role="status" className="mt-2 text-xs text-green-800">
+          Downloaded <strong>{done.filename}</strong> — {done.pages} page{done.pages === 1 ? '' : 's'}
+          {done.firstBox !== null && done.lastBox !== null && order.mode !== 'pack_group'
+            ? `, B${done.firstBox} to B${done.lastBox}`
+            : ''}
+          ; {done.moved === 0 ? 'no pages needed moving' : `${done.moved} page${done.moved === 1 ? '' : 's'} moved`}, label
+          content unchanged.
+          {done.missing.length > 0 &&
+            ` Still missing from the shipment: ${done.missing.map((m) => `B${m}`).join(', ')}.`}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function BoxOrderPanel({ order, source }: { order: LtlBoxOrder; source: ReorderSource | null }) {
   const wrong = order.entries.filter((e) => e.ok === false)
   const tone =
     order.status === 'fail'
@@ -154,6 +257,8 @@ function BoxOrderPanel({ order }: { order: LtlBoxOrder }) {
         )}
         <p className="mt-1 text-xs opacity-80">Each tile is one page, in page order, showing the B number printed on it.</p>
       </div>
+
+      {order.status === 'fail' && <ReorderAction order={order} source={source} />}
 
       <div className="mt-2 flex flex-wrap gap-1">
         {order.entries.map((e) => {
@@ -212,7 +317,7 @@ function BoxOrderPanel({ order }: { order: LtlBoxOrder }) {
   )
 }
 
-function FileDetails({ file }: { file: LtlLabelFile }) {
+function FileDetails({ file, source }: { file: LtlLabelFile; source: ReorderSource | null }) {
   const [showAllPages, setShowAllPages] = useState(false)
   const pagesWithLabelIssues = useMemo(
     () => file.boxes.filter((b) => b.checks.some((c) => c.id !== 'box.order' && c.status !== 'pass')),
@@ -224,7 +329,7 @@ function FileDetails({ file }: { file: LtlLabelFile }) {
     <div className="space-y-4 p-4">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-w-0 space-y-4">
-          {file.box_order && <BoxOrderPanel order={file.box_order} />}
+          {file.box_order && <BoxOrderPanel order={file.box_order} source={source} />}
           <CheckList title="File" checks={file.checks} />
 
           {file.boxes.length > 0 && (
@@ -400,6 +505,21 @@ export default function LtlLabelFormatChecker() {
       )
     })
   }, [result, filter, query])
+
+  const sourceFor = useCallback(
+    (f: LtlLabelFile): ReorderSource | null => {
+      if (!result) return null
+      if (result.source_kind === 'pdf') return files.length === 1 ? { file: files[0] } : null
+      if (result.source_kind === 'zip') return files.length === 1 ? { file: files[0], member: f.path } : null
+      const pdfs = files.filter((u) => u.name.toLowerCase().endsWith('.pdf') && u.name.trim() === f.path)
+      if (pdfs.length === 1) return { file: pdfs[0] }
+      if (pdfs.length > 1) return null
+      const zips = files.filter((u) => u.name.toLowerCase().endsWith('.zip') && f.path.startsWith(`${u.name.trim()}/`))
+      if (zips.length !== 1) return null
+      return { file: zips[0], member: f.path.slice(zips[0].name.trim().length + 1) }
+    },
+    [files, result],
+  )
 
   const toggle = useCallback((path: string) => {
     setExpanded((prev) => {
@@ -652,7 +772,7 @@ export default function LtlLabelFormatChecker() {
                               className="sticky left-0"
                               style={tableWrapWidth ? { width: tableWrapWidth } : undefined}
                             >
-                              <FileDetails file={f} />
+                              <FileDetails file={f} source={sourceFor(f)} />
                             </div>
                           </td>
                         </tr>
@@ -708,6 +828,10 @@ export default function LtlLabelFormatChecker() {
               </li>
               <li>Every page that is out of position is flagged with the B number it should have</li>
               <li>Missing and repeated box numbers are flagged too</li>
+              <li>
+                When the order is wrong, <strong>Download reordered PDF</strong> saves one file with the same pages
+                sorted B1, B2, B3, … — only the page order changes
+              </li>
             </ul>
             <p className="mt-3 font-medium text-gray-800">Whole file</p>
             <ul className="mt-1 list-disc space-y-1 pl-5">

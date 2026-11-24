@@ -171,6 +171,12 @@ app.add_middleware(
         "X-Obz-Smw-Smw-Rows",
         "X-Obz-Smw-Dropped-Amzn-Rows",
         "X-Obz-Smw-Skipped-Other-Rows",
+        "X-Ltl-Reorder-Filename",
+        "X-Ltl-Reorder-Pages",
+        "X-Ltl-Reorder-Moved",
+        "X-Ltl-Reorder-First-Box",
+        "X-Ltl-Reorder-Last-Box",
+        "X-Ltl-Reorder-Missing",
     ],
 )
 
