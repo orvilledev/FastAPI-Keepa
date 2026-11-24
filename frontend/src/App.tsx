@@ -66,7 +66,6 @@ const LabelFormatChecker = lazy(() => import('./components/tools/LabelFormatChec
 const NsTool = lazy(() => import('./components/tools/NsTool'))
 const FnskuBoxPivot = lazy(() => import('./components/tools/FnskuBoxPivot'))
 const FbaBoxContents = lazy(() => import('./components/tools/FbaBoxContents'))
-const FbaUploadCompare = lazy(() => import('./components/tools/FbaUploadCompare'))
 const FbaShipmentLibrary = lazy(() => import('./components/tools/FbaShipmentLibrary'))
 const DnkAllInventory = lazy(() => import('./components/tools/DnkAllInventory'))
 const ShipmentManager = lazy(() => import('./components/tools/ShipmentManager'))
@@ -515,14 +514,6 @@ function AppRoutes() {
             element={
               <ProtectedRoute requireFbaBoxContentsAccess={true}>
                 <FbaBoxContents />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="fba-upload-compare"
-            element={
-              <ProtectedRoute requireOldSkusAccess={true}>
-                <FbaUploadCompare />
               </ProtectedRoute>
             }
           />

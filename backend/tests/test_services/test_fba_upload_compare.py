@@ -1,37 +1,19 @@
-"""Tests for FBA Upload Compare — Output reconciled to the AMZ upload file."""
+"""Tests for shared AMZ reconcile helpers used by DNK / Tool2 compare."""
 from __future__ import annotations
 
 from collections import defaultdict
-from io import BytesIO
-from pathlib import Path
-
-import openpyxl
-import pytest
 
 from app.services.fba_upload_compare import (
-    ADDED_UNITS_SHEET,
-    BOX_CONTENTS_SHEET,
-    DIMENSIONS_SHEET,
-    MIN_UNITS_PER_BOX,
     MISSING_UPC_REASON,
     NOT_IN_AMZ_REASON,
-    PIVOT_START_COL,
     RELOCATED_REASON,
-    REMOVED_UNITS_SHEET,
     SEEDED_BOX_REASON,
     SHORTFALL_REASON,
     SURPLUS_REASON,
     AmzSkuRow,
     ContentRow,
     ParsedAmz,
-    generate_fba_upload_compare,
     reconcile_to_amz,
-)
-
-SAMPLE_OUTPUT = Path(r"c:\Users\Administrator\Downloads\FBA19Q0MTKCW Output.xlsx")
-SAMPLE_AMZ = Path(
-    r"c:\Users\Administrator\Downloads"
-    r"\2026-09-25_13-14-35_01e45a16-ff24-4be6-aafa-d4e96ed69bfc.xlsx"
 )
 
 
@@ -239,114 +221,3 @@ def test_reconcile_result_always_equals_the_amz_expected_quantities():
     added = sum(a.qty for a in result.added)
     removed = sum(a.qty for a in result.removed)
     assert original + added - removed == sum(row.expected_qty for row in amz.skus)
-
-
-@pytest.mark.skipif(
-    not SAMPLE_OUTPUT.exists() or not SAMPLE_AMZ.exists(),
-    reason="Sample FBA Upload Compare files not present",
-)
-def test_sample_result_pivot_matches_the_amz_upload_file():
-    source = openpyxl.load_workbook(SAMPLE_AMZ, data_only=True)
-    try:
-        sheet = source["Box packing information"]
-        expected: dict[str, int] = defaultdict(int)
-        for row in range(6, sheet.max_row + 1):
-            sku = sheet.cell(row, 1).value
-            if not sku:
-                continue
-            text = str(sku).strip()
-            if text.lower().startswith(("box ", "name of box", "box weight")):
-                break
-            expected[text.replace("-FNSKU", "")] += int(sheet.cell(row, 10).value)
-    finally:
-        source.close()
-
-    result = generate_fba_upload_compare(
-        SAMPLE_OUTPUT.read_bytes(),
-        SAMPLE_AMZ.read_bytes(),
-        [],
-        output_filename=SAMPLE_OUTPUT.name,
-        amz_filename=SAMPLE_AMZ.name,
-    )
-    assert result.total_qty == sum(expected.values())
-    assert result.upc_count == len(expected)
-
-    workbook = openpyxl.load_workbook(BytesIO(result.file_bytes), data_only=True)
-    try:
-        contents = workbook[BOX_CONTENTS_SHEET]
-        assert workbook.sheetnames[:2] == [BOX_CONTENTS_SHEET, DIMENSIONS_SHEET]
-        assert ADDED_UNITS_SHEET in workbook.sheetnames
-        assert REMOVED_UNITS_SHEET in workbook.sheetnames
-
-        raw: dict[str, int] = defaultdict(int)
-        per_box: dict[tuple[str, int], int] = defaultdict(int)
-        box_units: dict[int, int] = defaultdict(int)
-        for row in range(2, contents.max_row + 1):
-            upc = contents.cell(row, 1).value
-            if upc in (None, ""):
-                continue
-            qty = contents.cell(row, 3).value
-            box = contents.cell(row, 2).value
-            raw[str(upc)] += qty
-            per_box[(str(upc), box)] += qty
-            box_units[box] += qty
-        assert raw == expected
-
-        # Seller Central drops empty boxes, so all 23 have to carry units.
-        assert sorted(box_units) == list(range(1, result.box_count + 1))
-        assert all(units >= MIN_UNITS_PER_BOX for units in box_units.values())
-
-        box_columns: dict[int, int] = {}
-        for col in range(PIVOT_START_COL + 1, contents.max_column + 1):
-            header = contents.cell(2, col).value
-            if not isinstance(header, int):
-                break
-            box_columns[header] = col
-        assert sorted(box_columns) == list(range(1, result.box_count + 1))
-        grand_col = max(box_columns.values()) + 1
-        assert contents.cell(2, grand_col).value == "Grand Total"
-
-        pivot: dict[str, int] = {}
-        row = 3
-        while True:
-            label = contents.cell(row, PIVOT_START_COL).value
-            if label in (None, "") or label == "Grand Total":
-                break
-            label = str(label)
-            for box, col in box_columns.items():
-                assert (contents.cell(row, col).value or 0) == per_box.get((label, box), 0)
-            pivot[label] = contents.cell(row, grand_col).value
-            row += 1
-        assert pivot == expected
-        assert contents.cell(row, grand_col).value == sum(expected.values())
-
-        added_sheet = workbook[ADDED_UNITS_SHEET]
-        assert [added_sheet.cell(1, col).value for col in range(1, 4)] == ["UPC", "Box Number", "QTY"]
-        added_units = 0
-        added_boxes: set[int] = set()
-        seen: set[tuple[str, int]] = set()
-        for r in range(2, added_sheet.max_row + 1):
-            upc = added_sheet.cell(r, 1).value
-            if upc in (None, ""):
-                continue
-            box = added_sheet.cell(r, 2).value
-            assert box in box_columns
-            # Every added row must be traceable to a real Box Contents cell.
-            assert per_box[(str(upc), box)] >= added_sheet.cell(r, 3).value
-            assert (str(upc), box) not in seen
-            seen.add((str(upc), box))
-            added_boxes.add(box)
-            added_units += added_sheet.cell(r, 3).value
-        assert added_units == result.added_qty
-        # The bulk lands in the last box; the rest only seeds otherwise-empty boxes.
-        assert result.last_box in added_boxes
-
-        removed_sheet = workbook[REMOVED_UNITS_SHEET]
-        assert [removed_sheet.cell(1, col).value for col in range(1, 5)] == [
-            "UPC",
-            "Box Number",
-            "QTY",
-            "Reason",
-        ]
-    finally:
-        workbook.close()

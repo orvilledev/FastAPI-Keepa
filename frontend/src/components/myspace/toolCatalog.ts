@@ -28,7 +28,6 @@ export const BOOKMARKABLE_TOOLS: BookmarkableTool[] = [
   { path: '/label-station-2', label: 'Label Station II', group: 'Tools' },
   { path: '/fba-box-contents', label: 'FBA Box Contents', group: 'BC Tools' },
   { path: '/fba-shipment-library', label: 'FBA Order Checker', group: 'BC Tools' },
-  { path: '/fba-upload-compare', label: 'FBA Upload Compare', group: 'BC Tools' },
   { path: '/product-catalog-formatter', label: 'Product Catalog Formatter', group: 'BC Tools' },
   { path: '/obz-smw-fba-inv', label: 'OBZ / SMW FBA INV', group: 'BC Tools' },
   { path: '/label-format-checker', label: 'Label Format Checker', group: 'BC Tools' },
