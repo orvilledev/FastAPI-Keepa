@@ -450,7 +450,12 @@ _SHIPMENT_MANAGER_BLOCKED = frozenset(
 _LABEL_FORMAT_CHECKER_BLOCKED = frozenset(
     {
         "hello@warehouserepublic.com",
-        *FLOOR_STATION_EMAILS,
+    }
+)
+
+_DEFAULT_LTL_LABEL_FORMAT_CHECKER_BLOCKED = frozenset(
+    {
+        "hello@warehouserepublic.com",
     }
 )
 
@@ -474,7 +479,7 @@ def get_shipment_manager_user(
 
 
 def is_label_format_checker_allowed_user(current_user: dict) -> bool:
-    """True for every signed-in account except Hello and the floor stations."""
+    """True for every signed-in account except Hello@warehouserepublic."""
     email = (current_user.get("email") or "").strip().lower()
     return bool(email) and email not in _LABEL_FORMAT_CHECKER_BLOCKED
 
@@ -492,14 +497,16 @@ def get_label_format_checker_user(
 
 
 def is_ltl_label_format_checker_allowed_user(current_user: dict, db: Client) -> bool:
-    """True for superadmin or emails on the LTL Label Format Checker allowlist."""
+    """True for signed-in users except Hello@warehouserepublic."""
+    email = (current_user.get("email") or "").strip().lower()
+    blocked = set(settings.ltl_label_format_checker_blocked_emails_list) or set(
+        _DEFAULT_LTL_LABEL_FORMAT_CHECKER_BLOCKED
+    )
+    if email in blocked:
+        return False
     if is_superadmin_user(current_user, db):
         return True
-    email = (current_user.get("email") or "").strip().lower()
-    if not email:
-        return False
-    allowed = set(settings.ltl_label_format_checker_allowed_emails_list)
-    return email in allowed
+    return bool(email)
 
 
 def get_ltl_label_format_checker_user(
@@ -510,7 +517,7 @@ def get_ltl_label_format_checker_user(
     if not is_ltl_label_format_checker_allowed_user(current_user, db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="LTL Label Format Checker is restricted to authorized users",
+            detail="LTL Label Format Checker is not available for this account",
         )
     return current_user
 

@@ -1,14 +1,10 @@
-import { FLOOR_STATION_EMAILS } from '../constants/warehouseStations'
-
 /**
- * SPD Label Format Checker — every signed-in user except Hello and the floor stations
- * (warehouse1, label1–label8, pack1–pack6). Keep in sync with backend
- * `is_label_format_checker_allowed_user`.
+ * SPD Label Format Checker — every signed-in user except Hello@warehouserepublic.
+ * Keep in sync with backend `is_label_format_checker_allowed_user`.
  */
 
 export const LABEL_FORMAT_CHECKER_BLOCKED_EMAILS = [
   'hello@warehouserepublic.com',
-  ...FLOOR_STATION_EMAILS,
 ] as const
 
 const LABEL_FORMAT_CHECKER_BLOCKED_SET = new Set(
