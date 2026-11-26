@@ -436,22 +436,23 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     return ordered.length === toolboxItems.length ? ordered : toolboxItems
   }, [toolboxItems, toolboxDragOrder])
 
-  const startToolboxDrag = (event: ReactPointerEvent<HTMLButtonElement>, linkId: string) => {
+  const beginToolboxPress = (event: ReactPointerEvent<HTMLElement>, linkId: string) => {
     if (event.button !== 0) return
-    event.preventDefault()
+    // Pins, divider actions, and inputs keep their own click behavior.
+    if ((event.target as Element | null)?.closest?.('button, input')) return
+
     toolboxDragCleanupRef.current?.()
 
+    const startX = event.clientX
+    const startY = event.clientY
     const original = toolboxEntries.map((link) => link.id)
     let current = original
-    setToolboxDraggingId(linkId)
-    setToolboxDragOrder(original)
+    let activated = false
 
     const bodyStyle = document.body.style
-    const prevUserSelect = bodyStyle.userSelect
-    bodyStyle.userSelect = 'none'
-    document.body.classList.add('toolbox-dragging')
+    let prevUserSelect = bodyStyle.userSelect
 
-    const handleMove = (moveEvent: PointerEvent) => {
+    const reorderFromPointer = (clientY: number) => {
       const list = toolboxListRef.current
       if (!list) return
       const otherRows = Array.from(list.querySelectorAll<HTMLElement>('[data-toolbox-id]')).filter(
@@ -460,7 +461,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
       let targetIndex = 0
       for (const row of otherRows) {
         const rect = row.getBoundingClientRect()
-        if (moveEvent.clientY > rect.top + rect.height / 2) targetIndex += 1
+        if (clientY > rect.top + rect.height / 2) targetIndex += 1
       }
       const others = current.filter((id) => id !== linkId)
       const next = [...others.slice(0, targetIndex), linkId, ...others.slice(targetIndex)]
@@ -470,20 +471,52 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
       }
     }
 
+    const activateDrag = () => {
+      if (activated) return
+      activated = true
+      prevUserSelect = bodyStyle.userSelect
+      bodyStyle.userSelect = 'none'
+      document.body.classList.add('toolbox-dragging')
+      setToolboxDraggingId(linkId)
+      setToolboxDragOrder(original)
+    }
+
+    const suppressNextClick = () => {
+      const blockClick = (clickEvent: Event) => {
+        clickEvent.preventDefault()
+        clickEvent.stopPropagation()
+        window.removeEventListener('click', blockClick, true)
+      }
+      window.addEventListener('click', blockClick, true)
+    }
+
     const finish = (commit: boolean) => {
       window.removeEventListener('pointermove', handleMove)
       window.removeEventListener('pointerup', handleUp)
       window.removeEventListener('pointercancel', handleCancel)
+      toolboxDragCleanupRef.current = null
+      if (!activated) return
+
       bodyStyle.userSelect = prevUserSelect
       document.body.classList.remove('toolbox-dragging')
-      toolboxDragCleanupRef.current = null
       setToolboxDraggingId(null)
       setToolboxDragOrder(null)
+      suppressNextClick()
       if (commit && current.some((id, index) => id !== original[index])) {
         void reorderToolbox(current).catch(() => {
           /* order is reloaded from the server on failure */
         })
       }
+    }
+    const handleMove = (moveEvent: PointerEvent) => {
+      if (!activated) {
+        const dx = moveEvent.clientX - startX
+        const dy = moveEvent.clientY - startY
+        if (Math.hypot(dx, dy) < 5) return
+        activateDrag()
+      }
+      moveEvent.preventDefault()
+      reorderFromPointer(moveEvent.clientY)
     }
     const handleUp = () => finish(true)
     const handleCancel = () => finish(false)
@@ -494,7 +527,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     toolboxDragCleanupRef.current = () => finish(false)
   }
 
-  const handleToolboxHandleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, linkId: string) => {
+  const handleToolboxRowKeyDown = (event: KeyboardEvent<HTMLElement>, linkId: string) => {
     if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
     event.preventDefault()
     const ids = toolboxEntries.map((link) => link.id)
@@ -564,6 +597,8 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     id,
     bookmarkable = true,
     trailing,
+    onKeyDown,
+    title,
   }: {
     to: string
     label: string
@@ -571,10 +606,14 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     id: string
     bookmarkable?: boolean
     trailing?: ReactNode
+    onKeyDown?: (event: KeyboardEvent<HTMLAnchorElement>) => void
+    title?: string
   }) => (
     <Link
       to={to}
+      title={title}
       onMouseEnter={() => setHoveredNav(id)}
+      onKeyDown={onKeyDown}
       className={`sidebar-link ${
         navHighlighted(id, isActive(to))
           ? 'sidebar-link-active'
@@ -606,37 +645,32 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
           {orderedToolboxItems.map((item) => {
             const dragging = toolboxDraggingId === item.linkId
             const isDivider = item.kind === 'divider'
+            const canReorder = orderedToolboxItems.length > 1
             return (
               <div
                 key={item.id}
                 data-toolbox-id={item.linkId}
-                className={`group/toolbox relative rounded-lg ${
+                className={`group/toolbox relative rounded-lg ${canReorder ? 'toolbox-row-drag' : ''} ${
                   dragging ? 'z-10 opacity-80 shadow-lg ring-2 ring-[#81B81D]/60' : ''
                 }`}
+                onPointerDown={
+                  canReorder ? (event) => beginToolboxPress(event, item.linkId) : undefined
+                }
+                aria-grabbed={dragging || undefined}
               >
-                {orderedToolboxItems.length > 1 && (
-                  <button
-                    type="button"
-                    onPointerDown={(event) => startToolboxDrag(event, item.linkId)}
-                    onKeyDown={(event) => handleToolboxHandleKeyDown(event, item.linkId)}
-                    onClick={(event) => event.stopPropagation()}
-                    aria-label={`Reorder ${item.label}${isDivider ? ' divider' : ''}. Drag, or use the up and down arrow keys.`}
-                    title="Drag to reorder"
-                    className="toolbox-drag-handle absolute -left-3 top-1/2 z-20 flex h-7 w-3.5 -translate-y-1/2 touch-none select-none items-center justify-center rounded opacity-0 transition-opacity group-hover/toolbox:opacity-70 focus-visible:opacity-70 [@media(hover:none)]:opacity-45"
-                  >
-                    {/* Soft white grip; the green hand is the cursor only (see .toolbox-drag-handle). */}
-                    <svg className="h-3.5 w-2.5" viewBox="0 0 10 16" aria-hidden="true">
-                      <circle cx="2.5" cy="3" r="1.35" fill="#ffffff" stroke="#111111" strokeWidth="0.9" />
-                      <circle cx="7.5" cy="3" r="1.35" fill="#ffffff" stroke="#111111" strokeWidth="0.9" />
-                      <circle cx="2.5" cy="8" r="1.35" fill="#ffffff" stroke="#111111" strokeWidth="0.9" />
-                      <circle cx="7.5" cy="8" r="1.35" fill="#ffffff" stroke="#111111" strokeWidth="0.9" />
-                      <circle cx="2.5" cy="13" r="1.35" fill="#ffffff" stroke="#111111" strokeWidth="0.9" />
-                      <circle cx="7.5" cy="13" r="1.35" fill="#ffffff" stroke="#111111" strokeWidth="0.9" />
-                    </svg>
-                  </button>
-                )}
                 {!isDivider ? (
-                  <ToolLink to={item.path} label={item.label} icon={item.icon} id={item.id} />
+                  <ToolLink
+                    to={item.path}
+                    label={item.label}
+                    icon={item.icon}
+                    id={item.id}
+                    title={canReorder ? 'Drag to reorder' : undefined}
+                    onKeyDown={
+                      canReorder
+                        ? (event) => handleToolboxRowKeyDown(event, item.linkId)
+                        : undefined
+                    }
+                  />
                 ) : editingDividerId === item.linkId ? (
                   <div className="px-1 pb-1 pt-1.5">
                     <input
@@ -654,6 +688,13 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                 ) : (
                   <div
                     className="flex items-center gap-1.5 px-3 pb-1 pt-2"
+                    title={canReorder ? 'Drag to reorder' : undefined}
+                    tabIndex={canReorder ? 0 : undefined}
+                    onKeyDown={
+                      canReorder
+                        ? (event) => handleToolboxRowKeyDown(event, item.linkId)
+                        : undefined
+                    }
                     onDoubleClick={() => beginRenameDivider(item.linkId, item.label)}
                   >
                     <span className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-wider text-[#81B81D]">
