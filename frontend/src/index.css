@@ -258,20 +258,25 @@
     cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath fill='%2381B81D' stroke='%23111111' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M11 16.5v-3.25a1.75 1.75 0 013.5 0V16M14.5 16.25v-4.5a1.75 1.75 0 013.5 0v4.5M18 16.25v-2.5a1.75 1.75 0 013.5 0V19a5.75 5.75 0 01-5.75 5.75h-1.1A5.4 5.4 0 019 19.35v-3.6A1.75 1.75 0 0110.75 14H11z'/%3E%3C/svg%3E") 10 8, grabbing;
   }
 
+  body.toolbox-dragging .toolbox-drag-handle {
+    opacity: 0.7 !important;
+  }
+
+  /* Pins stay hidden until the sidebar row is hovered. */
   .sidebar-bookmark-btn {
     position: relative;
     z-index: 10;
     color: inherit;
-    opacity: 0.4;
+    opacity: 0;
+    transition: opacity 0.15s ease;
   }
 
-  /* Already in My Toolbox: hide the pin until the row is hovered. */
   .sidebar-bookmark-btn[data-bookmarked='true'] {
     color: #f97316;
-    opacity: 0;
   }
 
-  .sidebar-link:hover .sidebar-bookmark-btn {
+  .sidebar-link:hover .sidebar-bookmark-btn,
+  .sidebar-bookmark-btn:focus-visible {
     opacity: 1;
   }
 
@@ -279,8 +284,12 @@
     color: #fdba74;
   }
 
-  /* Touch / no-hover: keep a faint pin so unpinning stays possible. */
+  /* Touch / no-hover: keep faint pins so bookmarking stays usable. */
   @media (hover: none) {
+    .sidebar-bookmark-btn {
+      opacity: 0.45;
+    }
+
     .sidebar-bookmark-btn[data-bookmarked='true'] {
       opacity: 0.55;
     }

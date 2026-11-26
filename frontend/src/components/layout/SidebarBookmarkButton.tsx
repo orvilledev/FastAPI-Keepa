@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useToolBookmarks } from '../../contexts/ToolBookmarksContext'
+import { getApiErrorDetail } from '../../utils/apiErrorMessage'
 
 type SidebarBookmarkButtonProps = {
   path: string
@@ -13,6 +14,8 @@ export default function SidebarBookmarkButton({ path, label }: SidebarBookmarkBu
   const busy = busyPath === path
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [removing, setRemoving] = useState(false)
+  const [pinning, setPinning] = useState(false)
+  const [error, setError] = useState('')
   const panelRef = useRef<HTMLDivElement>(null)
   const pressStartedOnBackdrop = useRef(false)
 
@@ -30,17 +33,27 @@ export default function SidebarBookmarkButton({ path, label }: SidebarBookmarkBu
     }
   }, [confirmOpen])
 
+  useEffect(() => {
+    if (!error) return
+    const timer = window.setTimeout(() => setError(''), 5000)
+    return () => window.clearTimeout(timer)
+  }, [error])
+
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault()
     event.stopPropagation()
-    if (busy || removing) return
+    if (busy || removing || pinning) return
+    setError('')
     if (bookmarked) {
       setConfirmOpen(true)
       return
     }
-    void toggleBookmark({ path, label }).catch(() => {
-      /* My Space / sidebar stay usable if the API call fails */
-    })
+    setPinning(true)
+    void toggleBookmark({ path, label })
+      .catch((err) => {
+        setError(getApiErrorDetail(err) || `Could not add ${label} to My Toolbox.`)
+      })
+      .finally(() => setPinning(false))
   }
 
   const closeConfirm = () => {
@@ -51,11 +64,12 @@ export default function SidebarBookmarkButton({ path, label }: SidebarBookmarkBu
   const confirmRemove = async () => {
     if (removing) return
     setRemoving(true)
+    setError('')
     try {
       await toggleBookmark({ path, label })
       setConfirmOpen(false)
-    } catch {
-      /* stay open so the user can retry or cancel */
+    } catch (err) {
+      setError(getApiErrorDetail(err) || `Could not remove ${label} from My Toolbox.`)
     } finally {
       setRemoving(false)
     }
@@ -66,7 +80,7 @@ export default function SidebarBookmarkButton({ path, label }: SidebarBookmarkBu
       <button
         type="button"
         onClick={handleClick}
-        disabled={busy || removing}
+        disabled={busy || removing || pinning}
         aria-label={bookmarked ? `Remove ${label} from My Toolbox` : `Add ${label} to My Toolbox`}
         title={bookmarked ? 'Remove from My Toolbox' : 'Add to My Toolbox'}
         data-bookmarked={bookmarked ? 'true' : 'false'}
@@ -87,6 +101,27 @@ export default function SidebarBookmarkButton({ path, label }: SidebarBookmarkBu
           />
         </svg>
       </button>
+
+      {error &&
+        createPortal(
+          <div
+            role="alert"
+            className="fixed bottom-4 left-1/2 z-[90] w-[min(92vw,24rem)] -translate-x-1/2 rounded-xl bg-[#404040] px-4 py-3 text-sm text-white shadow-lg ring-1 ring-black/10"
+          >
+            <div className="flex items-start gap-3">
+              <p className="min-w-0 flex-1 leading-snug">{error}</p>
+              <button
+                type="button"
+                onClick={() => setError('')}
+                className="shrink-0 rounded-md px-1.5 text-white/70 hover:bg-white/10 hover:text-white"
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {confirmOpen &&
         createPortal(

@@ -16,6 +16,7 @@ import {
   isAppToolUrl,
   isToolboxDivider,
 } from '../components/myspace/toolCatalog'
+import { getApiErrorStatus } from '../utils/apiErrorMessage'
 import { useUser } from './UserContext'
 
 function isToolBookmark(link: QuickAccessLink): boolean {
@@ -119,7 +120,10 @@ export function ToolBookmarksProvider({ children }: { children: ReactNode }) {
         if (existing) {
           await quickAccessApi.deleteLink(existing.id)
           setToolboxEntries((prev) => prev.filter((link) => link.id !== existing.id))
-        } else {
+          return
+        }
+
+        try {
           const created = await quickAccessApi.createLink({
             title: tool.label,
             url: tool.path,
@@ -127,6 +131,27 @@ export function ToolBookmarksProvider({ children }: { children: ReactNode }) {
             display_order: nextDisplayOrder(),
           })
           setToolboxEntries((prev) => [...prev, created])
+          return
+        } catch (createErr) {
+          // Same URL already saved (often an old personal link). Reclaim it as a toolbox pin.
+          if (getApiErrorStatus(createErr) !== 409) throw createErr
+
+          const links = await quickAccessApi.getLinks()
+          const conflict = links.find((link) => link.url === tool.path)
+          if (!conflict) throw createErr
+
+          const reclaimed =
+            conflict.icon === TOOL_BOOKMARK_ICON && conflict.title === tool.label
+              ? conflict
+              : await quickAccessApi.updateLink(conflict.id, {
+                  title: tool.label,
+                  icon: TOOL_BOOKMARK_ICON,
+                })
+
+          setToolboxEntries((prev) => {
+            const without = prev.filter((link) => link.id !== reclaimed.id && link.url !== tool.path)
+            return [...without, reclaimed]
+          })
         }
       } finally {
         setBusyPath(null)
