@@ -10,6 +10,8 @@ import { canAccessNsTool } from '../../lib/nsToolAccess'
 import { canAccessObzSmwFbaInv } from '../../lib/obzSmwFbaInvAccess'
 import { canAccessLabelFormatChecker } from '../../lib/labelFormatCheckerAccess'
 import { canAccessLtlLabelFormatChecker } from '../../lib/ltlLabelFormatCheckerAccess'
+import { canAccessTeamChat } from '../../lib/teamChatAccess'
+import { canAccessSessionAudit } from '../../lib/sessionAuditAccess'
 import { useUser } from '../../contexts/UserContext'
 import { useToolBookmarks } from '../../contexts/ToolBookmarksContext'
 import CustomLinksPanel from './CustomLinksPanel'
@@ -88,6 +90,8 @@ export default function MySpacePage() {
     accountEmail,
     isSuperadmin,
   )
+  const teamChatAvailable = canAccessTeamChat(accountEmail, isSuperadmin)
+  const sessionAuditAvailable = canAccessSessionAudit(accountEmail, isSuperadmin)
   const {
     bookmarks: toolBookmarks,
     bookmarkedPaths,
@@ -136,10 +140,26 @@ export default function MySpacePage() {
         (t.path !== '/obz-smw-fba-inv' || obzSmwFbaInvAvailable) &&
         (t.path !== '/label-format-checker' || labelFormatCheckerAvailable) &&
         (t.path !== '/ltl-label-format-checker' || ltlLabelFormatCheckerAvailable) &&
+        (t.path !== '/chat' || teamChatAvailable) &&
+        (t.path !== '/admin/users' || isSuperadmin) &&
+        (t.path !== '/admin/live-sessions' || sessionAuditAvailable) &&
+        (t.path !== '/admin/audit-log' || sessionAuditAvailable) &&
         (t.label.toLowerCase().includes(toolSearchQuery) ||
           t.path.toLowerCase().includes(toolSearchQuery)),
     )
-  }, [toolSearchQuery, labelCenterAvailable, shipmentManagerAvailable, dimensionerAvailable, nsToolAvailable, obzSmwFbaInvAvailable, labelFormatCheckerAvailable, ltlLabelFormatCheckerAvailable])
+  }, [
+    toolSearchQuery,
+    labelCenterAvailable,
+    shipmentManagerAvailable,
+    dimensionerAvailable,
+    nsToolAvailable,
+    obzSmwFbaInvAvailable,
+    labelFormatCheckerAvailable,
+    ltlLabelFormatCheckerAvailable,
+    teamChatAvailable,
+    sessionAuditAvailable,
+    isSuperadmin,
+  ])
 
   const toolsByGroup = useMemo(() => {
     const map = new Map<string, BookmarkableTool[]>()

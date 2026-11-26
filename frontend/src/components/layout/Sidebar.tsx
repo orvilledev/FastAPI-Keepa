@@ -404,8 +404,12 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
       '/shipment-manager': Icons.shipmentManager,
       '/about': Icons.info,
       '/faq': Icons.wrench,
+      '/chat': Icons.teamChat,
       '/feedback': Icons.feedback,
       '/notifications': Icons.mail,
+      '/admin/users': Icons.users,
+      '/admin/live-sessions': Icons.liveSessions,
+      '/admin/audit-log': Icons.audit,
     }
     return map
   }, [])
@@ -559,12 +563,14 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     icon,
     id,
     bookmarkable = true,
+    trailing,
   }: {
     to: string
     label: string
     icon: ReactNode
     id: string
     bookmarkable?: boolean
+    trailing?: ReactNode
   }) => (
     <Link
       to={to}
@@ -577,6 +583,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     >
       <span className="shrink-0">{icon}</span>
       <span className="sidebar-link-label">{label}</span>
+      {trailing}
       {bookmarkable && <SidebarBookmarkButton path={to} label={label} />}
     </Link>
   )
@@ -796,26 +803,22 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
   }
 
   const teamChatLink = (
-    <Link
+    <ToolLink
       to="/chat"
-      onMouseEnter={() => setHoveredNav('team-chat')}
-      className={`sidebar-link ${
-        navHighlighted('team-chat', isActive('/chat'))
-          ? 'sidebar-link-active'
-          : 'sidebar-link-inactive'
-      }`}
-    >
-      <span className="shrink-0">{Icons.teamChat}</span>
-      <span className="sidebar-link-label">Team Chat</span>
-      {chatUnread > 0 && (
-        <span
-          className="inline-flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-[#F97316] px-1.5 text-[11px] font-bold leading-none text-white"
-          aria-label={`${chatUnread} unread chat messages`}
-        >
-          {chatUnread > 99 ? '99+' : chatUnread}
-        </span>
-      )}
-    </Link>
+      label="Team Chat"
+      icon={Icons.teamChat}
+      id="team-chat"
+      trailing={
+        chatUnread > 0 ? (
+          <span
+            className="inline-flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-[#F97316] px-1.5 text-[11px] font-bold leading-none text-white"
+            aria-label={`${chatUnread} unread chat messages`}
+          >
+            {chatUnread > 99 ? '99+' : chatUnread}
+          </span>
+        ) : undefined
+      }
+    />
   )
 
   return (
@@ -1154,7 +1157,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
               label="User Management"
               icon={Icons.users}
               id="admin-users"
-              bookmarkable={false}
             />
           )}
           {canViewSessionAudit && (
@@ -1163,7 +1165,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
               label="Live App Sessions"
               icon={Icons.liveSessions}
               id="admin-live-sessions"
-              bookmarkable={false}
             />
           )}
           {canViewSessionAudit && (
@@ -1172,7 +1173,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
               label="Audit Log"
               icon={Icons.audit}
               id="admin-audit"
-              bookmarkable={false}
             />
           )}
         </div>

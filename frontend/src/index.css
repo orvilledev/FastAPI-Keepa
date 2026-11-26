@@ -286,8 +286,9 @@
     }
   }
 
+  /* Main nav categories (My Space, My Toolbox, Menu, …). Larger than toolbox dividers. */
   .sidebar-section-label {
-    @apply px-3 pb-1.5 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-content-muted;
+    @apply px-3 pb-1.5 pt-0.5 text-xs font-bold uppercase tracking-wider text-content-secondary;
   }
   
   .sidebar-link-active {

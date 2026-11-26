@@ -38,7 +38,11 @@ export const BOOKMARKABLE_TOOLS: BookmarkableTool[] = [
   { path: '/dimensioner', label: 'Dimensioner', group: 'Tools' },
   { path: '/about', label: 'About', group: 'General' },
   { path: '/faq', label: 'FAQ', group: 'General' },
+  { path: '/chat', label: 'Team Chat', group: 'General' },
   { path: '/feedback', label: 'Feedback From Users', group: 'General' },
+  { path: '/admin/users', label: 'User Management', group: 'General' },
+  { path: '/admin/live-sessions', label: 'Live App Sessions', group: 'General' },
+  { path: '/admin/audit-log', label: 'Audit Log', group: 'General' },
 ]
 
 export const TOOL_BOOKMARK_ICON = 'app-tool'
