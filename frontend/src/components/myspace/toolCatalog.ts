@@ -43,6 +43,12 @@ export const BOOKMARKABLE_TOOLS: BookmarkableTool[] = [
 
 export const TOOL_BOOKMARK_ICON = 'app-tool'
 export const CUSTOM_LINK_ICON = 'custom-link'
+/** Labeled divider inside the sidebar My Toolbox; stored as a quick-access row with a `#` url. */
+export const TOOLBOX_DIVIDER_ICON = 'toolbox-divider'
+
+export function isToolboxDivider(link: { icon?: string | null }): boolean {
+  return link.icon === TOOLBOX_DIVIDER_ICON
+}
 
 export function isAppToolUrl(url: string): boolean {
   return url.startsWith('/')

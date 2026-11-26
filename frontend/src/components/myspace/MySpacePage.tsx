@@ -19,6 +19,7 @@ import {
   CUSTOM_LINK_ICON,
   TOOL_BOOKMARK_ICON,
   isAppToolUrl,
+  isToolboxDivider,
   type BookmarkableTool,
 } from './toolCatalog'
 
@@ -116,8 +117,9 @@ export default function MySpacePage() {
     () =>
       links.filter(
         (l) =>
-          l.icon === CUSTOM_LINK_ICON ||
-          (!isAppToolUrl(l.url) && l.icon !== TOOL_BOOKMARK_ICON),
+          !isToolboxDivider(l) &&
+          (l.icon === CUSTOM_LINK_ICON ||
+            (!isAppToolUrl(l.url) && l.icon !== TOOL_BOOKMARK_ICON)),
       ),
     [links],
   )

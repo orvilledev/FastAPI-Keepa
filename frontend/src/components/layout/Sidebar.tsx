@@ -14,6 +14,7 @@ import { useToolBookmarks } from '../../contexts/ToolBookmarksContext'
 import { APP_NAME } from '../../constants/app'
 import AppLogo from '../common/AppLogo'
 import SidebarBookmarkButton from './SidebarBookmarkButton'
+import { isToolboxDivider } from '../myspace/toolCatalog'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
@@ -238,6 +239,8 @@ interface SidebarProps {
 }
 
 const NAV_EXTRAS_EXPANDED_KEY = 'sidebar-nav-extras-expanded'
+const DIVIDER_LABEL_MAX = 40
+const NEW_DIVIDER_INPUT = '__new-divider__'
 
 function readNavExtrasExpanded(): boolean {
   try {
@@ -346,12 +349,19 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
   const navHighlighted = (id: string, routeActive: boolean) =>
     (hoveredNav === null && routeActive) || hoveredNav === id
 
-  const { bookmarks, reorderBookmarks } = useToolBookmarks()
+  const { bookmarks, toolboxEntries, reorderToolbox, addDivider, renameDivider, removeDivider } =
+    useToolBookmarks()
   const toolboxListRef = useRef<HTMLDivElement>(null)
-  /** Live order (bookmark ids) while a My Toolbox row is being dragged; null when idle. */
+  /** Live order (entry ids) while a My Toolbox row is being dragged; null when idle. */
   const [toolboxDragOrder, setToolboxDragOrder] = useState<string[] | null>(null)
   const [toolboxDraggingId, setToolboxDraggingId] = useState<string | null>(null)
   const toolboxDragCleanupRef = useRef<(() => void) | null>(null)
+  const [editingDividerId, setEditingDividerId] = useState<string | null>(null)
+  const [dividerDraft, setDividerDraft] = useState('')
+  const [addingDivider, setAddingDivider] = useState(false)
+  const [newDividerDraft, setNewDividerDraft] = useState('')
+  /** Which divider input is open; guards against saving twice (Enter, then blur on unmount). */
+  const dividerInputRef = useRef<string | null>(null)
 
   useEffect(() => () => toolboxDragCleanupRef.current?.(), [])
 
@@ -396,14 +406,15 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
 
   const toolboxItems = useMemo(
     () =>
-      bookmarks.map((link) => ({
+      toolboxEntries.map((link) => ({
+        kind: isToolboxDivider(link) ? ('divider' as const) : ('tool' as const),
         linkId: link.id,
         path: link.url,
         label: link.title,
         icon: pathIconMap[link.url] || Icons.toolbox,
         id: `toolbox-${link.id}`,
       })),
-    [bookmarks, pathIconMap],
+    [toolboxEntries, pathIconMap],
   )
 
   const orderedToolboxItems = useMemo(() => {
@@ -420,7 +431,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     event.preventDefault()
     toolboxDragCleanupRef.current?.()
 
-    const original = bookmarks.map((link) => link.id)
+    const original = toolboxEntries.map((link) => link.id)
     let current = original
     setToolboxDraggingId(linkId)
     setToolboxDragOrder(original)
@@ -460,7 +471,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
       setToolboxDraggingId(null)
       setToolboxDragOrder(null)
       if (commit && current.some((id, index) => id !== original[index])) {
-        void reorderBookmarks(current).catch(() => {
+        void reorderToolbox(current).catch(() => {
           /* order is reloaded from the server on failure */
         })
       }
@@ -477,14 +488,64 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
   const handleToolboxHandleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, linkId: string) => {
     if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
     event.preventDefault()
-    const ids = bookmarks.map((link) => link.id)
+    const ids = toolboxEntries.map((link) => link.id)
     const from = ids.indexOf(linkId)
     const to = from + (event.key === 'ArrowUp' ? -1 : 1)
     if (from < 0 || to < 0 || to >= ids.length) return
     ;[ids[from], ids[to]] = [ids[to], ids[from]]
-    void reorderBookmarks(ids).catch(() => {
+    void reorderToolbox(ids).catch(() => {
       /* order is reloaded from the server on failure */
     })
+  }
+
+  const beginRenameDivider = (linkId: string, label: string) => {
+    dividerInputRef.current = linkId
+    setAddingDivider(false)
+    setDividerDraft(label)
+    setEditingDividerId(linkId)
+  }
+
+  const finishRenameDivider = (save: boolean) => {
+    const linkId = dividerInputRef.current
+    if (!linkId || linkId === NEW_DIVIDER_INPUT) return
+    dividerInputRef.current = null
+    setEditingDividerId(null)
+    if (save && dividerDraft.trim()) {
+      void renameDivider(linkId, dividerDraft).catch(() => {
+        /* previous label is restored on failure */
+      })
+    }
+  }
+
+  const beginAddDivider = () => {
+    dividerInputRef.current = NEW_DIVIDER_INPUT
+    setEditingDividerId(null)
+    setNewDividerDraft('')
+    setAddingDivider(true)
+  }
+
+  const finishAddDivider = (save: boolean) => {
+    if (dividerInputRef.current !== NEW_DIVIDER_INPUT) return
+    dividerInputRef.current = null
+    setAddingDivider(false)
+    if (save && newDividerDraft.trim()) {
+      void addDivider(newDividerDraft).catch(() => {
+        /* nothing was added */
+      })
+    }
+  }
+
+  const handleDividerInputKeyDown = (
+    event: KeyboardEvent<HTMLInputElement>,
+    finish: (save: boolean) => void,
+  ) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      finish(true)
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      finish(false)
+    }
   }
 
   const ToolLink = ({
@@ -515,17 +576,24 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     </Link>
   )
 
+  const dividerActionClass =
+    'shrink-0 rounded p-0.5 text-content-muted opacity-0 transition-opacity hover:text-content focus-visible:opacity-100 group-hover/toolbox:opacity-100 [@media(hover:none)]:opacity-60'
+  const dividerInputClass =
+    'w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-content outline-none focus:ring-2 focus:ring-[#81B81D]/40 dark:border-border dark:bg-surface dark:text-slate-100'
+
   const myToolboxSection = (
     <div className="shrink-0 space-y-0.5 pb-1 pt-1">
       <p className="sidebar-section-label">MY TOOLBOX</p>
-      {orderedToolboxItems.length === 0 ? (
+      {bookmarks.length === 0 && (
         <p className="px-3 py-1.5 text-[11px] leading-snug text-content-muted">
           Bookmark tools with the pin icon to keep them here.
         </p>
-      ) : (
+      )}
+      {orderedToolboxItems.length > 0 && (
         <div ref={toolboxListRef} className="space-y-0.5">
           {orderedToolboxItems.map((item) => {
             const dragging = toolboxDraggingId === item.linkId
+            const isDivider = item.kind === 'divider'
             return (
               <div
                 key={item.id}
@@ -540,7 +608,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                     onPointerDown={(event) => startToolboxDrag(event, item.linkId)}
                     onKeyDown={(event) => handleToolboxHandleKeyDown(event, item.linkId)}
                     onClick={(event) => event.stopPropagation()}
-                    aria-label={`Reorder ${item.label}. Drag, or use the up and down arrow keys.`}
+                    aria-label={`Reorder ${item.label}${isDivider ? ' divider' : ''}. Drag, or use the up and down arrow keys.`}
                     title="Drag to reorder"
                     className={`absolute -left-3 top-1/2 flex h-7 w-3 -translate-y-1/2 touch-none select-none items-center justify-center rounded text-content-muted transition-opacity hover:text-content focus-visible:opacity-100 ${
                       dragging
@@ -558,11 +626,96 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                     </svg>
                   </button>
                 )}
-                <ToolLink to={item.path} label={item.label} icon={item.icon} id={item.id} />
+                {!isDivider ? (
+                  <ToolLink to={item.path} label={item.label} icon={item.icon} id={item.id} />
+                ) : editingDividerId === item.linkId ? (
+                  <div className="px-1 pb-1 pt-1.5">
+                    <input
+                      autoFocus
+                      value={dividerDraft}
+                      maxLength={DIVIDER_LABEL_MAX}
+                      onChange={(event) => setDividerDraft(event.target.value)}
+                      onKeyDown={(event) => handleDividerInputKeyDown(event, finishRenameDivider)}
+                      onBlur={() => finishRenameDivider(true)}
+                      onFocus={(event) => event.currentTarget.select()}
+                      aria-label="Divider name"
+                      className={dividerInputClass}
+                    />
+                  </div>
+                ) : (
+                  <div
+                    className="flex items-center gap-1.5 px-3 pb-1 pt-2"
+                    onDoubleClick={() => beginRenameDivider(item.linkId, item.label)}
+                  >
+                    <span className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-wider text-content-secondary">
+                      {item.label}
+                    </span>
+                    <span className="h-px min-w-[0.75rem] flex-1 bg-gray-300/80 dark:bg-border" aria-hidden="true" />
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        beginRenameDivider(item.linkId, item.label)
+                      }}
+                      aria-label={`Rename ${item.label} divider`}
+                      title="Rename divider"
+                      className={dividerActionClass}
+                    >
+                      <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13l6.232-6.232a2.5 2.5 0 113.536 3.536L12.536 16.536 8 17l.464-4.536z" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void removeDivider(item.linkId).catch(() => {
+                          /* list is reloaded from the server on failure */
+                        })
+                      }}
+                      aria-label={`Remove ${item.label} divider`}
+                      title="Remove divider (tools stay in My Toolbox)"
+                      className={dividerActionClass}
+                    >
+                      <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
               </div>
             )
           })}
         </div>
+      )}
+      {addingDivider ? (
+        <div className="px-1 pt-1.5">
+          <input
+            autoFocus
+            value={newDividerDraft}
+            maxLength={DIVIDER_LABEL_MAX}
+            placeholder="Divider name, e.g. Labels"
+            onChange={(event) => setNewDividerDraft(event.target.value)}
+            onKeyDown={(event) => handleDividerInputKeyDown(event, finishAddDivider)}
+            onBlur={() => finishAddDivider(true)}
+            aria-label="New divider name"
+            className={`${dividerInputClass} placeholder:normal-case placeholder:font-normal placeholder:tracking-normal placeholder:text-gray-400`}
+          />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation()
+            beginAddDivider()
+          }}
+          className="flex w-full items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-medium text-content-muted transition-colors hover:bg-gray-100 hover:text-content dark:hover:bg-surface-hover dark:hover:text-slate-100"
+        >
+          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v14M5 12h14" />
+          </svg>
+          Add divider
+        </button>
       )}
     </div>
   )
