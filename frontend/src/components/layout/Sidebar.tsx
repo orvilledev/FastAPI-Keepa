@@ -610,19 +610,24 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                     onClick={(event) => event.stopPropagation()}
                     aria-label={`Reorder ${item.label}${isDivider ? ' divider' : ''}. Drag, or use the up and down arrow keys.`}
                     title="Drag to reorder"
-                    className={`absolute -left-3 top-1/2 flex h-7 w-3 -translate-y-1/2 touch-none select-none items-center justify-center rounded text-content-muted transition-opacity hover:text-content focus-visible:opacity-100 ${
-                      dragging
-                        ? 'cursor-grabbing opacity-100'
-                        : 'cursor-grab opacity-40 group-hover/toolbox:opacity-100'
+                    className={`absolute -left-4 top-1/2 z-20 flex h-7 w-5 -translate-y-1/2 touch-none select-none items-center justify-center rounded ${
+                      dragging ? 'cursor-grabbing' : 'cursor-grab'
                     }`}
                   >
-                    <svg className="h-3.5 w-2.5" viewBox="0 0 10 16" fill="currentColor" aria-hidden="true">
-                      <circle cx="2.5" cy="3" r="1.25" />
-                      <circle cx="7.5" cy="3" r="1.25" />
-                      <circle cx="2.5" cy="8" r="1.25" />
-                      <circle cx="7.5" cy="8" r="1.25" />
-                      <circle cx="2.5" cy="13" r="1.25" />
-                      <circle cx="7.5" cy="13" r="1.25" />
+                    {/* Brand green fill + black edge so the grip stays readable on light and dark rows. */}
+                    <svg
+                      className="h-4 w-4 drop-shadow-[0_0_1px_rgba(0,0,0,0.9)]"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        fill="#81B81D"
+                        stroke="#111111"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M8.5 11.5V7.25a1.75 1.75 0 013.5 0V11M12 11V5.75a1.75 1.75 0 013.5 0V11M15.5 11V8.25a1.75 1.75 0 013.5 0V13.5a5.5 5.5 0 01-5.5 5.5h-1.25A5.25 5.25 0 017 13.75v-3.5a1.75 1.75 0 011.5-1.75z"
+                      />
                     </svg>
                   </button>
                 )}
