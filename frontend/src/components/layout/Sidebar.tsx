@@ -1,5 +1,14 @@
 import { Link, useLocation } from 'react-router-dom'
-import { useState, useEffect, useMemo, type MouseEvent, type ReactNode } from 'react'
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  type KeyboardEvent,
+  type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react'
 import { useUser } from '../../contexts/UserContext'
 import { useToolBookmarks } from '../../contexts/ToolBookmarksContext'
 import { APP_NAME } from '../../constants/app'
@@ -337,7 +346,14 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
   const navHighlighted = (id: string, routeActive: boolean) =>
     (hoveredNav === null && routeActive) || hoveredNav === id
 
-  const { bookmarks } = useToolBookmarks()
+  const { bookmarks, reorderBookmarks } = useToolBookmarks()
+  const toolboxListRef = useRef<HTMLDivElement>(null)
+  /** Live order (bookmark ids) while a My Toolbox row is being dragged; null when idle. */
+  const [toolboxDragOrder, setToolboxDragOrder] = useState<string[] | null>(null)
+  const [toolboxDraggingId, setToolboxDraggingId] = useState<string | null>(null)
+  const toolboxDragCleanupRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => () => toolboxDragCleanupRef.current?.(), [])
 
   const pathIconMap = useMemo(() => {
     const map: Record<string, ReactNode> = {
@@ -381,6 +397,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
   const toolboxItems = useMemo(
     () =>
       bookmarks.map((link) => ({
+        linkId: link.id,
         path: link.url,
         label: link.title,
         icon: pathIconMap[link.url] || Icons.toolbox,
@@ -388,6 +405,87 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
       })),
     [bookmarks, pathIconMap],
   )
+
+  const orderedToolboxItems = useMemo(() => {
+    if (!toolboxDragOrder) return toolboxItems
+    const byId = new Map(toolboxItems.map((item) => [item.linkId, item]))
+    const ordered = toolboxDragOrder
+      .map((linkId) => byId.get(linkId))
+      .filter((item): item is (typeof toolboxItems)[number] => Boolean(item))
+    return ordered.length === toolboxItems.length ? ordered : toolboxItems
+  }, [toolboxItems, toolboxDragOrder])
+
+  const startToolboxDrag = (event: ReactPointerEvent<HTMLButtonElement>, linkId: string) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    toolboxDragCleanupRef.current?.()
+
+    const original = bookmarks.map((link) => link.id)
+    let current = original
+    setToolboxDraggingId(linkId)
+    setToolboxDragOrder(original)
+
+    const bodyStyle = document.body.style
+    const prevUserSelect = bodyStyle.userSelect
+    const prevCursor = bodyStyle.cursor
+    bodyStyle.userSelect = 'none'
+    bodyStyle.cursor = 'grabbing'
+
+    const handleMove = (moveEvent: PointerEvent) => {
+      const list = toolboxListRef.current
+      if (!list) return
+      const otherRows = Array.from(list.querySelectorAll<HTMLElement>('[data-toolbox-id]')).filter(
+        (row) => row.dataset.toolboxId !== linkId,
+      )
+      let targetIndex = 0
+      for (const row of otherRows) {
+        const rect = row.getBoundingClientRect()
+        if (moveEvent.clientY > rect.top + rect.height / 2) targetIndex += 1
+      }
+      const others = current.filter((id) => id !== linkId)
+      const next = [...others.slice(0, targetIndex), linkId, ...others.slice(targetIndex)]
+      if (next.some((id, index) => id !== current[index])) {
+        current = next
+        setToolboxDragOrder(next)
+      }
+    }
+
+    const finish = (commit: boolean) => {
+      window.removeEventListener('pointermove', handleMove)
+      window.removeEventListener('pointerup', handleUp)
+      window.removeEventListener('pointercancel', handleCancel)
+      bodyStyle.userSelect = prevUserSelect
+      bodyStyle.cursor = prevCursor
+      toolboxDragCleanupRef.current = null
+      setToolboxDraggingId(null)
+      setToolboxDragOrder(null)
+      if (commit && current.some((id, index) => id !== original[index])) {
+        void reorderBookmarks(current).catch(() => {
+          /* order is reloaded from the server on failure */
+        })
+      }
+    }
+    const handleUp = () => finish(true)
+    const handleCancel = () => finish(false)
+
+    window.addEventListener('pointermove', handleMove)
+    window.addEventListener('pointerup', handleUp)
+    window.addEventListener('pointercancel', handleCancel)
+    toolboxDragCleanupRef.current = () => finish(false)
+  }
+
+  const handleToolboxHandleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, linkId: string) => {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+    event.preventDefault()
+    const ids = bookmarks.map((link) => link.id)
+    const from = ids.indexOf(linkId)
+    const to = from + (event.key === 'ArrowUp' ? -1 : 1)
+    if (from < 0 || to < 0 || to >= ids.length) return
+    ;[ids[from], ids[to]] = [ids[to], ids[from]]
+    void reorderBookmarks(ids).catch(() => {
+      /* order is reloaded from the server on failure */
+    })
+  }
 
   const ToolLink = ({
     to,
@@ -420,20 +518,51 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
   const myToolboxSection = (
     <div className="shrink-0 space-y-0.5 pb-1 pt-1">
       <p className="sidebar-section-label">MY TOOLBOX</p>
-      {toolboxItems.length === 0 ? (
+      {orderedToolboxItems.length === 0 ? (
         <p className="px-3 py-1.5 text-[11px] leading-snug text-content-muted">
           Bookmark tools with the pin icon to keep them here.
         </p>
       ) : (
-        toolboxItems.map((item) => (
-          <ToolLink
-            key={item.id}
-            to={item.path}
-            label={item.label}
-            icon={item.icon}
-            id={item.id}
-          />
-        ))
+        <div ref={toolboxListRef} className="space-y-0.5">
+          {orderedToolboxItems.map((item) => {
+            const dragging = toolboxDraggingId === item.linkId
+            return (
+              <div
+                key={item.id}
+                data-toolbox-id={item.linkId}
+                className={`group/toolbox relative rounded-lg ${
+                  dragging ? 'z-10 opacity-80 shadow-lg ring-2 ring-[#81B81D]/60' : ''
+                }`}
+              >
+                {orderedToolboxItems.length > 1 && (
+                  <button
+                    type="button"
+                    onPointerDown={(event) => startToolboxDrag(event, item.linkId)}
+                    onKeyDown={(event) => handleToolboxHandleKeyDown(event, item.linkId)}
+                    onClick={(event) => event.stopPropagation()}
+                    aria-label={`Reorder ${item.label}. Drag, or use the up and down arrow keys.`}
+                    title="Drag to reorder"
+                    className={`absolute -left-3 top-1/2 flex h-7 w-3 -translate-y-1/2 touch-none select-none items-center justify-center rounded text-content-muted transition-opacity hover:text-content focus-visible:opacity-100 ${
+                      dragging
+                        ? 'cursor-grabbing opacity-100'
+                        : 'cursor-grab opacity-40 group-hover/toolbox:opacity-100'
+                    }`}
+                  >
+                    <svg className="h-3.5 w-2.5" viewBox="0 0 10 16" fill="currentColor" aria-hidden="true">
+                      <circle cx="2.5" cy="3" r="1.25" />
+                      <circle cx="7.5" cy="3" r="1.25" />
+                      <circle cx="2.5" cy="8" r="1.25" />
+                      <circle cx="7.5" cy="8" r="1.25" />
+                      <circle cx="2.5" cy="13" r="1.25" />
+                      <circle cx="7.5" cy="13" r="1.25" />
+                    </svg>
+                  </button>
+                )}
+                <ToolLink to={item.path} label={item.label} icon={item.icon} id={item.id} />
+              </div>
+            )
+          })}
+        </div>
       )}
     </div>
   )

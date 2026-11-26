@@ -35,6 +35,8 @@ interface ToolBookmarksContextValue {
   busyPath: string | null
   isBookmarked: (path: string) => boolean
   toggleBookmark: (tool: ToolBookmarkToggleInput) => Promise<void>
+  /** Persist a new order; `orderedIds` must contain every bookmark id exactly once. */
+  reorderBookmarks: (orderedIds: string[]) => Promise<void>
   refreshBookmarks: () => Promise<void>
 }
 
@@ -86,11 +88,15 @@ export function ToolBookmarksProvider({ children }: { children: ReactNode }) {
           await quickAccessApi.deleteLink(existing.id)
           setBookmarks((prev) => prev.filter((link) => link.id !== existing.id))
         } else {
+          const nextOrder = bookmarks.reduce(
+            (max, link) => Math.max(max, (link.display_order ?? 0) + 1),
+            bookmarks.length,
+          )
           const created = await quickAccessApi.createLink({
             title: tool.label,
             url: tool.path,
             icon: TOOL_BOOKMARK_ICON,
-            display_order: bookmarks.length,
+            display_order: nextOrder,
           })
           setBookmarks((prev) => [...prev, created])
         }
@@ -101,6 +107,32 @@ export function ToolBookmarksProvider({ children }: { children: ReactNode }) {
     [authUser, bookmarks],
   )
 
+  const reorderBookmarks = useCallback(
+    async (orderedIds: string[]) => {
+      const byId = new Map(bookmarks.map((link) => [link.id, link]))
+      const next = orderedIds
+        .map((id) => byId.get(id))
+        .filter((link): link is QuickAccessLink => Boolean(link))
+      if (next.length !== bookmarks.length) return
+
+      const changed = next.filter((link, index) => link.display_order !== index)
+      setBookmarks(next.map((link, index) => ({ ...link, display_order: index })))
+      if (changed.length === 0) return
+
+      try {
+        await Promise.all(
+          changed.map((link) =>
+            quickAccessApi.updateLink(link.id, { display_order: next.indexOf(link) }),
+          ),
+        )
+      } catch (err) {
+        await refreshBookmarks()
+        throw err
+      }
+    },
+    [bookmarks, refreshBookmarks],
+  )
+
   const value = useMemo(
     () => ({
       bookmarks,
@@ -109,6 +141,7 @@ export function ToolBookmarksProvider({ children }: { children: ReactNode }) {
       busyPath,
       isBookmarked,
       toggleBookmark,
+      reorderBookmarks,
       refreshBookmarks,
     }),
     [
@@ -118,6 +151,7 @@ export function ToolBookmarksProvider({ children }: { children: ReactNode }) {
       busyPath,
       isBookmarked,
       toggleBookmark,
+      reorderBookmarks,
       refreshBookmarks,
     ],
   )
