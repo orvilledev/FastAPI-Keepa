@@ -265,15 +265,25 @@
     opacity: 0.4;
   }
 
+  /* Already in My Toolbox: hide the pin until the row is hovered. */
   .sidebar-bookmark-btn[data-bookmarked='true'] {
     color: #f97316;
+    opacity: 0;
+  }
+
+  .sidebar-link:hover .sidebar-bookmark-btn {
     opacity: 1;
   }
 
-  .sidebar-link:hover .sidebar-bookmark-btn,
-  .sidebar-link-active .sidebar-bookmark-btn {
-    opacity: 1;
-    color: #fdba74 !important;
+  .sidebar-link:hover .sidebar-bookmark-btn[data-bookmarked='true'] {
+    color: #fdba74;
+  }
+
+  /* Touch / no-hover: keep a faint pin so unpinning stays possible. */
+  @media (hover: none) {
+    .sidebar-bookmark-btn[data-bookmarked='true'] {
+      opacity: 0.55;
+    }
   }
 
   .sidebar-section-label {
