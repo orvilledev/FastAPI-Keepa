@@ -1,0 +1,19 @@
+MSW Overwatch 4.0.6 — desktop and web release
+
+Patch release since 4.0.5. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## My Toolbox
+- Pin sidebar tools into a personal My Toolbox section
+- Drag rows to reorder; add labeled dividers to group tools
+- Pins and grips stay out of the way until you hover a row
+- Unpin confirmation, and station accounts (Hello / Pack / Warehouse / Label) do not get My Toolbox
+
+## Label Station II
+- Product catalog shows all columns when opened — no sideways scrolling
+
+## Other
+- Dopamine theme: bookmarked pin is black so it stays visible on pink rows
+- Dashboard and other tools pin more reliably when reclaiming an existing personal link
+
+## Upgrade from 4.0.5
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 4.0.6, download it, then prompt to install now or later. Web/PWA users get 4.0.6 on the next deploy/refresh.
