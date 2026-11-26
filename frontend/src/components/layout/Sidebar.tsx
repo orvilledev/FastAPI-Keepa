@@ -363,7 +363,13 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
   /** Which divider input is open; guards against saving twice (Enter, then blur on unmount). */
   const dividerInputRef = useRef<string | null>(null)
 
-  useEffect(() => () => toolboxDragCleanupRef.current?.(), [])
+  useEffect(
+    () => () => {
+      toolboxDragCleanupRef.current?.()
+      document.body.classList.remove('toolbox-dragging')
+    },
+    [],
+  )
 
   const pathIconMap = useMemo(() => {
     const map: Record<string, ReactNode> = {
@@ -438,9 +444,8 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
 
     const bodyStyle = document.body.style
     const prevUserSelect = bodyStyle.userSelect
-    const prevCursor = bodyStyle.cursor
     bodyStyle.userSelect = 'none'
-    bodyStyle.cursor = 'grabbing'
+    document.body.classList.add('toolbox-dragging')
 
     const handleMove = (moveEvent: PointerEvent) => {
       const list = toolboxListRef.current
@@ -466,7 +471,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
       window.removeEventListener('pointerup', handleUp)
       window.removeEventListener('pointercancel', handleCancel)
       bodyStyle.userSelect = prevUserSelect
-      bodyStyle.cursor = prevCursor
+      document.body.classList.remove('toolbox-dragging')
       toolboxDragCleanupRef.current = null
       setToolboxDraggingId(null)
       setToolboxDragOrder(null)
@@ -610,24 +615,16 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                     onClick={(event) => event.stopPropagation()}
                     aria-label={`Reorder ${item.label}${isDivider ? ' divider' : ''}. Drag, or use the up and down arrow keys.`}
                     title="Drag to reorder"
-                    className={`absolute -left-4 top-1/2 z-20 flex h-7 w-5 -translate-y-1/2 touch-none select-none items-center justify-center rounded ${
-                      dragging ? 'cursor-grabbing' : 'cursor-grab'
-                    }`}
+                    className="toolbox-drag-handle absolute -left-3 top-1/2 z-20 flex h-7 w-3.5 -translate-y-1/2 touch-none select-none items-center justify-center rounded"
                   >
-                    {/* Brand green fill + black edge so the grip stays readable on light and dark rows. */}
-                    <svg
-                      className="h-4 w-4 drop-shadow-[0_0_1px_rgba(0,0,0,0.9)]"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path
-                        fill="#81B81D"
-                        stroke="#111111"
-                        strokeWidth="1.6"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M8.5 11.5V7.25a1.75 1.75 0 013.5 0V11M12 11V5.75a1.75 1.75 0 013.5 0V11M15.5 11V8.25a1.75 1.75 0 013.5 0V13.5a5.5 5.5 0 01-5.5 5.5h-1.25A5.25 5.25 0 017 13.75v-3.5a1.75 1.75 0 011.5-1.75z"
-                      />
+                    {/* White grip; the green hand is the cursor only (see .toolbox-drag-handle). */}
+                    <svg className="h-3.5 w-2.5" viewBox="0 0 10 16" aria-hidden="true">
+                      <circle cx="2.5" cy="3" r="1.35" fill="#ffffff" stroke="#111111" strokeWidth="0.9" />
+                      <circle cx="7.5" cy="3" r="1.35" fill="#ffffff" stroke="#111111" strokeWidth="0.9" />
+                      <circle cx="2.5" cy="8" r="1.35" fill="#ffffff" stroke="#111111" strokeWidth="0.9" />
+                      <circle cx="7.5" cy="8" r="1.35" fill="#ffffff" stroke="#111111" strokeWidth="0.9" />
+                      <circle cx="2.5" cy="13" r="1.35" fill="#ffffff" stroke="#111111" strokeWidth="0.9" />
+                      <circle cx="7.5" cy="13" r="1.35" fill="#ffffff" stroke="#111111" strokeWidth="0.9" />
                     </svg>
                   </button>
                 )}
