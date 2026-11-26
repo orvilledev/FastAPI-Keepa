@@ -1,0 +1,19 @@
+MSW Overwatch 4.0.5 — desktop and web release
+
+Patch release since 4.0.4. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Label Format Checkers
+- SPD Label Format Checker for Amazon 4x6 box labels (multi PDF/ZIP)
+- LTL Label Format Checker with box-order validation
+- Reorder/download LTL label PDFs when box tags are out of sequence
+- Both checkers open to most users under Warehouse Tools
+
+## Other
+- Manage UPCs Excel export keeps codes fully visible as text
+- Import Mode rejects uploads with almost no usable prices
+- Express Jobs mobile layout improvements
+- About page trimmed for faster scanning
+- Removed FBA Upload Compare
+
+## Upgrade from 4.0.4
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 4.0.5, download it, then prompt to install now or later. Web/PWA users get 4.0.5 on the next deploy/refresh.
