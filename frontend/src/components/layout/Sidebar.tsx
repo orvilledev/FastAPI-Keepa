@@ -936,43 +936,13 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
           <>
             {navExtrasExpanded && (
               <>
-                <div className="shrink-0 space-y-0.5">
+                <div className="shrink-0 space-y-0.5 pb-1">
+                  <p className="sidebar-section-label">LABELS</p>
                   {isLabelCenterAvailable(accountEmail) && (
                     <ToolLink to="/label-center" label="Label Center" icon={Icons.labelCenter} id="label-center" />
                   )}
-
                   <ToolLink to="/label-station" label="Label Station" icon={Icons.barcode} id="label-station" />
                   <ToolLink to="/label-station-2" label="Label Station II" icon={Icons.barcode} id="label-station-2" />
-
-                  {canUseFnskuLabels && (
-                    <ToolLink to="/fnsku-labels" label="FNSKU Labels" icon={Icons.fnskuLabels} id="fnsku-labels" />
-                  )}
-
-                  <ToolLink
-                    to="/fnsku-pack-station"
-                    label="FNSKU Pack Station"
-                    icon={Icons.fnskuBoxPivot}
-                    id="fnsku-pack-station"
-                  />
-
-                  {canUseFbaOrderChecker && (
-                    <ToolLink
-                      to="/fba-shipment-library"
-                      label="FBA Order Checker"
-                      icon={Icons.fbaShipmentLibrary}
-                      id="fba-shipment-library"
-                    />
-                  )}
-
-                  {canUseFreightClass && (
-                    <ToolLink
-                      to="/freight-class-calculator"
-                      label="Freight Class"
-                      icon={Icons.freightClassCalculator}
-                      id="freight-class-calculator"
-                    />
-                  )}
-
                   {canUseLabelFormatChecker && (
                     <ToolLink
                       to="/label-format-checker"
@@ -981,7 +951,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                       id="label-format-checker"
                     />
                   )}
-
                   {canUseLtlLabelFormatChecker && (
                     <ToolLink
                       to="/ltl-label-format-checker"
@@ -990,17 +959,52 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                       id="ltl-label-format-checker"
                     />
                   )}
+                </div>
 
-                  {canUseDimensioner && (
-                    <ToolLink to="/dimensioner" label="Dimensioner" icon={Icons.dimensioner} id="dimensioner" />
-                  )}
+                <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 
+                <div className="shrink-0 space-y-0.5 pb-1">
+                  <p className="sidebar-section-label">SHIPMENTS</p>
                   {canUseShipmentManager && (
                     <ToolLink
                       to="/shipment-manager"
                       label="Shipment Manager"
                       icon={Icons.shipmentManager}
                       id="shipment-manager"
+                    />
+                  )}
+                  {canUseFbaOrderChecker && (
+                    <ToolLink
+                      to="/fba-shipment-library"
+                      label="FBA Order Checker"
+                      icon={Icons.fbaShipmentLibrary}
+                      id="fba-shipment-library"
+                    />
+                  )}
+                  {canUseDimensioner && (
+                    <ToolLink to="/dimensioner" label="Dimensioner" icon={Icons.dimensioner} id="dimensioner" />
+                  )}
+                </div>
+
+                <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
+
+                <div className="shrink-0 space-y-0.5 pb-1">
+                  <p className="sidebar-section-label">TOOLS</p>
+                  {canUseFnskuLabels && (
+                    <ToolLink to="/fnsku-labels" label="FNSKU Labels" icon={Icons.fnskuLabels} id="fnsku-labels" />
+                  )}
+                  <ToolLink
+                    to="/fnsku-pack-station"
+                    label="FNSKU Pack Station"
+                    icon={Icons.fnskuBoxPivot}
+                    id="fnsku-pack-station"
+                  />
+                  {canUseFreightClass && (
+                    <ToolLink
+                      to="/freight-class-calculator"
+                      label="Freight Class"
+                      icon={Icons.freightClassCalculator}
+                      id="freight-class-calculator"
                     />
                   )}
                 </div>
@@ -1054,6 +1058,107 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
           </>
         )}
 
+        {/* LABELS + SHIPMENTS stay visible (same on web and Electron). Keepa MENU stays behind Show/Hide. */}
+        {(hasKeepaAccess ||
+          canUseLabelFormatChecker ||
+          canUseLtlLabelFormatChecker) && (
+          <>
+            <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
+            <div className="shrink-0 space-y-0.5 pb-1 pt-1">
+              <p className="sidebar-section-label">LABELS</p>
+              {hasKeepaAccess && isLabelCenterAvailable(accountEmail) && (
+                <ToolLink to="/label-center" label="Label Center" icon={Icons.labelCenter} id="label-center" />
+              )}
+              {hasKeepaAccess && (
+                <ToolLink to="/label-station" label="Label Station" icon={Icons.scanner} id="label-station" />
+              )}
+              {hasKeepaAccess && (
+                <ToolLink
+                  to="/label-station-2"
+                  label="Label Station II"
+                  icon={Icons.scanner}
+                  id="label-station-2"
+                />
+              )}
+              {canUseLabelFormatChecker && (
+                <ToolLink
+                  to="/label-format-checker"
+                  label="SPD Label Format Checker"
+                  icon={Icons.labelFormatChecker}
+                  id="label-format-checker"
+                />
+              )}
+              {canUseLtlLabelFormatChecker && (
+                <ToolLink
+                  to="/ltl-label-format-checker"
+                  label="LTL Label Format Checker"
+                  icon={Icons.ltlLabelFormatChecker}
+                  id="ltl-label-format-checker"
+                />
+              )}
+            </div>
+          </>
+        )}
+
+        {(canUseBcTools ||
+          canUseShipmentManager ||
+          canUseNsTool ||
+          canUseFbaOrderChecker ||
+          canUseDimensioner) && (
+          <>
+            <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
+            <div className="shrink-0 space-y-0.5 pb-1 pt-1">
+              <p className="sidebar-section-label">SHIPMENTS</p>
+              {canUseBcTools && canUseFbaBoxContents && (
+                <ToolLink
+                  to="/fba-box-contents"
+                  label="FBA Box Contents"
+                  icon={Icons.fbaBoxContents}
+                  id="fba-box-contents"
+                />
+              )}
+              {canUseShipmentManager && (
+                <ToolLink
+                  to="/shipment-manager"
+                  label="Shipment Manager"
+                  icon={Icons.shipmentManager}
+                  id="shipment-manager"
+                />
+              )}
+              {canUseFbaOrderChecker && (
+                <ToolLink
+                  to="/fba-shipment-library"
+                  label="FBA Order Checker"
+                  icon={Icons.fbaShipmentLibrary}
+                  id="fba-shipment-library"
+                />
+              )}
+              {canUseNsTool && (
+                <ToolLink to="/ns-tool" label="NS Tool" icon={Icons.nsTool} id="ns-tool" />
+              )}
+              {canUseDimensioner && (
+                <ToolLink to="/dimensioner" label="Dimensioner" icon={Icons.dimensioner} id="dimensioner" />
+              )}
+              {canUseBcTools && (
+                <ToolLink
+                  to="/product-catalog-formatter"
+                  label="Product Catalog"
+                  icon={Icons.productCatalog}
+                  id="product-catalog-formatter"
+                />
+              )}
+              {canUseBcTools && isSuperadmin && (
+                <ToolLink
+                  to="/obz-smw-fba-inv"
+                  label="OBZ / SMW FBA INV"
+                  icon={Icons.obzSmwFbaInv}
+                  id="obz-smw-fba-inv"
+                />
+              )}
+            </div>
+          </>
+        )}
+
         <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 
         {navExtrasToggle}
@@ -1099,9 +1204,9 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
 
         <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 
-        {/* WAREHOUSE TOOLS */}
+        {/* Remaining warehouse utilities (not Labels / Shipments). */}
         <div className="shrink-0 space-y-0.5 pb-1 pt-1">
-          <p className="sidebar-section-label">WAREHOUSE TOOLS</p>
+          <p className="sidebar-section-label">TOOLS</p>
           <ToolLink to="/micro-tools" label="Micro Tools" icon={Icons.toolbox} id="micro-tools" />
           <ToolLink
             to="/tracking-scanner"
@@ -1128,28 +1233,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
             icon={Icons.dnkAllInventory}
             id="dnk-all-inventory"
           />
-
-          {hasKeepaAccess && isLabelCenterAvailable(accountEmail) && (
-            <ToolLink to="/label-center" label="Label Center" icon={Icons.labelCenter} id="label-center" />
-          )}
-
-          {hasKeepaAccess && (
-            <ToolLink to="/label-station" label="Label Station" icon={Icons.scanner} id="label-station" />
-          )}
-
-          {hasKeepaAccess && (
-            <ToolLink to="/label-station-2" label="Label Station II" icon={Icons.scanner} id="label-station-2" />
-          )}
-
-          {canUseFbaOrderChecker && (
-            <ToolLink
-              to="/fba-shipment-library"
-              label="FBA Order Checker"
-              icon={Icons.fbaShipmentLibrary}
-              id="fba-shipment-library"
-            />
-          )}
-
           {canUseFreightClass && (
             <ToolLink
               to="/freight-class-calculator"
@@ -1158,75 +1241,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
               id="freight-class-calculator"
             />
           )}
-
-          {canUseLabelFormatChecker && (
-            <ToolLink
-              to="/label-format-checker"
-              label="SPD Label Format Checker"
-              icon={Icons.labelFormatChecker}
-              id="label-format-checker"
-            />
-          )}
-
-          {canUseLtlLabelFormatChecker && (
-            <ToolLink
-              to="/ltl-label-format-checker"
-              label="LTL Label Format Checker"
-              icon={Icons.ltlLabelFormatChecker}
-              id="ltl-label-format-checker"
-            />
-          )}
-
-          {canUseDimensioner && (
-            <ToolLink to="/dimensioner" label="Dimensioner" icon={Icons.dimensioner} id="dimensioner" />
-          )}
         </div>
-
-        {(canUseBcTools || canUseShipmentManager || canUseNsTool) && (
-          <>
-            <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
-
-            {/* BC TOOLS */}
-            <div className="shrink-0 space-y-0.5 pb-1 pt-1">
-              <p className="sidebar-section-label">BC TOOLS</p>
-              {canUseBcTools && canUseFbaBoxContents && (
-                <ToolLink
-                  to="/fba-box-contents"
-                  label="FBA Box Contents"
-                  icon={Icons.fbaBoxContents}
-                  id="fba-box-contents"
-                />
-              )}
-              {canUseBcTools && (
-                <ToolLink
-                  to="/product-catalog-formatter"
-                  label="Product Catalog Formatter"
-                  icon={Icons.productCatalog}
-                  id="product-catalog-formatter"
-                />
-              )}
-              {canUseBcTools && isSuperadmin && (
-                <ToolLink
-                  to="/obz-smw-fba-inv"
-                  label="OBZ / SMW FBA INV"
-                  icon={Icons.obzSmwFbaInv}
-                  id="obz-smw-fba-inv"
-                />
-              )}
-              {canUseNsTool && (
-                <ToolLink to="/ns-tool" label="NS Tool" icon={Icons.nsTool} id="ns-tool" />
-              )}
-              {canUseShipmentManager && (
-                <ToolLink
-                  to="/shipment-manager"
-                  label="Shipment Manager"
-                  icon={Icons.shipmentManager}
-                  id="shipment-manager"
-                />
-              )}
-            </div>
-          </>
-        )}
 
         <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 

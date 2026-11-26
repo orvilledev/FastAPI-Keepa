@@ -2,7 +2,7 @@
 export type BookmarkableTool = {
   path: string
   label: string
-  group: 'Menu' | 'Tools' | 'BC Tools' | 'General'
+  group: 'Menu' | 'Labels' | 'Shipments' | 'Tools' | 'General'
 }
 
 export const BOOKMARKABLE_TOOLS: BookmarkableTool[] = [
@@ -17,25 +17,25 @@ export const BOOKMARKABLE_TOOLS: BookmarkableTool[] = [
   { path: '/analytics', label: 'Analytics', group: 'Menu' },
   { path: '/catalog/old-skus', label: 'Old SKUs', group: 'Menu' },
   { path: '/notifications', label: 'Notifications', group: 'Menu' },
+  { path: '/label-center', label: 'Label Center', group: 'Labels' },
+  { path: '/label-station', label: 'Label Station', group: 'Labels' },
+  { path: '/label-station-2', label: 'Label Station II', group: 'Labels' },
+  { path: '/label-format-checker', label: 'SPD Label Format Checker', group: 'Labels' },
+  { path: '/ltl-label-format-checker', label: 'LTL Label Format Checker', group: 'Labels' },
+  { path: '/fba-box-contents', label: 'FBA Box Contents', group: 'Shipments' },
+  { path: '/shipment-manager', label: 'Shipment Manager', group: 'Shipments' },
+  { path: '/fba-shipment-library', label: 'FBA Order Checker', group: 'Shipments' },
+  { path: '/ns-tool', label: 'NS Tool', group: 'Shipments' },
+  { path: '/dimensioner', label: 'Dimensioner', group: 'Shipments' },
+  { path: '/product-catalog-formatter', label: 'Product Catalog', group: 'Shipments' },
+  { path: '/obz-smw-fba-inv', label: 'OBZ / SMW FBA INV', group: 'Shipments' },
   { path: '/micro-tools', label: 'Micro Tools', group: 'Tools' },
   { path: '/tracking-scanner', label: 'Tracking Extractor', group: 'Tools' },
   { path: '/fnsku-labels', label: 'FNSKU Labels', group: 'Tools' },
   { path: '/fnsku-pack-station', label: 'FNSKU Pack Station', group: 'Tools' },
   { path: '/manifest-generator', label: 'Manifest Generator', group: 'Tools' },
   { path: '/dnk-all-inventory', label: 'DNK AllInventory', group: 'Tools' },
-  { path: '/label-center', label: 'Label Center', group: 'Tools' },
-  { path: '/label-station', label: 'Label Station', group: 'Tools' },
-  { path: '/label-station-2', label: 'Label Station II', group: 'Tools' },
-  { path: '/fba-box-contents', label: 'FBA Box Contents', group: 'BC Tools' },
-  { path: '/fba-shipment-library', label: 'FBA Order Checker', group: 'BC Tools' },
-  { path: '/product-catalog-formatter', label: 'Product Catalog Formatter', group: 'BC Tools' },
-  { path: '/obz-smw-fba-inv', label: 'OBZ / SMW FBA INV', group: 'BC Tools' },
-  { path: '/ns-tool', label: 'NS Tool', group: 'BC Tools' },
-  { path: '/shipment-manager', label: 'Shipment Manager', group: 'BC Tools' },
   { path: '/freight-class-calculator', label: 'Freight Class Calculator', group: 'Tools' },
-  { path: '/label-format-checker', label: 'SPD Label Format Checker', group: 'Tools' },
-  { path: '/ltl-label-format-checker', label: 'LTL Label Format Checker', group: 'Tools' },
-  { path: '/dimensioner', label: 'Dimensioner', group: 'Tools' },
   { path: '/about', label: 'About', group: 'General' },
   { path: '/faq', label: 'FAQ', group: 'General' },
   { path: '/chat', label: 'Team Chat', group: 'General' },
