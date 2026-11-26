@@ -455,13 +455,6 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     const bodyStyle = document.body.style
     let prevUserSelect = bodyStyle.userSelect
 
-    // Keep receiving moves even if the pointer leaves the row / over an <a>.
-    try {
-      row.setPointerCapture(pointerId)
-    } catch {
-      /* some browsers throw if capture is unsupported for this pointer */
-    }
-
     const reorderFromPointer = (clientY: number) => {
       const list = toolboxListRef.current
       if (!list) return
@@ -484,6 +477,12 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     const activateDrag = () => {
       if (activated) return
       activated = true
+      // Capture only once dragging: capturing on press retargets the click away from the link.
+      try {
+        row.setPointerCapture(pointerId)
+      } catch {
+        /* some browsers throw if capture is unsupported for this pointer */
+      }
       prevUserSelect = bodyStyle.userSelect
       bodyStyle.userSelect = 'none'
       document.body.classList.add('toolbox-dragging')
