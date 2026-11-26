@@ -2060,6 +2060,13 @@ code {
   color: #111827 !important;
 }
 
+/* Bookmarked pin: orange washes out on dopamine pink — use black instead. */
+[data-theme='dopamine'] .sidebar-bookmark-btn[data-bookmarked='true'],
+[data-theme='dopamine'] .sidebar-link:hover .sidebar-bookmark-btn[data-bookmarked='true'],
+[data-theme='dopamine'] .sidebar-link-active .sidebar-bookmark-btn[data-bookmarked='true'] {
+  color: #000000 !important;
+}
+
 /* Active Runs / countdown cards: pink panel, keep inherited green accents */
 [data-theme='dopamine'] .bg-\[\#404040\].text-white,
 [data-theme='dopamine'] .bg-\[\#404040\].border-white\/20 {
