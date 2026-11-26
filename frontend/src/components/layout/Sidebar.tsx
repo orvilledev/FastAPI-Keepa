@@ -228,6 +228,18 @@ interface SidebarProps {
   collapsed?: boolean
 }
 
+const NAV_EXTRAS_EXPANDED_KEY = 'sidebar-nav-extras-expanded'
+
+function readNavExtrasExpanded(): boolean {
+  try {
+    const stored = localStorage.getItem(NAV_EXTRAS_EXPANDED_KEY)
+    if (stored === null) return true
+    return stored !== 'false'
+  } catch {
+    return true
+  }
+}
+
 export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = false }: SidebarProps = {}) {
   const location = useLocation()
   const { hasKeepaAccess, isWarehouseOnly, isSuperadmin, userInfo, authUser } = useUser()
@@ -270,6 +282,16 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
   const [updateMessage, setUpdateMessage] = useState('')
   /** Only one sidebar row shows "highlight" while hovering; route highlight defers to hover target. */
   const [hoveredNav, setHoveredNav] = useState<string | null>(null)
+  /** When false, only My Space + My Toolbox stay visible; Menu / tools / General collapse. */
+  const [navExtrasExpanded, setNavExtrasExpanded] = useState(readNavExtrasExpanded)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(NAV_EXTRAS_EXPANDED_KEY, navExtrasExpanded ? 'true' : 'false')
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [navExtrasExpanded])
 
   const isActive = (path: string) => {
     const currentPath = location.pathname
@@ -416,6 +438,35 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     </div>
   )
 
+  const navExtrasToggle = (
+    <button
+      type="button"
+      aria-expanded={navExtrasExpanded}
+      aria-controls="sidebar-nav-extras"
+      onClick={(event) => {
+        event.stopPropagation()
+        setNavExtrasExpanded((open) => !open)
+      }}
+      className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-content-muted transition-colors hover:bg-gray-100 hover:text-content dark:hover:bg-surface-hover dark:hover:text-slate-100"
+      title={navExtrasExpanded ? 'Hide the rest of the menu' : 'Show the rest of the menu'}
+    >
+      <svg
+        className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
+          navExtrasExpanded ? 'rotate-180' : ''
+        }`}
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+      <span className="text-[10px] font-semibold uppercase tracking-wider">
+        {navExtrasExpanded ? 'Hide menu' : 'Show menu'}
+      </span>
+    </button>
+  )
+
   const keepaMenuItems = [
     { path: '/jobs',         label: 'Express Jobs', icon: 'package'  as const },
     { path: '/daily-run',    label: 'Daily Runs',   icon: 'biking'   as const },
@@ -515,76 +566,80 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
       >
         {isWarehouseOnly ? (
           <>
-            <div className="shrink-0 space-y-0.5">
-              {isLabelCenterAvailable(accountEmail) && (
-                <ToolLink to="/label-center" label="Label Center" icon={Icons.labelCenter} id="label-center" />
-              )}
+            {navExtrasExpanded && (
+              <>
+                <div className="shrink-0 space-y-0.5">
+                  {isLabelCenterAvailable(accountEmail) && (
+                    <ToolLink to="/label-center" label="Label Center" icon={Icons.labelCenter} id="label-center" />
+                  )}
 
-              <ToolLink to="/label-station" label="Label Station" icon={Icons.barcode} id="label-station" />
-              <ToolLink to="/label-station-2" label="Label Station II" icon={Icons.barcode} id="label-station-2" />
+                  <ToolLink to="/label-station" label="Label Station" icon={Icons.barcode} id="label-station" />
+                  <ToolLink to="/label-station-2" label="Label Station II" icon={Icons.barcode} id="label-station-2" />
 
-              {canUseFnskuLabels && (
-                <ToolLink to="/fnsku-labels" label="FNSKU Labels" icon={Icons.fnskuLabels} id="fnsku-labels" />
-              )}
+                  {canUseFnskuLabels && (
+                    <ToolLink to="/fnsku-labels" label="FNSKU Labels" icon={Icons.fnskuLabels} id="fnsku-labels" />
+                  )}
 
-              <ToolLink
-                to="/fnsku-pack-station"
-                label="FNSKU Pack Station"
-                icon={Icons.fnskuBoxPivot}
-                id="fnsku-pack-station"
-              />
+                  <ToolLink
+                    to="/fnsku-pack-station"
+                    label="FNSKU Pack Station"
+                    icon={Icons.fnskuBoxPivot}
+                    id="fnsku-pack-station"
+                  />
 
-              {canUseFbaOrderChecker && (
-                <ToolLink
-                  to="/fba-shipment-library"
-                  label="FBA Order Checker"
-                  icon={Icons.fbaShipmentLibrary}
-                  id="fba-shipment-library"
-                />
-              )}
+                  {canUseFbaOrderChecker && (
+                    <ToolLink
+                      to="/fba-shipment-library"
+                      label="FBA Order Checker"
+                      icon={Icons.fbaShipmentLibrary}
+                      id="fba-shipment-library"
+                    />
+                  )}
 
-              {canUseFreightClass && (
-                <ToolLink
-                  to="/freight-class-calculator"
-                  label="Freight Class"
-                  icon={Icons.freightClassCalculator}
-                  id="freight-class-calculator"
-                />
-              )}
+                  {canUseFreightClass && (
+                    <ToolLink
+                      to="/freight-class-calculator"
+                      label="Freight Class"
+                      icon={Icons.freightClassCalculator}
+                      id="freight-class-calculator"
+                    />
+                  )}
 
-              {canUseLabelFormatChecker && (
-                <ToolLink
-                  to="/label-format-checker"
-                  label="SPD Label Format Checker"
-                  icon={Icons.labelFormatChecker}
-                  id="label-format-checker"
-                />
-              )}
+                  {canUseLabelFormatChecker && (
+                    <ToolLink
+                      to="/label-format-checker"
+                      label="SPD Label Format Checker"
+                      icon={Icons.labelFormatChecker}
+                      id="label-format-checker"
+                    />
+                  )}
 
-              {canUseLtlLabelFormatChecker && (
-                <ToolLink
-                  to="/ltl-label-format-checker"
-                  label="LTL Label Format Checker"
-                  icon={Icons.ltlLabelFormatChecker}
-                  id="ltl-label-format-checker"
-                />
-              )}
+                  {canUseLtlLabelFormatChecker && (
+                    <ToolLink
+                      to="/ltl-label-format-checker"
+                      label="LTL Label Format Checker"
+                      icon={Icons.ltlLabelFormatChecker}
+                      id="ltl-label-format-checker"
+                    />
+                  )}
 
-              {canUseDimensioner && (
-                <ToolLink to="/dimensioner" label="Dimensioner" icon={Icons.dimensioner} id="dimensioner" />
-              )}
+                  {canUseDimensioner && (
+                    <ToolLink to="/dimensioner" label="Dimensioner" icon={Icons.dimensioner} id="dimensioner" />
+                  )}
 
-              {canUseShipmentManager && (
-                <ToolLink
-                  to="/shipment-manager"
-                  label="Shipment Manager"
-                  icon={Icons.shipmentManager}
-                  id="shipment-manager"
-                />
-              )}
-            </div>
+                  {canUseShipmentManager && (
+                    <ToolLink
+                      to="/shipment-manager"
+                      label="Shipment Manager"
+                      icon={Icons.shipmentManager}
+                      id="shipment-manager"
+                    />
+                  )}
+                </div>
 
-            <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
+                <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
+              </>
+            )}
 
             <div className="shrink-0 space-y-0.5 pb-1 pt-1">
               <p className="sidebar-section-label">MY SPACE</p>
@@ -597,13 +652,21 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
 
             <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 
-            <div className="shrink-0 space-y-0.5 pb-1 pt-1">
-              <p className="sidebar-section-label">GENERAL</p>
-              <ToolLink to="/about" label="About" icon={Icons.info} id="about" />
-              <ToolLink to="/faq" label="FAQ" icon={Icons.wrench} id="faq" />
-              {canUseTeamChat && teamChatLink}
-              <ToolLink to="/feedback" label="Feedback From Users" icon={Icons.feedback} id="feedback" />
-            </div>
+            {navExtrasToggle}
+
+            {navExtrasExpanded && (
+              <div id="sidebar-nav-extras">
+                <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
+
+                <div className="shrink-0 space-y-0.5 pb-1 pt-1">
+                  <p className="sidebar-section-label">GENERAL</p>
+                  <ToolLink to="/about" label="About" icon={Icons.info} id="about" />
+                  <ToolLink to="/faq" label="FAQ" icon={Icons.wrench} id="faq" />
+                  {canUseTeamChat && teamChatLink}
+                  <ToolLink to="/feedback" label="Feedback From Users" icon={Icons.feedback} id="feedback" />
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <>
@@ -617,6 +680,12 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
 
         {myToolboxSection}
 
+        <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
+
+        {navExtrasToggle}
+
+        {navExtrasExpanded && (
+        <div id="sidebar-nav-extras">
         <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 
         {/* MENU: Dashboard + Keepa */}
@@ -823,6 +892,8 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
             />
           )}
         </div>
+        </div>
+        )}
           </>
         )}
       </nav>
