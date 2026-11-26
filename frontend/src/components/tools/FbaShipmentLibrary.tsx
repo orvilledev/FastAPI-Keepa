@@ -9,7 +9,6 @@ import {
   type FormEvent,
   type InputHTMLAttributes,
 } from 'react'
-import { Link } from 'react-router-dom'
 import { auditAction } from '../../lib/auditEvents'
 import { useUser } from '../../contexts/UserContext'
 import { canAccessDimensioner } from '../../lib/dimensionerAccess'
@@ -42,6 +41,7 @@ import {
   saveFnskuLabelDesignRemembered,
 } from '../../utils/fbaLabelDesignPrefs'
 import FnskuLabelDesignModal, { FnskuLabelDesignSummary } from './FnskuLabelDesign'
+import FbaToolShortcutModal, { type FbaShortcutTool } from './FbaToolShortcutModal'
 
 const PAGE_SIZE = 50
 const LINE_PAGE_SIZE = 100
@@ -381,6 +381,11 @@ export default function FbaShipmentLibrary() {
     accountEmail,
     isSuperadmin,
   )
+  const shortcutTools: FbaShortcutTool[] = [
+    ...(canOpenDimensioner ? (['dimensioner'] as const) : []),
+    ...(canOpenLtlLabelFormatChecker ? (['ltl-label-format-checker'] as const) : []),
+  ]
+  const [shortcutTool, setShortcutTool] = useState<FbaShortcutTool | null>(null)
 
   const [uploads, setUploads] = useState<FbaShipmentUpload[]>([])
   const [total, setTotal] = useState(0)
@@ -2417,24 +2422,24 @@ export default function FbaShipmentLibrary() {
             </div>
             <div className={`flex flex-wrap gap-2 ${labelDesignRemembered ? 'items-start' : 'items-center'}`}>
               {canOpenDimensioner && (
-                <Link
-                  to="/dimensioner"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
                   className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => setShortcutTool('dimensioner')}
                 >
                   Dimensioner
-                </Link>
+                </button>
               )}
               {canOpenLtlLabelFormatChecker && (
-                <Link
-                  to="/ltl-label-format-checker"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
                   className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => setShortcutTool('ltl-label-format-checker')}
                 >
                   LTL Label Format Checker
-                </Link>
+                </button>
               )}
               <button
                 type="button"
@@ -2742,6 +2747,14 @@ export default function FbaShipmentLibrary() {
             </div>
           )}
         </section>
+      )}
+      {shortcutTool && (
+        <FbaToolShortcutModal
+          tool={shortcutTool}
+          tools={shortcutTools}
+          onSelect={setShortcutTool}
+          onClose={() => setShortcutTool(null)}
+        />
       )}
       {labelDesignDialog && (
         <FnskuLabelDesignModal

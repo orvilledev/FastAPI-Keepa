@@ -69,7 +69,7 @@ function RulerIcon({ className }: { className?: string }) {
   )
 }
 
-export default function DimensionerScans() {
+export default function DimensionerScans({ embedded = false }: { embedded?: boolean }) {
   const { isSuperadmin, userInfoLoading, userInfo, authUser } = useUser()
   const canUse = canAccessDimensioner(userInfo?.email || authUser?.email, isSuperadmin)
   const enabled = canUse && !userInfoLoading
@@ -380,22 +380,24 @@ export default function DimensionerScans() {
     baselineRef.current.ready && receivedMs(scan) > newestKnown
 
   return (
-    <div className="mx-auto max-w-5xl px-1 pb-16 pt-2">
-      <header className="mb-6">
-        <div className="flex items-start gap-4">
-          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#404040]/12 text-[#404040] dark:bg-white/12 dark:text-white">
-            <RulerIcon className="h-5 w-5" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 sm:text-2xl">
-              Dimensioner
-            </h1>
-            <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
-              Measurements from the QBOID M2 · inches and pounds
-            </p>
+    <div className={embedded ? 'w-full' : 'mx-auto max-w-5xl px-1 pb-16 pt-2'}>
+      {!embedded && (
+        <header className="mb-6">
+          <div className="flex items-start gap-4">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#404040]/12 text-[#404040] dark:bg-white/12 dark:text-white">
+              <RulerIcon className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 sm:text-2xl">
+                Dimensioner
+              </h1>
+              <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+                Measurements from the QBOID M2 · inches and pounds
+              </p>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       {error && (
         <div

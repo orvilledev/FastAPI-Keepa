@@ -391,7 +391,7 @@ function FileDetails({ file, source }: { file: LtlLabelFile; source: ReorderSour
   )
 }
 
-export default function LtlLabelFormatChecker() {
+export default function LtlLabelFormatChecker({ embedded = false }: { embedded?: boolean }) {
   const [files, setFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [checking, setChecking] = useState(false)
@@ -542,16 +542,18 @@ export default function LtlLabelFormatChecker() {
     : []
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-gray-900">LTL Label Format Checker</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Upload one or more LTL box label <strong>.pdf</strong> files or <strong>.zip</strong> archives of them.
-          Each page is checked against the Amazon LTL box label format (one 4x6 in label per box), and the box tags
-          are checked to run <strong>B1, B2, B3, …</strong> in page order. Review the results below, then download
-          the report.
-        </p>
-      </header>
+    <div className={embedded ? 'w-full space-y-6' : 'mx-auto max-w-6xl space-y-6'}>
+      {!embedded && (
+        <header>
+          <h1 className="text-2xl font-bold text-gray-900">LTL Label Format Checker</h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Upload one or more LTL box label <strong>.pdf</strong> files or <strong>.zip</strong> archives of them.
+            Each page is checked against the Amazon LTL box label format (one 4x6 in label per box), and the box
+            tags are checked to run <strong>B1, B2, B3, …</strong> in page order. Review the results below, then
+            download the report.
+          </p>
+        </header>
+      )}
 
       {error && (
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
