@@ -656,10 +656,10 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                     className="flex items-center gap-1.5 px-3 pb-1 pt-2"
                     onDoubleClick={() => beginRenameDivider(item.linkId, item.label)}
                   >
-                    <span className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-wider text-content-secondary">
+                    <span className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-wider text-[#81B81D]">
                       {item.label}
                     </span>
-                    <span className="h-px min-w-[0.75rem] flex-1 bg-gray-300/80 dark:bg-border" aria-hidden="true" />
+                    <span className="h-px min-w-[0.75rem] flex-1 bg-[#81B81D]/35 dark:bg-[#81B81D]/40" aria-hidden="true" />
                     <button
                       type="button"
                       onClick={(event) => {
