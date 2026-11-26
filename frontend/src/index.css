@@ -249,6 +249,12 @@
   .toolbox-row-drag,
   .toolbox-row-drag .sidebar-link {
     cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath fill='%2381B81D' stroke='%23111111' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M11 15.5V9.5a2 2 0 014 0V15M15 15V7.5a2 2 0 014 0V15M19 15V10.5a2 2 0 014 0V18a6.5 6.5 0 01-6.5 6.5h-1.25A6 6 0 019 18.5v-4.25A2 2 0 0111 12.25z'/%3E%3C/svg%3E") 10 6, grab;
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+
+  .toolbox-row-drag a.sidebar-link {
+    -webkit-user-drag: none;
   }
 
   .toolbox-row-drag:active,

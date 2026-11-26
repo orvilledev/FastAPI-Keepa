@@ -443,24 +443,34 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
 
     toolboxDragCleanupRef.current?.()
 
+    const row = event.currentTarget
+    const pointerId = event.pointerId
     const startX = event.clientX
     const startY = event.clientY
     const original = toolboxEntries.map((link) => link.id)
     let current = original
     let activated = false
+    let finished = false
 
     const bodyStyle = document.body.style
     let prevUserSelect = bodyStyle.userSelect
+
+    // Keep receiving moves even if the pointer leaves the row / over an <a>.
+    try {
+      row.setPointerCapture(pointerId)
+    } catch {
+      /* some browsers throw if capture is unsupported for this pointer */
+    }
 
     const reorderFromPointer = (clientY: number) => {
       const list = toolboxListRef.current
       if (!list) return
       const otherRows = Array.from(list.querySelectorAll<HTMLElement>('[data-toolbox-id]')).filter(
-        (row) => row.dataset.toolboxId !== linkId,
+        (rowEl) => rowEl.dataset.toolboxId !== linkId,
       )
       let targetIndex = 0
-      for (const row of otherRows) {
-        const rect = row.getBoundingClientRect()
+      for (const other of otherRows) {
+        const rect = other.getBoundingClientRect()
         if (clientY > rect.top + rect.height / 2) targetIndex += 1
       }
       const others = current.filter((id) => id !== linkId)
@@ -490,10 +500,24 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
       window.addEventListener('click', blockClick, true)
     }
 
+    const releaseCapture = () => {
+      try {
+        if (row.hasPointerCapture(pointerId)) row.releasePointerCapture(pointerId)
+      } catch {
+        /* ignore */
+      }
+    }
+
     const finish = (commit: boolean) => {
+      if (finished) return
+      finished = true
+      row.removeEventListener('pointermove', handleMove)
+      row.removeEventListener('pointerup', handleUp)
+      row.removeEventListener('pointercancel', handleCancel)
       window.removeEventListener('pointermove', handleMove)
       window.removeEventListener('pointerup', handleUp)
       window.removeEventListener('pointercancel', handleCancel)
+      releaseCapture()
       toolboxDragCleanupRef.current = null
       if (!activated) return
 
@@ -509,6 +533,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
       }
     }
     const handleMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId) return
       if (!activated) {
         const dx = moveEvent.clientX - startX
         const dy = moveEvent.clientY - startY
@@ -518,9 +543,19 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
       moveEvent.preventDefault()
       reorderFromPointer(moveEvent.clientY)
     }
-    const handleUp = () => finish(true)
-    const handleCancel = () => finish(false)
+    const handleUp = (upEvent: PointerEvent) => {
+      if (upEvent.pointerId !== pointerId) return
+      finish(true)
+    }
+    const handleCancel = (cancelEvent: PointerEvent) => {
+      if (cancelEvent.pointerId !== pointerId) return
+      finish(false)
+    }
 
+    // Listen on the capturing row and window so native <a> drag cannot steal the gesture.
+    row.addEventListener('pointermove', handleMove)
+    row.addEventListener('pointerup', handleUp)
+    row.addEventListener('pointercancel', handleCancel)
     window.addEventListener('pointermove', handleMove)
     window.addEventListener('pointerup', handleUp)
     window.addEventListener('pointercancel', handleCancel)
@@ -599,6 +634,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     trailing,
     onKeyDown,
     title,
+    disableNativeDrag = false,
   }: {
     to: string
     label: string
@@ -608,10 +644,14 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     trailing?: ReactNode
     onKeyDown?: (event: KeyboardEvent<HTMLAnchorElement>) => void
     title?: string
+    /** Toolbox rows: stop the browser from dragging the URL instead of reordering. */
+    disableNativeDrag?: boolean
   }) => (
     <Link
       to={to}
       title={title}
+      draggable={disableNativeDrag ? false : undefined}
+      onDragStart={disableNativeDrag ? (event) => event.preventDefault() : undefined}
       onMouseEnter={() => setHoveredNav(id)}
       onKeyDown={onKeyDown}
       className={`sidebar-link ${
@@ -664,6 +704,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                     label={item.label}
                     icon={item.icon}
                     id={item.id}
+                    disableNativeDrag={canReorder}
                     title={canReorder ? 'Drag to reorder' : undefined}
                     onKeyDown={
                       canReorder
