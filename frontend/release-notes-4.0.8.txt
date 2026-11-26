@@ -1,0 +1,11 @@
+MSW Overwatch 4.0.8 — desktop and web release
+
+Patch release since 4.0.7. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Sidebar
+- Removed mistaken built-in Labels and Shipments sections
+- Restored MENU, Warehouse Tools, and BC Tools
+- My Toolbox dividers and pins stay personal only (no duplicate nav sections)
+
+## Upgrade from 4.0.7
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 4.0.8, download it, then prompt to install now or later. Web/PWA users get 4.0.8 on the next deploy/refresh.
