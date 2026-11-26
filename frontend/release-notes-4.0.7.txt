@@ -1,0 +1,11 @@
+MSW Overwatch 4.0.7 — desktop and web release
+
+Patch release since 4.0.6. Installers and auto-update use GitHub Releases. The desktop app checks for updates on its own (startup, every 4 hours, and after sleep) and installs a downloaded update the next time you quit. You can still use **Check for Updates** / **Install now** to apply immediately.
+
+## Sidebar
+- Labels and Shipments sections match on web and Electron
+- Label tools and shipment tools stay visible under My Toolbox
+- Keepa Menu and other Tools stay behind Show/Hide menu
+
+## Upgrade from 4.0.6
+Windows desktop: open MSW Overwatch and wait a few seconds — it should find 4.0.7, download it, then prompt to install now or later. Web/PWA users get 4.0.7 on the next deploy/refresh.
