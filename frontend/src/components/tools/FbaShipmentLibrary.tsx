@@ -9,7 +9,11 @@ import {
   type FormEvent,
   type InputHTMLAttributes,
 } from 'react'
+import { Link } from 'react-router-dom'
 import { auditAction } from '../../lib/auditEvents'
+import { useUser } from '../../contexts/UserContext'
+import { canAccessDimensioner } from '../../lib/dimensionerAccess'
+import { canAccessLtlLabelFormatChecker } from '../../lib/ltlLabelFormatCheckerAccess'
 import {
   FBA_SHIPMENT_PROGRESS_STATUSES,
   fbaShipmentLibraryApi,
@@ -370,6 +374,14 @@ function ScanEntryForm({
 }
 
 export default function FbaShipmentLibrary() {
+  const { userInfo, authUser, isSuperadmin } = useUser()
+  const accountEmail = userInfo?.email || authUser?.email
+  const canOpenDimensioner = canAccessDimensioner(accountEmail, isSuperadmin)
+  const canOpenLtlLabelFormatChecker = canAccessLtlLabelFormatChecker(
+    accountEmail,
+    isSuperadmin,
+  )
+
   const [uploads, setUploads] = useState<FbaShipmentUpload[]>([])
   const [total, setTotal] = useState(0)
   const [offset, setOffset] = useState(0)
@@ -2404,6 +2416,26 @@ export default function FbaShipmentLibrary() {
               </p>
             </div>
             <div className={`flex flex-wrap gap-2 ${labelDesignRemembered ? 'items-start' : 'items-center'}`}>
+              {canOpenDimensioner && (
+                <Link
+                  to="/dimensioner"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50"
+                >
+                  Dimensioner
+                </Link>
+              )}
+              {canOpenLtlLabelFormatChecker && (
+                <Link
+                  to="/ltl-label-format-checker"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 ring-1 ring-gray-300 hover:bg-gray-50"
+                >
+                  LTL Label Format Checker
+                </Link>
+              )}
               <button
                 type="button"
                 className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-800"
