@@ -12,6 +12,7 @@ import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { UserProvider, useUser } from './contexts/UserContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { TrackingScanProvider } from './contexts/TrackingScanContext'
+import { ToolBookmarksProvider } from './contexts/ToolBookmarksContext'
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/common/ProtectedRoute'
 import WarehouseRouteGuard from './components/common/WarehouseRouteGuard'
@@ -686,9 +687,11 @@ function App() {
     <ThemeProvider>
       <AppRouter>
         <UserProvider>
-          <PresenceHeartbeat />
-          <AppRoutes />
-          <DesktopUpdateOverlay />
+          <ToolBookmarksProvider>
+            <PresenceHeartbeat />
+            <AppRoutes />
+            <DesktopUpdateOverlay />
+          </ToolBookmarksProvider>
         </UserProvider>
       </AppRouter>
     </ThemeProvider>

@@ -245,6 +245,24 @@
     @apply min-w-0 flex-1 leading-snug break-words;
   }
 
+  .sidebar-bookmark-btn {
+    position: relative;
+    z-index: 10;
+    color: inherit;
+    opacity: 0.4;
+  }
+
+  .sidebar-bookmark-btn[data-bookmarked='true'] {
+    color: #f97316;
+    opacity: 1;
+  }
+
+  .sidebar-link:hover .sidebar-bookmark-btn,
+  .sidebar-link-active .sidebar-bookmark-btn {
+    opacity: 1;
+    color: #fdba74 !important;
+  }
+
   .sidebar-section-label {
     @apply px-3 pb-1.5 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-content-muted;
   }

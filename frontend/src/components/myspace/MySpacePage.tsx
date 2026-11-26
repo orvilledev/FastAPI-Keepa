@@ -11,6 +11,7 @@ import { canAccessObzSmwFbaInv } from '../../lib/obzSmwFbaInvAccess'
 import { canAccessLabelFormatChecker } from '../../lib/labelFormatCheckerAccess'
 import { canAccessLtlLabelFormatChecker } from '../../lib/ltlLabelFormatCheckerAccess'
 import { useUser } from '../../contexts/UserContext'
+import { useToolBookmarks } from '../../contexts/ToolBookmarksContext'
 import CustomLinksPanel from './CustomLinksPanel'
 import NoteContent from './NoteContent'
 import {
@@ -86,6 +87,13 @@ export default function MySpacePage() {
     accountEmail,
     isSuperadmin,
   )
+  const {
+    bookmarks: toolBookmarks,
+    bookmarkedPaths,
+    busyPath,
+    toggleBookmark,
+    refreshBookmarks,
+  } = useToolBookmarks()
   const [tab, setTab] = useState<TabId>('bookmarks')
   const [links, setLinks] = useState<QuickAccessLink[]>([])
   const [groupedLinkCount, setGroupedLinkCount] = useState(0)
@@ -104,15 +112,6 @@ export default function MySpacePage() {
   const [toolFilter, setToolFilter] = useState('')
   const contentRef = useRef<HTMLTextAreaElement>(null)
 
-  const toolBookmarks = useMemo(
-    () =>
-      links.filter(
-        (l) =>
-          l.icon === TOOL_BOOKMARK_ICON ||
-          (isAppToolUrl(l.url) && l.icon !== CUSTOM_LINK_ICON),
-      ),
-    [links],
-  )
   const customLinks = useMemo(
     () =>
       links.filter(
@@ -121,10 +120,6 @@ export default function MySpacePage() {
           (!isAppToolUrl(l.url) && l.icon !== TOOL_BOOKMARK_ICON),
       ),
     [links],
-  )
-  const bookmarkedPaths = useMemo(
-    () => new Set(toolBookmarks.map((l) => l.url)),
-    [toolBookmarks],
   )
 
   const toolSearchQuery = toolFilter.trim().toLowerCase()
@@ -168,7 +163,13 @@ export default function MySpacePage() {
       setLinks(linkRows)
     } catch (linkErr) {
       setLinks([])
-      errors.push(loadErrorMessage(linkErr, 'bookmarks'))
+      errors.push(loadErrorMessage(linkErr, 'custom links'))
+    }
+
+    try {
+      await refreshBookmarks()
+    } catch (bookmarkErr) {
+      errors.push(loadErrorMessage(bookmarkErr, 'bookmarks'))
     }
 
     try {
@@ -189,29 +190,17 @@ export default function MySpacePage() {
 
     if (errors.length) setError(errors.join(' '))
     setLoading(false)
-  }, [])
+  }, [refreshBookmarks])
 
   useEffect(() => {
     void loadAll()
   }, [loadAll])
 
   const toggleToolBookmark = async (tool: BookmarkableTool) => {
-    const existing = toolBookmarks.find((l) => l.url === tool.path)
     setBusyKey(`tool:${tool.path}`)
     setError('')
     try {
-      if (existing) {
-        await quickAccessApi.deleteLink(existing.id)
-        setLinks((prev) => prev.filter((l) => l.id !== existing.id))
-      } else {
-        const created = await quickAccessApi.createLink({
-          title: tool.label,
-          url: tool.path,
-          icon: TOOL_BOOKMARK_ICON,
-          display_order: toolBookmarks.length,
-        })
-        setLinks((prev) => [...prev, created])
-      }
+      await toggleBookmark({ path: tool.path, label: tool.label })
     } catch (err) {
       setError(getApiErrorDetail(err) || 'Could not update bookmark.')
     } finally {
@@ -435,21 +424,13 @@ export default function MySpacePage() {
                       </div>
                       <button
                         type="button"
-                        disabled={busyKey === `tool:${link.url}`}
+                        disabled={busyKey === `tool:${link.url}` || busyPath === link.url}
                         onClick={() => {
-                          const tool = BOOKMARKABLE_TOOLS.find((t) => t.path === link.url)
-                          if (tool) {
-                            void toggleToolBookmark(tool)
-                            return
-                          }
-                          setBusyKey(`tool:${link.url}`)
-                          void quickAccessApi
-                            .deleteLink(link.id)
-                            .then(() => setLinks((prev) => prev.filter((l) => l.id !== link.id)))
-                            .catch((err) =>
-                              setError(getApiErrorDetail(err) || 'Could not update bookmark.'),
-                            )
-                            .finally(() => setBusyKey(null))
+                          void toggleToolBookmark({
+                            path: link.url,
+                            label: link.title,
+                            group: 'Tools',
+                          })
                         }}
                         className="absolute right-3 top-3 rounded-full bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-500 transition hover:bg-red-50 hover:text-red-600 dark:bg-surface-muted"
                       >
@@ -506,7 +487,7 @@ export default function MySpacePage() {
                           <li key={tool.path}>
                             <button
                               type="button"
-                              disabled={busyKey === `tool:${tool.path}`}
+                              disabled={busyKey === `tool:${tool.path}` || busyPath === tool.path}
                               onClick={() => void toggleToolBookmark(tool)}
                               className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm transition ${
                                 pinned

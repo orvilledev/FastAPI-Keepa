@@ -1,8 +1,10 @@
 import { Link, useLocation } from 'react-router-dom'
-import { useState, useEffect, type MouseEvent } from 'react'
+import { useState, useEffect, useMemo, type MouseEvent, type ReactNode } from 'react'
 import { useUser } from '../../contexts/UserContext'
+import { useToolBookmarks } from '../../contexts/ToolBookmarksContext'
 import { APP_NAME } from '../../constants/app'
 import AppLogo from '../common/AppLogo'
+import SidebarBookmarkButton from './SidebarBookmarkButton'
 import { canAccessWebAnalytics } from '../../lib/devFeatures'
 import { canAccessFbaBoxContents } from '../../lib/fbaBoxContentsAccess'
 import { canAccessOldSkus } from '../../lib/oldSkusAccess'
@@ -313,6 +315,107 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
   const navHighlighted = (id: string, routeActive: boolean) =>
     (hoveredNav === null && routeActive) || hoveredNav === id
 
+  const { bookmarks } = useToolBookmarks()
+
+  const pathIconMap = useMemo(() => {
+    const map: Record<string, ReactNode> = {
+      '/dashboard': Icons.dashboard,
+      '/jobs': Icons.package,
+      '/daily-run': Icons.biking,
+      '/manage-upcs': Icons.barcode,
+      '/map': Icons.dollar,
+      '/seller-list': Icons.users,
+      '/email-list': Icons.mail,
+      '/ship-to-addresses': Icons.shipTo,
+      '/analytics': Icons.chart,
+      '/catalog/old-skus': Icons.oldSkus,
+      '/micro-tools': Icons.toolbox,
+      '/tracking-scanner': Icons.trackingExtractor,
+      '/fnsku-labels': Icons.fnskuLabels,
+      '/fnsku-pack-station': Icons.fnskuBoxPivot,
+      '/manifest-generator': Icons.manifestGenerator,
+      '/dnk-all-inventory': Icons.dnkAllInventory,
+      '/label-center': Icons.labelCenter,
+      '/label-station': Icons.scanner,
+      '/label-station-2': Icons.scanner,
+      '/fba-shipment-library': Icons.fbaShipmentLibrary,
+      '/freight-class-calculator': Icons.freightClassCalculator,
+      '/label-format-checker': Icons.labelFormatChecker,
+      '/ltl-label-format-checker': Icons.ltlLabelFormatChecker,
+      '/dimensioner': Icons.dimensioner,
+      '/fba-box-contents': Icons.fbaBoxContents,
+      '/product-catalog-formatter': Icons.productCatalog,
+      '/obz-smw-fba-inv': Icons.obzSmwFbaInv,
+      '/ns-tool': Icons.nsTool,
+      '/shipment-manager': Icons.shipmentManager,
+      '/about': Icons.info,
+      '/faq': Icons.wrench,
+      '/feedback': Icons.feedback,
+      '/notifications': Icons.mail,
+    }
+    return map
+  }, [])
+
+  const toolboxItems = useMemo(
+    () =>
+      bookmarks.map((link) => ({
+        path: link.url,
+        label: link.title,
+        icon: pathIconMap[link.url] || Icons.toolbox,
+        id: `toolbox-${link.id}`,
+      })),
+    [bookmarks, pathIconMap],
+  )
+
+  const ToolLink = ({
+    to,
+    label,
+    icon,
+    id,
+    bookmarkable = true,
+  }: {
+    to: string
+    label: string
+    icon: ReactNode
+    id: string
+    bookmarkable?: boolean
+  }) => (
+    <Link
+      to={to}
+      onMouseEnter={() => setHoveredNav(id)}
+      className={`sidebar-link ${
+        navHighlighted(id, isActive(to))
+          ? 'sidebar-link-active'
+          : 'sidebar-link-inactive'
+      }`}
+    >
+      <span className="shrink-0">{icon}</span>
+      <span className="sidebar-link-label">{label}</span>
+      {bookmarkable && <SidebarBookmarkButton path={to} label={label} />}
+    </Link>
+  )
+
+  const myToolboxSection = (
+    <div className="shrink-0 space-y-0.5 pb-1 pt-1">
+      <p className="sidebar-section-label">MY TOOLBOX</p>
+      {toolboxItems.length === 0 ? (
+        <p className="px-3 py-1.5 text-[11px] leading-snug text-content-muted">
+          Bookmark tools with the pin icon to keep them here.
+        </p>
+      ) : (
+        toolboxItems.map((item) => (
+          <ToolLink
+            key={item.id}
+            to={item.path}
+            label={item.label}
+            icon={item.icon}
+            id={item.id}
+          />
+        ))
+      )}
+    </div>
+  )
+
   const keepaMenuItems = [
     { path: '/jobs',         label: 'Express Jobs', icon: 'package'  as const },
     { path: '/daily-run',    label: 'Daily Runs',   icon: 'biking'   as const },
@@ -414,162 +517,70 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
           <>
             <div className="shrink-0 space-y-0.5">
               {isLabelCenterAvailable(accountEmail) && (
-                <Link
-                  to="/label-center"
-                  onMouseEnter={() => setHoveredNav('label-center')}
-                  className={`sidebar-link ${
-                    navHighlighted('label-center', isActive('/label-center'))
-                      ? 'sidebar-link-active'
-                      : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="shrink-0">{Icons.labelCenter}</span>
-                  <span className="sidebar-link-label">Label Center</span>
-                </Link>
+                <ToolLink to="/label-center" label="Label Center" icon={Icons.labelCenter} id="label-center" />
               )}
 
-              <Link
-                to="/label-station"
-                onMouseEnter={() => setHoveredNav('label-station')}
-                className={`sidebar-link ${
-                  navHighlighted('label-station', isActive('/label-station'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.barcode}</span>
-                <span className="sidebar-link-label">Label Station</span>
-              </Link>
-
-              <Link
-                to="/label-station-2"
-                onMouseEnter={() => setHoveredNav('label-station-2')}
-                className={`sidebar-link ${
-                  navHighlighted('label-station-2', isActive('/label-station-2'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.barcode}</span>
-                <span className="sidebar-link-label">Label Station II</span>
-              </Link>
+              <ToolLink to="/label-station" label="Label Station" icon={Icons.barcode} id="label-station" />
+              <ToolLink to="/label-station-2" label="Label Station II" icon={Icons.barcode} id="label-station-2" />
 
               {canUseFnskuLabels && (
-                <Link
-                  to="/fnsku-labels"
-                  onMouseEnter={() => setHoveredNav('fnsku-labels')}
-                  className={`sidebar-link ${
-                    navHighlighted('fnsku-labels', isActive('/fnsku-labels'))
-                      ? 'sidebar-link-active'
-                      : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="shrink-0">{Icons.fnskuLabels}</span>
-                  <span className="sidebar-link-label">FNSKU Labels</span>
-                </Link>
+                <ToolLink to="/fnsku-labels" label="FNSKU Labels" icon={Icons.fnskuLabels} id="fnsku-labels" />
               )}
 
-              <Link
+              <ToolLink
                 to="/fnsku-pack-station"
-                onMouseEnter={() => setHoveredNav('fnsku-pack-station')}
-                className={`sidebar-link ${
-                  navHighlighted('fnsku-pack-station', isActive('/fnsku-pack-station'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.fnskuBoxPivot}</span>
-                <span className="sidebar-link-label">FNSKU Pack Station</span>
-              </Link>
+                label="FNSKU Pack Station"
+                icon={Icons.fnskuBoxPivot}
+                id="fnsku-pack-station"
+              />
 
               {canUseFbaOrderChecker && (
-                <Link
+                <ToolLink
                   to="/fba-shipment-library"
-                  onMouseEnter={() => setHoveredNav('fba-shipment-library')}
-                  className={`sidebar-link ${
-                    navHighlighted('fba-shipment-library', isActive('/fba-shipment-library'))
-                      ? 'sidebar-link-active'
-                      : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="shrink-0">{Icons.fbaShipmentLibrary}</span>
-                  <span className="sidebar-link-label">FBA Order Checker</span>
-                </Link>
+                  label="FBA Order Checker"
+                  icon={Icons.fbaShipmentLibrary}
+                  id="fba-shipment-library"
+                />
               )}
 
               {canUseFreightClass && (
-                <Link
+                <ToolLink
                   to="/freight-class-calculator"
-                  onMouseEnter={() => setHoveredNav('freight-class-calculator')}
-                  className={`sidebar-link ${
-                    navHighlighted('freight-class-calculator', isActive('/freight-class-calculator'))
-                      ? 'sidebar-link-active'
-                      : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="shrink-0">{Icons.freightClassCalculator}</span>
-                  <span className="sidebar-link-label">Freight Class</span>
-                </Link>
+                  label="Freight Class"
+                  icon={Icons.freightClassCalculator}
+                  id="freight-class-calculator"
+                />
               )}
 
               {canUseLabelFormatChecker && (
-                <Link
+                <ToolLink
                   to="/label-format-checker"
-                  onMouseEnter={() => setHoveredNav('label-format-checker')}
-                  className={`sidebar-link ${
-                    navHighlighted('label-format-checker', isActive('/label-format-checker'))
-                      ? 'sidebar-link-active'
-                      : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="shrink-0">{Icons.labelFormatChecker}</span>
-                  <span className="sidebar-link-label">SPD Label Format Checker</span>
-                </Link>
+                  label="SPD Label Format Checker"
+                  icon={Icons.labelFormatChecker}
+                  id="label-format-checker"
+                />
               )}
 
               {canUseLtlLabelFormatChecker && (
-                <Link
+                <ToolLink
                   to="/ltl-label-format-checker"
-                  onMouseEnter={() => setHoveredNav('ltl-label-format-checker')}
-                  className={`sidebar-link ${
-                    navHighlighted('ltl-label-format-checker', isActive('/ltl-label-format-checker'))
-                      ? 'sidebar-link-active'
-                      : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="shrink-0">{Icons.ltlLabelFormatChecker}</span>
-                  <span className="sidebar-link-label">LTL Label Format Checker</span>
-                </Link>
+                  label="LTL Label Format Checker"
+                  icon={Icons.ltlLabelFormatChecker}
+                  id="ltl-label-format-checker"
+                />
               )}
 
               {canUseDimensioner && (
-                <Link
-                  to="/dimensioner"
-                  onMouseEnter={() => setHoveredNav('dimensioner')}
-                  className={`sidebar-link ${
-                    navHighlighted('dimensioner', isActive('/dimensioner'))
-                      ? 'sidebar-link-active'
-                      : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="shrink-0">{Icons.dimensioner}</span>
-                  <span className="sidebar-link-label">Dimensioner</span>
-                </Link>
+                <ToolLink to="/dimensioner" label="Dimensioner" icon={Icons.dimensioner} id="dimensioner" />
               )}
 
               {canUseShipmentManager && (
-                <Link
+                <ToolLink
                   to="/shipment-manager"
-                  onMouseEnter={() => setHoveredNav('shipment-manager')}
-                  className={`sidebar-link ${
-                    navHighlighted('shipment-manager', isActive('/shipment-manager'))
-                      ? 'sidebar-link-active'
-                      : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="shrink-0">{Icons.shipmentManager}</span>
-                  <span className="sidebar-link-label">Shipment Manager</span>
-                </Link>
+                  label="Shipment Manager"
+                  icon={Icons.shipmentManager}
+                  id="shipment-manager"
+                />
               )}
             </div>
 
@@ -577,64 +588,21 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
 
             <div className="shrink-0 space-y-0.5 pb-1 pt-1">
               <p className="sidebar-section-label">MY SPACE</p>
-              <Link
-                to="/my-space"
-                onMouseEnter={() => setHoveredNav('my-space')}
-                className={`sidebar-link ${
-                  navHighlighted('my-space', isActive('/my-space'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.mySpace}</span>
-                <span className="sidebar-link-label">My Space</span>
-              </Link>
+              <ToolLink to="/my-space" label="My Space" icon={Icons.mySpace} id="my-space" bookmarkable={false} />
             </div>
+
+            <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
+
+            {myToolboxSection}
 
             <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 
             <div className="shrink-0 space-y-0.5 pb-1 pt-1">
               <p className="sidebar-section-label">GENERAL</p>
-              <Link
-                to="/about"
-                onMouseEnter={() => setHoveredNav('about')}
-                className={`sidebar-link ${
-                  navHighlighted('about', isActive('/about'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.info}</span>
-                <span className="sidebar-link-label">About</span>
-              </Link>
-
-              <Link
-                to="/faq"
-                onMouseEnter={() => setHoveredNav('faq')}
-                className={`sidebar-link ${
-                  navHighlighted('faq', isActive('/faq'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.wrench}</span>
-                <span className="sidebar-link-label">FAQ</span>
-              </Link>
-
+              <ToolLink to="/about" label="About" icon={Icons.info} id="about" />
+              <ToolLink to="/faq" label="FAQ" icon={Icons.wrench} id="faq" />
               {canUseTeamChat && teamChatLink}
-
-              <Link
-                to="/feedback"
-                onMouseEnter={() => setHoveredNav('feedback')}
-                className={`sidebar-link ${
-                  navHighlighted('feedback', isActive('/feedback'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.feedback}</span>
-                <span className="sidebar-link-label">Feedback From Users</span>
-              </Link>
+              <ToolLink to="/feedback" label="Feedback From Users" icon={Icons.feedback} id="feedback" />
             </div>
           </>
         ) : (
@@ -642,19 +610,12 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
         {/* MY SPACE */}
         <div className="shrink-0 space-y-0.5 pb-1">
           <p className="sidebar-section-label">MY SPACE</p>
-          <Link
-            to="/my-space"
-            onMouseEnter={() => setHoveredNav('my-space')}
-            className={`sidebar-link ${
-              navHighlighted('my-space', isActive('/my-space'))
-                ? 'sidebar-link-active'
-                : 'sidebar-link-inactive'
-            }`}
-          >
-            <span className="shrink-0">{Icons.mySpace}</span>
-            <span className="sidebar-link-label">My Space</span>
-          </Link>
+          <ToolLink to="/my-space" label="My Space" icon={Icons.mySpace} id="my-space" bookmarkable={false} />
         </div>
+
+        <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
+
+        {myToolboxSection}
 
         <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 
@@ -662,18 +623,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
         <div className="shrink-0">
           <p className="sidebar-section-label">MENU</p>
           <div className="space-y-0.5">
-            <Link
-              to="/dashboard"
-              onMouseEnter={() => setHoveredNav('dashboard')}
-              className={`sidebar-link ${
-                navHighlighted('dashboard', isActive('/dashboard'))
-                  ? 'sidebar-link-active'
-                  : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="shrink-0">{Icons.dashboard}</span>
-              <span className="sidebar-link-label">Dashboard</span>
-            </Link>
+            <ToolLink to="/dashboard" label="Dashboard" icon={Icons.dashboard} id="dashboard" />
 
             {hasKeepaAccess && keepaMenuItems.map((item) => {
               const linkId =
@@ -688,35 +638,18 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                 'keepa-other'
 
               return (
-                <Link
+                <ToolLink
                   key={item.path}
                   to={item.path}
-                  onMouseEnter={() => setHoveredNav(linkId)}
-                  className={`sidebar-link ${
-                    navHighlighted(linkId, isActive(item.path))
-                      ? 'sidebar-link-active'
-                      : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="shrink-0">{Icons[item.icon]}</span>
-                  <span className="sidebar-link-label">{item.label}</span>
-                </Link>
+                  label={item.label}
+                  icon={Icons[item.icon]}
+                  id={linkId}
+                />
               )
             })}
 
             {canUseOldSkus && (
-              <Link
-                to="/catalog/old-skus"
-                onMouseEnter={() => setHoveredNav('old-skus')}
-                className={`sidebar-link ${
-                  navHighlighted('old-skus', isActive('/catalog/old-skus'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.oldSkus}</span>
-                <span className="sidebar-link-label">Old SKUs</span>
-              </Link>
+              <ToolLink to="/catalog/old-skus" label="Old SKUs" icon={Icons.oldSkus} id="old-skus" />
             )}
           </div>
         </div>
@@ -726,203 +659,84 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
         {/* WAREHOUSE TOOLS */}
         <div className="shrink-0 space-y-0.5 pb-1 pt-1">
           <p className="sidebar-section-label">WAREHOUSE TOOLS</p>
-            <Link
-              to="/micro-tools"
-              onMouseEnter={() => setHoveredNav('micro-tools')}
-              className={`sidebar-link ${
-                navHighlighted('micro-tools', isActive('/micro-tools'))
-                  ? 'sidebar-link-active'
-                  : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="shrink-0">{Icons.toolbox}</span>
-              <span className="sidebar-link-label">Micro Tools</span>
-            </Link>
+          <ToolLink to="/micro-tools" label="Micro Tools" icon={Icons.toolbox} id="micro-tools" />
+          <ToolLink
+            to="/tracking-scanner"
+            label="Tracking Extractor"
+            icon={Icons.trackingExtractor}
+            id="tracking-scanner"
+          />
+          <ToolLink to="/fnsku-labels" label="FNSKU Labels" icon={Icons.fnskuLabels} id="fnsku-labels" />
+          <ToolLink
+            to="/fnsku-pack-station"
+            label="FNSKU Pack Station"
+            icon={Icons.fnskuBoxPivot}
+            id="fnsku-pack-station"
+          />
+          <ToolLink
+            to="/manifest-generator"
+            label="Manifest Generator"
+            icon={Icons.manifestGenerator}
+            id="manifest-generator"
+          />
+          <ToolLink
+            to="/dnk-all-inventory"
+            label="DNK AllInventory"
+            icon={Icons.dnkAllInventory}
+            id="dnk-all-inventory"
+          />
 
-            <Link
-              to="/tracking-scanner"
-              onMouseEnter={() => setHoveredNav('tracking-scanner')}
-              className={`sidebar-link ${
-                navHighlighted('tracking-scanner', isActive('/tracking-scanner'))
-                  ? 'sidebar-link-active'
-                  : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="shrink-0">{Icons.trackingExtractor}</span>
-              <span className="sidebar-link-label">Tracking Extractor</span>
-            </Link>
+          {hasKeepaAccess && isLabelCenterAvailable(accountEmail) && (
+            <ToolLink to="/label-center" label="Label Center" icon={Icons.labelCenter} id="label-center" />
+          )}
 
-            <Link
-              to="/fnsku-labels"
-              onMouseEnter={() => setHoveredNav('fnsku-labels')}
-              className={`sidebar-link ${
-                navHighlighted('fnsku-labels', isActive('/fnsku-labels'))
-                  ? 'sidebar-link-active'
-                  : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="shrink-0">{Icons.fnskuLabels}</span>
-              <span className="sidebar-link-label">FNSKU Labels</span>
-            </Link>
+          {hasKeepaAccess && (
+            <ToolLink to="/label-station" label="Label Station" icon={Icons.scanner} id="label-station" />
+          )}
 
-            <Link
-              to="/fnsku-pack-station"
-              onMouseEnter={() => setHoveredNav('fnsku-pack-station')}
-              className={`sidebar-link ${
-                navHighlighted('fnsku-pack-station', isActive('/fnsku-pack-station'))
-                  ? 'sidebar-link-active'
-                  : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="shrink-0">{Icons.fnskuBoxPivot}</span>
-              <span className="sidebar-link-label">FNSKU Pack Station</span>
-            </Link>
+          {hasKeepaAccess && (
+            <ToolLink to="/label-station-2" label="Label Station II" icon={Icons.scanner} id="label-station-2" />
+          )}
 
-            <Link
-              to="/manifest-generator"
-              onMouseEnter={() => setHoveredNav('manifest-generator')}
-              className={`sidebar-link ${
-                navHighlighted('manifest-generator', isActive('/manifest-generator'))
-                  ? 'sidebar-link-active'
-                  : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="shrink-0">{Icons.manifestGenerator}</span>
-              <span className="sidebar-link-label">Manifest Generator</span>
-            </Link>
+          {canUseFbaOrderChecker && (
+            <ToolLink
+              to="/fba-shipment-library"
+              label="FBA Order Checker"
+              icon={Icons.fbaShipmentLibrary}
+              id="fba-shipment-library"
+            />
+          )}
 
-            <Link
-              to="/dnk-all-inventory"
-              onMouseEnter={() => setHoveredNav('dnk-all-inventory')}
-              className={`sidebar-link ${
-                navHighlighted('dnk-all-inventory', isActive('/dnk-all-inventory'))
-                  ? 'sidebar-link-active'
-                  : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="shrink-0">{Icons.dnkAllInventory}</span>
-              <span className="sidebar-link-label">DNK AllInventory</span>
-            </Link>
+          {canUseFreightClass && (
+            <ToolLink
+              to="/freight-class-calculator"
+              label="Freight Class"
+              icon={Icons.freightClassCalculator}
+              id="freight-class-calculator"
+            />
+          )}
 
-            {hasKeepaAccess && isLabelCenterAvailable(accountEmail) && (
-              <Link
-                to="/label-center"
-                onMouseEnter={() => setHoveredNav('label-center')}
-                className={`sidebar-link ${
-                  navHighlighted('label-center', isActive('/label-center'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.labelCenter}</span>
-                <span className="sidebar-link-label">Label Center</span>
-              </Link>
-            )}
+          {canUseLabelFormatChecker && (
+            <ToolLink
+              to="/label-format-checker"
+              label="SPD Label Format Checker"
+              icon={Icons.labelFormatChecker}
+              id="label-format-checker"
+            />
+          )}
 
-            {hasKeepaAccess && (
-              <Link
-                to="/label-station"
-                onMouseEnter={() => setHoveredNav('label-station')}
-                className={`sidebar-link ${
-                  navHighlighted('label-station', isActive('/label-station'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.scanner}</span>
-                <span className="sidebar-link-label">Label Station</span>
-              </Link>
-            )}
+          {canUseLtlLabelFormatChecker && (
+            <ToolLink
+              to="/ltl-label-format-checker"
+              label="LTL Label Format Checker"
+              icon={Icons.ltlLabelFormatChecker}
+              id="ltl-label-format-checker"
+            />
+          )}
 
-            {hasKeepaAccess && (
-              <Link
-                to="/label-station-2"
-                onMouseEnter={() => setHoveredNav('label-station-2')}
-                className={`sidebar-link ${
-                  navHighlighted('label-station-2', isActive('/label-station-2'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.scanner}</span>
-                <span className="sidebar-link-label">Label Station II</span>
-              </Link>
-            )}
-
-            {canUseFbaOrderChecker && (
-              <Link
-                to="/fba-shipment-library"
-                onMouseEnter={() => setHoveredNav('fba-shipment-library')}
-                className={`sidebar-link ${
-                  navHighlighted('fba-shipment-library', isActive('/fba-shipment-library'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.fbaShipmentLibrary}</span>
-                <span className="sidebar-link-label">FBA Order Checker</span>
-              </Link>
-            )}
-
-            {canUseFreightClass && (
-              <Link
-                to="/freight-class-calculator"
-                onMouseEnter={() => setHoveredNav('freight-class-calculator')}
-                className={`sidebar-link ${
-                  navHighlighted('freight-class-calculator', isActive('/freight-class-calculator'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.freightClassCalculator}</span>
-                <span className="sidebar-link-label">Freight Class</span>
-              </Link>
-            )}
-
-            {canUseLabelFormatChecker && (
-              <Link
-                to="/label-format-checker"
-                onMouseEnter={() => setHoveredNav('label-format-checker')}
-                className={`sidebar-link ${
-                  navHighlighted('label-format-checker', isActive('/label-format-checker'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.labelFormatChecker}</span>
-                <span className="sidebar-link-label">SPD Label Format Checker</span>
-              </Link>
-            )}
-
-            {canUseLtlLabelFormatChecker && (
-              <Link
-                to="/ltl-label-format-checker"
-                onMouseEnter={() => setHoveredNav('ltl-label-format-checker')}
-                className={`sidebar-link ${
-                  navHighlighted('ltl-label-format-checker', isActive('/ltl-label-format-checker'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.ltlLabelFormatChecker}</span>
-                <span className="sidebar-link-label">LTL Label Format Checker</span>
-              </Link>
-            )}
-
-            {canUseDimensioner && (
-              <Link
-                to="/dimensioner"
-                onMouseEnter={() => setHoveredNav('dimensioner')}
-                className={`sidebar-link ${
-                  navHighlighted('dimensioner', isActive('/dimensioner'))
-                    ? 'sidebar-link-active'
-                    : 'sidebar-link-inactive'
-                }`}
-              >
-                <span className="shrink-0">{Icons.dimensioner}</span>
-                <span className="sidebar-link-label">Dimensioner</span>
-              </Link>
-            )}
+          {canUseDimensioner && (
+            <ToolLink to="/dimensioner" label="Dimensioner" icon={Icons.dimensioner} id="dimensioner" />
+          )}
         </div>
 
         {(canUseBcTools || canUseShipmentManager || canUseNsTool) && (
@@ -933,74 +747,39 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
             <div className="shrink-0 space-y-0.5 pb-1 pt-1">
               <p className="sidebar-section-label">BC TOOLS</p>
               {canUseBcTools && canUseFbaBoxContents && (
-                <Link
+                <ToolLink
                   to="/fba-box-contents"
-                  onMouseEnter={() => setHoveredNav('fba-box-contents')}
-                  className={`sidebar-link ${
-                    navHighlighted('fba-box-contents', isActive('/fba-box-contents'))
-                      ? 'sidebar-link-active'
-                      : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="shrink-0">{Icons.fbaBoxContents}</span>
-                  <span className="sidebar-link-label">FBA Box Contents</span>
-                </Link>
+                  label="FBA Box Contents"
+                  icon={Icons.fbaBoxContents}
+                  id="fba-box-contents"
+                />
               )}
               {canUseBcTools && (
-                <Link
+                <ToolLink
                   to="/product-catalog-formatter"
-                  onMouseEnter={() => setHoveredNav('product-catalog-formatter')}
-                  className={`sidebar-link ${
-                    navHighlighted('product-catalog-formatter', isActive('/product-catalog-formatter'))
-                      ? 'sidebar-link-active'
-                      : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="shrink-0">{Icons.productCatalog}</span>
-                  <span className="sidebar-link-label">Product Catalog Formatter</span>
-                </Link>
+                  label="Product Catalog Formatter"
+                  icon={Icons.productCatalog}
+                  id="product-catalog-formatter"
+                />
               )}
               {canUseBcTools && isSuperadmin && (
-                <Link
+                <ToolLink
                   to="/obz-smw-fba-inv"
-                  onMouseEnter={() => setHoveredNav('obz-smw-fba-inv')}
-                  className={`sidebar-link ${
-                    navHighlighted('obz-smw-fba-inv', isActive('/obz-smw-fba-inv'))
-                      ? 'sidebar-link-active'
-                      : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="shrink-0">{Icons.obzSmwFbaInv}</span>
-                  <span className="sidebar-link-label">OBZ / SMW FBA INV</span>
-                </Link>
+                  label="OBZ / SMW FBA INV"
+                  icon={Icons.obzSmwFbaInv}
+                  id="obz-smw-fba-inv"
+                />
               )}
               {canUseNsTool && (
-                <Link
-                  to="/ns-tool"
-                  onMouseEnter={() => setHoveredNav('ns-tool')}
-                  className={`sidebar-link ${
-                    navHighlighted('ns-tool', isActive('/ns-tool'))
-                      ? 'sidebar-link-active'
-                      : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="shrink-0">{Icons.nsTool}</span>
-                  <span className="sidebar-link-label">NS Tool</span>
-                </Link>
+                <ToolLink to="/ns-tool" label="NS Tool" icon={Icons.nsTool} id="ns-tool" />
               )}
               {canUseShipmentManager && (
-                <Link
+                <ToolLink
                   to="/shipment-manager"
-                  onMouseEnter={() => setHoveredNav('shipment-manager')}
-                  className={`sidebar-link ${
-                    navHighlighted('shipment-manager', isActive('/shipment-manager'))
-                      ? 'sidebar-link-active'
-                      : 'sidebar-link-inactive'
-                  }`}
-                >
-                  <span className="shrink-0">{Icons.shipmentManager}</span>
-                  <span className="sidebar-link-label">Shipment Manager</span>
-                </Link>
+                  label="Shipment Manager"
+                  icon={Icons.shipmentManager}
+                  id="shipment-manager"
+                />
               )}
             </div>
           </>
@@ -1011,88 +790,37 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
         {/* GENERAL */}
         <div className="shrink-0 space-y-0.5 pb-1 pt-1">
           <p className="sidebar-section-label">GENERAL</p>
-          <Link
-            to="/about"
-            onMouseEnter={() => setHoveredNav('about')}
-            className={`sidebar-link ${
-              navHighlighted('about', isActive('/about'))
-                ? 'sidebar-link-active'
-                : 'sidebar-link-inactive'
-            }`}
-          >
-            <span className="shrink-0">{Icons.info}</span>
-            <span className="sidebar-link-label">About</span>
-          </Link>
-
-          <Link
-            to="/faq"
-            onMouseEnter={() => setHoveredNav('faq')}
-            className={`sidebar-link ${
-              navHighlighted('faq', isActive('/faq'))
-                ? 'sidebar-link-active'
-                : 'sidebar-link-inactive'
-            }`}
-          >
-            <span className="shrink-0">{Icons.wrench}</span>
-            <span className="sidebar-link-label">FAQ</span>
-          </Link>
-
+          <ToolLink to="/about" label="About" icon={Icons.info} id="about" />
+          <ToolLink to="/faq" label="FAQ" icon={Icons.wrench} id="faq" />
           {canUseTeamChat && teamChatLink}
-
-          <Link
-            to="/feedback"
-            onMouseEnter={() => setHoveredNav('feedback')}
-            className={`sidebar-link ${
-              navHighlighted('feedback', isActive('/feedback'))
-                ? 'sidebar-link-active'
-                : 'sidebar-link-inactive'
-            }`}
-          >
-            <span className="shrink-0">{Icons.feedback}</span>
-            <span className="sidebar-link-label">Feedback From Users</span>
-          </Link>
+          <ToolLink to="/feedback" label="Feedback From Users" icon={Icons.feedback} id="feedback" />
 
           {isSuperadmin && (
-            <Link
+            <ToolLink
               to="/admin/users"
-              onMouseEnter={() => setHoveredNav('admin-users')}
-              className={`sidebar-link ${
-                navHighlighted('admin-users', isActive('/admin/users'))
-                  ? 'sidebar-link-active'
-                  : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="shrink-0">{Icons.users}</span>
-              <span className="sidebar-link-label">User Management</span>
-            </Link>
+              label="User Management"
+              icon={Icons.users}
+              id="admin-users"
+              bookmarkable={false}
+            />
           )}
           {canViewSessionAudit && (
-            <Link
+            <ToolLink
               to="/admin/live-sessions"
-              onMouseEnter={() => setHoveredNav('admin-live-sessions')}
-              className={`sidebar-link ${
-                navHighlighted('admin-live-sessions', isActive('/admin/live-sessions'))
-                  ? 'sidebar-link-active'
-                  : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="shrink-0">{Icons.liveSessions}</span>
-              <span className="sidebar-link-label">Live App Sessions</span>
-            </Link>
+              label="Live App Sessions"
+              icon={Icons.liveSessions}
+              id="admin-live-sessions"
+              bookmarkable={false}
+            />
           )}
           {canViewSessionAudit && (
-            <Link
+            <ToolLink
               to="/admin/audit-log"
-              onMouseEnter={() => setHoveredNav('admin-audit')}
-              className={`sidebar-link ${
-                navHighlighted('admin-audit', isActive('/admin/audit-log'))
-                  ? 'sidebar-link-active'
-                  : 'sidebar-link-inactive'
-              }`}
-            >
-              <span className="shrink-0">{Icons.audit}</span>
-              <span className="sidebar-link-label">Audit Log</span>
-            </Link>
+              label="Audit Log"
+              icon={Icons.audit}
+              id="admin-audit"
+              bookmarkable={false}
+            />
           )}
         </div>
           </>
