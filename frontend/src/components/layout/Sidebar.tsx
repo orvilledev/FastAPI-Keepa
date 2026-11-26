@@ -622,9 +622,9 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
                     onClick={(event) => event.stopPropagation()}
                     aria-label={`Reorder ${item.label}${isDivider ? ' divider' : ''}. Drag, or use the up and down arrow keys.`}
                     title="Drag to reorder"
-                    className="toolbox-drag-handle absolute -left-3 top-1/2 z-20 flex h-7 w-3.5 -translate-y-1/2 touch-none select-none items-center justify-center rounded"
+                    className="toolbox-drag-handle absolute -left-3 top-1/2 z-20 flex h-7 w-3.5 -translate-y-1/2 touch-none select-none items-center justify-center rounded opacity-40 transition-opacity group-hover/toolbox:opacity-70"
                   >
-                    {/* White grip; the green hand is the cursor only (see .toolbox-drag-handle). */}
+                    {/* Soft white grip; the green hand is the cursor only (see .toolbox-drag-handle). */}
                     <svg className="h-3.5 w-2.5" viewBox="0 0 10 16" aria-hidden="true">
                       <circle cx="2.5" cy="3" r="1.35" fill="#ffffff" stroke="#111111" strokeWidth="0.9" />
                       <circle cx="7.5" cy="3" r="1.35" fill="#ffffff" stroke="#111111" strokeWidth="0.9" />
