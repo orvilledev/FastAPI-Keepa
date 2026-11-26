@@ -78,7 +78,7 @@ function loadErrorMessage(err: unknown, kind: string): string {
 }
 
 export default function MySpacePage() {
-  const { userInfo, authUser, isSuperadmin } = useUser()
+  const { userInfo, authUser, isSuperadmin, isWarehouseOnly } = useUser()
   const accountEmail = userInfo?.email || authUser?.email
   const labelCenterAvailable = isLabelCenterAvailable(accountEmail)
   const shipmentManagerAvailable = canAccessShipmentManager(accountEmail)
@@ -99,7 +99,16 @@ export default function MySpacePage() {
     toggleBookmark,
     refreshBookmarks,
   } = useToolBookmarks()
-  const [tab, setTab] = useState<TabId>('bookmarks')
+  // Station accounts (Hello / Pack / Warehouse / Label) cannot use My Toolbox bookmarks.
+  const availableTabs = useMemo(
+    () => (isWarehouseOnly ? TABS.filter((item) => item.id !== 'bookmarks') : TABS),
+    [isWarehouseOnly],
+  )
+  const [tab, setTab] = useState<TabId>(() => (isWarehouseOnly ? 'links' : 'bookmarks'))
+
+  useEffect(() => {
+    if (isWarehouseOnly && tab === 'bookmarks') setTab('links')
+  }, [isWarehouseOnly, tab])
   const [links, setLinks] = useState<QuickAccessLink[]>([])
   const [groupedLinkCount, setGroupedLinkCount] = useState(0)
   const [notes, setNotes] = useState<MySpaceNote[]>([])
@@ -354,7 +363,9 @@ export default function MySpacePage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#c6e58a]">Personal</p>
             <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">My Space</h1>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/70">
-              Bookmark tools, save custom links, and keep notes — all private to you.
+              {isWarehouseOnly
+                ? 'Save custom links and keep notes — all private to you.'
+                : 'Bookmark tools, save custom links, and keep notes — all private to you.'}
             </p>
           </div>
         </div>
@@ -380,7 +391,7 @@ export default function MySpacePage() {
       )}
 
       <div className="mb-6 flex flex-wrap gap-2">
-        {TABS.map((item) => {
+        {availableTabs.map((item) => {
           const active = tab === item.id
           return (
             <button
@@ -409,10 +420,10 @@ export default function MySpacePage() {
       </div>
 
       <p className="mb-5 text-sm text-gray-500 dark:text-content-muted">
-        {TABS.find((t) => t.id === tab)?.hint}
+        {availableTabs.find((t) => t.id === tab)?.hint}
       </p>
 
-      {tab === 'bookmarks' && (
+      {tab === 'bookmarks' && !isWarehouseOnly && (
         <section className="space-y-8">
           {toolBookmarks.length > 0 && (
             <div>

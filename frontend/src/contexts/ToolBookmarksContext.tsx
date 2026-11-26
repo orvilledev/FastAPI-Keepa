@@ -65,13 +65,14 @@ interface ToolBookmarksContextValue {
 const ToolBookmarksContext = createContext<ToolBookmarksContextValue | undefined>(undefined)
 
 export function ToolBookmarksProvider({ children }: { children: ReactNode }) {
-  const { authUser } = useUser()
+  const { authUser, isWarehouseOnly } = useUser()
   const [toolboxEntries, setToolboxEntries] = useState<QuickAccessLink[]>([])
   const [loading, setLoading] = useState(false)
   const [busyPath, setBusyPath] = useState<string | null>(null)
 
   const refreshBookmarks = useCallback(async () => {
-    if (!authUser) {
+    // Hello / Pack / Warehouse / Label stations: no My Toolbox customization.
+    if (!authUser || isWarehouseOnly) {
       setToolboxEntries([])
       return
     }
@@ -84,7 +85,7 @@ export function ToolBookmarksProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [authUser])
+  }, [authUser, isWarehouseOnly])
 
   useEffect(() => {
     void refreshBookmarks()
@@ -111,9 +112,17 @@ export function ToolBookmarksProvider({ children }: { children: ReactNode }) {
     [toolboxEntries],
   )
 
+  const denyWarehouseToolbox = useCallback(() => {
+    throw new Error('My Toolbox is not available for this station account.')
+  }, [])
+
   const toggleBookmark = useCallback(
     async (tool: ToolBookmarkToggleInput) => {
       if (!authUser) return
+      if (isWarehouseOnly) {
+        denyWarehouseToolbox()
+        return
+      }
       const existing = bookmarks.find((link) => link.url === tool.path)
       setBusyPath(tool.path)
       try {
@@ -157,11 +166,15 @@ export function ToolBookmarksProvider({ children }: { children: ReactNode }) {
         setBusyPath(null)
       }
     },
-    [authUser, bookmarks, nextDisplayOrder],
+    [authUser, bookmarks, denyWarehouseToolbox, isWarehouseOnly, nextDisplayOrder],
   )
 
   const reorderToolbox = useCallback(
     async (orderedIds: string[]) => {
+      if (isWarehouseOnly) {
+        denyWarehouseToolbox()
+        return
+      }
       const byId = new Map(toolboxEntries.map((link) => [link.id, link]))
       const next = orderedIds
         .map((id) => byId.get(id))
@@ -183,13 +196,17 @@ export function ToolBookmarksProvider({ children }: { children: ReactNode }) {
         throw err
       }
     },
-    [toolboxEntries, refreshBookmarks],
+    [denyWarehouseToolbox, isWarehouseOnly, toolboxEntries, refreshBookmarks],
   )
 
   const addDivider = useCallback(
     async (label: string) => {
       const title = label.trim()
       if (!authUser || !title) return
+      if (isWarehouseOnly) {
+        denyWarehouseToolbox()
+        return
+      }
       const created = await quickAccessApi.createLink({
         title,
         url: newDividerUrl(),
@@ -198,7 +215,7 @@ export function ToolBookmarksProvider({ children }: { children: ReactNode }) {
       })
       setToolboxEntries((prev) => [...prev, created])
     },
-    [authUser, nextDisplayOrder],
+    [authUser, denyWarehouseToolbox, isWarehouseOnly, nextDisplayOrder],
   )
 
   const renameDivider = useCallback(
@@ -206,6 +223,10 @@ export function ToolBookmarksProvider({ children }: { children: ReactNode }) {
       const title = label.trim()
       const previous = toolboxEntries.find((link) => link.id === id)?.title
       if (!title || previous === undefined || previous === title) return
+      if (isWarehouseOnly) {
+        denyWarehouseToolbox()
+        return
+      }
       setToolboxEntries((prev) =>
         prev.map((link) => (link.id === id ? { ...link, title } : link)),
       )
@@ -218,11 +239,15 @@ export function ToolBookmarksProvider({ children }: { children: ReactNode }) {
         throw err
       }
     },
-    [toolboxEntries],
+    [denyWarehouseToolbox, isWarehouseOnly, toolboxEntries],
   )
 
   const removeDivider = useCallback(
     async (id: string) => {
+      if (isWarehouseOnly) {
+        denyWarehouseToolbox()
+        return
+      }
       setToolboxEntries((prev) => prev.filter((link) => link.id !== id))
       try {
         await quickAccessApi.deleteLink(id)
@@ -231,7 +256,7 @@ export function ToolBookmarksProvider({ children }: { children: ReactNode }) {
         throw err
       }
     },
-    [refreshBookmarks],
+    [denyWarehouseToolbox, isWarehouseOnly, refreshBookmarks],
   )
 
   const value = useMemo(

@@ -629,7 +629,7 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
     label,
     icon,
     id,
-    bookmarkable = true,
+    bookmarkable = !isWarehouseOnly,
     trailing,
     onKeyDown,
     title,
@@ -1014,9 +1014,12 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
               <ToolLink to="/my-space" label="My Space" icon={Icons.mySpace} id="my-space" bookmarkable={false} />
             </div>
 
-            <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
-
-            {myToolboxSection}
+            {!isWarehouseOnly && (
+              <>
+                <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
+                {myToolboxSection}
+              </>
+            )}
 
             <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 
@@ -1044,9 +1047,12 @@ export default function Sidebar({ mobileOpen = false, onNavigate, collapsed = fa
           <ToolLink to="/my-space" label="My Space" icon={Icons.mySpace} id="my-space" bookmarkable={false} />
         </div>
 
-        <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
-
-        {myToolboxSection}
+        {!isWarehouseOnly && (
+          <>
+            <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
+            {myToolboxSection}
+          </>
+        )}
 
         <div className="my-3 border-t border-gray-300/80" role="separator" aria-hidden="true" />
 

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from supabase import Client
 
 from app.database import get_supabase
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, is_mfa_exempt_user, is_warehouse_role
 from app.models.quick_access import (
     QuickAccessGroupCreate,
     QuickAccessGroupResponse,
@@ -23,10 +23,38 @@ from app.utils.user_display_name import resolve_user_display_name
 
 router = APIRouter()
 
+# Sidebar My Toolbox pins / dividers (keep in sync with frontend toolCatalog.ts).
+_TOOLBOX_ICONS = frozenset({"app-tool", "toolbox-divider"})
+
 _MIGRATION_HINT = (
     "Run backend/database/migrations/create_quick_access_groups.sql "
     "in the Supabase SQL Editor."
 )
+
+
+def _is_toolbox_icon(icon: Optional[str]) -> bool:
+    return (icon or "").strip().lower() in _TOOLBOX_ICONS
+
+
+def _deny_warehouse_toolbox(current_user: dict, db: Client) -> None:
+    """Block My Toolbox customization for Hello / Pack / Warehouse / Label stations."""
+    if is_mfa_exempt_user(current_user):
+        raise HTTPException(
+            status_code=403,
+            detail="My Toolbox is not available for this station account.",
+        )
+    profile = (
+        db.table("profiles")
+        .select("role")
+        .eq("id", current_user["id"])
+        .limit(1)
+        .execute()
+    )
+    if profile.data and is_warehouse_role(profile.data[0]):
+        raise HTTPException(
+            status_code=403,
+            detail="My Toolbox is not available for this station account.",
+        )
 
 
 def _now() -> str:
@@ -390,6 +418,8 @@ def create_quick_access_link(
 ):
     """Create a personal link, or contribute a link to a shared category."""
     link_dict = link_data.model_dump()
+    if _is_toolbox_icon(link_dict.get("icon")):
+        _deny_warehouse_toolbox(current_user, db)
     group_id = link_dict.get("group_id")
     can_edit = True
     if group_id:
@@ -442,6 +472,9 @@ def update_quick_access_link(
         for k, v in link_data.model_dump().items()
         if v is not None and k not in {"group_id", "place_in_group"}
     }
+    # Block My Toolbox pin/divider edits for station accounts (custom links stay allowed).
+    if _is_toolbox_icon(row.get("icon")) or _is_toolbox_icon(update_data.get("icon")):
+        _deny_warehouse_toolbox(current_user, db)
     if link_data.place_in_group:
         target = link_data.group_id
         if target:
@@ -485,6 +518,9 @@ def delete_quick_access_link(
             raise HTTPException(status_code=403, detail="You can only remove links you added.")
     elif row["user_id"] != user_id:
         raise HTTPException(status_code=404, detail="Quick access link not found")
+
+    if _is_toolbox_icon(row.get("icon")):
+        _deny_warehouse_toolbox(current_user, db)
 
     response = db.table("quick_access_links").delete().eq("id", str(link_id)).execute()
     if not response.data:
