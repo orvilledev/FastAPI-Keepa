@@ -157,31 +157,43 @@ export default function LabelStation2Catalog({
           </div>
         )}
 
-        <div className="app-table-scroll overflow-x-auto">
-          <table className="min-w-full text-sm">
+        {/* Fit all columns in the panel width — do not use app-table-scroll (that forces max-content + horizontal scroll). */}
+        <div className="w-full overflow-x-hidden">
+          <table className="w-full table-fixed text-sm">
+            <colgroup>
+              <col className={showActions ? 'w-[12%]' : 'w-[13%]'} />
+              <col className={showActions ? 'w-[12%]' : 'w-[13%]'} />
+              <col className={showActions ? 'w-[12%]' : 'w-[13%]'} />
+              <col className={showActions ? 'w-[18%]' : 'w-[22%]'} />
+              <col className="w-[8%]" />
+              <col className="w-[7%]" />
+              <col className={showActions ? 'w-[9%]' : 'w-[12%]'} />
+              <col className={showActions ? 'w-[10%]' : 'w-[12%]'} />
+              {showActions && <col className="w-[12%]" />}
+            </colgroup>
             <thead>
               <tr className="border-b border-gray-200 bg-white text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-4 py-3 whitespace-nowrap">UPC</th>
-                <th className="px-4 py-3 whitespace-nowrap">External ID</th>
-                <th className="px-4 py-3 whitespace-nowrap">FNSKU</th>
-                <th className="px-4 py-3 min-w-[10rem]">Description</th>
-                <th className="px-4 py-3 whitespace-nowrap">Vendor name</th>
-                <th className="px-4 py-3 whitespace-nowrap">Size</th>
-                <th className="px-4 py-3 whitespace-nowrap">Color</th>
-                <th className="px-4 py-3 whitespace-nowrap">MPN</th>
-                {showActions && <th className="px-4 py-3 whitespace-nowrap text-right">Actions</th>}
+                <th className="px-2 py-3 sm:px-3">UPC</th>
+                <th className="px-2 py-3 sm:px-3">External ID</th>
+                <th className="px-2 py-3 sm:px-3">FNSKU</th>
+                <th className="px-2 py-3 sm:px-3">Description</th>
+                <th className="px-2 py-3 sm:px-3">Vendor name</th>
+                <th className="px-2 py-3 sm:px-3">Size</th>
+                <th className="px-2 py-3 sm:px-3">Color</th>
+                <th className="px-2 py-3 sm:px-3">MPN</th>
+                {showActions && <th className="px-2 py-3 text-right sm:px-3">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={columnCount} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={columnCount} className="px-3 py-8 text-center text-gray-500">
                     Loading catalog…
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={columnCount} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={columnCount} className="px-3 py-8 text-center text-gray-500">
                     {error
                       ? 'Could not load the catalog.'
                       : search
@@ -192,36 +204,65 @@ export default function LabelStation2Catalog({
               ) : (
                 items.map((row) => (
                   <tr key={row.id} className="hover:bg-gray-50/80">
-                    <td className="px-4 py-2.5 font-mono text-xs text-gray-900 align-top">{row.upc}</td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-gray-800 align-top">
+                    <td
+                      className="px-2 py-2.5 align-top font-mono text-xs text-gray-900 break-all sm:px-3"
+                      title={row.upc}
+                    >
+                      {row.upc}
+                    </td>
+                    <td
+                      className="px-2 py-2.5 align-top font-mono text-xs text-gray-800 break-all sm:px-3"
+                      title={row.external_id || undefined}
+                    >
                       {row.external_id || '—'}
                     </td>
-                    <td className="px-4 py-2.5 font-mono text-xs font-medium align-top whitespace-nowrap">
+                    <td className="px-2 py-2.5 align-top font-mono text-xs font-medium sm:px-3">
                       {row.fnsku ? (
-                        <span className="text-gray-900">{row.fnsku}</span>
+                        <span className="break-all text-gray-900" title={row.fnsku}>
+                          {row.fnsku}
+                        </span>
                       ) : (
                         <span
-                          className="text-amber-700"
+                          className="leading-snug text-amber-700"
                           title="This UPC is not in the Label Station catalog, so its FNSKU cannot be scanned."
                         >
                           Not in Label Station
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-gray-800 align-top leading-snug">
+                    <td
+                      className="px-2 py-2.5 align-top leading-snug text-gray-800 break-words sm:px-3"
+                      title={row.description || undefined}
+                    >
                       {row.description || '—'}
                     </td>
-                    <td className="px-4 py-2.5 text-gray-800 align-top">{row.vendor_name || '—'}</td>
-                    <td className="px-4 py-2.5 text-gray-800 align-top whitespace-nowrap">
+                    <td
+                      className="px-2 py-2.5 align-top text-gray-800 break-words sm:px-3"
+                      title={row.vendor_name || undefined}
+                    >
+                      {row.vendor_name || '—'}
+                    </td>
+                    <td
+                      className="px-2 py-2.5 align-top text-gray-800 break-words sm:px-3"
+                      title={row.size || undefined}
+                    >
                       {row.size || '—'}
                     </td>
-                    <td className="px-4 py-2.5 text-gray-800 align-top">{row.color || '—'}</td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-gray-800 align-top">
+                    <td
+                      className="px-2 py-2.5 align-top text-gray-800 break-words sm:px-3"
+                      title={row.color || undefined}
+                    >
+                      {row.color || '—'}
+                    </td>
+                    <td
+                      className="px-2 py-2.5 align-top font-mono text-xs text-gray-800 break-all sm:px-3"
+                      title={row.mpn || undefined}
+                    >
                       {row.mpn || '—'}
                     </td>
                     {showActions && (
-                      <td className="px-4 py-2.5 align-top whitespace-nowrap w-28">
-                        <div className="flex items-center justify-between gap-6">
+                      <td className="px-2 py-2.5 align-top sm:px-3">
+                        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
                           {onSelectScan ? (
                             <button
                               type="button"
@@ -230,9 +271,7 @@ export default function LabelStation2Catalog({
                             >
                               Scan
                             </button>
-                          ) : (
-                            <span />
-                          )}
+                          ) : null}
                           {canManageCatalog && (
                             <button
                               type="button"
